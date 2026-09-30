@@ -6,13 +6,13 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '9.0.0';
-const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes'];
+export const APP_VERSION = '9.5.0';
+const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros'];
 
 export const S = {
   server: '', token: '', device: '', me: null, perms: { all: false, list: [], temp: [] }, cfg: null,
   t: Object.fromEntries(TABLES.map(k => [k, []])), meta: {}, hoy: CL.today(),
-  online: navigator.onLine, busy: 0, syncing: false, lastSync: null, syncError: '', queue: [], ready: false, errors: {}
+  online: navigator.onLine, busy: 0, syncing: false, lastSync: null, syncError: '', queue: [], ready: false, errors: {}, iaServidor: null, chatUnread: 0
 };
 const listeners = new Set();
 export function on(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -81,6 +81,8 @@ export async function loadLocal() {
   S.token = (await desktop.secretGet('token')) || localStorage.getItem('cd.token') || '';
   const me = await kv.get('me');
   if (me && S.token) { S.me = me.me; S.perms = me.perms; S.cfg = me.cfg; }
+  // Hay sesión guardada pero no la ficha local (caché borrada): se recupera sin pedir contraseña
+  if (S.token && !S.me && S.server) await pull(true);
   for (const k of TABLES) { const x = await idb('tables', 'readonly', s => s.get(k)).catch(() => null); if (x) { S.t[k] = x.rows || []; S.meta[k] = { rev: x.rev, hash: x.hash }; } }
   S.queue = (await kv.get('queue')) || [];
   S.lastSync = (await kv.get('lastSync')) || null;
@@ -94,6 +96,32 @@ export async function setServer(url) {
 async function saveToken(tok) {
   if (desktop.on) { await desktop.secretSet('token', tok); localStorage.removeItem('cd.token'); }
   else if (tok) localStorage.setItem('cd.token', tok); else localStorage.removeItem('cd.token');
+}
+// ---------- Contraseñas: se protegen EN el dispositivo (PBKDF2 150.000 vueltas) ----------
+// Al servidor solo viaja la huella: el login es instantáneo y la contraseña nunca sale de aquí.
+export async function passHash(pass) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(pass)), 'PBKDF2', false, ['deriveBits']);
+  const b = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('CelebriDisenos|pw|v1'), iterations: 150000 }, k, 256);
+  return Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
+}
+export function checkNewPassword(p, p2) {
+  p = String(p || '');
+  if (p.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (/^(\d)\1+$/.test(p) || /^(123456|password|contraseña|celebri)/i.test(p)) return 'Esa contraseña es demasiado fácil de adivinar.';
+  if (p2 !== undefined && p !== p2) return 'Las contraseñas no coinciden.';
+  return '';
+}
+export async function login(usuario, password) {
+  const ph = await passHash(password);
+  let r;
+  try { r = await api('auth.login', { usuario, ph, dispositivo: S.device }, { token: '' }); }
+  catch (e) {
+    // Usuario de la versión anterior: se envía una única vez para convertirla al formato rápido
+    if (e.code !== 'UPGRADE') throw e;
+    r = await api('auth.login', { usuario, ph, password, dispositivo: S.device }, { token: '' });
+  }
+  await afterLogin(r, password);
+  return r;
 }
 export async function afterLogin(res, password) {
   S.token = res.token; S.me = res.user; S.perms = res.perms;
@@ -115,7 +143,7 @@ async function pbkdf(pass, salt) {
 }
 async function setLocalUnlock(pass) { const salt = uid('s'); await kv.set('unlock', { salt, h: await pbkdf(pass, salt), u: S.me && S.me.id }); }
 export async function unlock(pass) {
-  try { await api('auth.desbloquear', { password: pass }); await setLocalUnlock(pass); return true; }
+  try { await api('auth.desbloquear', { ph: await passHash(pass) }); await setLocalUnlock(pass); return true; }
   catch (e) {
     if (e.code !== 'NET') throw e;
     const u = await kv.get('unlock');
@@ -137,7 +165,8 @@ export function pull(full) {
       const known = {};
       if (!full) TABLES.forEach(k => { if (S.meta[k]) known[k] = S.meta[k]; });
       const r = await api('sync.pull', { tablas: known, completo: !!full });
-      S.me = r.yo; S.perms = r.permisos; S.cfg = r.config; S.hoy = r.hoy;
+      S.me = r.yo; S.perms = r.permisos; S.cfg = r.config; S.hoy = r.hoy; S.iaServidor = r.iaServidor || null;
+      try { const lg = (r.config && r.config.empresa && r.config.empresa.logo) || ''; if (lg !== (localStorage.getItem('cd.logo') || '')) { if (lg) localStorage.setItem('cd.logo', lg); else localStorage.removeItem('cd.logo'); } } catch (e) { }
       S.errors = {};
       for (const k of Object.keys(r.tablas)) {
         const x = r.tablas[k];

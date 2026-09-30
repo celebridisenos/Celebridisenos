@@ -8,7 +8,7 @@ export const RULES = {
   foto: { ext: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], max: 25 * 1048576, accept: 'image/*,.heic,.heif', t: 'Foto', s: 'Foto', i: 'camera', hint: 'JPG, PNG, WEBP o HEIC · máx. 25 MB' },
   video: { ext: ['mp4', 'mov', 'webm', 'm4v', '3gp', 'avi', 'mkv'], max: 500 * 1048576, accept: 'video/*', t: 'Vídeo', s: 'Vídeo', i: 'video', hint: 'MP4, MOV o WEBM · máx. 500 MB' },
   stl: { ext: ['stl', '3mf', 'obj', 'step', 'stp', 'gcode', 'bgcode'], max: 300 * 1048576, accept: '.stl,.3mf,.obj,.step,.stp,.gcode,.bgcode', t: 'Archivo 3D (STL)', s: '3D', i: 'cube', hint: 'STL, 3MF, OBJ, STEP o GCODE · máx. 300 MB' },
-  doc: { ext: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'odt', 'ods', 'ppt', 'pptx', 'zip', 'svg', 'ai', 'psd'], max: 100 * 1048576, accept: '', t: 'Documento', s: 'Doc', i: 'file', hint: 'PDF, Word, Excel, ZIP… · máx. 100 MB' }
+  doc: { ext: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'md', 'markdown', 'json', 'html', 'htm', 'odt', 'ods', 'ppt', 'pptx', 'zip', 'svg', 'ai', 'psd'], max: 100 * 1048576, accept: '', t: 'Documento', s: 'Doc', i: 'file', hint: 'PDF, Word, Excel, ZIP… · máx. 100 MB' }
 };
 export const extOf = n => String(n || '').split('.').pop().toLowerCase();
 export function kindOf(name) { const e = extOf(name); for (const k in RULES) if (RULES[k].ext.includes(e)) return k; return ''; }
@@ -59,7 +59,7 @@ export async function uploadFile(file, meta, onProgress) {
   const tipo = kindOf(file.name);
   const huella = meta.huella !== undefined ? meta.huella : await sha256(file);
   const miniatura = meta.miniatura !== undefined ? meta.miniatura : await makeThumb(file, tipo);
-  const st = await api('archivos.iniciar', { nombre: file.name, tamano: file.size, mime: file.type || '', huella, miniatura, tipo, entidad: meta.entidad || '', entidadId: meta.entidadId || '', rutaLocal: meta.rutaLocal || '' });
+  const st = await api('archivos.iniciar', { nombre: file.name, tamano: file.size, mime: file.type || '', huella, miniatura, tipo, entidad: meta.entidad || '', entidadId: meta.entidadId || '', rutaLocal: meta.rutaLocal || '', visibilidad: meta.visibilidad || '' });
   if (st.duplicado) { upsertLocal('archivos', st.archivo); emit(); return Object.assign({ aviso: st.mensaje }, st.archivo); }
   let off = 0, last = null;
   while (off < file.size) {

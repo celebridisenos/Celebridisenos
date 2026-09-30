@@ -65,8 +65,20 @@ export function render(el, params) {
   return { params: applyParams, update: () => { drawLinks(); drawCal(); } };
 }
 
+// Abre la APLICACIÓN instalada si está configurada en este PC; la web solo como alternativa
 async function openNet(a) {
-  if (desktop.on) { try { await desktop.openUrl(a.web, a.app || ''); return; } catch (e) { } }
+  if (desktop.on) {
+    let apps = {};
+    try { apps = JSON.parse((await desktop.getConfig('apps')) || '{}'); } catch (e) { }
+    const key = Object.keys(apps).find(k => k.toLowerCase() === String(a.red).toLowerCase());
+    if (key) {
+      try { await desktop.appsAbrir(apps[key]); return; }
+      catch (e) {
+        toast((e.message || 'No se encuentra la aplicación.') + ' Mientras tanto se abre la web.', 'warn', 9000);
+      }
+    }
+    try { await desktop.openUrl(a.web, a.app || ''); return; } catch (e) { }
+  }
   window.open(a.web, '_blank', 'noopener');
 }
 async function openFolder() {
@@ -106,8 +118,9 @@ export function socialForm(r) {
     const b = ev.target.closest('button'); b.disabled = true; b.textContent = 'Consultando…';
     const prod = f.productoId.value ? byId('productos', f.productoId.value) : null;
     try {
-      const res = await api('ia.chat', { rapido: true, mensajes: [{ role: 'user', content: `Escribe el texto para una publicación de ${f.red.value} de CelebriDiseños${prod ? ' sobre el producto "' + prod.nombre + '" (' + prod.id + '); consulta sus datos con buscar_productos' : ''}${f.titulo.value ? '. Tema: ' + f.titulo.value : ''}. Tono cercano y alegre, en español, con 2-3 emojis, máximo 5 líneas, y al final una línea con 6-10 hashtags. Devuelve SOLO el texto.` }] });
-      const txt = res.texto.trim();
+      const { write } = await import('../ai/engine.js');
+      const datos = prod ? '\nDatos reales del producto: ' + JSON.stringify({ nombre: prod.nombre, categoria: prod.categoria, color: prod.color, tamano: prod.tamano, material: prod.material, descripcion: prod.descripcion, precio: prod.precio }) : '';
+      const txt = (await write(`Escribe el texto para una publicación de ${f.red.value}${f.titulo.value ? ' sobre: ' + f.titulo.value : ''}. Tono cercano y alegre, con 2-3 emojis, máximo 5 líneas, y al final una línea con 6-10 hashtags. Devuelve SOLO el texto.${datos}`, { onToken: t => { f.texto.value = t; } })).trim();
       const tags = (txt.match(/(^|\n)((#[\wáéíóúñü]+\s*){3,})\s*$/i) || [])[2];
       f.texto.value = tags ? txt.replace(tags, '').trim() : txt;
       if (tags && !f.hashtags.value) f.hashtags.value = tags.trim();

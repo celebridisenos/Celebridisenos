@@ -2,8 +2,15 @@
 import { h, mount, icon, btn, modal, eur, fdate, ago, avatar, sw, pill } from '../ui.js';
 import { S, can, dash, unreadCount, byId, timing } from '../store.js';
 import { go } from '../app.js';
+import { gameCard, checkLevelUp, loadFrases, fraseDelDia, game } from '../game.js';
+
+const CL = window.CL;
 
 const MODS = [
+  { k: 'motivacion', t: 'Motivación del día' },
+  { k: 'alertas', t: 'Alertas inteligentes' },
+  { k: 'inteligencia', t: 'Centro de inteligencia (ventas, beneficios, tendencias)', p: 'informes.ver' },
+  { k: 'juego', t: 'Tu nivel, insignias y ranking' },
   { k: 'produccion', t: 'Producción', p: 'pedidos.ver' },
   { k: 'hoy', t: 'Agenda de hoy' },
   { k: 'ventas', t: 'Ventas', p: 'informes.ver' },
@@ -11,7 +18,11 @@ const MODS = [
   { k: 'noticias', t: 'Últimas noticias', p: 'noticias.ver' }
 ];
 function prefs() {
-  try { const p = JSON.parse(localStorage.getItem('cd.dash.' + S.me.id) || 'null'); if (p && Array.isArray(p.order)) return p; } catch (e) { }
+  try {
+    const p = JSON.parse(localStorage.getItem('cd.dash.' + S.me.id) || 'null');
+    // módulos nuevos de versiones posteriores: se añaden al principio sin perder tu orden
+    if (p && Array.isArray(p.order)) { MODS.forEach((m, i) => { if (!p.order.includes(m.k)) p.order.splice(Math.min(i, p.order.length), 0, m.k); }); return p; }
+  } catch (e) { }
   return { order: MODS.map(m => m.k), hidden: [] };
 }
 function savePrefs(p) { localStorage.setItem('cd.dash.' + S.me.id, JSON.stringify(p)); }
@@ -29,18 +40,23 @@ function greet() {
   return (hr < 6 ? 'Buenas noches' : hr < 14 ? 'Buenos días' : hr < 21 ? 'Buenas tardes' : 'Buenas noches') + ', ' + S.me.nombre.split(' ')[0];
 }
 
+let frasesLoaded = false, fraseOff = 0;
 function draw(root) {
   const d = dash();
   const hoyTxt = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
   const p = prefs();
-  const mods = p.order.filter(k => !p.hidden.includes(k)).map(k => MODS.find(m => m.k === k)).filter(m => m && (!m.p || can(m.p)));
+  const gameOn = !(S.cfg.gamificacion && S.cfg.gamificacion.activa === false);
+  const mods = p.order.filter(k => !p.hidden.includes(k)).map(k => MODS.find(m => m.k === k)).filter(m => m && (!m.p || can(m.p)) && (gameOn || !['juego', 'motivacion'].includes(m.k)));
+  if (gameOn) setTimeout(checkLevelUp, 1200);
+  if (!frasesLoaded) { frasesLoaded = true; loadFrases().then(() => draw(root)); }
   mount(root,
     h('div.page-head', h('div', h('h1', greet()), h('div.muted', hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1))), h('div.right.row',
       can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),
+    mods.some(m => m.k === 'motivacion') ? MOD_FNS.motivacion(d) : null,
     h('div.grid', { style: { gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', alignItems: 'start' }, class: 'home-grid' },
-      attention(d),
-      h('div.col', { style: { gap: 'var(--gap)' } }, mods.map(m => MOD_FNS[m.k](d)).filter(Boolean)))
+      h('div.col', { style: { gap: 'var(--gap)' } }, attention(d), ...mods.filter(m => ['inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)),
+      h('div.col', { style: { gap: 'var(--gap)' } }, mods.filter(m => !['motivacion', 'inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)))
   );
   if (window.innerWidth <= 860) root.querySelector('.home-grid').style.gridTemplateColumns = '1fr';
 }
@@ -83,6 +99,44 @@ function attention(d) {
 }
 
 const MOD_FNS = {
+  motivacion() {
+    const g = game(), me = g.usuarios[S.me.id] || {};
+    const txt = h('p.frase', fraseDelDia(fraseOff));
+    const extra = [];
+    if (me.pedidosMes) extra.push('Llevas ' + me.pedidosMes + ' pedido' + (me.pedidosMes > 1 ? 's' : '') + ' este mes.');
+    if (me.tareasMes) extra.push(me.tareasMes + ' tarea' + (me.tareasMes > 1 ? 's' : '') + ' completada' + (me.tareasMes > 1 ? 's' : '') + '.');
+    if (me.racha > 1) extra.push('🔥 ' + me.racha + ' días seguidos con actividad.');
+    return h('section.card.motiv', h('div.row', h('span.big', '✨'), h('div.grow', txt, extra.length ? h('div.tiny.muted', extra.join(' ')) : null),
+      h('button.btn.ghost.icon.sm', { title: 'Otra frase', onclick: () => { fraseOff++; txt.textContent = fraseDelDia(fraseOff); } }, '↻')));
+  },
+  juego() { return gameCard(); },
+  alertas() {
+    const all = CL.alerts(S.t, S.cfg, S.hoy, { biblioteca: S.t.biblioteca || [] });
+    const allowed = a => ({ precio: can('productos.costes'), margen: can('productos.costes'), ventas: can('informes.ver'), cliente: can('clientes.ver'), pedido: can('pedidos.ver'), anomalia: can('pedidos.ver'), stock: can('productos.ver'), documento: true })[a.tipo] !== false;
+    const list = all.filter(allowed);
+    if (!list.length) return h('section.card', h('div.card-h', h('h3', '🛎️ Alertas')), h('p.small.ok-t', '✅ Sin alertas: precios, márgenes, stock, clientes y ventas en orden.'));
+    const ic = { bad: '🔴', warn: '🟠', info: '🔵' };
+    return h('section.card', h('div.card-h', h('h3', '🛎️ Alertas (' + list.length + ')'), can('config.editar') ? h('button.btn.ghost.sm', { onclick: () => go('config/alertas') }, 'Ajustar') : null),
+      h('div.list', list.slice(0, 8).map(a => h('div.item', { onclick: () => go(a.enlace) }, h('span', ic[a.nivel] || '•'), h('span.grow.small', a.texto)))),
+      list.length > 8 ? h('p.tiny.muted', 'y ' + (list.length - 8) + ' más…') : null);
+  },
+  inteligencia() {
+    const bi = CL.bi(S.t, S.cfg, S.hoy, 'mes');
+    const costs = can('productos.costes');
+    const a = bi.actual, b = bi.anterior;
+    const delta = (x, y) => y ? Math.round((x - y) / y * 100) : null;
+    const dv = delta(a.ventas, b.ventas);
+    const maxW = Math.max(1, ...bi.tendencia.map(t => t.ventas));
+    const k = (l, v, sub, cls) => h('div.fact', h('div.l', l), h('div.v' + (cls ? '.' + cls : ''), v), sub ? h('div.tiny.muted', sub) : null);
+    return h('section.card', h('div.card-h', h('h3', '📈 Centro de inteligencia'), h('button.btn.ghost.sm', { onclick: () => go('informes') }, 'Informes')),
+      h('div.grid.g3', k('Ventas del mes', eur(a.ventas), dv === null ? a.pedidos + ' pedidos' : (dv >= 0 ? '▲ ' : '▼ ') + Math.abs(dv) + ' % vs. mes anterior'),
+        costs ? k('Beneficio', eur(a.beneficio), a.margen === null ? 'sin costes' : 'margen ' + Math.round(a.margen * 100) + ' %', a.beneficio < 0 ? 'bad-t' : '') : k('Ticket medio', eur(a.ticketMedio)),
+        k('Clientes', bi.clientesActivos + ' activos', bi.clientesInactivos + ' inactivos'), k('Pedidos pendientes', String(bi.pendientes))),
+      h('div.spark', { title: 'Ventas por semana (12 semanas)' }, bi.tendencia.map(t => h('i', { title: t.semana + ': ' + eur(t.ventas), style: { height: Math.max(3, t.ventas / maxW * 44) + 'px' } }))),
+      h('div.tiny.muted', 'Ventas de las últimas 12 semanas'),
+      bi.conclusiones.length ? h('ul.small.concl', bi.conclusiones.filter(c => costs || !/margen|beneficio|rentable|coste/i.test(c)).slice(0, 4).map(c => h('li', c))) : null,
+      costs && bi.rentables.length ? h('div.tiny', h('b', 'Más rentables: '), bi.rentables.slice(0, 3).map(p => p.producto + ' (' + eur(p.beneficio) + ')').join(' · ')) : null);
+  },
   produccion(d) {
     const st = [['Por empezar', d.pedidos.fabricar, 'fabricar', 'var(--brand)'], ['Fabricando', d.pedidos.fabricando, 'fabricando', '#f97316'], ['Por empaquetar', d.pedidos.empaquetar, 'empaquetar', '#0ea5e9'], ['Por enviar', d.pedidos.enviar, 'enviar', '#14b8a6']];
     return h('section.card', h('div.card-h', h('h3', 'Producción'), h('button.btn.ghost.sm', { onclick: () => go('pedidos') }, 'Ver pedidos')),

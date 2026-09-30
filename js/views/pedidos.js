@@ -340,12 +340,37 @@ export function orderForm(o, duplicate) {
     const p = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value));
     if (p && !f.precio.value) { const calc = S.t.calculadora.find(c => c.nombre === p.nombre); const pr = p.precio || (calc && calc.precioVenta) || ''; if (pr) f.precio.value = pr; }
   };
+  // ---- Asistente de precio: coste, beneficio, margen y descuento con los datos reales ----
+  const assist = h('div.price-assist');
+  const updAssist = () => {
+    if (!f.producto.value.trim()) { mount(assist, null); return; }
+    const p = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value));
+    const a = CL.orderAssist({ id: o.id, producto: f.producto.value, productoId: p ? p.id : '', cliente: f.cliente.value, cantidad: f.cantidad.value, precio: f.precio.value }, S.t, S.cfg, S.hoy);
+    const costs = can('productos.costes');
+    const pc = x => x === null || x === undefined ? '—' : Math.round(x * 100) + ' %';
+    const box = (l, v, cls) => h('div.pa-k' + (cls ? '.' + cls : ''), h('span.l', l), h('span.v', v));
+    mount(assist, h('div.pa-head', '🤖 Asistente de precio', a.fuente ? h('span.tiny.muted', ' · ' + a.fuente) : null),
+      h('div.pa-grid',
+        box('Precio sugerido', a.sugerido ? eur(a.sugerido) : '—', 'brand'),
+        costs ? box('Coste', a.coste !== null ? eur(a.coste) : 'sin datos') : null,
+        costs ? box('Beneficio' + (a.cantidad > 1 ? ' (' + a.cantidad + ' uds.)' : ''), a.beneficio !== undefined ? eur(a.beneficio) : '—', a.beneficio < 0 ? 'bad' : '') : null,
+        costs ? box('Margen', pc(a.margen), a.margen !== undefined && a.margen < ((S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15) ? 'warn' : '') : null,
+        box('Descuento recomendado', a.descuentoRecomendado ? pc(a.descuentoRecomendado) + (a.sugerido ? ' → ' + eur(CL.sale.discount(a.sugerido, a.descuentoRecomendado)) : '') : 'ninguno')),
+      a.anteriorCliente ? h('div.tiny.muted', 'Este cliente pagó ' + eur(a.anteriorCliente) + ' la última vez.') : a.anterior ? h('div.tiny.muted', 'Último precio de venta de este producto: ' + eur(a.anterior) + ' (' + a.ventasPrevias + ' ventas).') : null,
+      costs && a.descuentoMax !== null && a.descuentoMax !== undefined ? h('div.tiny.muted', 'Descuento máximo sin bajar del margen mínimo: ' + pc(a.descuentoMax) + (a.minimo ? ' · precio mínimo ' + eur(a.minimo) : '')) : null,
+      a.notas.map(n => h('div.tiny', '💡 ' + n)),
+      costs ? a.avisos.map(n => h('div.tiny.warn-t', n)) : null,
+      h('div.row.wrap', a.sugerido && Number(f.precio.value) !== a.sugerido ? btn('Usar ' + eur(a.sugerido), () => { f.precio.value = a.sugerido; updAssist(); }, { cls: 'sm' }) : null,
+        a.descuentoRecomendado && a.sugerido ? btn('Aplicar descuento (' + pc(a.descuentoRecomendado) + ')', () => { f.precio.value = CL.sale.discount(a.sugerido, a.descuentoRecomendado); updAssist(); }, { cls: 'sm ghost' }) : null,
+        h('span.tiny.muted', 'El precio se puede cambiar a mano.')));
+  };
   [f.fecha, f.plazoDias].forEach(x => x.addEventListener('input', updLimit));
-  f.cliente.addEventListener('input', updClient); f.producto.addEventListener('change', updPrice);
+  f.cliente.addEventListener('input', () => { updClient(); updAssist(); }); f.producto.addEventListener('change', () => { updPrice(); updAssist(); });
+  [f.producto, f.cantidad, f.precio].forEach(x => x.addEventListener('input', updAssist));
   updLimit(); updClient();
   const msg = h('p.bad-t');
   const body = h('div.col', dlC, dlP,
-    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio),
+    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full', assist),
       field('Canal / tienda', f.canal), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
     h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Color', f.color), h('div'), field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
     h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Método de envío', f.envio), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada))),
@@ -374,5 +399,6 @@ export function orderForm(o, duplicate) {
       }
     } catch (e) { msg.textContent = e.message; handleError(e, 'pedidos'); } finally { b.disabled = false; }
   }, { cls: 'primary' })], { size: 'wide' });
+  updAssist();
   setTimeout(() => { if (!m.el.contains(document.activeElement) || document.activeElement === f.cliente && !f.cliente.value) (o.cliente ? f.producto : f.cliente).focus(); }, 50);
 }

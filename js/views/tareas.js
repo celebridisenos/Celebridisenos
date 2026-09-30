@@ -15,7 +15,7 @@ const VIEWS = [
   { k: 'canceladas', t: 'Canceladas', f: t => t.estado === 'Cancelada' },
   { k: 'todas', t: 'Todas', f: () => true }
 ];
-function doneToday(t) { return t.estado === 'Completada' && String(t.completado).slice(0, 10) === S.hoy; }
+function doneToday(t) { return t.estado === 'Completada' && window.CL.day(t.completado) === S.hoy; }
 
 export function render(el, params) {
   const st = { v: 'mias', q: '', resp: '', cat: '' };

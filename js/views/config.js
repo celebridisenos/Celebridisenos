@@ -1,6 +1,9 @@
 // ================= Configuración: todo lo ajustable, sin tocar código =================
 import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText } from '../ui.js';
-import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue } from '../store.js';
+import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHash, checkNewPassword } from '../store.js';
+import { rolePicker } from '../roles.js';
+import { iaPanel } from '../ai/models.js';
+import { biblioteca as bibliotecaView, memoria as memoriaView } from './ia.js';
 import { go, handleError, requestAccess, applyTheme, roleName, lockBox, start } from '../app.js';
 import { desktop } from '../desktop.js';
 import { connectTelegram } from './notificaciones.js';
@@ -9,25 +12,36 @@ import { accionTxt, resumenDetalle } from './pedidos.js';
 import { qrSvg } from '../qr.js';
 
 const SECTIONS = [
+  { g: 'Personal' },
   { k: 'perfil', t: 'Mi perfil', i: 'user' },
   { k: 'dispositivo', t: 'Este dispositivo', i: 'phone' },
   { k: 'movil', t: 'Instalar en el móvil', i: 'phone' },
-  { k: 'empresa', t: 'Empresa', i: 'store', p: 'config.editar' },
+  { g: 'Empresa y equipo' },
+  { k: 'empresa', t: 'Empresa y logo', i: 'store', p: 'config.editar' },
   { k: 'usuarios', t: 'Usuarios', i: 'users', p: 'usuarios.admin' },
   { k: 'roles', t: 'Roles y permisos', i: 'shield', p: 'usuarios.admin' },
   { k: 'solicitudes', t: 'Solicitudes de acceso', i: 'key', p: 'usuarios.admin' },
+  { g: 'Negocio' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'config.editar' },
   { k: 'clientes', t: 'Clientes', i: 'star', p: 'config.editar' },
   { k: 'precios', t: 'Precios y comisiones', i: 'euro', p: 'config.editar' },
-  { k: 'ia', t: 'Asistente IA', i: 'sparkles', p: 'config.editar' },
-  { k: 'avisos', t: 'Notificaciones', i: 'bell', p: 'config.editar' },
-  { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'config.editar' },
+  { k: 'alertas', t: 'Alertas inteligentes', i: 'alert', p: 'config.editar' },
+  { k: 'juego', t: 'Motivación y juego', i: 'star', p: 'config.editar' },
+  { g: 'Inteligencia artificial' },
+  { k: 'ia', t: 'IA local y modelos', i: 'sparkles' },
+  { k: 'biblioteca', t: 'Biblioteca y documentos', i: 'file' },
+  { k: 'memoria', t: 'Memoria de la IA', i: 'history' },
+  { g: 'Conexiones' },
+  { k: 'avisos', t: 'Telegram y avisos', i: 'bell', p: 'config.editar' },
+  { k: 'redes', t: 'Redes (TikTok, Instagram…)', i: 'calendar' },
+  { k: 'github', t: 'GitHub y actualizaciones', i: 'download' },
+  { g: 'Sistema' },
   { k: 'seguridad', t: 'Seguridad', i: 'lock', p: 'config.editar' },
   { k: 'copias', t: 'Copias de seguridad', i: 'archive', p: 'copias.admin' },
   { k: 'importar', t: 'Importar del programa anterior', i: 'upload', p: 'config.editar' },
   { k: 'papelera', t: 'Papelera', i: 'trash' },
   { k: 'auditoria', t: 'Auditoría', i: 'history' },
-  { k: 'conexiones', t: 'Comprobar conexiones', i: 'refresh', p: 'config.ver' }
+  { k: 'conexiones', t: 'Estado del sistema', i: 'refresh', p: 'config.ver' }
 ];
 
 export function render(el, params) {
@@ -38,16 +52,16 @@ export function render(el, params) {
   el.append(h('div.page-head', h('h1', 'Configuración')), mobileSel, h('div.grid', { style: { gridTemplateColumns: window.innerWidth <= 860 ? '1fr' : '240px minmax(0, 1fr)' } }, h('div.hide-m', nav), body));
   const draw = () => {
     const vis = SECTIONS.filter(s => !s.p || can(s.p) || ['solicitudes', 'usuarios', 'roles'].includes(s.k) && false);
-    mount(nav, SECTIONS.map(s => h('div.item' + (sec === s.k ? '.sel' : ''), { onclick: () => go('config/' + s.k) }, icon(s.i, 's'), h('span.grow', s.t), s.p && !can(s.p) ? icon('lock', 's') : null,
+    mount(nav, SECTIONS.map(s => s.g ? h('div.grp-t', s.g) : h('div.item' + (sec === s.k ? '.sel' : ''), { onclick: () => go('config/' + s.k) }, icon(s.i, 's'), h('span.grow', s.t), s.p && !can(s.p) ? icon('lock', 's') : null,
       s.k === 'solicitudes' && can('usuarios.admin') && S.t.solicitudes.filter(x => x.estado === 'pendiente').length ? h('span.pill.bad', String(S.t.solicitudes.filter(x => x.estado === 'pendiente').length)) : null)));
-    mount(mobileSel, SECTIONS.map(s => h('option', { value: s.k, selected: s.k === sec }, s.t + (s.p && !can(s.p) ? ' 🔒' : ''))));
-    const s = SECTIONS.find(x => x.k === sec) || SECTIONS[0];
+    mount(mobileSel, SECTIONS.map(s => s.g ? h('optgroup', { label: s.g }) : h('option', { value: s.k, selected: s.k === sec }, s.t + (s.p && !can(s.p) ? ' 🔒' : ''))));
+    const s = SECTIONS.find(x => x.k === sec) || SECTIONS[1];
     if (s.p && !can(s.p)) return mount(body, lockBox(s.p, 'configuración: ' + s.t));
     mount(body, h('h2', s.t));
     try { const r = SEC[s.k](body); if (r && r.then) r.catch(e => body.appendChild(h('p.bad-t', e.message))); } catch (e) { body.appendChild(h('p.bad-t', e.message)); }
   };
   draw();
-  return { params: p => { sec = (p && p[0]) || 'perfil'; draw(); }, update: () => { if (['usuarios', 'solicitudes', 'papelera'].includes(sec)) return; const nb = nav; mount(nb, SECTIONS.map(s => h('div.item' + (sec === s.k ? '.sel' : ''), { onclick: () => go('config/' + s.k) }, icon(s.i, 's'), h('span.grow', s.t), s.p && !can(s.p) ? icon('lock', 's') : null))); } };
+  return { params: p => { sec = (p && p[0]) || 'perfil'; draw(); }, update: () => { } };
 }
 
 // Guarda una sección de configuración del servidor
@@ -70,7 +84,7 @@ const SEC = {
       card('Apariencia', tema, h('p.small.muted', 'Cada persona elige su tema; se aplica en todos sus dispositivos.')),
       card(null, foto.el),
       card('Cambiar contraseña', h('div.form', field('Contraseña actual', p1), h('div'), field('Nueva contraseña', p2, 'Mínimo 6 caracteres'), field('Repite la nueva', p3)),
-        btn('Cambiar contraseña', async () => { if (p2.value !== p3.value) return toast('Las contraseñas nuevas no coinciden', 'bad'); try { await api('usuarios.editar', { id: u.id, password: p2.value, passwordActual: p1.value }); p1.value = p2.value = p3.value = ''; toast('Contraseña cambiada', 'ok'); } catch (e) { toast(e.message, 'bad'); } })),
+        btn('Cambiar contraseña', async () => { const er = checkNewPassword(p2.value, p3.value); if (er) return toast(er, 'bad'); try { await api('usuarios.editar', { id: u.id, ph: await passHash(p2.value), phActual: await passHash(p1.value), passwordActual: p1.value }); p1.value = p2.value = p3.value = ''; toast('Contraseña cambiada', 'ok'); } catch (e) { toast(e.message, 'bad'); } })),
       card('Avisos en el móvil (Telegram)', S.cfg.secretos.telegram ? (u.telegram ? h('div.row', h('span.ok-t', '✅ Conectado'), btn('Desconectar', async () => { await api('telegram.desconectar', {}); u.telegram = false; emit(); toast('Telegram desconectado'); }, { cls: 'sm' })) : btn('Conectar mi Telegram', connectTelegram, { cls: 'primary' })) : h('p.small.muted', 'Una administradora tiene que configurar primero el bot de Telegram.')),
       card('Sesiones abiertas', sessions),
       btn('Cerrar sesión en este dispositivo', async () => { await logout(); start(); }, { icon: 'logout', cls: 'danger' }));
@@ -88,8 +102,8 @@ const SEC = {
     b.append(card('Carpeta de productos de este ordenador', h('p.small.muted', 'Donde están las carpetas de productos y STL. En el segundo ordenador, pon la ruta de red a la carpeta del primero (p. ej. \\\\NOMBRE-PC\\CELEBRIDISENOS).'), field('Ruta', root),
       h('div.row', btn('Elegir…', async () => { const r = await desktop.pickFolder().catch(e => toast(e.message, 'bad')); if (r && r.path) root.value = r.path; }, { icon: 'folder' }), btn('Guardar', async () => { try { await desktop.list(root.value.trim()); await desktop.setConfig('productRoot', root.value.trim()); toast('Carpeta guardada', 'ok'); } catch (e) { toast('No puedo abrir esa carpeta: ' + e.message, 'bad'); } }, { cls: 'primary' }))),
       card('Copias locales en este PC', h('p.small.muted', 'Cada día se guarda aquí una copia de todos los datos (por si algún día fallara Google). Carpeta: ' + (info.backupDir || '—')), h('div.row', btn('Hacer copia ahora', async () => { try { await desktop.backup(await api('copias.exportar', {})); toast('Copia local guardada', 'ok'); } catch (e) { handleError(e); } }, { icon: 'archive' }), info.backupDir ? btn('Abrir carpeta', () => desktop.open(info.backupDir), { icon: 'folder' }) : null)),
-      card('Actualizaciones', upd, (() => { const repo = inp({ placeholder: 'usuario/celebridisenos' }); desktop.getConfig('updateRepo').then(v => { repo.value = v || ''; }); return h('details.more', h('summary', 'Dónde buscar las versiones nuevas'), h('div.in.col', field('Repositorio de GitHub (usuario/repositorio)', repo, 'Lo explica la guía (Parte D). Solo hay que ponerlo una vez en cada PC.'), btn('Guardar', async () => { await desktop.setConfig('updateRepo', repo.value.trim()); toast('Guardado', 'ok'); }, { cls: 'sm' }))); })()),
-      card('IA local (opcional)', h('div', h('p.small.muted', 'Estado: ' + (info.ai ? info.ai : 'no instalada')), h('p.small', 'La IA local funciona sin Internet y sin enviar datos fuera, pero es menos lista que Claude. Solo tiene sentido si el ordenador tiene 16 GB de RAM o más. La guía explica cómo instalarla (Ollama).'))));
+      card('Actualizaciones', upd, (() => { const repo = inp({ placeholder: 'usuario/celebridisenos' }); desktop.getConfig('updateRepo').then(v => { repo.value = v || ''; }); return h('details.more', h('summary', 'Dónde buscar las versiones nuevas'), h('div.in.col', field('Repositorio de GitHub (usuario/repositorio)', repo, 'Lo explica la guía (Parte D). Solo hay que ponerlo una vez en cada PC.'), btn('Guardar', async () => { await desktop.setConfig('updateRepo', repo.value.trim()); toast('Guardado', 'ok'); }, { cls: 'sm' }))); })())
+      , card('IA local', h('p.small', 'El motor de IA, los modelos y el hardware de este PC se gestionan en ', h('a', { href: '#/config/ia' }, 'Configuración → IA local y modelos'), '.')));
     mount(upd, h('p.small.muted', 'Versión instalada: ' + (info.version || '?') + ' · comprobando…'));
     desktop.update().then(r => mount(upd, r.nueva ? h('div.col', h('p', '🎉 Nueva versión disponible: ' + r.version), r.notas ? h('p.small.muted', r.notas) : null, btn('Actualizar ahora', async ev => { ev.target.closest('button').disabled = true; try { await desktop.applyUpdate(); toast('Actualizando… el programa se reiniciará', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary', icon: 'download' })) : h('p.small', '✅ Tienes la última versión (' + (info.version || '') + ').')))
       .catch(e => mount(upd, h('p.small.muted', 'No se pudo comprobar: ' + e.message)));
@@ -114,8 +128,14 @@ const SEC = {
   empresa(b) {
     const e = S.cfg.empresa;
     const f = { nombre: inp({ value: e.nombre }), email: inp({ value: e.email, type: 'email' }), telefono: inp({ value: e.telefono }), web: inp({ value: e.web }) };
-    b.append(card(null, h('div.form', field('Nombre', f.nombre), field('Email', f.email), field('Teléfono', f.telefono), field('Web / tienda', f.web)),
-      btn('Guardar', () => saveCfg('empresa', Object.assign({}, e, Object.fromEntries(Object.keys(f).map(k => [k, f[k].value.trim()])))), { cls: 'primary' })));
+    let logo = e.logo || '';
+    const prev = h('div.logo-prev');
+    const drawLogo = () => mount(prev, h('img', { src: logo || 'icons/icon-192.png', alt: 'Logo' }), h('div.tiny.muted', logo ? 'Tu logo' : 'Logo provisional (sin logo propio)'));
+    drawLogo();
+    const fi = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/svg+xml', style: { display: 'none' }, onchange: async () => { const file = fi.files[0]; fi.value = ''; if (!file) return; try { logo = await logoDataUrl(file); drawLogo(); toast('Logo listo: pulsa Guardar', 'ok'); } catch (err) { toast(err.message, 'bad'); } } });
+    b.append(card('Logo de la empresa', h('div.row.wrap', prev, h('div.col', h('p.small.muted', 'Se usa en la barra lateral, en la pantalla de entrada y en los informes. PNG con fondo transparente o SVG, cuadrado. Se ajusta solo al tamaño.'), h('div.row.wrap', btn(logo ? 'Cambiar logo' : 'Subir logo', () => fi.click(), { icon: 'upload' }), btn('Quitar logo', () => { logo = ''; drawLogo(); }, { cls: 'ghost' }), fi)))),
+      card('Datos', h('div.form', field('Nombre', f.nombre), field('Email', f.email), field('Teléfono', f.telefono), field('Web / tienda', f.web))),
+      btn('Guardar', async () => { if (await saveCfg('empresa', Object.assign({}, e, Object.fromEntries(Object.keys(f).map(k => [k, f[k].value.trim()])), { logo }))) { try { localStorage.setItem('cd.logo', logo); } catch (x) { } } }, { cls: 'primary' }));
   },
   async usuarios(b) {
     const box = h('div');
@@ -128,16 +148,18 @@ const SEC = {
       const isNew = !u;
       u = u || { rol: 'trabajador', activo: true };
       const roles = S._roles || [];
-      const f = { nombre: inp({ value: u.nombre || '' }), usuario: inp({ value: u.usuario || '', disabled: !isNew, autocapitalize: 'off' }), rol: sel(roles.map(r => ({ v: r.id, t: r.nombre })), u.rol), password: inp({ type: 'password', placeholder: isNew ? 'Contraseña inicial' : 'Déjalo vacío para no cambiarla', autocomplete: 'new-password' }) };
+      const f = { nombre: inp({ value: u.nombre || '' }), usuario: inp({ value: u.usuario || '', disabled: !isNew, autocapitalize: 'off' }), rol: rolePicker(roles, u.rol), password: inp({ type: 'password', placeholder: isNew ? 'Contraseña inicial' : 'Déjalo vacío para no cambiarla', autocomplete: 'new-password' }) };
+      if (isNew) f.nombre.addEventListener('input', () => { f.usuario.value = f.nombre.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.'); });
       let activo = u.activo !== false;
-      modal(isNew ? 'Nuevo usuario' : u.nombre, h('div.col', h('div.form', field('Nombre', f.nombre), field('Usuario', f.usuario), field('Rol', f.rol), field(isNew ? 'Contraseña' : 'Nueva contraseña', f.password)), !isNew ? h('label.check', sw(activo, v => { activo = v; }), 'Usuario activo (si lo desactivas, no podrá entrar y se cierran sus sesiones)') : null),
+      modal(isNew ? 'Nuevo usuario' : u.nombre, h('div.col', h('div.form', field('Nombre', f.nombre), field('Usuario', f.usuario), field(isNew ? 'Contraseña' : 'Nueva contraseña', f.password, isNew ? 'Mínimo 6 caracteres. Podrá cambiarla desde su perfil.' : ''), field('Rol', f.rol, 'Qué puede ver y hacer. Los permisos de cada rol se ajustan en Roles y permisos.', 'full')), !isNew ? h('label.check', sw(activo, v => { activo = v; }), 'Usuario activo (si lo desactivas, no podrá entrar y se cierran sus sesiones)') : null),
         close => [!isNew ? btn('Cerrar sus sesiones', async () => { await api('usuarios.cerrarSesiones', { userId: u.id }); toast('Sesiones cerradas', 'ok'); }, { cls: 'ghost' }) : null, h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
           try {
-            if (isNew) await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, password: f.password.value });
-            else { const d = { id: u.id, nombre: f.nombre.value.trim(), rol: f.rol.value, activo }; if (f.password.value) d.password = f.password.value; await api('usuarios.editar', d); }
+            if (f.password.value || isNew) { const er = checkNewPassword(f.password.value); if (er) return toast(er, 'bad'); }
+            if (isNew) await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ph: await passHash(f.password.value) });
+            else { const d = { id: u.id, nombre: f.nombre.value.trim(), rol: f.rol.value, activo }; if (f.password.value) d.ph = await passHash(f.password.value); await api('usuarios.editar', d); }
             close(); toast('Usuario guardado', 'ok'); drawU(); pull();
           } catch (e) { toast(e.message, 'bad'); }
-        }, { cls: 'primary' })]);
+        }, { cls: 'primary' })], { size: 'wide' });
     }
     S._roles = (await api('roles.lista', {})).roles;
     await drawU();
@@ -188,7 +210,7 @@ const SEC = {
       h('p.small.muted', 'Se aplica al momento en la app y en la columna "Cliente habitual" del Sheet.')),
       card('Otras etiquetas', h('div.form', field('"Alto valor" a partir de (€)', f.alto), field('"Hace tiempo que no compra" tras (días)', f.inactivo), field('Avisar con incidencias ≥', f.incid))),
       card('Campos personalizados de la ficha', h('p.small.muted', 'Añade datos propios, como "Color favorito" o "Cliente VIP". Aparecen en "Información adicional".'), extra,
-        btn('Añadir campo', async () => { const n = await promptDlg('Nuevo campo', 'Nombre del campo', '', { placeholder: 'Color favorito' }); if (!n) return; const t = await new Promise(res => { const s = sel([{ v: 'texto', t: 'Texto' }, { v: 'si_no', t: 'Sí / No' }, { v: 'numero', t: 'Número' }, { v: 'fecha', t: 'Fecha' }], 'texto'); modal('Tipo de "' + n + '"', field('Tipo', s), cl => [btn('Añadir', () => { cl(); res(s.value); }, { cls: 'primary' })], { size: 'narrow', onclose: () => res(null) }); }); if (!t) return; c.camposExtra.push({ id: n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_'), nombre: n, tipo: t }); drawExtra(); }, { icon: 'plus', cls: 'sm' })),
+        btn('Añadir campo', async () => { const n = await promptDlg('Nuevo campo', 'Nombre del campo', '', { placeholder: 'Color favorito' }); if (!n) return; const t = await new Promise(res => { const s = sel([{ v: 'texto', t: 'Texto' }, { v: 'si_no', t: 'Sí / No' }, { v: 'numero', t: 'Número' }, { v: 'fecha', t: 'Fecha' }], 'texto'); modal('Tipo de "' + n + '"', field('Tipo', s), cl => [btn('Añadir', () => { res(s.value); cl(); }, { cls: 'primary' })], { size: 'narrow', onclose: () => res(null) }); }); if (!t) return; c.camposExtra.push({ id: n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_'), nombre: n, tipo: t }); drawExtra(); }, { icon: 'plus', cls: 'sm' })),
       btn('Guardar', () => saveCfg('clientes', Object.assign(c, { frecuente: { minPedidos: Number(f.minPedidos.value) || 0, minGasto: Number(f.minGasto.value) || 0, modo: f.modo.value, ventanaDias: Number(f.ventana.value) || 0 }, altoValor: { minGasto: Number(f.alto.value) || 0 }, inactivoDias: Number(f.inactivo.value) || 0, incidenciasAviso: Number(f.incid.value) || 2 })), { cls: 'primary' }));
   },
   precios(b) {
@@ -204,18 +226,59 @@ const SEC = {
       btn('Guardar', () => { const v = Object.assign({}, c, { desdeSheet: fromSheet }); L.forEach(x => { const n = Number(f[x[0]].value); v[x[0]] = x[2] === '%' ? n / 100 : n; }); saveCfg('precios', v); }, { cls: 'primary' }));
   },
   ia(b) {
+    const panel = h('div');
+    b.append(h('p.small.muted', 'Vuestra IA funciona en vuestros ordenadores con modelos abiertos (Ollama). No necesita ninguna clave ni cuenta externa y los datos no salen de casa.'), panel);
+    iaPanel(panel);
+    if (!can('config.editar')) return;
     const c = JSON.parse(JSON.stringify(S.cfg.ia));
-    const key = inp({ type: 'password', placeholder: S.cfg.secretos.ia ? '•••••••••• (guardada)' : 'sk-ant-…', autocomplete: 'off' });
-    const model = sel([{ v: 'claude-sonnet-5-5', t: 'Claude Sonnet (equilibrado, recomendado)' }, { v: 'claude-opus-5-5', t: 'Claude Opus (el más listo, más caro)' }, { v: 'claude-haiku-4-5-20251001', t: 'Claude Haiku (rápido y barato)' }], c.modelo);
-    let semanal = !!c.informeSemanal;
-    const res = h('p.small');
-    b.append(card('Clave de Claude', h('p.small.muted', 'Se guarda cifrada en vuestro servidor de Google. Nunca se muestra ni aparece en los registros. Se consigue en console.anthropic.com > API Keys.'),
-      h('p', S.cfg.secretos.ia ? '✅ Hay una clave guardada.' : '⚠️ No hay clave: el asistente no funcionará.'), field(S.cfg.secretos.ia ? 'Sustituir clave' : 'Clave', key), res,
-      h('div.row', btn('Guardar y probar', async () => { if (!key.value.trim()) return; res.textContent = 'Probando…'; try { const r = await api('config.secreto', { nombre: 'ia', valor: key.value.trim() }); key.value = ''; res.textContent = r.error ? '⚠️ Guardada, pero la prueba falló: ' + r.error : '✅ ' + r.prueba; await pull(); } catch (e) { res.textContent = e.message; } }, { cls: 'primary' }),
-        S.cfg.secretos.ia ? btn('Quitar clave', async () => { if (await confirmDlg('Quitar clave', 'El asistente dejará de funcionar hasta que pongas otra.', 'Quitar', true)) { await api('config.secreto', { nombre: 'ia', valor: '' }); await pull(); toast('Clave quitada'); } }, { cls: 'danger' }) : null)),
-      card('Modelo y automatismos', field('Modelo', model), h('label.check', sw(semanal, v => { semanal = v; }), 'Enviar un informe semanal los lunes (redactado por la IA solo con datos reales)'),
-        h('p.small.muted', 'Las revisiones automáticas cada 15 minutos (plazos, urgencias, tareas, redes) no gastan IA: son reglas fijas y fiables.'),
-        btn('Guardar', () => saveCfg('ia', Object.assign(c, { modelo: model.value, informeSemanal: semanal })), { cls: 'primary' })));
+    let semanal = c.informeSemanal !== false, equipo = c.servidorEquipo !== false;
+    const perfil = sel([{ v: 'auto', t: 'Automático según el hardware (recomendado)' }, { v: 'rapido', t: 'Rápido' }, { v: 'equilibrado', t: 'Equilibrado' }, { v: 'inteligente', t: 'Inteligente' }], c.perfil || 'auto');
+    const temp = sel([{ v: 0.1, t: 'Muy precisa (0,1)' }, { v: 0.3, t: 'Equilibrada (0,3)' }, { v: 0.6, t: 'Más creativa para textos (0,6)' }], c.temperatura || 0.3);
+    b.append(card('Ajustes para todo el equipo', h('div.form', field('Modelo por defecto en los PC', perfil, 'Cada PC puede elegir el suyo arriba.'), field('Estilo de las respuestas', temp)),
+      h('label.check', sw(equipo, v => { equipo = v; }), 'Permitir que un PC con IA responda a los móviles y a los ordenadores sin IA'),
+      h('label.check', sw(semanal, v => { semanal = v; }), 'Enviar un informe semanal los lunes (solo con datos reales)'),
+      h('p.small.muted', 'Las revisiones automáticas cada 15 minutos (plazos, stock, precios bajo coste, tareas, redes) funcionan siempre, aunque no haya IA: son reglas fijas y fiables.'),
+      btn('Guardar', () => saveCfg('ia', Object.assign(c, { perfil: perfil.value, temperatura: Number(temp.value), servidorEquipo: equipo, informeSemanal: semanal })), { cls: 'primary' })));
+  },
+  biblioteca(b) { const box = h('div'); b.append(box); bibliotecaView(box); },
+  memoria(b) { const box = h('div'); b.append(box); memoriaView(box); },
+  alertas(b) {
+    const c = JSON.parse(JSON.stringify(S.cfg.alertas || {}));
+    const f = { margen: inp({ type: 'number', min: 0, max: 90, value: Math.round((c.margenMinimo ?? 0.15) * 100) }), inactivo: inp({ type: 'number', min: 1, value: c.clienteInactivoDias || 120 }), caida: inp({ type: 'number', min: 5, max: 90, value: Math.round((c.caidaVentas ?? 0.25) * 100) }) };
+    let stock = c.stockBajo !== false;
+    b.append(card(null, h('p.small.muted', 'Las alertas aparecen en el Inicio y, las importantes, como aviso. Nunca cambian datos: solo avisan.'),
+      h('div.form', field('Avisar si el margen baja del (%)', f.margen), field('Cliente inactivo tras (días sin comprar)', f.inactivo), field('Avisar si las ventas caen más de un (%)', f.caida, 'Últimos 30 días frente a los 30 anteriores')),
+      h('label.check', sw(stock, v => { stock = v; }), 'Avisar de stock bajo (según la hoja Stock del Sheet)'),
+      h('p.small', 'También se avisa de: precios por debajo del coste, pedidos vencidos o sin revisar, números de pedido repetidos, documentos pendientes de revisar y otras anomalías.'),
+      btn('Guardar', () => saveCfg('alertas', { margenMinimo: (Number(f.margen.value) || 0) / 100, clienteInactivoDias: Number(f.inactivo.value) || 120, caidaVentas: (Number(f.caida.value) || 25) / 100, stockBajo: stock }), { cls: 'primary' })));
+  },
+  juego(b) {
+    const c = JSON.parse(JSON.stringify(S.cfg.gamificacion || { puntos: {}, recompensas: [] }));
+    let on = c.activa !== false;
+    const P = c.puntos || {};
+    const L = [['pedido', 'Por pedido creado'], ['porCadaDiezEuros', 'Por cada 10 € vendidos'], ['tarea', 'Por tarea completada'], ['tareaUrgente', 'Por tarea urgente completada'], ['publicacion', 'Por publicación en redes'], ['noticia', 'Por noticia publicada'], ['comentario', 'Por comentario'], ['diaActivo', 'Por día con actividad']];
+    const f = {}; L.forEach(x => { f[x[0]] = inp({ type: 'number', min: 0, value: P[x[0]] ?? '' }); });
+    const rec = area({ value: (c.recompensas || []).join('\n'), rows: 8 });
+    const objP = inp({ type: 'number', min: 0, value: c.objetivoMensualPedidos || 0 }), objV = inp({ type: 'number', min: 0, value: c.objetivoMensualVentas || 0 });
+    b.append(card(null, h('label.check', sw(on, v => { on = v; }), 'Mostrar motivación, niveles, insignias y ranking en el Inicio'), h('p.small.muted', 'Solo es un juego: sin dinero real. Los puntos se calculan con la actividad real (pedidos, tareas, redes…), así que no se pueden inflar.')),
+      card('Puntos (XP)', h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' } }, L.map(x => field(x[1], f[x[0]])))),
+      card('Objetivos del equipo este mes', h('div.form', field('Pedidos', objP, '0 = sin objetivo'), field('Ventas (€)', objV, '0 = sin objetivo'))),
+      card('Recompensas virtuales al subir de nivel (una por línea)', rec, h('p.small.muted', 'Al subir de nivel sale una ruleta y toca una de estas. Ponedlas a vuestro gusto.')),
+      btn('Guardar', () => saveCfg('gamificacion', { activa: on, puntos: Object.fromEntries(L.map(x => [x[0], Number(f[x[0]].value) || 0])), recompensas: lines(rec.value), objetivoMensualPedidos: Number(objP.value) || 0, objetivoMensualVentas: Number(objV.value) || 0 }), { cls: 'primary' }));
+  },
+  async github(b) {
+    b.append(card('Cómo llegan las actualizaciones', h('p.small', 'Las versiones nuevas del programa se publican en vuestro repositorio de GitHub (Releases). Cada PC comprueba si hay una nueva, la descarga, verifica su huella SHA-256 y se reinicia. Si algo falla, sigue funcionando la versión anterior.'), h('p.small', 'La app del móvil se actualiza sola desde GitHub Pages al abrirla.')));
+    if (!desktop.on) return b.append(h('p.small.muted', 'La comprobación de versiones del programa se hace desde el PC.'));
+    const repo = inp({ placeholder: 'usuario/celebridisenos', value: (await desktop.getConfig('updateRepo')) || '' });
+    const upd = h('div');
+    const info = await desktop.info().catch(() => ({}));
+    b.append(card('Repositorio', field('Repositorio de GitHub (usuario/repositorio)', repo, 'Solo hay que ponerlo una vez en cada PC.'), btn('Guardar', async () => { await desktop.setConfig('updateRepo', repo.value.trim()); toast('Guardado', 'ok'); check(); }, { cls: 'primary sm' })), card('Versión', upd));
+    function check() {
+      mount(upd, h('p.small.muted', 'Versión instalada: ' + (info.version || '?') + ' · comprobando…'));
+      desktop.update().then(r => mount(upd, r.nueva ? h('div.col', h('p', '🎉 Nueva versión disponible: ' + r.version), r.notas ? h('p.small.muted', r.notas) : null, btn('Actualizar ahora', async ev => { ev.target.closest('button').disabled = true; try { await desktop.applyUpdate(); toast('Actualizando… el programa se reiniciará', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary', icon: 'download' })) : h('p.small', '✅ Tienes la última versión (' + (info.version || '') + ').')))
+        .catch(e => mount(upd, h('p.small.muted', 'No se pudo comprobar: ' + e.message)));
+    }
+    check();
   },
   avisos(b) {
     const c = JSON.parse(JSON.stringify(S.cfg.notificaciones));
@@ -227,31 +290,36 @@ const SEC = {
       card('Qué avisos llegan a Telegram', tog('telegram', 'Enviar avisos a Telegram'), tog('pedidosUrgentes', 'Pedidos vencidos o a punto de vencer'), tog('tareas', 'Tareas asignadas y vencidas'), tog('seguridad', 'Alertas de seguridad y solicitudes de acceso'), h('p.small.muted', 'Dentro de la app (campana) aparecen siempre todos.'),
         btn('Guardar', () => saveCfg('notificaciones', c), { cls: 'primary' })));
   },
-  redes(b) {
+  async redes(b) {
     const c = JSON.parse(JSON.stringify(S.cfg.redes));
+    if (desktop.on) b.append(await appsCard(c.accesos.map(a => a.red)));
+    else b.append(card('En el móvil', h('p.small', 'En el móvil, los enlaces de Instagram, TikTok o WhatsApp abren directamente su app si está instalada.')));
+    if (!can('config.editar')) return;
     const goal = inp({ type: 'number', min: 0, value: c.objetivoSemanal });
     const list = h('div.col');
-    const drawL = () => mount(list, c.accesos.map((a, i) => h('div.row.wrap', inp({ value: a.red, style: { width: '140px' }, oninput: e => { a.red = e.target.value; } }), h('div.grow', inp({ value: a.web, placeholder: 'https://…', oninput: e => { a.web = e.target.value; } })), inp({ value: a.app || '', placeholder: 'app (opcional)', title: 'Nombre del protocolo de la app de escritorio: whatsapp, tiktok…', style: { width: '140px' }, oninput: e => { a.app = e.target.value; } }), btn('', () => { c.accesos.splice(i, 1); drawL(); }, { cls: 'ghost icon sm', icon: 'x' }))));
+    const drawL = () => mount(list, c.accesos.map((a, i) => h('div.row.wrap', inp({ value: a.red, style: { width: '140px' }, oninput: e => { a.red = e.target.value; } }), h('div.grow', inp({ value: a.web, placeholder: 'https://…', oninput: e => { a.web = e.target.value; } })), btn('', () => { c.accesos.splice(i, 1); drawL(); }, { cls: 'ghost icon sm', icon: 'x' }))));
     drawL();
-    b.append(card('Accesos rápidos', h('p.small.muted', 'En el ordenador, si la app de escritorio está instalada (WhatsApp, TikTok…) se abre la app; si no, la web. No se guardan contraseñas de redes: cada una se abre con la sesión de vuestro navegador.'), list, btn('Añadir acceso', () => { c.accesos.push({ red: '', web: 'https://', app: '' }); drawL(); }, { icon: 'plus', cls: 'sm' })),
+    b.append(card('Redes del equipo (enlaces web)', h('p.small.muted', 'Se usan como alternativa cuando un PC no tiene la aplicación instalada, y en el móvil. No se guardan contraseñas de redes.'), list, btn('Añadir red', () => { c.accesos.push({ red: '', web: 'https://', app: '' }); drawL(); }, { icon: 'plus', cls: 'sm' })),
       card('Objetivo', field('Publicaciones por semana', goal)), btn('Guardar', () => saveCfg('redes', Object.assign(c, { objetivoSemanal: Number(goal.value) || 0, accesos: c.accesos.filter(a => a.red && a.web) })), { cls: 'primary' }));
   },
   seguridad(b) {
     const c = JSON.parse(JSON.stringify(S.cfg.seguridad));
-    const f = { bloqueoMin: inp({ type: 'number', min: 1, value: c.bloqueoMin }), sesionDias: inp({ type: 'number', min: 1, value: c.sesionDias }), intentos: inp({ type: 'number', min: 3, value: c.intentos }), bloqueoIntentosMin: inp({ type: 'number', min: 1, value: c.bloqueoIntentosMin }), solicitudCaducaHoras: inp({ type: 'number', min: 1, value: c.solicitudCaducaHoras }) };
-    b.append(card(null, h('div.form', field('Bloquear pantalla tras (minutos sin usar)', f.bloqueoMin), field('La sesión caduca a los (días)', f.sesionDias), field('Intentos de contraseña antes de bloquear', f.intentos), field('Bloqueo tras fallos (minutos)', f.bloqueoIntentosMin), field('Las solicitudes de acceso caducan a las (horas)', f.solicitudCaducaHoras))),
-      card('Cómo se protegen los datos', h('ul.small', { style: { margin: 0, paddingLeft: '18px' } }, h('li', 'Contraseñas guardadas como huella PBKDF2 (nunca en texto).'), h('li', 'Claves de IA y Telegram en el almacén protegido de Google; en el PC la sesión se cifra con Windows.'), h('li', 'Cada acción queda en la auditoría: quién, cuándo y qué cambió.'), h('li', 'Los permisos se comprueban en el servidor: aunque alguien manipule la app, no puede saltárselos.'))),
+    const f = { bloqueoMin: inp({ type: 'number', min: 0, value: c.bloqueoMin || 0 }), sesionDias: inp({ type: 'number', min: 1, value: c.sesionDias }), intentos: inp({ type: 'number', min: 3, value: c.intentos }), bloqueoIntentosMin: inp({ type: 'number', min: 1, value: c.bloqueoIntentosMin }), solicitudCaducaHoras: inp({ type: 'number', min: 1, value: c.solicitudCaducaHoras }) };
+    b.append(card(null, h('div.form', field('Bloquear pantalla tras (minutos sin usar)', f.bloqueoMin, '0 = no bloquear (entrar directamente al abrir la app)'), field('La sesión caduca a los (días)', f.sesionDias), field('Intentos de contraseña antes de bloquear', f.intentos), field('Bloqueo tras fallos (minutos)', f.bloqueoIntentosMin), field('Las solicitudes de acceso caducan a las (horas)', f.solicitudCaducaHoras))),
+      card('Cómo se protegen los datos', h('ul.small', { style: { margin: 0, paddingLeft: '18px' } }, h('li', 'Contraseñas: se protegen en tu dispositivo (PBKDF2, 150.000 vueltas) y el servidor solo guarda una huella con sal propia. La contraseña nunca viaja ni se guarda.'), h('li', 'La sesión se recuerda en cada dispositivo (en el PC, cifrada con Windows) y se renueva sola al usarla. Se puede cerrar a distancia desde Mi perfil o Usuarios.'), h('li', 'El token de Telegram está en el almacén protegido de Google. No hay claves de IA: la IA es local.'), h('li', 'Documentos y memoria privados: el servidor solo entrega a cada persona lo que puede ver; la IA tampoco puede saltárselo.'), h('li', 'Cada acción queda en la auditoría: quién, cuándo y qué cambió.'), h('li', 'Los permisos se comprueban en el servidor: aunque alguien manipule la app, no puede saltárselos.'))),
       btn('Guardar', () => saveCfg('seguridad', Object.fromEntries(Object.keys(f).map(k => [k, Number(f[k].value)]))), { cls: 'primary' }));
   },
   async copias(b) {
     const box = h('div');
     b.append(card(null, h('p.small', 'Cada noche se hace una copia automática de todo (se guardan las de los últimos 30 días y una por semana de los últimos 3 meses). Antes de operaciones delicadas también se hace una copia. Todas están en vuestro Google Drive, carpeta "Copias de seguridad".'),
       h('div.row.wrap', btn('Hacer copia ahora', async ev => { ev.target.closest('button').disabled = true; try { await api('copias.crear', { motivo: 'manual' }, { timeout: 180000 }); toast('Copia creada', 'ok'); drawB(); } catch (e) { toast(e.message, 'bad'); } finally { ev.target.closest('button').disabled = false; } }, { cls: 'primary', icon: 'archive' }),
-        can('datos.exportar') ? btn('Descargar todo (JSON)', async () => { try { const d = await api('copias.exportar', {}, { timeout: 180000 }); const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' })), download: 'celebridisenos_' + S.hoy + '.json' }); document.body.appendChild(a); a.click(); a.remove(); } catch (e) { toast(e.message, 'bad'); } }, { icon: 'download' }) : null)), box);
+        can('datos.exportar') ? btn('Exportación completa (JSON)', async ev => { ev.target.closest('button').disabled = true; try { const d = await api('copias.exportar', { textos: true }, { timeout: 280000 }); const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' })), download: 'celebridisenos_completo_' + S.hoy + '.json' }); document.body.appendChild(a); a.click(); a.remove(); toast('Exportado: usuarios, pedidos, clientes, productos, tareas, biblioteca, memoria y configuración', 'ok'); } catch (e) { toast(e.message, 'bad'); } finally { ev.target.closest('button').disabled = false; } }, { icon: 'download' }) : null,
+        desktop.on && can('datos.exportar') ? btn('Copia en este PC ahora', async () => { try { await desktop.backup(await api('copias.exportar', { textos: true }, { timeout: 280000 })); toast('Copia local guardada', 'ok'); } catch (e) { handleError(e); } }, { icon: 'archive' }) : null),
+      h('p.tiny.muted', 'Nunca se pierde: usuarios, pedidos, clientes, productos, documentos y su texto, configuración, biblioteca y memoria. Los PC guardan además una copia local diaria.')), box);
     const drawB = async () => {
       mount(box, h('p.muted', 'Cargando copias…'));
       const list = await api('copias.lista', {});
-      mount(box, card('Copias disponibles (' + list.length + ')', list.length ? h('div.list', list.map(x => h('div.item', { style: { cursor: 'default' } }, icon('archive', 's'), h('div.grow', h('div.bold', x.fecha), h('div.tiny.muted', (x.manual ? 'Manual' : 'Automática') + ' · ' + x.motivo + ' · ' + Object.keys(x.archivos).join(' + '))), btn('Restaurar…', () => restore(x), { cls: 'sm' })))) : h('p.muted', 'Aún no hay copias.')));
+      mount(box, card('Copias disponibles (' + list.length + ')', list.length ? h('div.list', list.map(x => h('div.item', { style: { cursor: 'default' } }, icon('archive', 's'), h('div.grow', h('div.bold', x.fecha), h('div.tiny.muted', (x.manual ? 'Manual' : 'Automática') + ' · ' + x.motivo + ' · ' + Object.keys(x.archivos).join(' + '))), btn('Comprobar', async ev => { const bt = ev.target.closest('button'); bt.disabled = true; try { const r = await api('copias.verificar', { grupo: x.grupo }, { timeout: 120000 }); modal(r.ok ? '✅ Copia correcta' : '⚠️ Problemas en la copia', h('div.col', r.libros.map(l => h('div', h('b', l.libro === 'negocio' ? 'Sheet de negocio' : 'Sistema'), h('p.small', (l.hojas || 0) + ' hojas · ' + Object.keys(l.filas || {}).map(k => k + ': ' + l.filas[k] + ' filas').join(' · ')), (l.problemas || []).length ? h('ul.small.bad-t', l.problemas.map(p => h('li', p))) : h('p.small.ok-t', 'Se abre bien y tiene todas las hojas clave.'))))); } catch (e) { toast(e.message, 'bad'); } bt.disabled = false; }, { cls: 'sm ghost' }), btn('Restaurar…', () => restore(x), { cls: 'sm' })))) : h('p.muted', 'Aún no hay copias.')));
     };
     function restore(x) {
       const libro = sel([{ v: 'negocio', t: 'Solo el Sheet de negocio (pedidos, clientes, productos…)' }, { v: 'sistema', t: 'Solo el sistema (tareas, noticias, usuarios…)' }, { v: 'ambos', t: 'Todo' }], 'negocio');
@@ -284,6 +352,7 @@ const SEC = {
     await drawA();
   },
   async conexiones(b) {
+    b.append(h('p', btn('Abrir el Centro de diagnóstico completo', () => go('estado'), { cls: 'primary', icon: 'shield' })));
     const box = h('div.checklist', h('p.muted', 'Comprobando…'));
     b.append(card(null, box), can('config.editar') ? card('Reparar el Google Sheet', h('p.small.muted', 'Vuelve a añadir columnas que falten, corrige fórmulas y listas desplegables. Hace una copia antes. Úsalo si alguien ha cambiado la estructura del Sheet.'), btn('Reparar Sheet', async ev => { ev.target.closest('button').disabled = true; try { const r = await api('sys.repararSheet', {}, { timeout: 300000 }); modal('Sheet revisado', h('ul', r.map(x => h('li', x)))); } catch (e) { toast(e.message, 'bad'); } finally { ev.target.closest('button').disabled = false; } }, { icon: 'refresh' })) : null);
     const r = await api('sys.comprobar', {}, { timeout: 120000 });
@@ -328,3 +397,54 @@ SEC.importar = async function (b) {
   }
 };
 function lines(t) { return t.split('\n').map(x => x.trim()).filter(Boolean); }
+
+// Logo: se reduce en el propio dispositivo para que pese poco (se guarda en la configuración)
+async function logoDataUrl(file) {
+  if (!/^image\//.test(file.type)) throw new Error('Elige una imagen (PNG, JPG, WEBP o SVG).');
+  if (file.size > 8 * 1048576) throw new Error('La imagen pesa demasiado (máximo 8 MB).');
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('No se pudo leer la imagen.')); i.src = url; });
+    for (const size of [256, 192, 128, 96]) {
+      const k = Math.min(1, size / Math.max(img.naturalWidth || size, img.naturalHeight || size));
+      const w = Math.max(1, Math.round((img.naturalWidth || size) * k)), hh = Math.max(1, Math.round((img.naturalHeight || size) * k));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+      cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+      for (const type of ['image/webp', 'image/png']) { const d = cv.toDataURL(type, 0.92); if (d.startsWith('data:' + type) && d.length < 38000) return d; }
+    }
+    throw new Error('El logo tiene demasiado detalle. Prueba con una versión más sencilla.');
+  } finally { URL.revokeObjectURL(url); }
+}
+
+// Apps instaladas en ESTE PC para abrir cada red (TikTok, Instagram…)
+export async function appsCard(redes) {
+  const box = h('div.col');
+  const names = [...new Set(['Instagram', 'TikTok'].concat(redes || []))].filter(Boolean);
+  let apps = {};
+  try { apps = JSON.parse((await desktop.getConfig('apps')) || '{}'); } catch (e) { apps = {}; }
+  const save = async () => { await desktop.setConfig('apps', JSON.stringify(apps)); };
+  let found = [];
+  async function draw() {
+    const rows = [];
+    for (const red of names) {
+      const t = apps[red];
+      let ok = null;
+      if (t) { try { ok = (await desktop.appsComprobar(t)).existe; } catch (e) { ok = null; } }
+      const det = found.filter(f => f.red.toLowerCase() === red.toLowerCase());
+      const drop = h('div.dropzone.sm', { title: 'Arrastra aquí el .exe o su acceso directo',
+        ondragover: e => { e.preventDefault(); drop.classList.add('over'); }, ondragleave: () => drop.classList.remove('over'),
+        ondrop: async e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (!f) return; try { const r = await desktop.appsBuscar(f.name); if (!r.rutas.length) return toast('No encuentro "' + f.name + '" en las carpetas habituales. Usa "Elegir .exe…".', 'warn', 7000); apps[red] = r.rutas[0]; await save(); toast(red + ': ' + r.rutas[0], 'ok'); draw(); } catch (err) { toast(err.message, 'bad'); } } }, icon('upload', 's'), h('span.tiny', 'Arrastra el .exe aquí'));
+      rows.push(h('div.item.app-row', h('div.grow', h('div.bold', red), t ? h('div.tiny' + (ok === false ? '.bad-t' : '.muted'), (ok === false ? '⚠️ No se encuentra la aplicación. Selecciona nuevamente el archivo .exe. · ' : '') + (t.startsWith('shell:') ? 'App de Microsoft Store' : t)) : h('div.tiny.muted', 'Sin configurar: se abrirá la web.'),
+        det.length && !t ? h('div.row.wrap', det.map(d => btn('Usar ' + d.nombre, async () => { apps[red] = d.destino; await save(); draw(); }, { cls: 'sm' }))) : null),
+        drop,
+        btn('Elegir .exe…', async () => { try { const r = await desktop.appsElegir(); if (r.ruta) { apps[red] = r.ruta; await save(); toast('Guardado', 'ok'); draw(); } } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm', icon: 'folder' }),
+        t ? btn('Probar', async () => { try { await desktop.appsAbrir(t); } catch (e) { toast(e.message, 'bad', 8000); draw(); } }, { cls: 'sm' }) : null,
+        t ? btn('', async () => { delete apps[red]; await save(); draw(); }, { cls: 'ghost sm icon', icon: 'x', title: 'Quitar' }) : null));
+    }
+    mount(box, h('p.small.muted', 'Al pulsar TikTok o Instagram en la app se abrirá la aplicación instalada en este PC. Arrastra su .exe (o acceso directo), elígelo, o usa "Detectar". Si la ruta deja de existir, se avisa y se abre la web como alternativa.'),
+      h('div.row', btn('Detectar apps instaladas', async () => { try { found = await desktop.appsDetectar(); toast(found.length ? 'Encontradas: ' + found.map(f => f.nombre).join(', ') : 'No se han encontrado apps conocidas', found.length ? 'ok' : 'warn'); draw(); } catch (e) { toast(e.message, 'bad'); } }, { icon: 'search', cls: 'sm' })),
+      h('div.list.boxed', rows));
+  }
+  draw();
+  return card('Aplicaciones de este PC', box);
+}

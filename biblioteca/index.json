@@ -1,0 +1,353 @@
+[
+{
+"id": "base:clientes/19-segmentacion-y-valor-del-cliente",
+"titulo": "Segmentación y valor del cliente",
+"categoria": "Clientes",
+"etiquetas": "segmentación, RFM, valor de vida, cliente frecuente, alto valor, inactivo, fidelización",
+"archivo": "clientes/19-segmentacion-y-valor-del-cliente.md",
+"huella": "20ee82e2742f2fc8",
+"palabras": 1317
+},
+{
+"id": "base:clientes/20-reactivar-clientes-inactivos",
+"titulo": "Cómo reactivar clientes inactivos",
+"categoria": "Clientes",
+"etiquetas": "reactivación, clientes inactivos, fidelización, mensajes, plantillas, WhatsApp, Instagram, consentimiento",
+"archivo": "clientes/20-reactivar-clientes-inactivos.md",
+"huella": "aa8cfaee10b8e103",
+"palabras": 1181
+},
+{
+"id": "base:clientes/21-historial-y-preferencias",
+"titulo": "Historial y preferencias del cliente (con respeto a la privacidad)",
+"categoria": "Clientes",
+"etiquetas": "ficha de cliente, historial, preferencias, notas, privacidad, datos personales, RGPD, protección de datos",
+"archivo": "clientes/21-historial-y-preferencias.md",
+"huella": "035da5d0e0c574ab",
+"palabras": 1240
+},
+{
+"id": "base:clientes/22-clientes-dificiles",
+"titulo": "Cómo tratar con clientes difíciles",
+"categoria": "Clientes",
+"etiquetas": "clientes difíciles, comunicación, reclamaciones, límites, decir que no, regateo, plantillas, atención al cliente",
+"archivo": "clientes/22-clientes-dificiles.md",
+"huella": "f695ad0b5859a11c",
+"palabras": 1275
+},
+{
+"id": "base:empresa/27-documentar-procedimientos",
+"titulo": "Cómo documentar procedimientos internos",
+"categoria": "Empresa",
+"etiquetas": "procedimientos, documentación, plantilla, procesos, checklist, organización, calidad",
+"archivo": "empresa/27-documentar-procedimientos.md",
+"huella": "dab389239f4ba02f",
+"palabras": 1333
+},
+{
+"id": "base:empresa/28-politicas-tienda-online",
+"titulo": "Políticas de una tienda online: qué conviene definir",
+"categoria": "Empresa",
+"etiquetas": "políticas, devoluciones, desistimiento, garantía, personalizados, protección de datos, envíos, legal",
+"archivo": "empresa/28-politicas-tienda-online.md",
+"huella": "b9a0ff62e07a6a35",
+"palabras": 1416
+},
+{
+"id": "base:empresa/29-objetivos-y-kpis",
+"titulo": "Objetivos SMART y KPIs para un pequeño negocio online",
+"categoria": "Empresa",
+"etiquetas": "objetivos, SMART, KPIs, indicadores, ventas, margen, pedidos, conversión, clientes repetidores",
+"archivo": "empresa/29-objetivos-y-kpis.md",
+"huella": "883477065a9dd7a3",
+"palabras": 1308
+},
+{
+"id": "base:empresa/30-organizacion-del-equipo",
+"titulo": "Organización del equipo en un negocio pequeño",
+"categoria": "Empresa",
+"etiquetas": "equipo, roles, tareas, reuniones, comunicación interna, chat, noticias, socias",
+"archivo": "empresa/30-organizacion-del-equipo.md",
+"huella": "97378cd63afe4c09",
+"palabras": 1223
+},
+{
+"id": "base:general/31-comunicacion-efectiva",
+"titulo": "Comunicación efectiva con clientes y equipo",
+"categoria": "General",
+"etiquetas": "comunicación, mensajes, clientes, escucha activa, tono, conflictos, feedback, equipo",
+"archivo": "general/31-comunicacion-efectiva.md",
+"huella": "cafcb4ad4f59422b",
+"palabras": 1198
+},
+{
+"id": "base:general/32-productividad-y-tiempo",
+"titulo": "Productividad y gestión del tiempo en el taller",
+"categoria": "General",
+"etiquetas": "productividad, tiempo, prioridades, bloques de tiempo, lotes, impresión, interrupciones, planificación",
+"archivo": "general/32-productividad-y-tiempo.md",
+"huella": "bd3cc161646194b0",
+"palabras": 1129
+},
+{
+"id": "base:general/33-marketing-en-redes",
+"titulo": "Marketing en Instagram y TikTok para productos hechos a mano y en 3D",
+"categoria": "General",
+"etiquetas": "marketing, redes sociales, Instagram, TikTok, contenido, ganchos, calendario, frecuencia, reels",
+"archivo": "general/33-marketing-en-redes.md",
+"huella": "de9d1d0d7c87886e",
+"palabras": 1117
+},
+{
+"id": "base:general/34-fotografia-y-contenido",
+"titulo": "Fotografía de producto y creación de contenido con el móvil",
+"categoria": "General",
+"etiquetas": "fotografía, fotos de producto, móvil, vídeo, timelapse, luz, fondo, textos, descripciones, anuncios",
+"archivo": "general/34-fotografia-y-contenido.md",
+"huella": "0809d24d9fbfedb1",
+"palabras": 1135
+},
+{
+"id": "base:general/35-resolucion-de-problemas",
+"titulo": "Resolución de problemas: fallos de impresión y de pedidos",
+"categoria": "General",
+"etiquetas": "problemas, 5 porqués, causa-efecto, Ishikawa, prueba y error, fallos de impresión, incidencias, mejora continua",
+"archivo": "general/35-resolucion-de-problemas.md",
+"huella": "08a717e4ad6e329d",
+"palabras": 1169
+},
+{
+"id": "base:general/36-negociar-con-proveedores",
+"titulo": "Negociar con proveedores",
+"categoria": "General",
+"etiquetas": "proveedores, negociación, compras, filamento, embalaje, precios, condiciones, pedidos mínimos",
+"archivo": "general/36-negociar-con-proveedores.md",
+"huella": "2337fdee96aa1146",
+"palabras": 1081
+},
+{
+"id": "base:general/37-gestion-empresarial-basica",
+"titulo": "Gestión empresarial básica: caja, costes y punto de equilibrio",
+"categoria": "General",
+"etiquetas": "gestión, finanzas, flujo de caja, costes fijos, costes variables, punto de equilibrio, impuestos, margen, gestoría",
+"archivo": "general/37-gestion-empresarial-basica.md",
+"huella": "5349f233dadc09b2",
+"palabras": 1270
+},
+{
+"id": "base:general/38-orden-y-organizacion-del-taller",
+"titulo": "Orden y organización del taller: método 5S",
+"categoria": "General",
+"etiquetas": "orden, taller, 5S, organización, limpieza, impresión 3D, filamento, almacenamiento, seguridad",
+"archivo": "general/38-orden-y-organizacion-del-taller.md",
+"huella": "2eb85d093febfd1b",
+"palabras": 1097
+},
+{
+"id": "base:general/39-motivacion-y-equipo",
+"titulo": "Motivación y equipo: trabajar a gusto sin quemarse",
+"categoria": "General",
+"etiquetas": "motivación, equipo, logros, reconocimiento, desgaste, burnout, descanso, bienestar, socias",
+"archivo": "general/39-motivacion-y-equipo.md",
+"huella": "a0de5f9fefde3b36",
+"palabras": 1151
+},
+{
+"id": "base:pedidos/23-flujo-de-pedidos-y-estados",
+"titulo": "Flujo de pedidos y estados en la app",
+"categoria": "Pedidos",
+"etiquetas": "pedidos, estados, flujo, fabricación, envío, incidencia, cancelado, buenas prácticas",
+"archivo": "pedidos/23-flujo-de-pedidos-y-estados.md",
+"huella": "a42cefcc5af411c2",
+"palabras": 1515
+},
+{
+"id": "base:pedidos/24-plazos-envios-y-seguimiento",
+"titulo": "Plazos, envíos y seguimiento de pedidos",
+"categoria": "Pedidos",
+"etiquetas": "plazos, envíos, embalaje, piezas frágiles, seguimiento, retrasos, transportistas, plantillas",
+"archivo": "pedidos/24-plazos-envios-y-seguimiento.md",
+"huella": "46857d39afbe789d",
+"palabras": 1339
+},
+{
+"id": "base:pedidos/25-descuentos-y-promociones",
+"titulo": "Descuentos y promociones sin romper el margen",
+"categoria": "Pedidos",
+"etiquetas": "descuentos, promociones, ofertas, margen mínimo, descuento máximo, packs, envío gratis, rebajas",
+"archivo": "pedidos/25-descuentos-y-promociones.md",
+"huella": "37beaebacd02e40c",
+"palabras": 1373
+},
+{
+"id": "base:pedidos/26-beneficio-por-pedido",
+"titulo": "Beneficio y margen por pedido",
+"categoria": "Pedidos",
+"etiquetas": "beneficio, margen, pedido, envío, comisiones, embalaje, rentabilidad, pedido mínimo",
+"archivo": "pedidos/26-beneficio-por-pedido.md",
+"huella": "7c6b4c42f8d32424",
+"palabras": 1275
+},
+{
+"id": "base:productos/13-costes-impresion-3d",
+"titulo": "Cómo calcular el coste real de una pieza impresa en 3D",
+"categoria": "Productos",
+"etiquetas": "costes, filamento, electricidad, mano de obra, pintado, embalaje, merma, amortización, calculadora",
+"archivo": "productos/13-costes-impresion-3d.md",
+"huella": "9faa2a4465482227",
+"palabras": 1657
+},
+{
+"id": "base:productos/14-precio-margen-y-recargo",
+"titulo": "Precio de venta: margen, recargo y cómo no confundirlos",
+"categoria": "Productos",
+"etiquetas": "precio, margen, recargo, markup, fórmulas, precio mínimo, redondeo, beneficio",
+"archivo": "productos/14-precio-margen-y-recargo.md",
+"huella": "1dbefc52176e3d76",
+"palabras": 1460
+},
+{
+"id": "base:productos/15-precio-por-plataforma",
+"titulo": "Precio por plataforma: cómo repercutir comisiones y envío",
+"categoria": "Productos",
+"etiquetas": "precio, plataformas, comisiones, envío, Vinted, Wallapop, Etsy, Instagram, WhatsApp, venta en mano",
+"archivo": "productos/15-precio-por-plataforma.md",
+"huella": "bc26a532d36ac208",
+"palabras": 1323
+},
+{
+"id": "base:productos/16-fichas-de-producto-y-fotos",
+"titulo": "Fichas de producto y fotos que venden",
+"categoria": "Productos",
+"etiquetas": "ficha de producto, título, descripción, variantes, fotos, categorías, anuncios, SKU",
+"archivo": "productos/16-fichas-de-producto-y-fotos.md",
+"huella": "912499182c35b28a",
+"palabras": 1350
+},
+{
+"id": "base:productos/17-stock-y-reposicion",
+"titulo": "Stock y reposición: cuánto fabricar y cuándo",
+"categoria": "Productos",
+"etiquetas": "stock, inventario, reposición, stock mínimo, punto de pedido, bajo pedido, rotación, filamento",
+"archivo": "productos/17-stock-y-reposicion.md",
+"huella": "a42afda5a2c4f93d",
+"palabras": 1299
+},
+{
+"id": "base:productos/18-materiales-y-proveedores",
+"titulo": "Materiales de impresión 3D y cómo elegir proveedores",
+"categoria": "Productos",
+"etiquetas": "materiales, PLA, PETG, TPU, resina, filamento, proveedores, compras, humedad, calidad",
+"archivo": "productos/18-materiales-y-proveedores.md",
+"huella": "d00dfaa67b06a9dd",
+"palabras": 1369
+},
+{
+"id": "base:ventas/01-venta-consultiva",
+"titulo": "Fundamentos de la venta consultiva",
+"categoria": "Ventas",
+"etiquetas": "venta consultiva, escucha activa, preguntas, beneficios, características, necesidades, cliente, atención",
+"archivo": "ventas/01-venta-consultiva.md",
+"huella": "7863afd737a4df71",
+"palabras": 1337
+},
+{
+"id": "base:ventas/02-argumentarios-productos-3d",
+"titulo": "Argumentarios para productos impresos en 3D y personalizados",
+"categoria": "Ventas",
+"etiquetas": "argumentario, impresión 3D, personalizado, figuras, macetas, decoración, juguetes, Vinted, Wallapop, Etsy, Instagram, TikTok, WhatsApp",
+"archivo": "ventas/02-argumentarios-productos-3d.md",
+"huella": "a95519aa68918cd7",
+"palabras": 1276
+},
+{
+"id": "base:ventas/03-objeciones-de-precio",
+"titulo": "Cómo responder a las objeciones de precio",
+"categoria": "Ventas",
+"etiquetas": "objeciones, precio, es caro, descuento, rebaja, competencia, valor, desglose, alternativa, concesión, Vinted, Wallapop",
+"archivo": "ventas/03-objeciones-de-precio.md",
+"huella": "4958d1f7c2917d65",
+"palabras": 1301
+},
+{
+"id": "base:ventas/04-otras-objeciones",
+"titulo": "Otras objeciones frecuentes y cómo responderlas",
+"categoria": "Ventas",
+"etiquetas": "objeciones, confianza, plazo, calidad, fragilidad, me lo pienso, envío, personalización, dudas, respuestas modelo",
+"archivo": "ventas/04-otras-objeciones.md",
+"huella": "cd0c6a2c07b2a09d",
+"palabras": 1207
+},
+{
+"id": "base:ventas/05-negociacion-y-regateo",
+"titulo": "Negociación y regateo en Vinted, Wallapop y otros canales",
+"categoria": "Ventas",
+"etiquetas": "negociación, regateo, ofertas, contraoferta, precio mínimo, anclaje, concesiones, lotes, Vinted, Wallapop, margen, recargo",
+"archivo": "ventas/05-negociacion-y-regateo.md",
+"huella": "a58ae0ed7caf7b60",
+"palabras": 1189
+},
+{
+"id": "base:ventas/06-cierre-de-ventas",
+"titulo": "Cierre de ventas honesto",
+"categoria": "Ventas",
+"etiquetas": "cierre, señales de compra, técnicas de cierre, mensajes, seguimiento, pedido, confirmación, Vinted, Wallapop, Etsy, WhatsApp",
+"archivo": "ventas/06-cierre-de-ventas.md",
+"huella": "f4cb251dea3fcdbc",
+"palabras": 1069
+},
+{
+"id": "base:ventas/07-seguimiento-y-postventa",
+"titulo": "Seguimiento y postventa",
+"categoria": "Ventas",
+"etiquetas": "seguimiento, postventa, presupuesto, reseñas, valoraciones, plantillas, entrega, recompra",
+"archivo": "ventas/07-seguimiento-y-postventa.md",
+"huella": "5b86cd01665145d1",
+"palabras": 1295
+},
+{
+"id": "base:ventas/08-captacion-de-clientes",
+"titulo": "Captación de clientes",
+"categoria": "Ventas",
+"etiquetas": "captación, clientes nuevos, marketplaces, redes sociales, tiendas locales, colaboraciones, encargos personalizados, mercadillos, ferias",
+"archivo": "ventas/08-captacion-de-clientes.md",
+"huella": "d5d6170dbb2ee9d0",
+"palabras": 1128
+},
+{
+"id": "base:ventas/09-fidelizacion",
+"titulo": "Fidelización de clientes",
+"categoria": "Ventas",
+"etiquetas": "fidelización, clientes frecuentes, recompra, detalles, programa de puntos, comunicación, newsletter, confianza",
+"archivo": "ventas/09-fidelizacion.md",
+"huella": "c52776caf9d4215c",
+"palabras": 1049
+},
+{
+"id": "base:ventas/10-upselling-y-cross-selling",
+"titulo": "Upselling y cross-selling",
+"categoria": "Ventas",
+"etiquetas": "upselling, cross-selling, venta cruzada, packs, lotes, personalización, envío combinado, margen, ticket medio",
+"archivo": "ventas/10-upselling-y-cross-selling.md",
+"huella": "0b26c5fdcb894510",
+"palabras": 1354
+},
+{
+"id": "base:ventas/11-atencion-al-cliente-por-mensaje",
+"titulo": "Atención al cliente por mensaje",
+"categoria": "Ventas",
+"etiquetas": "atención al cliente, mensajes, WhatsApp, Instagram, DM, Vinted, Wallapop, tono, tiempos de respuesta, plantillas",
+"archivo": "ventas/11-atencion-al-cliente-por-mensaje.md",
+"huella": "ad69e4a724726691",
+"palabras": 1267
+},
+{
+"id": "base:ventas/12-incidencias-y-reclamaciones",
+"titulo": "Incidencias y reclamaciones",
+"categoria": "Ventas",
+"etiquetas": "incidencias, reclamaciones, pieza rota, retraso, envío, devolución, reembolso, protocolo, plantillas, estado Incidencia",
+"archivo": "ventas/12-incidencias-y-reclamaciones.md",
+"huella": "97d3f8ee3b35262e",
+"palabras": 1305
+}
+]

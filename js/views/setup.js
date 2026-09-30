@@ -1,10 +1,12 @@
 // ================= Primera conexión, configuración inicial y entrada =================
 import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials } from '../ui.js';
-import { S, api, setServer, afterLogin, pull } from '../store.js';
+import { S, api, setServer, afterLogin, pull, login, passHash, checkNewPassword } from '../store.js';
+import { rolePicker, ROLE_INFO } from '../roles.js';
+import { iaSetupStep } from '../ai/models.js';
 import { desktop } from '../desktop.js';
 
 function page(...kids) { return h('div.center-page', ...kids); }
-function logo() { return h('div.brand', { style: { padding: '0 0 12px' } }, h('div.logo', h('img', { src: 'icons/icon-192.png', alt: '' })), h('div', h('b', 'CelebriDiseños'), h('small', 'Gestión del negocio'))); }
+function logo() { let src = 'icons/icon-192.png'; try { src = localStorage.getItem('cd.logo') || src; } catch (e) { } return h('div.brand', { style: { padding: '0 0 12px' } }, h('div.logo', h('img', { src, alt: '', style: { objectFit: 'contain' } })), h('div', h('b', 'CelebriDiseños'), h('small', 'Gestión del negocio'))); }
 function errBox() { return h('p.bad-t', { role: 'alert' }); }
 
 // ---------- 0. Conectar con el servidor ----------
@@ -45,8 +47,7 @@ export function renderLogin(app, done, st) {
     if (!u.value || !p.value) { msg.textContent = 'Escribe tu usuario y tu contraseña.'; return; }
     b.disabled = true; b.textContent = 'Entrando…';
     try {
-      const r = await api('auth.login', { usuario: u.value.trim(), password: p.value, dispositivo: S.device }, { token: '' });
-      await afterLogin(r, p.value);
+      await login(u.value.trim(), p.value);
       done();
     } catch (e) { msg.textContent = e.code === 'NET' ? 'Sin conexión: para entrar la primera vez necesitas Internet.' : e.message; b.disabled = false; b.textContent = 'Entrar'; p.value = ''; p.focus(); }
   }, { cls: 'primary' });
@@ -63,7 +64,7 @@ export function renderLogin(app, done, st) {
 // ---------- Configuración inicial (instalación nueva) ----------
 export function renderSetup(app, done) {
   const st = { step: 0, codigo: '', empresa: { nombre: 'CelebriDiseños', email: '', telefono: '', web: '' }, admin: { nombre: '', usuario: '', password: '', password2: '', color: '#7c3aed' }, negocioUrl: '', cambios: [], users: [], productRoot: '' };
-  const STEPS = ['Bienvenida', 'Empresa', 'Administradora', 'Google Sheets', 'Usuarios', 'Roles', 'Almacenamiento', 'IA', 'Avisos', 'Comprobar', 'Listo'];
+  const STEPS = ['Bienvenida', 'Empresa', 'Administradora', 'Google Sheets', 'Usuarios', 'Roles', 'Almacenamiento', 'IA local', 'Avisos', 'Comprobar', 'Listo'];
   const card = h('div.card.wizard.col', { style: { padding: '28px' } });
   mount(app, page(card));
   const draw = () => {
@@ -97,8 +98,8 @@ export function renderSetup(app, done) {
       mount(n, btn('Atrás', back), h('span.grow'), btn('Siguiente', () => {
         Object.keys(f).forEach(k => st.admin[k] = f[k].value.trim());
         if (!st.admin.nombre || !st.admin.usuario) return msg.textContent = 'Rellena nombre y usuario.';
-        if (st.admin.password.length < 6) return msg.textContent = 'La contraseña debe tener al menos 6 caracteres.';
-        if (st.admin.password !== st.admin.password2) return msg.textContent = 'Las contraseñas no coinciden.';
+        const perr = checkNewPassword(st.admin.password, st.admin.password2);
+        if (perr) return msg.textContent = perr;
         msg.textContent = ''; next();
       }, { cls: 'primary' }));
     },
@@ -114,7 +115,8 @@ export function renderSetup(app, done) {
         if (!/docs\.google\.com\/spreadsheets\/d\//.test(st.negocioUrl)) { msg.textContent = 'Pega el enlace completo del Google Sheet.'; return; }
         msg.textContent = ''; go2.disabled = true; go2.textContent = 'Preparando… (puede tardar un minuto)';
         try {
-          const r = await api('setup.init', { codigo: st.codigo, empresa: st.empresa, admin: st.admin, negocioUrl: st.negocioUrl }, { token: '', timeout: 300000 });
+          const adm = { nombre: st.admin.nombre, usuario: st.admin.usuario, color: st.admin.color, ph: await passHash(st.admin.password) };
+          const r = await api('setup.init', { codigo: st.codigo, empresa: st.empresa, admin: adm, negocioUrl: st.negocioUrl }, { token: '', timeout: 300000 });
           st.cambios = r.cambiosSheet || [];
           await afterLogin(r, st.admin.password);
           st.admin.password = st.admin.password2 = '';
@@ -129,29 +131,27 @@ export function renderSetup(app, done) {
     },
     (b, n) => {
       const list = h('div.list.boxed');
-      const drawList = () => mount(list, [{ nombre: S.me.nombre, rol: 'admin', usuario: S.me.usuario, yo: true }].concat(st.users).map(x => h('div.item', avatar(x), h('div.grow', h('div.bold', x.nombre + (x.yo ? ' (tú)' : '')), h('div.tiny.muted', x.usuario + ' · ' + ({ admin: 'Administradora', responsable: 'Responsable de tienda', trabajador: 'Trabajador/a' }[x.rol]))))));
+      const drawList = () => mount(list, [{ nombre: S.me.nombre, rol: 'admin', usuario: S.me.usuario, yo: true }].concat(st.users).map(x => h('div.item', avatar(x), h('div.grow', h('div.bold', x.nombre + (x.yo ? ' (tú)' : '')), h('div.tiny.muted', x.usuario + ' · ' + ((ROLE_INFO[x.rol] || {}).t || x.rol))))));
       drawList();
-      const f = { nombre: inp({ placeholder: 'Biou' }), usuario: inp({ placeholder: 'biou', autocapitalize: 'off' }), rol: sel([{ v: 'admin', t: 'Administradora (todo)' }, { v: 'responsable', t: 'Responsable de tienda' }, { v: 'trabajador', t: 'Trabajador/a' }], 'admin'), password: inp({ type: 'password', autocomplete: 'new-password' }) };
+      const f = { nombre: inp({ placeholder: 'Biou' }), usuario: inp({ placeholder: 'biou', autocapitalize: 'off' }), rol: rolePicker(null, 'admin'), password: inp({ type: 'password', autocomplete: 'new-password' }) };
       f.nombre.addEventListener('input', () => { f.usuario.value = f.nombre.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.'); });
       const addB = btn('Añadir usuario', async () => {
         msg.textContent = '';
         try {
-          const r = await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, password: f.password.value });
+          const perr = checkNewPassword(f.password.value);
+          if (perr) { msg.textContent = perr; return; }
+          const r = await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ph: await passHash(f.password.value) });
           st.users.push(Object.assign(r, {})); drawList(); Object.values(f).forEach(x => { if (x.tagName === 'INPUT') x.value = ''; });
           toast('Usuario ' + r.nombre + ' creado', 'ok');
         } catch (e) { msg.textContent = e.message; }
       }, { icon: 'plus' });
       mount(b, h('h2', 'Crear usuarios'), h('p.muted', 'Crea aquí a Biou y a cualquier persona del equipo. Cada una entra con su usuario y contraseña. Puedes hacerlo también más tarde.'), list,
-        h('div.form', field('Nombre', f.nombre), field('Usuario', f.usuario), field('Rol', f.rol), field('Contraseña inicial', f.password, 'Podrá cambiarla desde su perfil.')), addB, msg);
+        h('div.form', field('Nombre', f.nombre), field('Usuario', f.usuario), field('Contraseña inicial', f.password, 'Podrá cambiarla desde su perfil.'), field('Rol', f.rol, null, 'full')), addB, msg);
       mount(n, h('span.grow'), btn('Siguiente', next, { cls: 'primary' }));
     },
     (b, n) => {
-      mount(b, h('h2', 'Roles y permisos'), h('p.muted', 'Estos son los tres roles de partida. Cada permiso se puede ajustar en Configuración > Usuarios y roles.'),
-        h('div.grid.g3', [
-          ['Administradora', 'Todo: configuración, usuarios, claves, copias, borrar, IA, redes…'],
-          ['Responsable de tienda', 'Pedidos, clientes, productos y costes, tareas, publicar noticias, preparar y programar redes, IA. Sin configuración ni borrados.'],
-          ['Trabajador/a', 'Ver pedidos y cambiar su estado, tareas, subir fotos, leer y comentar noticias, IA. Sin datos personales de clientes ni costes.']
-        ].map(r => h('div.card.flat', h('h4', r[0]), h('p.small.muted', { style: { marginTop: '6px' } }, r[1])))),
+      mount(b, h('h2', 'Roles y permisos'), h('p.muted', 'Estos son los roles de partida. Cada permiso se puede ajustar en Configuración > Roles y permisos.'),
+        h('div.grid.g3', Object.keys(ROLE_INFO).map(k => h('div.card.flat', h('h4', ROLE_INFO[k].i + ' ' + ROLE_INFO[k].t), h('p.small.muted', { style: { marginTop: '6px' } }, ROLE_INFO[k].d)))),
         h('p.small', 'Si alguien intenta entrar en una zona sin permiso, puede pedir acceso: las administradoras reciben un aviso y lo aprueban por un tiempo limitado.'));
       mount(n, btn('Atrás', back), h('span.grow'), btn('Siguiente', next, { cls: 'primary' }));
     },
@@ -170,18 +170,7 @@ export function renderSetup(app, done) {
         msg.textContent = ''; next();
       }, { cls: 'primary' }));
     },
-    (b, n) => {
-      const k = inp({ type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off' });
-      mount(b, h('h2', 'Asistente IA (opcional)'), h('p', 'El asistente responde preguntas sobre pedidos, clientes, precios, tareas… siempre con vuestros datos reales, sin inventar.'),
-        h('p.small.muted', 'Necesita una clave de Claude (console.anthropic.com > API Keys). Se guarda cifrada en vuestro servidor de Google y nunca se muestra. Coste aproximado: céntimos por consulta.'),
-        field('Clave de la IA', k), msg);
-      mount(n, btn('Atrás', back), h('span.grow'), btn('Saltar', next, { cls: 'ghost' }), btn('Guardar y probar', async (e) => {
-        if (!k.value.trim()) return next();
-        e.target.closest('button').disabled = true;
-        try { const r = await api('config.secreto', { nombre: 'ia', valor: k.value.trim() }); if (r.error) { msg.textContent = 'Guardada, pero la prueba falló: ' + r.error; } else { toast('IA conectada: ' + r.prueba, 'ok'); next(); } }
-        catch (err) { msg.textContent = err.message; } finally { e.target.closest('button') && (e.target.closest('button').disabled = false); }
-      }, { cls: 'primary' }));
-    },
+    (b, n) => iaSetupStep(b, n, { next, back, msg }),
     (b, n) => {
       const k = inp({ type: 'password', placeholder: '123456789:AA…', autocomplete: 'off' });
       mount(b, h('h2', 'Avisos en el móvil (Telegram)'), h('p', 'Los avisos importantes (pedido urgente, incidencia, solicitud de acceso…) pueden llegar al móvil por Telegram al instante, aunque la app esté cerrada.'),
