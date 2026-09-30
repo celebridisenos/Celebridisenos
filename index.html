@@ -42,8 +42,9 @@
         });
       });
     });
-    var reloaded = false;
-    navigator.serviceWorker.addEventListener('controllerchange', function () { if (!reloaded) { reloaded = true; location.reload(); } });
+    var reloaded = false, hadController = !!navigator.serviceWorker.controller;
+    // v10.6: la primera vez (sin versión anterior) no se recarga: así no se borra lo que se está escribiendo
+    navigator.serviceWorker.addEventListener('controllerchange', function () { if (!hadController) { hadController = true; return; } if (!reloaded) { reloaded = true; location.reload(); } });
   }
 </script>
 </body>

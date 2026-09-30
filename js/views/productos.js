@@ -6,11 +6,16 @@ import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf } from
 import { desktop } from '../desktop.js';
 import { parse3D, viewer } from '../stl.js';
 import { accionTxt, resumenDetalle } from './pedidos.js';
+import { generate, asText, docxBlob, docName, PLATAFORMAS } from '../docventa.js';
+import { download, uploadFile } from '../files.js';
+import { copyText } from '../ui.js';
 
 const CL = window.CL;
-const STATES = ['En proceso', 'Publicado', 'Reservado', 'Vendido', 'Retirado'];
-const ST_CLS = { 'En proceso': 'info', 'Publicado': 'brand', 'Reservado': 'warn', 'Vendido': 'ok', 'Retirado': '' };
-const LEGACY = { EN_PROCESO: 'En proceso', PUBLICADO: 'Publicado', RESERVADO: 'Reservado', VENDIDO: 'Vendido', RETIRADO: 'Retirado' };
+// v10: BORRADOR → LISTO → PUBLICADO → VENDIDO → ARCHIVADO (se conservan los de antes)
+export const STATES = ['Borrador', 'En proceso', 'Listo', 'Publicado', 'Reservado', 'Vendido', 'Archivado', 'Retirado'];
+const NEXT = { 'Borrador': ['Listo'], 'En proceso': ['Listo'], 'Listo': ['Publicado'], 'Publicado': ['Vendido', 'Reservado'], 'Reservado': ['Vendido', 'Publicado'], 'Vendido': ['Archivado'], 'Archivado': ['Borrador'], 'Retirado': ['Borrador'] };
+const ST_CLS = { 'Borrador': '', 'En proceso': 'info', 'Listo': 'info', 'Publicado': 'brand', 'Reservado': 'warn', 'Vendido': 'ok', 'Archivado': '', 'Retirado': '' };
+const LEGACY = { EN_PROCESO: 'En proceso', PUBLICADO: 'Publicado', RESERVADO: 'Reservado', VENDIDO: 'Vendido', RETIRADO: 'Retirado', BORRADOR: 'Borrador', LISTO: 'Listo', ARCHIVADO: 'Archivado' };
 export const pState = s => LEGACY[String(s || '').toUpperCase()] || s || 'En proceso';
 const PLATFORMS = [{ k: 'wallapop', t: 'Wallapop / venta directa' }, { k: 'vinted', t: 'Vinted' }, { k: 'etsy', t: 'Etsy' }];
 const pretty = s => String(s || '').replace(/^\d+_/, '').replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase()).replace(/\bBano\b/g, 'Baño').replace(/\bNinos\b/g, 'Niños').replace(/\bJardin\b/g, 'Jardín').replace(/\bDecoracion\b/g, 'Decoración');
@@ -26,7 +31,7 @@ export function render(el, params) {
     h('div.row.wrap', { style: { marginBottom: '14px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fCat), h('div', { style: { width: '180px' } }, fEst)), listBox);
   function fill() { const k = fCat.value; const cats = [...new Set(S.t.productos.map(p => p.categoria).filter(Boolean))].sort(); mount(fCat, h('option', { value: '' }, 'Todas las categorías'), cats.map(c => h('option', { value: c }, pretty(c)))); fCat.value = k; }
   function drawList() {
-    const rows = S.t.productos.filter(p => (!st.q || CL.matches([p.id, p.nombre, p.categoria, p.subcategoria, p.color, p.material, p.descripcion].join(' '), st.q)) && (!st.cat || p.categoria === st.cat) && (!st.est || pState(p.estado) === st.est))
+    const rows = S.t.productos.filter(p => (!st.q || CL.matches([p.id, p.sku, p.tallas, p.nombre, p.categoria, p.subcategoria, p.color, p.material, p.descripcion].join(' '), st.q)) && (!st.cat || p.categoria === st.cat) && (!st.est || pState(p.estado) === st.est))
       .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.id).localeCompare(String(a.id)));
     if (!S.t.productos.length) return mount(listBox, h('div.card', empty('cube', 'El catálogo está vacío', 'Crea vuestro primer producto con sus fotos, vídeo y STL.', can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null)));
     if (!rows.length) return mount(listBox, h('div.card', empty('search', 'No hay productos con estos filtros')));
@@ -34,7 +39,7 @@ export function render(el, params) {
       const foto = p.fotoId ? byId('archivos', p.fotoId) : filesOf('productos', p.id).find(a => a.miniatura);
       return h('div.card.click', { style: { padding: 0, overflow: 'hidden' }, onclick: () => go('productos/' + p.id) },
         h('div', { style: { aspectRatio: '4/3', background: 'var(--surface-2)', display: 'grid', placeItems: 'center', color: 'var(--muted)' } }, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover' } }) : icon('cube', 'l')),
-        h('div', { style: { padding: '10px 12px' } }, h('div.bold.ellipsis', p.nombre), h('div.tiny.muted.ellipsis', p.id + ' · ' + pretty(p.subcategoria || p.categoria)),
+        h('div', { style: { padding: '10px 12px' } }, h('div.bold.ellipsis', p.nombre), h('div.tiny.muted.ellipsis', (p.sku || p.id) + ' · ' + pretty(p.subcategoria || p.categoria)),
           h('div.row', { style: { marginTop: '6px' } }, pill(pState(p.estado), ST_CLS[pState(p.estado)]), h('b.right', p.precio ? eur(p.precio) : ''))));
     })), rows.length > st.limit ? h('div.pager', btn('Mostrar más', () => { st.limit += 120; drawList(); })) : null);
   }
@@ -59,12 +64,12 @@ function productDrawer(id, onClose) {
       const p = byId('productos', id);
       if (!p) return mount(d, h('div.drawer-h', h('h2.grow', 'Producto'), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })), h('div.drawer-b', empty('alert', 'Este producto ya no existe')));
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
-      const tabs = [['resumen', 'Resumen'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['pedidos', 'Pedidos (' + orders.length + ')'], ['historial', 'Historial']].filter(Boolean);
+      const tabs = [['resumen', 'Resumen'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], ['pedidos', 'Pedidos (' + orders.length + ')'], ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
-      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', p.id), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
+      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '14px' } }, h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
-            can('productos.editar') ? h('div.row.wrap', STATES.filter(s => s !== pState(p.estado)).slice(0, 3).map(s => btn(s, () => saveProduct(p, { estado: s }), { cls: 'sm' }))) : null, h('span.grow'),
+            can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Listo']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
             can('pedidos.crear') ? btn('Nuevo pedido', () => import('./pedidos.js').then(m => m.orderForm({ producto: p.nombre, productoId: p.id, precio: p.precio })), { icon: 'plus', cls: 'sm' }) : null,
             can('productos.editar') ? btn('Editar', () => productWizard(p), { icon: 'edit', cls: 'sm' }) : null,
             can('productos.borrar') ? btn('Borrar', () => delProduct(p, closeAll), { cls: 'danger sm', icon: 'trash' }) : null)));
@@ -79,12 +84,32 @@ const PTABS = {
     const foto = p.fotoId ? byId('archivos', p.fotoId) : null;
     mount(el, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', style: { width: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '12px', background: 'var(--surface-2)', cursor: 'pointer' }, onclick: () => openFile(foto) }) : null,
       h('div.facts', { style: { marginTop: '12px' } }, fact('Precio', p.precio ? eur(p.precio) : na('')), fact('Categoría', pretty(p.categoria) || na('')), fact('Subcategoría', pretty(p.subcategoria) || na('')), fact('Tipo', p.tipo || na('')),
-        fact('Color', na(p.color)), fact('Material', na(p.material)), fact('Tamaño', na(p.tamano)), fact('Peso', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
+        fact('SKU', p.sku || p.id), fact('Tallas', na(p.tallas)), fact('Color', na(p.color)), fact('Material', na(p.material)), fact('Tamaño', na(p.tamano)), fact('Peso', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
       p.descripcion ? h('div', { style: { marginTop: '12px' } }, h('div.lbl', 'Descripción'), h('p', { style: { whiteSpace: 'pre-wrap' } }, p.descripcion)) : null,
       h('dl.kv', { style: { marginTop: '12px' } }, h('dt', 'Origen'), h('dd', [p.fuente, p.enlace].filter(Boolean).join(' · ') || h('span.na', 'No disponible')), h('dt', 'Licencia'), h('dd', na(p.licencia)), h('dt', 'Carpeta'), h('dd', p.ruta ? h('span.row', h('span.ellipsis', p.ruta), desktop.on ? btn('Abrir', () => desktop.open(p.ruta).catch(e => toast(e.message, 'bad')), { cls: 'sm', icon: 'folder' }) : null) : h('span.na', 'Sin carpeta')), h('dt', 'Creado por'), h('dd', na(p.creadoPor))),
       stockInfo(p));
   },
   precio(el, p) { mount(el, priceAssistant(p)); },
+  // v10: textos listos para Vinted, Wallapop, Etsy, Instagram y TikTok + documento Word
+  venta(el, p) {
+    const box = h('div.col', { style: { gap: '12px' } });
+    const make = async () => {
+      mount(box, h('p.muted', 'Preparando textos…'));
+      const d = await generate(p);
+      const block = (t, x, extra) => h('div.card.flat.venta', h('div.row', h('b.grow', t), x.precio ? h('span.small', eur(x.precio)) : null,
+          btn('Copiar', () => copyText([x.titulo ? x.titulo : '', x.descripcion || x.texto].filter(Boolean).join('\n\n')), { cls: 'sm', icon: 'copy' })),
+        x.titulo ? h('div.small', h('span.tiny.muted', 'Título · '), h('b', x.titulo)) : null,
+        (extra || []).filter(e => e[1]).map(e => h('div.tiny', h('span.muted', e[0] + ': '), e[1])),
+        h('pre.venta-txt', x.descripcion || x.texto));
+      mount(box, h('p.small.muted', 'Textos escritos con la biblioteca de frases y SOLO con los datos del producto. Revisa y ajusta si hace falta. Cada vez que pulses "Otra versión" cambian las frases.'),
+        h('div.row.wrap', btn('Otra versión', make, { icon: 'refresh', cls: 'sm' }), btn('Copiar todo', () => copyText(asText(p, d)), { icon: 'copy', cls: 'sm' }),
+          btn('Descargar Word', () => download(docxBlob(p, d), docName(p)), { icon: 'download', cls: 'sm' }),
+          can('archivos.subir') ? btn('Guardar en el producto', async ev => { const b = ev.target.closest('button'); b.disabled = true; try { await saveDoc(p, d); toast('Documento guardado en las fichas del producto', 'ok'); } catch (e) { toast(e.message, 'bad'); } b.disabled = false; }, { icon: 'upload', cls: 'sm' }) : null),
+        block('Vinted', d.vinted), block('Wallapop', d.wallapop), block('Etsy', d.etsy, [['Materiales', d.etsy.materiales], ['Variaciones', d.etsy.variaciones], ['SKU', p.sku || p.id]]),
+        block('Instagram', d.instagram), block('TikTok', d.tiktok));
+    };
+    mount(el, box); make();
+  },
   archivos(el, p) {
     const local = h('div');
     mount(el, filesSection('productos', p.id, { tipos: ['foto', 'video', 'stl'] }).el, local);
@@ -166,6 +191,19 @@ export function priceAssistant(p, costsIn, onPick) {
   return wrap;
 }
 
+// v10: al pasar a LISTO, Celebrity genera el documento de venta y lo guarda en el producto
+async function changeState(p, estado) {
+  await saveProduct(p, { estado });
+  if (estado === 'Listo' && can('archivos.subir')) {
+    try { const d = await generate(p); await saveDoc(p, d); toast('✨ Celebrity ha preparado el documento de venta (Textos de venta y Archivos)', 'ok', 6000); api('ia.registrar', { tipo: 'documento', resumen: 'Documento de venta de ' + p.nombre + ' (' + (p.sku || p.id) + ')', herramientas: ['documento'], acciones: [] }).catch(() => { }); }
+    catch (e) { toast('No se pudo generar el documento: ' + e.message, 'warn'); }
+  }
+}
+async function saveDoc(p, d) {
+  const f = new File([docxBlob(p, d)], docName(p), { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  if (desktop.on && p.ruta) { try { await desktop.save(p.ruta + (p.ruta.includes('\\') ? '\\' : '/') + f.name, f, true); } catch (e) { } }
+  await uploadFile(f, { entidad: 'productos', entidadId: p.id });
+}
 async function saveProduct(p, datos, costes) {
   const orig = {}; Object.keys(datos).forEach(k => { orig[k] = p[k] ?? ''; });
   try {
@@ -225,7 +263,7 @@ export function productWizard(p) {
     tipo: sel(['3D', 'Reventa', 'Otro'], p.tipo || '3D'),
     categoria: inp({ value: p.categoria || '', list: 'dl-pcat', placeholder: 'Ej.: HOGAR' }),
     subcategoria: inp({ value: p.subcategoria || '', list: 'dl-psub', placeholder: 'Ej.: Baño' }),
-    color: inp({ value: p.color || '' }), tamano: inp({ value: p.tamano || '', placeholder: 'Ej.: 12 × 8 cm' }),
+    color: inp({ value: p.color || '' }), tamano: inp({ value: p.tamano || '', placeholder: 'Ej.: 12 × 8 cm' }), tallas: inp({ value: p.tallas || '', placeholder: 'Ej.: S, M, L, XL (si tiene)' }),
     material: sel(['', 'PLA', 'PETG', 'TPU', 'ABS', 'Resina', 'Madera', 'Otro'], p.material || 'PLA'),
     plataforma: sel(['', 'Wallapop', 'Vinted', 'Etsy', 'Instagram', 'Tienda física', 'Otro'], p.plataforma || ''),
     fuente: sel(['', 'Diseño propio', 'Descargado (gratis)', 'Comprado', 'Encargo del cliente'], p.fuente || ''),
@@ -247,7 +285,7 @@ export function productWizard(p) {
     const bar = h('div.wiz-steps', titles.map((t, i) => h('div.st' + (i === step ? '.on' : i < step ? '.done' : ''))));
     if (step === 0) mount(body, bar, h('h3', titles[0]), h('datalist', { id: 'dl-pcat' }, cats.map(c => h('option', { value: c }))), h('datalist', { id: 'dl-psub' }, subs.map(c => h('option', { value: c }))),
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', f.categoria, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', f.subcategoria),
-        field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full')),
+        field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full')),
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),
       h('div.drops', { style: { marginTop: '12px' } }, zones.foto.el, zones.video.el, zones.stl.el), msg);

@@ -1,6 +1,6 @@
 // ================= Configuración: todo lo ajustable, sin tocar código =================
 import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText } from '../ui.js';
-import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHash, checkNewPassword } from '../store.js';
+import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHash, checkNewPassword, user } from '../store.js';
 import { rolePicker } from '../roles.js';
 import { iaPanel } from '../ai/models.js';
 import { biblioteca as bibliotecaView, memoria as memoriaView } from './ia.js';
@@ -21,6 +21,8 @@ const SECTIONS = [
   { k: 'usuarios', t: 'Usuarios', i: 'users', p: 'usuarios.admin' },
   { k: 'roles', t: 'Roles y permisos', i: 'shield', p: 'usuarios.admin' },
   { k: 'solicitudes', t: 'Solicitudes de acceso', i: 'key', p: 'usuarios.admin' },
+  { k: 'actividad', t: 'Horarios y conexiones', i: 'history', p: 'actividad.ver' },
+  { k: 'espacios', t: 'Espacios (THE NOORKO)', i: 'store', p: 'config.editar' },
   { g: 'Negocio' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'config.editar' },
   { k: 'clientes', t: 'Clientes', i: 'star', p: 'config.editar' },
@@ -69,9 +71,28 @@ async function saveCfg(clave, valor) {
   try { S.cfg = await api('config.guardar', { clave, valor }); emit(); toast('Configuración guardada', 'ok'); return true; }
   catch (e) { handleError(e, 'configuración'); return false; }
 }
+// v10.6: volver a la versión anterior del programa (se guarda al actualizar)
+function rollbackBox(r) {
+  if (!r || !r.anterior) return null;
+  return h('div.row.wrap', { style: { marginBottom: '8px' } }, h('span.small.muted.grow', 'Versión anterior guardada: ' + r.anterior + '. Si la nueva te da problemas, puedes volver a ella.'),
+    btn('Volver a la ' + r.anterior, async ev => { if (!await confirmDlg('¿Volver a la versión ' + r.anterior + '?', 'El programa se cerrará y se abrirá con la versión anterior. Tus datos no cambian (están en Google).', 'Volver')) return; ev.target.closest('button').disabled = true; try { await desktop.volverAnterior(); toast('Volviendo a la versión ' + r.anterior + '…', 'ok'); } catch (e) { toast(e.message, 'bad'); ev.target.closest('button').disabled = false; } }, { cls: 'sm', icon: 'history' }));
+}
 function card(title, ...kids) { return h('div.card.col', title ? h('h3', title) : null, ...kids); }
 
 const SEC = {
+  // v10.5: espacios de trabajo independientes
+  espacios(b) {
+    const E = (S.cfg && S.cfg.espacio) || { lista: [] };
+    const box = h('div.col');
+    b.append(card(null, h('p', 'Cada espacio tiene sus ', h('b', 'propios'), ' productos, pedidos, clientes, tareas, redes, archivos, papelera, objetivos, SKU y precios, en su ', h('b', 'propio libro de Google'), '. El chat, las noticias y los usuarios son del equipo y se comparten.'),
+      h('p.small.muted', 'Quién entra en cada espacio se decide en Roles y permisos ("Trabajar en THE NOORKO"). Las administradoras entran en todos. Si un rol no tiene ningún espacio marcado, trabaja en el Negocio principal. Esto se comprueba en el servidor: sin permiso no se puede leer ni cambiar nada de ese espacio.')), box);
+    const draw = lista => mount(box, lista.map(w => card(null, h('div.row', h('span.ws-mark.' + (w.tema || 'principal')), h('b.grow', w.nombre), w.id === S.ws ? pill('Estás aquí', 'brand') : null,
+      w.listo ? pill('Preparado', 'ok') : pill('Sin preparar', 'warn')),
+      w.descripcion ? h('div.small.muted', w.descripcion) : null,
+      h('div.row.wrap', w.listo && w.id !== S.ws ? btn('Entrar', () => import('../app.js').then(m => m.changeWs(w.id)), { cls: 'sm primary' }) : null,
+        w.id !== 'principal' ? btn(w.listo ? 'Comprobar y completar' : 'Preparar', async ev => { const bt = ev.target.closest('button'); bt.disabled = true; try { const r = await api('espacios.preparar', { id: w.id }, { timeout: 120000 }); toast(r.creado ? 'Espacio creado con su propio libro de Google' : 'Espacio comprobado: todo en orden', 'ok'); await pull(true); draw(r.espacios); } catch (e) { toast(e.message, 'bad'); } bt.disabled = false; }, { cls: 'sm' }) : null))));
+    draw(E.lista || []);
+  },
   perfil(b) {
     const u = S.me;
     const nombre = inp({ value: u.nombre }), color = inp({ type: 'color', value: u.color || '#7c3aed', style: { width: '60px', padding: '2px' } });
@@ -105,7 +126,7 @@ const SEC = {
       card('Actualizaciones', upd, (() => { const repo = inp({ placeholder: 'usuario/celebridisenos' }); desktop.getConfig('updateRepo').then(v => { repo.value = v || ''; }); return h('details.more', h('summary', 'Dónde buscar las versiones nuevas'), h('div.in.col', field('Repositorio de GitHub (usuario/repositorio)', repo, 'Lo explica la guía (Parte D). Solo hay que ponerlo una vez en cada PC.'), btn('Guardar', async () => { await desktop.setConfig('updateRepo', repo.value.trim()); toast('Guardado', 'ok'); }, { cls: 'sm' }))); })())
       , card('IA local', h('p.small', 'El motor de IA, los modelos y el hardware de este PC se gestionan en ', h('a', { href: '#/config/ia' }, 'Configuración → IA local y modelos'), '.')));
     mount(upd, h('p.small.muted', 'Versión instalada: ' + (info.version || '?') + ' · comprobando…'));
-    desktop.update().then(r => mount(upd, r.nueva ? h('div.col', h('p', '🎉 Nueva versión disponible: ' + r.version), r.notas ? h('p.small.muted', r.notas) : null, btn('Actualizar ahora', async ev => { ev.target.closest('button').disabled = true; try { await desktop.applyUpdate(); toast('Actualizando… el programa se reiniciará', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary', icon: 'download' })) : h('p.small', '✅ Tienes la última versión (' + (info.version || '') + ').')))
+    desktop.update().then(r => mount(upd, rollbackBox(r), r.nueva ? h('div.col', h('p', '🎉 Nueva versión disponible: ' + r.version), r.notas ? h('p.small.muted', r.notas) : null, btn('Actualizar ahora', async ev => { ev.target.closest('button').disabled = true; try { await desktop.applyUpdate(); toast('Actualizando… el programa se reiniciará', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary', icon: 'download' })) : h('p.small', '✅ Tienes la última versión (' + (info.version || '') + ').')))
       .catch(e => mount(upd, h('p.small.muted', 'No se pudo comprobar: ' + e.message)));
   },
   movil(b) {
@@ -144,6 +165,21 @@ const SEC = {
     const invBox = h('div');
     b.append(h('div.row.wrap', btn('🎟️ Invitar a alguien', () => inviteForm(), { cls: 'primary' }), btn('Nuevo usuario', () => userForm(), { icon: 'plus' })),
       h('p.tiny.muted', 'Con una invitación, la persona instala el programa en cualquier PC (o abre el enlace en el móvil), pega el mensaje y elige su propia contraseña.'), box, invBox);
+    // v10: contraseñas olvidadas → código de un solo uso (la contraseña nunca se ve)
+    const recBox = h('div'); b.insertBefore(recBox, box);
+    const drawRec = async () => {
+      let list = []; try { list = await api('usuarios.recuperaciones', {}); } catch (e) { }
+      const pend = list.filter(r => r.estado === 'pendiente');
+      mount(recBox, pend.length ? h('div.card', { style: { marginBottom: '14px', borderColor: 'var(--warn)' } }, h('b', '🔑 Han olvidado su contraseña'),
+        h('div.list', pend.map(r => h('div.item', { style: { cursor: 'default' } }, h('div.grow', h('b', r.usuario), h('div.tiny.muted', ago(r.creado))), btn('Dar código', () => giveCode(r.userId), { cls: 'primary sm' }))))) : null);
+    };
+    async function giveCode(userId) {
+      try {
+        const r = await api('usuarios.codigoRecuperacion', { userId });
+        modal('Código de recuperación', h('div.col', h('p.small', 'Dáselo a ', h('b', r.usuario), ' en persona o por teléfono. Con él elegirá una contraseña NUEVA en "¿Has olvidado tu contraseña?". Caduca en ' + r.minutos + ' minutos y sirve una sola vez.'), h('div.inv-code', r.codigo), h('p.tiny.muted', 'Nadie puede ver la contraseña antigua ni la nueva.')), close => [btn('Copiar', () => copyText(r.codigo), { icon: 'copy' }), btn('Hecho', close, { cls: 'primary' })], { size: 'narrow' });
+        drawRec();
+      } catch (e) { toast(e.message, 'bad'); }
+    }
     const drawInv = async () => {
       let list = [];
       try { list = await api('invitaciones.lista', {}); } catch (e) { return mount(invBox); }
@@ -196,7 +232,7 @@ const SEC = {
       if (isNew) f.nombre.addEventListener('input', () => { f.usuario.value = f.nombre.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.'); });
       let activo = u.activo !== false;
       modal(isNew ? 'Nuevo usuario' : u.nombre, h('div.col', h('div.form', field('Nombre', f.nombre), field('Usuario', f.usuario), field(isNew ? 'Contraseña' : 'Nueva contraseña', f.password, isNew ? 'Mínimo 6 caracteres. Podrá cambiarla desde su perfil.' : ''), field('Rol', f.rol, 'Qué puede ver y hacer. Los permisos de cada rol se ajustan en Roles y permisos.', 'full')), !isNew ? h('label.check', sw(activo, v => { activo = v; }), 'Usuario activo (si lo desactivas, no podrá entrar y se cierran sus sesiones)') : null),
-        close => [!isNew ? btn('Cerrar sus sesiones', async () => { await api('usuarios.cerrarSesiones', { userId: u.id }); toast('Sesiones cerradas', 'ok'); }, { cls: 'ghost' }) : null, h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
+        close => [!isNew ? btn('Código de recuperación', () => { close(); giveCode(u.id); }, { cls: 'ghost', icon: 'key' }) : null, !isNew ? btn('Cerrar sus sesiones', async () => { await api('usuarios.cerrarSesiones', { userId: u.id }); toast('Sesiones cerradas', 'ok'); }, { cls: 'ghost' }) : null, h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
           try {
             if (f.password.value || isNew) { const er = checkNewPassword(f.password.value); if (er) return toast(er, 'bad'); }
             if (isNew) await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ph: await passHash(f.password.value) });
@@ -208,6 +244,7 @@ const SEC = {
     S._roles = (await api('roles.lista', {})).roles;
     await drawU();
     drawInv();
+    drawRec();
   },
   async roles(b) {
     const r = await api('roles.lista', {});
@@ -262,13 +299,21 @@ const SEC = {
     if (!S.cfg.precios) return b.append(lockBox('productos.costes', 'precios'));
     const c = JSON.parse(JSON.stringify(S.cfg.precios));
     let fromSheet = !!c.desdeSheet;
-    const L = [['iva', 'IVA', '%'], ['margen', 'Margen objetivo', '%'], ['margenMin', 'Margen mínimo (regateo)', '%'], ['segundaMano', 'Descuento 2ª mano', '%'], ['manoObraHora', 'Mano de obra (€/h)', '€'], ['luzHora', 'Luz por hora de impresora (€/h)', '€'], ['costeKg', 'Filamento por defecto (€/kg)', '€'], ['vinted', 'Comisión Vinted', '%'], ['etsyVenta', 'Etsy: comisión venta', '%'], ['etsyPago', 'Etsy: procesamiento pago', '%'], ['etsyFijo', 'Etsy: fijo por pago (€)', '€'], ['etsyReg', 'Etsy: coste regulatorio', '%'], ['etsyAnuncioUSD', 'Etsy: anuncio ($)', '$'], ['usdEur', 'Cambio USD → EUR', '']];
+    const L = [['iva', 'IVA', '%'], ['margen', 'Margen objetivo', '%'], ['margenMin', 'Margen mínimo (regateo)', '%'], ['segundaMano', 'Descuento 2ª mano', '%'], ['manoObraHora', 'Mano de obra (€/h)', '€'], ['luzHora', 'Luz por hora de impresora (€/h)', '€'], ['costeKg', 'Filamento por defecto (€/kg)', '€'], ['vinted', 'Comisión Vinted', '%'], ['etsyVenta', 'Etsy: comisión venta', '%'], ['etsyPago', 'Etsy: procesamiento pago', '%'], ['etsyFijo', 'Etsy: fijo por pago (€)', '€'], ['etsyReg', 'Etsy: coste regulatorio', '%'], ['etsyAnuncioUSD', 'Etsy: anuncio ($)', '$'], ['usdEur', 'Cambio USD → EUR', ''], ['embalaje', 'Embalaje por unidad (€)', '€'], ['envio', 'Envío que pagáis vosotros (€)', '€']];
     const f = {};
     L.forEach(x => { f[x[0]] = inp({ type: 'number', step: 'any', value: x[2] === '%' ? +(c[x[0]] * 100).toFixed(3) : c[x[0]] }); });
     b.append(card(null, h('label.check', sw(fromSheet, v => { fromSheet = v; }), 'Usar los valores de la hoja "Configuracion" del Google Sheet (recomendado: así el Excel y la app calculan igual)'),
       btn('Leer ahora del Sheet', async () => { try { await api('precios.recargar', {}); await pull(true); toast('Precios actualizados desde el Sheet', 'ok'); SEC.precios(mount(b, h('h2', 'Precios y comisiones'))); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm', icon: 'refresh' })),
       card('Valores', h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' } }, L.map(x => field(x[1] + (x[2] === '%' ? ' (%)' : ''), f[x[0]]))), h('p.small.muted', 'Si usas el Sheet, estos valores se leen de allí y cambiarlos aquí no tiene efecto.')),
       btn('Guardar', () => { const v = Object.assign({}, c, { desdeSheet: fromSheet }); L.forEach(x => { const n = Number(f[x[0]].value); v[x[0]] = x[2] === '%' ? n / 100 : n; }); saveCfg('precios', v); }, { cls: 'primary' }));
+    // v10: formato del SKU automático
+    const sk = S.cfg.sku || {};
+    const fmt = inp({ value: sk.formato || '{CAT}-{NUM4}', placeholder: '{MARCA}-{CAT}-{NUM3}' }), marca = inp({ value: sk.marca || '', placeholder: 'Ej.: NOORKO' });
+    const ej = h('b'), upd = () => { ej.textContent = (fmt.value || '{CAT}-{NUM4}').replace(/\{MARCA\}/g, (marca.value || 'MARCA').toUpperCase()).replace(/\{CAT\}/g, 'TSH').replace(/\{AÑO\}/g, String(new Date().getFullYear())).replace(/\{NUM3\}/g, '001').replace(/\{NUM4\}/g, '0001'); };
+    [fmt, marca].forEach(x => x.addEventListener('input', upd)); upd();
+    b.append(card('Código SKU de los productos nuevos', h('div.form', field('Formato', fmt, 'Piezas: {MARCA} {CAT} (3 letras de la categoría) {AÑO} {NUM3} {NUM4}'), field('Marca', marca)),
+      h('p.small', 'Ejemplo: ', ej), h('p.small.muted', 'Solo afecta a los productos nuevos. Los que ya existen conservan su código. Nunca se repite.'),
+      btn('Guardar formato', () => saveCfg('sku', { formato: fmt.value.trim() || '{CAT}-{NUM4}', marca: marca.value.trim().toUpperCase() }), { cls: 'primary' })));
   },
   ia(b) {
     const panel = h('div');
@@ -320,7 +365,7 @@ const SEC = {
     b.append(card('Repositorio', field('Repositorio de GitHub (usuario/repositorio)', repo, 'Solo hay que ponerlo una vez en cada PC.'), btn('Guardar', async () => { await desktop.setConfig('updateRepo', repo.value.trim()); toast('Guardado', 'ok'); check(); }, { cls: 'primary sm' })), card('Versión', upd));
     function check() {
       mount(upd, h('p.small.muted', 'Versión instalada: ' + (info.version || '?') + ' · comprobando…'));
-      desktop.update().then(r => mount(upd, r.nueva ? h('div.col', h('p', '🎉 Nueva versión disponible: ' + r.version), r.notas ? h('p.small.muted', r.notas) : null, btn('Actualizar ahora', async ev => { ev.target.closest('button').disabled = true; try { await desktop.applyUpdate(); toast('Actualizando… el programa se reiniciará', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary', icon: 'download' })) : h('p.small', '✅ Tienes la última versión (' + (info.version || '') + ').')))
+      desktop.update().then(r => mount(upd, rollbackBox(r), r.nueva ? h('div.col', h('p', '🎉 Nueva versión disponible: ' + r.version), r.notas ? h('p.small.muted', r.notas) : null, btn('Actualizar ahora', async ev => { ev.target.closest('button').disabled = true; try { await desktop.applyUpdate(); toast('Actualizando… el programa se reiniciará', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary', icon: 'download' })) : h('p.small', '✅ Tienes la última versión (' + (info.version || '') + ').')))
         .catch(e => mount(upd, h('p.small.muted', 'No se pudo comprobar: ' + e.message)));
     }
     check();
@@ -376,11 +421,31 @@ const SEC = {
     }
     await drawB();
   },
+  // v10: Horarios y conexiones (Activo = usando la app · Ausente = abierta sin usar · Desconectado)
+  async actividad(b) {
+    const box = h('div'), hist = h('div');
+    const dur = s => { s = Math.round(Number(s) || 0); const hh = Math.floor(s / 3600), mm = Math.round((s % 3600) / 60); return hh ? hh + ' h ' + mm + ' min' : mm + ' min'; };
+    const EST = { activo: ['on', 'Activo'], ausente: ['away', 'Ausente'], desconectado: ['idle', 'Desconectado'] };
+    b.append(h('p.small.muted', '"Activo" significa usando la app (ratón, teclado o pantalla en los últimos 2 minutos). "Ausente": la app está abierta pero sin usar. Se actualiza cada 30 segundos.'), box, h('h3', { style: { margin: '18px 0 8px' } }, 'Historial (7 días)'), hist);
+    const draw = async () => {
+      let r; try { r = await api('actividad.estado', { dias: 7 }); } catch (e) { return mount(box, h('p.bad-t', e.message)); }
+      mount(box, h('div.list.boxed', r.usuarios.map(u => h('div.item', { style: { cursor: 'default' } }, h('span.av-wrap', avatar(user(u.id) || u), h('span.st-dot.' + EST[u.estado][0])),
+        h('div.grow', h('div.bold', u.nombre, ' ', h('span.tiny.muted', EST[u.estado][1] + (u.dispositivo ? ' · ' + u.dispositivo : ''))),
+          h('div.tiny.muted', (u.desde ? 'Conectado desde las ' + new Date(u.desde).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ' · ' : '') + 'Última señal: ' + (u.ultima ? ago(u.ultima) : 'nunca'))),
+        h('div.right.tiny', h('div', 'Hoy conectado: ', h('b', dur(u.hoyConectadoSeg))), h('div', 'Hoy activo: ', h('b', dur(u.hoyActivoSeg))))))));
+      mount(hist, r.historial.length ? h('div.list.boxed', r.historial.slice(0, 100).map(x => h('div.item', { style: { cursor: 'default' } }, h('div.grow', h('b', x.usuario), h('span.tiny.muted', ' · ' + (x.dispositivo || ''))),
+        h('div.tiny.muted', new Date(x.inicio).toLocaleString('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' → ' + new Date(x.fin).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })),
+        h('div.tiny', dur(x.conectadoSeg) + ' conectado · ' + dur(x.activoSeg) + ' activo')))) : h('p.muted.small', 'Todavía no hay sesiones terminadas.'));
+    };
+    await draw();
+    const t = setInterval(() => { if (!document.body.contains(box)) return clearInterval(t); draw(); }, 30000);
+  },
   async papelera(b) {
     const list = await api('papelera.lista', {});
     b.append(h('p.small.muted', 'Lo que se borra viene aquí y se puede recuperar. ' + (can('papelera.admin') ? 'Ves la papelera de todo el equipo.' : 'Ves lo que has borrado tú.')),
       list.length ? h('div.list.boxed', list.map(x => h('div.item', { style: { cursor: 'default' } }, icon('trash', 's'), h('div.grow', h('div.bold.ellipsis', x.titulo || x.entidad), h('div.tiny.muted', 'Borrado por ' + x.borradoPor + ' · ' + fdt(x.fecha))),
-        btn('Restaurar', async () => { try { await api('papelera.restaurar', { id: x.id }); toast('Restaurado', 'ok'); await pull(); SEC.papelera(mount(b, h('h2', 'Papelera'))); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm', icon: 'refresh' })))) : h('div.card', empty('trash', 'La papelera está vacía')),
+        btn('Restaurar', async () => { try { await api('papelera.restaurar', { id: x.id }); toast('Restaurado', 'ok'); await pull(); SEC.papelera(mount(b, h('h2', 'Papelera'))); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm', icon: 'refresh' }),
+        can('papelera.admin') ? btn('', async () => { if (!await confirmDlg('Eliminar para siempre', '«' + (x.titulo || x.entidad) + '» se eliminará definitivamente. No se podrá recuperar.', 'Eliminar', true)) return; try { await api('papelera.eliminar', { id: x.id }); toast('Eliminado', 'ok'); SEC.papelera(mount(b, h('h2', 'Papelera'))); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'ghost icon sm danger', icon: 'trash', title: 'Eliminar para siempre' }) : null))) : h('div.card', empty('trash', 'La papelera está vacía')),
       can('papelera.admin') && list.length ? btn('Vaciar lo de hace más de 30 días', async () => { if (!await confirmDlg('Vaciar papelera', 'Se eliminará para siempre lo que lleve más de 30 días en la papelera.', 'Vaciar', true)) return; const n = await api('papelera.vaciar', { dias: 30 }); toast(n + ' elementos eliminados', 'ok'); SEC.papelera(mount(b, h('h2', 'Papelera'))); }, { cls: 'danger' }) : null);
   },
   async auditoria(b) {

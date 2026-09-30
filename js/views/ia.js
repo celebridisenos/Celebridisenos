@@ -4,6 +4,7 @@ import { S, can, api, mutate, kv, upsertLocal, removeLocal, emit, pull } from '.
 import { go, handleError } from '../app.js';
 import { desktop } from '../desktop.js';
 import { ask, toolLabel, NO_DATA } from '../ai/engine.js';
+import { objetivos, objetivoTexto, brief } from '../ai/celebrity.js';
 import { localStatus } from '../ai/models.js';
 import { baseDocs, search, ragStatus, ensureIndex, startEmbedder } from '../ai/rag.js';
 import { extractText, DOC_TYPES } from '../ai/extract.js';
@@ -39,7 +40,7 @@ function inline(s, el, onRef) {
 }
 
 const SUGG = [
-  ['¿Qué necesita mi atención hoy?', null],
+  ['¿Qué hay hoy?', null],
   ['Este producto me cuesta 12 € y quiero ganar un 40 %. ¿Qué precio pongo?', null],
   ['El cliente dice que 30 € es demasiado caro. ¿Qué le respondo?', null],
   ['¿Qué pedidos vencen esta semana?', 'pedidos.ver'],
@@ -50,15 +51,15 @@ const SUGG = [
 ];
 
 export function render(el, params) {
-  const st = { tab: params && params[0] === 'biblioteca' ? 'biblioteca' : params && params[0] === 'memoria' ? 'memoria' : params && params[0] === 'actividad' ? 'actividad' : 'chat', msgs: [], busy: false, ctrl: null, voz: localStorage.getItem('cd.voz') === '1' };
-  const head = h('div.page-head', h('div', h('h1', 'Asistente IA'), h('div.muted.small', 'Tu IA privada: funciona en vuestros ordenadores y solo responde con vuestros datos.')), h('div.right.row'));
+  const st = { tab: params && params[0] === 'biblioteca' ? 'biblioteca' : params && params[0] === 'memoria' ? 'memoria' : params && params[0] === 'actividad' ? 'actividad' : params && params[0] === 'objetivos' ? 'objetivos' : 'chat', msgs: [], busy: false, ctrl: null, voz: localStorage.getItem('cd.voz') === '1' };
+  const head = h('div.page-head', h('div', h('h1.celeb-title', '✨ Celebrity'), h('div.muted.small', 'Tu coordinadora: sabe qué hay pendiente, controla los objetivos y responde con vuestros datos. Privada: funciona en vuestros ordenadores.')), h('div.right.row'));
   const status = h('div.ia-status');
   const tabs = h('div.tabs');
   const body = h('div');
   el.append(head, status, tabs, body);
   drawStatus();
   function drawTabs() {
-    mount(tabs, [['chat', 'Conversación'], ['biblioteca', 'Biblioteca'], ['memoria', 'Memoria'], ['actividad', 'Actividad']].map(t => h('button' + (st.tab === t[0] ? '.on' : ''), { onclick: () => { st.tab = t[0]; history.replaceState(null, '', '#/ia' + (t[0] === 'chat' ? '' : '/' + t[0])); drawTabs(); show(); } }, t[1])));
+    mount(tabs, [['chat', 'Conversación'], ['objetivos', 'Objetivos'], ['biblioteca', 'Biblioteca'], ['memoria', 'Memoria'], ['actividad', 'Actividad']].map(t => h('button' + (st.tab === t[0] ? '.on' : ''), { onclick: () => { st.tab = t[0]; history.replaceState(null, '', '#/ia' + (t[0] === 'chat' ? '' : '/' + t[0])); drawTabs(); show(); } }, t[1])));
   }
   async function drawStatus() {
     const s = await localStatus().catch(() => ({}));
@@ -68,7 +69,7 @@ export function render(el, params) {
         h('span', pill('Modo básico', 'warn'), ' ', h('span.small.muted', (s.motivo || 'Sin modelo de IA disponible ahora') + ' Busca y calcula, pero no redacta.'), ' ', can('config.ver') && desktop.on ? h('a', { href: '#/config/ia' }, 'Configurar IA local') : null));
   }
   function show() {
-    if (st.tab === 'chat') chat(); else if (st.tab === 'biblioteca') biblioteca(body); else if (st.tab === 'memoria') memoria(body); else actividad(body);
+    if (st.tab === 'chat') chat(); else if (st.tab === 'objetivos') objetivosView(body); else if (st.tab === 'biblioteca') biblioteca(body); else if (st.tab === 'memoria') memoria(body); else actividad(body);
   }
 
   // ======================= Conversación =======================
@@ -93,18 +94,18 @@ export function render(el, params) {
   }
   function drawLog() {
     mount(sugg, st.msgs.length ? null : SUGG.filter(s => !s[1] || can(s[1])).map(s => h('button', { onclick: () => send(s[0]) }, s[0])));
-    if (!st.msgs.length) mount(log, h('div.empty', icon('sparkles'), h('h3', '¿En qué te ayudo?'), h('p', 'Calculo precios y márgenes, busco pedidos y clientes, resumo ventas, te ayudo a responder a clientes y consulto la biblioteca de la empresa. Si no encuentro un dato, te lo digo.')));
+    if (!st.msgs.length) mount(log, h('div.empty', icon('sparkles'), h('h3', 'Hola, soy Celebrity'), h('p', 'Pregúntame qué hay hoy, cómo van los objetivos, precios y márgenes, pedidos, clientes o cómo responder a un cliente. Si no tengo un dato, te lo digo.')));
     else mount(log, st.msgs.map(bubble));
     log.scrollTop = log.scrollHeight;
   }
   function bubble(m) {
     if (m.role === 'user') return h('div.msg.me', m.content);
-    if (m.pending && !m.content) return h('div.msg.ai', h('span.row', h('span.sync.busy', { style: { padding: 0 } }, h('span.dot'), m.status || 'Pensando…')));
+    if (m.pending && !m.content) return h('div.msg.ai', h('span.row', h('span.sync.busy', { style: { padding: 0 } }, h('span.dot'), m.status || 'Un momento…')));
     const refOpen = ref => { const f = (m.fuentes || []).find(x => x.ref === ref); if (f && f.docId) openDoc(f.docId); else if (f) toast(f.titulo, 'info'); };
     return h('div.msg.ai' + (m.error ? '.err' : ''), m.error ? h('span.bad-t', m.content) : richText(m.content, refOpen),
       m.pending ? h('div.tiny.muted', m.status || '…') : null,
-      !m.pending && m.fuentes && m.fuentes.length ? h('div.sources', h('span.tiny.muted', 'Fuentes: '), m.fuentes.map(f => h('button.src.' + f.tipo, { title: f.titulo, onclick: () => f.docId ? openDoc(f.docId) : null }, (f.ref ? f.ref + ' · ' : '') + f.titulo + (f.error ? ' ⚠️' : '')))) : null,
-      !m.pending && m.modo ? h('div.tiny.muted.mode', m.modo === 'local' ? '🧠 IA local · ' + m.modelo : m.modo === 'equipo' ? '🖥️ Respondido por ' + (m.servidor || 'el PC servidor') + (m.modelo ? ' · ' + m.modelo : '') : '⚙️ Modo básico (sin redacción)' + (m.motivoBasico ? ' — ' + m.motivoBasico : ''), m.ms ? ' · ' + (m.ms / 1000).toFixed(1).replace('.', ',') + ' s' : '') : null,
+      !m.pending && m.fuentes && m.fuentes.length ? h('div.sources', h('span.tiny.muted', 'Fuentes: '), m.fuentes.map(f => h('button.src.' + f.tipo, { title: f.titulo, onclick: () => f.docId ? openDoc(f.docId) : f.url ? desktop.openUrl(f.url) : null }, (f.ref ? f.ref + ' · ' : '') + f.titulo + (f.error ? ' ⚠️' : '')))) : null,
+      !m.pending && m.modo ? h('div.tiny.muted.mode', m.modo === 'celebrity' ? '✨ Celebrity · al instante' : m.modo === 'local' ? '🧠 IA local · ' + m.modelo + (m.cache ? ' · ya lo sabía' : '') : m.modo === 'equipo' ? '🖥️ Respondido por ' + (m.servidor || 'el PC servidor') + (m.modelo ? ' · ' + m.modelo : '') : '⚙️ Modo básico (sin redacción)' + (m.motivoBasico ? ' — ' + m.motivoBasico : ''), m.ms ? ' · ' + (m.ms / 1000).toFixed(1).replace('.', ',') + ' s' : '') : null,
       (m.acciones || []).map(a => proposal(a)));
   }
   function proposal(a) {
@@ -121,6 +122,7 @@ export function render(el, params) {
     if (!await confirmDlg('Confirmar acción de la IA', msg, 'Sí, hacerlo')) return;
     try {
       if (a.entidad === 'memoria') { const r = await api('memoria.guardar', a.cambios); upsertLocal('memoria', r); }
+      else if (a.entidad === 'objetivos') { S.cfg = await api('objetivos.guardar', { objetivo: a.cambios }); }
       else if (a.nueva && a.entidad === 'tareas') { const r = await mutate('tareas.guardar', { datos: Object.assign({}, a.cambios, { origen: 'ia' }) }, { onlineOnly: true, label: 'Tarea propuesta por la IA' }); if (r && r.id) upsertLocal('tareas', r); }
       else {
         const action = { pedidos: 'pedidos.guardar', clientes: 'clientes.guardar', productos: 'productos.guardar', tareas: 'tareas.guardar' }[a.entidad];
@@ -145,7 +147,7 @@ export function render(el, params) {
     try {
       const r = await ask(q, history, { signal: st.ctrl.signal, onToken: t => { pend.content = t; redraw(); }, onStatus: s => { pend.status = s; redraw(); } });
       Object.assign(pend, { pending: false, content: r.texto || NO_DATA, fuentes: r.fuentes, acciones: r.acciones, modo: r.modo, modelo: r.modelo, servidor: r.servidor, ms: r.ms, motivoBasico: r.motivoBasico });
-      if (r.modo === 'local') api('ia.registrar', { tipo: 'local', resumen: q, herramientas: r.herramientas || [], acciones: r.acciones || [] }).catch(() => { });
+      if (r.modo === 'local' || (r.herramientas || []).some(x => /^internet/.test(x))) api('ia.registrar', { tipo: 'local', resumen: q, herramientas: r.herramientas || [], acciones: r.acciones || [] }).catch(() => { });
       if (st.voz && 'speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(pend.content.replace(/[*#_`]|\[[TDMC]\d*\]/g, '')); u.lang = 'es-ES'; speechSynthesis.cancel(); speechSynthesis.speak(u); }
     } catch (e) {
       if (e.name === 'AbortError') Object.assign(pend, { pending: false, content: (pend.content || '') + '\n\n_(Detenido)_' });
@@ -329,4 +331,28 @@ async function actividad(body) {
         h('div', r.resumen), (r.acciones || []).length ? h('ul.small', r.acciones.map(a => h('li', a.texto || (a.tipo === 'propuesta' ? 'Propuso: ' + a.titulo : a.tipo)))) : null,
         r.error ? h('div.small.bad-t', 'No pudo terminar: ' + r.error) : null)))) : h('p.muted', 'Todavía no hay actividad.'));
   } catch (e) { mount(body, h('p.bad-t', e.message)); }
+}
+
+// ======================= v10 · Objetivos que controla Celebrity =======================
+const PER = { dia: 'Hoy', semana: 'Esta semana', mes: 'Este mes' };
+function objetivosView(body) {
+  const draw = () => {
+    const list = objetivos(), b = brief();
+    const canEdit = can('objetivos.gestionar');
+    const fmt = (v, t) => t === 'ventas' ? v.toFixed(2).replace('.', ',') + ' €' : String(v);
+    mount(body, h('div.card.celeb-card', h('div.bold', '✨ ' + b.next)),
+      list.length ? h('div.obj-list', list.map(o => h('div.obj' + (o.p.hecho ? '.done' : ''), h('div.row', h('div.grow', h('div.tiny.muted', PER[o.periodo] || ''), h('div.bold', objetivoTexto(o))),
+        h('div.obj-n', fmt(o.p.valor, o.tipo), h('small', ' / ' + fmt(o.p.meta, o.tipo))), o.p.hecho ? h('span', '✓') : null,
+        canEdit ? btn('', async () => { if (!await confirmDlg('Quitar objetivo', '«' + objetivoTexto(o) + '» dejará de controlarse.', 'Quitar', true)) return; try { S.cfg = await api('objetivos.guardar', { quitar: o.id }); emit(); draw(); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'ghost icon sm', icon: 'x', title: 'Quitar' }) : null),
+        h('div.progress', h('span', { style: { width: Math.round(o.p.pct * 100) + '%' } }))))) : h('div.card', h('p.muted', 'Todavía no hay objetivos. ' + (canEdit ? 'Crea uno aquí o díselo a Celebrity: «objetivo: publicar 3 productos hoy».' : 'Una administradora puede crearlos.'))),
+      canEdit ? h('div.card', h('h3', 'Nuevo objetivo'), newForm()) : null);
+  };
+  function newForm() {
+    const tipo = sel(Object.entries(window.CL.OBJ_TIPOS).map(([v, t]) => ({ v, t })), 'publicar');
+    const meta = inp({ type: 'number', min: 1, value: 3 }), per = sel([{ v: 'dia', t: 'Hoy (cada día)' }, { v: 'semana', t: 'Esta semana' }, { v: 'mes', t: 'Este mes' }], 'dia');
+    const tit = inp({ placeholder: 'Opcional, p. ej. Publicar 3 productos' });
+    return h('div.form', field('Qué', tipo), field('Meta', meta), field('Periodo', per), field('Nombre', tit),
+      btn('Crear objetivo', async () => { try { S.cfg = await api('objetivos.guardar', { objetivo: { tipo: tipo.value, meta: Number(meta.value), periodo: per.value, titulo: tit.value.trim() } }); emit(); toast('Objetivo creado', 'ok'); draw(); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary' }));
+  }
+  draw();
 }

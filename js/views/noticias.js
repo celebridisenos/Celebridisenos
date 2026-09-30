@@ -2,15 +2,21 @@
 import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, debounce, confirmDlg, uid, avatar, sw } from '../ui.js';
 import { S, can, mutate, api, byId, upsertLocal, removeLocal, emit } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
-import { dropZone, gallery, filesOf } from '../files.js';
+import { dropZone, gallery, filesOf, mediaFeed } from '../files.js';
+import { toast as toast2 } from '../ui.js';
 
 const CL = window.CL;
 const TIPOS = ['Noticia', 'Anuncio', 'Campaña', 'Objetivo', 'Reconocimiento', 'Novedad de producto'];
 const TIPO_I = { 'Noticia': '📰', 'Anuncio': '📣', 'Campaña': '🎯', 'Objetivo': '🏁', 'Reconocimiento': '🏆', 'Novedad de producto': '✨', 'Informe': '📊' };
 const EMOJIS = ['👍', '❤️', '🎉', '😂', '😮', '👏'];
 
+// v10: lo que se está escribiendo en cada noticia se guarda aparte: aunque lleguen datos
+// nuevos y se redibuje una noticia, el texto y el cursor se conservan.
+const drafts = new Map();
+
 export function render(el, params) {
-  const st = { q: '', tipo: '', focus: '' };
+  const st = { q: '', tipo: '', focus: '', comment: '' };
+  const cache = new Map(); // id → { sig, el }: solo se redibuja la noticia que ha cambiado
   const search = inp({ type: 'search', placeholder: 'Buscar en noticias…' });
   search.addEventListener('input', debounce(() => { st.q = search.value; drawFeed(); }, 150));
   const fTipo = sel([{ v: '', t: 'Todas' }].concat(TIPOS), ''); fTipo.addEventListener('change', () => { st.tipo = fTipo.value; drawFeed(); });
@@ -22,14 +28,37 @@ export function render(el, params) {
     const now = new Date().toISOString();
     const list = S.t.noticias.filter(n => (!st.tipo || n.tipo === st.tipo) && (!st.q || CL.matches(n.titulo + ' ' + n.texto + ' ' + n.etiquetas + ' ' + n.autor, st.q)))
       .sort((a, b) => (b.fijada - a.fijada) || String(b.publicarEn || b.creado).localeCompare(String(a.publicarEn || a.creado)));
-    if (!list.length) return mount(feed, h('div.card', empty('news', S.t.noticias.length ? 'Nada con este filtro' : 'Todavía no hay noticias', can('noticias.publicar') ? 'Comparte novedades, objetivos o reconocimientos con el equipo.' : 'Aquí aparecerán las novedades del equipo.', can('noticias.publicar') && !S.t.noticias.length ? btn('Publicar la primera', () => postForm(), { cls: 'primary' }) : null)));
-    mount(feed, list.map(n => post(n, now, st.focus === n.id)));
-    if (st.focus) { const x = feed.querySelector('[data-id="' + st.focus + '"]'); if (x) x.scrollIntoView({ behavior: 'smooth', block: 'center' }); st.focus = ''; }
+    if (!list.length) { cache.clear(); return mount(feed, h('div.card', empty('news', S.t.noticias.length ? 'Nada con este filtro' : 'Todavía no hay noticias', can('noticias.publicar') ? 'Comparte novedades, objetivos o reconocimientos con el equipo.' : 'Aquí aparecerán las novedades del equipo.', can('noticias.publicar') && !S.t.noticias.length ? btn('Publicar la primera', () => postForm(), { cls: 'primary' }) : null))); }
+    const nodes = list.map(n => {
+      const sig = postSig(n, now, st.focus === n.id);
+      const c = cache.get(n.id);
+      if (c && c.sig === sig) return c.el;
+      // si en esa noticia hay un comentario a medias con el cursor dentro, se recupera el foco
+      const had = c && c.el.contains(document.activeElement) && document.activeElement.matches('input') ? { s: document.activeElement.selectionStart, e: document.activeElement.selectionEnd } : null;
+      const el2 = post(n, now, st.focus === n.id, st.comment);
+      if (c && c.el.parentNode) c.el.replaceWith(el2);
+      cache.set(n.id, { sig, el: el2 });
+      if (had) { const i = el2.querySelector('input.c-in'); if (i) { i.focus(); try { i.setSelectionRange(had.s, had.e); } catch (x) { } } }
+      return el2;
+    });
+    // colocar en orden sin quitar del documento lo que no cambia
+    if (feed.firstChild && !feed.firstChild.dataset) feed.textContent = '';
+    nodes.forEach((node, i) => { if (feed.children[i] !== node) feed.insertBefore(node, feed.children[i] || null); });
+    while (feed.children.length > nodes.length) feed.lastChild.remove();
+    if (st.focus) {
+      const x = feed.querySelector('[data-id="' + st.focus + '"]');
+      const cm = st.comment && x ? x.querySelector('[data-c="' + st.comment + '"]') : null;
+      if (x) (cm || x).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else toast2('Esta noticia ya no existe o no tienes permiso para verla.', 'warn');
+      if (cm) { cm.classList.add('hl'); setTimeout(() => cm.classList.remove('hl'), 3500); }
+      st.focus = ''; st.comment = '';
+    }
   }
   function applyParams(p) {
-    const id = (p || []).find(x => x && !x.startsWith('?')) || '';
+    const ps = (p || []).filter(x => x && !x.startsWith('?'));
+    const id = ps[0] || '';
     if (id === 'nueva') { history.replaceState(null, '', '#/noticias'); postForm(); }
-    else if (id) st.focus = id;
+    else if (id) { st.focus = id; st.comment = ps[1] || ''; }
     drawFeed();
   }
   applyParams(params);
@@ -39,17 +68,24 @@ export function render(el, params) {
   return { params: applyParams, update: drawFeed };
 }
 
+function postSig(n, now, focus) {
+  const f = (n.archivos || []).concat(filesOf('noticias', n.id).map(a => a.id)).map(id => { const a = byId('archivos', id); return a ? a.id + (a.miniatura ? 1 : 0) : ''; }).join(',');
+  return JSON.stringify([n, focus, n.publicarEn && n.publicarEn > now, f,
+    S.t.reacciones.filter(r => r.noticiaId === n.id).map(r => r.emoji + r.userId).sort(),
+    S.t.comentarios.filter(c => c.noticiaId === n.id).map(c => c.id + c.texto)]);
+}
 function post(n, now, focus) {
   const mine = n.autorId === S.me.id;
   const scheduled = n.publicarEn && n.publicarEn > now;
   const reacts = S.t.reacciones.filter(r => r.noticiaId === n.id);
   const comments = S.t.comentarios.filter(c => c.noticiaId === n.id).sort((a, b) => String(a.creado).localeCompare(String(b.creado)));
   const files = (n.archivos || []).map(id => byId('archivos', id)).filter(Boolean).concat(filesOf('noticias', n.id).filter(a => !(n.archivos || []).includes(a.id)));
-  const cInput = inp({ placeholder: 'Escribe un comentario… (usa @Nombre para mencionar)' });
+  const cInput = inp({ placeholder: 'Escribe un comentario… (usa @Nombre para mencionar)', value: drafts.get(n.id) || '', class: 'inp c-in' });
+  cInput.addEventListener('input', () => { if (cInput.value) drafts.set(n.id, cInput.value); else drafts.delete(n.id); });
   const sendC = async () => {
     const t = cInput.value.trim(); if (!t) return;
     const id = uid('m');
-    cInput.value = '';
+    cInput.value = ''; drafts.delete(n.id);
     try { await mutate('noticias.comentar', { id, noticiaId: n.id, texto: t }, { label: 'Comentario', tables: ['comentarios'], optimistic: T => T.comentarios.push({ id, noticiaId: n.id, autor: S.me.nombre, autorId: S.me.id, texto: t, creado: new Date().toISOString() }) }); }
     catch (e) { handleError(e, 'noticias'); }
   };
@@ -59,7 +95,7 @@ function post(n, now, focus) {
       n.fijada ? pill('📌 Fijada', 'brand') : null, pill((TIPO_I[n.tipo] || '📰') + ' ' + (n.tipo || 'Noticia')),
       (mine && can('noticias.publicar')) || can('noticias.moderar') ? btn('', () => postMenu(n), { cls: 'ghost icon sm', icon: 'menu', title: 'Opciones' }) : null),
     h('h2', n.titulo), n.texto ? h('div.body', n.texto) : null,
-    files.length ? gallery(files) : null,
+    files.length ? mediaFeed(files) : null,
     n.etiquetas ? h('div.tags', n.etiquetas.split(',').map(t => t.trim()).filter(Boolean).map(t => pill('#' + t))) : null,
     h('div.reacts', EMOJIS.map(e => {
       const who = reacts.filter(r => r.emoji === e);
@@ -67,7 +103,7 @@ function post(n, now, focus) {
       if (!who.length && !can('noticias.comentar')) return null;
       return h('button.react' + (onMe ? '.on' : ''), { title: who.map(r => (byId('usuarios', r.userId) || {}).nombre).filter(Boolean).join(', ') || 'Reaccionar', disabled: !can('noticias.comentar'), onclick: () => react(n, e, onMe) }, e + (who.length ? ' ' + who.length : ''));
     })),
-    comments.length ? h('div', comments.map(c => h('div.comment', avatar(byId('usuarios', c.autorId) || c.autor, 's'), h('div.bubble', h('div.small', h('b', c.autor), h('span.tiny.muted', ' · ' + ago(c.creado))), h('div', c.texto)),
+    comments.length ? h('div', comments.map(c => h('div.comment', { dataset: { c: c.id } }, avatar(byId('usuarios', c.autorId) || c.autor, 's'), h('div.bubble', h('div.small', h('b', c.autor), h('span.tiny.muted', ' · ' + ago(c.creado))), h('div', c.texto)),
       (c.autorId === S.me.id || can('noticias.moderar')) ? btn('', () => delComment(c), { cls: 'ghost icon sm', icon: 'x', title: 'Borrar comentario' }) : null))) : null,
     can('noticias.comentar') ? h('div.row', cInput, btn('', sendC, { cls: 'icon', icon: 'send', title: 'Enviar' })) : null);
 }

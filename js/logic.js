@@ -180,11 +180,12 @@ var CL = (function () {
     var luz = n(c.horas) * n(pp.luzHora), mo = n(c.horasMO) * n(pp.manoObraHora);
     var pint = (c.pintado === true || /^s/i.test(s(c.pintado))) ? n(c.costePintado) : 0;
     var ext = (gastos[norm(c.gasto1)] || 0) + (gastos[norm(c.gasto2)] || 0);
-    var R = fil + luz + mo + pint + ext, T = R * (1 + n(pp.iva));
+    var emb = n(c.embalaje !== undefined && c.embalaje !== '' ? c.embalaje : pp.embalaje), env = n(c.envio !== undefined && c.envio !== '' ? c.envio : pp.envio);
+    var R = fil + luz + mo + pint + ext, T = R * (1 + n(pp.iva)) + emb + env;
     var etsyPct = n(pp.etsyVenta) + n(pp.etsyPago) + n(pp.etsyReg), etsyFix = n(pp.etsyFijo) + n(pp.etsyAnuncioUSD) * n(pp.usdEur);
     function plat(m) { return { general: T / (1 - m), wallapop: T / (1 - m), vinted: T / (1 - m - n(pp.vinted)), etsy: (T + etsyFix) / (1 - m - etsyPct) }; }
     var o = plat(n(pp.margen)), mi = plat(n(pp.margenMin));
-    var out = { desglose: { filamento: fil, luz: luz, manoObra: mo, pintado: pint, gastosExtra: ext, produccion: R, iva: R * n(pp.iva), costeTotal: T },
+    var out = { desglose: { filamento: fil, luz: luz, manoObra: mo, pintado: pint, gastosExtra: ext, produccion: R, iva: R * n(pp.iva), embalaje: emb, envio: env, costeTotal: T },
       recomendado: {}, minimo: {}, segundaMano: round10up(T / (1 - n(pp.margen)) * (1 - n(pp.segundaMano))) };
     Object.keys(o).forEach(function (k) { out.recomendado[k] = round10up(o[k]); out.minimo[k] = round10up(mi[k]); });
     out.beneficio = { wallapop: out.recomendado.wallapop - T, vinted: out.recomendado.vinted * (1 - n(pp.vinted)) - T, etsy: out.recomendado.etsy * (1 - etsyPct) - etsyFix - T };
@@ -455,7 +456,22 @@ var CL = (function () {
     return { usuarios: byId, lista: list, ranking: { xp: rank('xpMes'), ventas: rank('ventasMes'), pedidos: rank('pedidosMes'), tareas: rank('tareasMes'), actividad: rank('diasActivosMes') }, insignias: BADGES, levelOf: levelOf };
   }
 
-  return { sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
+  // v10 · Objetivos de Celebrity: progreso calculado SOLO con datos reales
+  var OBJ_TIPOS = { publicar: 'Publicaciones en redes', pedidos: 'Pedidos', ventas: 'Ventas (€)', tareas: 'Tareas completadas', productos: 'Productos nuevos' };
+  function objectiveProgress(o, data, cfg, hoy) {
+    hoy = hoy || today();
+    var from = o.periodo === 'semana' ? weekStart(hoy) : o.periodo === 'mes' ? hoy.substring(0, 8) + '01' : hoy;
+    var inR = function (d) { d = day(d); return d && d >= from && d <= hoy; };
+    var cp = (cfg && cfg.pedidos) || {}, v = 0;
+    if (o.tipo === 'publicar') v = (data.redes || []).filter(function (r) { return r.estado === 'Publicado' && inR(r.fecha); }).length;
+    else if (o.tipo === 'pedidos') v = (data.pedidos || []).filter(function (x) { return inR(x.fecha) && !stateOf(cp, x.estado).cancelled; }).length;
+    else if (o.tipo === 'ventas') v = r2((data.pedidos || []).filter(function (x) { return inR(x.fecha) && !stateOf(cp, x.estado).cancelled; }).reduce(function (a, x) { return a + orderTotal(x); }, 0));
+    else if (o.tipo === 'tareas') v = (data.tareas || []).filter(function (t) { return t.estado === 'Completada' && inR(t.completado); }).length;
+    else if (o.tipo === 'productos') v = (data.productos || []).filter(function (p) { return inR(p.creado); }).length;
+    var meta = n(o.meta) || 0;
+    return { valor: v, meta: meta, pct: meta ? Math.min(1, v / meta) : 0, hecho: meta > 0 && v >= meta, desde: from, hasta: hoy };
+  }
+  return { objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches };

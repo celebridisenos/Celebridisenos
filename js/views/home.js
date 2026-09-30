@@ -3,10 +3,12 @@ import { h, mount, icon, btn, modal, eur, fdate, ago, avatar, sw, pill } from '.
 import { S, can, dash, unreadCount, byId, timing } from '../store.js';
 import { go } from '../app.js';
 import { gameCard, checkLevelUp, loadFrases, fraseDelDia, game } from '../game.js';
+import { brief, objetivoTexto } from '../ai/celebrity.js';
 
 const CL = window.CL;
 
 const MODS = [
+  { k: 'celebrity', t: 'Celebrity: resumen del día y objetivos' },
   { k: 'motivacion', t: 'Motivación del día' },
   { k: 'alertas', t: 'Alertas inteligentes' },
   { k: 'inteligencia', t: 'Centro de inteligencia (ventas, beneficios, tendencias)', p: 'informes.ver' },
@@ -40,6 +42,19 @@ function greet() {
   return (hr < 6 ? 'Buenas noches' : hr < 14 ? 'Buenos días' : hr < 21 ? 'Buenas tardes' : 'Buenas noches') + ', ' + S.me.nombre.split(' ')[0];
 }
 
+// v10.5: portada propia de THE NOORKO (estética editorial; solo datos de su espacio)
+function noorkoHero() {
+  const P = S.t.productos, st = e => P.filter(p => String(p.estado || '').toLowerCase() === e).length;
+  const abiertos = S.t.pedidos.filter(o => { try { return CL.orderTiming(o, S.cfg.pedidos, S.hoy).abierto; } catch (e) { return false; } }).length;
+  const sem = S.t.redes.filter(r => r.fecha && r.fecha >= S.hoy && r.fecha <= CL.addDays(S.hoy, 7)).length;
+  const k = (n, t, path) => h('button.nk-kpi', { onclick: () => go(path) }, h('b', String(n)), h('span', t));
+  return h('section.nk-hero',
+    h('div.nk-top', h('span.nk-tag', 'ESPACIO INDEPENDIENTE'), h('span.nk-date', S.hoy.split('-').reverse().join('.'))),
+    h('h2.nk-word', 'THE NOORKO'),
+    h('p.nk-sub', 'Streetwear · drops · catálogo · redes'),
+    h('div.nk-kpis', k(st('borrador'), 'En borrador', 'productos'), k(st('listo'), 'Listos', 'productos'), k(st('publicado'), 'Publicados', 'catalogo'), k(st('vendido'), 'Vendidos', 'productos'), k(abiertos, 'Pedidos abiertos', 'pedidos'), k(sem, 'Posts 7 días', 'redes')));
+}
+
 let frasesLoaded = false, fraseOff = 0;
 function draw(root) {
   const d = dash();
@@ -50,13 +65,15 @@ function draw(root) {
   if (gameOn) setTimeout(checkLevelUp, 1200);
   if (!frasesLoaded) { frasesLoaded = true; loadFrases().then(() => draw(root)); }
   mount(root,
+    S.ws === 'noorko' ? noorkoHero() : null,
     h('div.page-head', h('div', h('h1', greet()), h('div.muted', hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1))), h('div.right.row',
       can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),
+    mods.some(m => m.k === 'celebrity') ? MOD_FNS.celebrity(d) : null,
     mods.some(m => m.k === 'motivacion') ? MOD_FNS.motivacion(d) : null,
     h('div.grid', { style: { gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', alignItems: 'start' }, class: 'home-grid' },
       h('div.col', { style: { gap: 'var(--gap)' } }, attention(d), ...mods.filter(m => ['inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)),
-      h('div.col', { style: { gap: 'var(--gap)' } }, mods.filter(m => !['motivacion', 'inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)))
+      h('div.col', { style: { gap: 'var(--gap)' } }, mods.filter(m => !['celebrity', 'motivacion', 'inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)))
   );
   if (window.innerWidth <= 860) root.querySelector('.home-grid').style.gridTemplateColumns = '1fr';
 }
@@ -99,6 +116,15 @@ function attention(d) {
 }
 
 const MOD_FNS = {
+  // v10: Celebrity resume el día en pocas líneas y controla los objetivos
+  celebrity() {
+    const b = brief();
+    const fmt = (v, t) => t === 'ventas' ? v.toFixed(2).replace('.', ',') + ' €' : String(v);
+    return h('section.card.celeb-card', h('div.row', h('span.celeb-mark', '✨'), h('div.grow', h('div.tiny.muted', 'CELEBRITY · HOY'), h('div.bold', b.next)),
+        can('ia.usar') ? btn('Preguntar', () => go('ia'), { cls: 'sm' }) : null),
+      b.items.length ? h('div.celeb-items', b.items.slice(0, 5).map(i => h('button.celeb-it', { onclick: () => go(i.path) }, h('b', String(i.n)), ' ' + i.txt))) : null,
+      b.objetivos.length ? h('div.obj-list', b.objetivos.map(o => h('div.obj' + (o.p.hecho ? '.done' : ''), { onclick: () => go('ia/objetivos') }, h('div.row', h('div.grow.small', objetivoTexto(o)), h('b.small', fmt(o.p.valor, o.tipo) + ' / ' + fmt(o.p.meta, o.tipo) + (o.p.hecho ? ' ✓' : ''))), h('div.progress', h('span', { style: { width: Math.round(o.p.pct * 100) + '%' } }))))) : null);
+  },
   motivacion() {
     const g = game(), me = g.usuarios[S.me.id] || {};
     const txt = h('p.frase', fraseDelDia(fraseOff));

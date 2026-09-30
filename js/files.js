@@ -1,6 +1,6 @@
 // ================= Archivos: validar, miniaturas, subir por trozos, ver =================
 import { h, mount, icon, btn, bytes, toast, modal, uid, fdt, confirmDlg } from './ui.js';
-import { S, api, can, upsertLocal, removeLocal, emit } from './store.js';
+import { S, api, can, upsertLocal, removeLocal, emit, kv } from './store.js';
 import { parse3D, viewer, thumb3D } from './stl.js';
 import { desktop } from './desktop.js';
 
@@ -93,7 +93,80 @@ export async function uploadFile(file, meta, onProgress) {
     onProgress && onProgress(off / file.size);
   }
   upsertLocal('archivos', last.archivo); emit();
+  // v10: vista previa ligera para el feed y el catálogo (el original queda intacto en Drive)
+  if (tipo === 'foto' && last.archivo && last.archivo.driveId) makePreview(file).then(async pv => {
+    if (!pv) return;
+    try { await api('archivos.previewGuardar', { id: last.archivo.id, datos: await blobToB64(pv), mime: pv.type }, { quiet: true }); } catch (e) { }
+    try { await kv.set('pv:' + last.archivo.id, pv); } catch (e) { }
+  }).catch(() => { });
   return last.archivo;
+}
+// Vista previa: lado mayor 1080 px, JPEG 80 % (≈100-250 KB)
+export async function makePreview(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const s = Math.min(1, 1080 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const png = /png|webp/i.test(file.type || '');
+    const b = await new Promise(r => c.toBlob(r, png ? 'image/webp' : 'image/jpeg', 0.8));
+    return b && b.size < 1400 * 1024 ? b : null;
+  } catch (e) { return null; }
+}
+// URL de la vista previa de una foto (se descarga una vez y se guarda en el dispositivo)
+const pvUrls = new Map(), pvLoading = new Map();
+export function previewUrl(a) {
+  if (pvUrls.has(a.id)) return Promise.resolve(pvUrls.get(a.id));
+  if (pvLoading.has(a.id)) return pvLoading.get(a.id);
+  const p = (async () => {
+    if (!a.driveId && a.rutaLocal && desktop.on) return desktop.fileUrl(a.rutaLocal);
+    let b = null;
+    try { b = await kv.get('pv:' + a.id); } catch (e) { }
+    if (!b) {
+      const r = await api('archivos.preview', { id: a.id }, { quiet: true, timeout: 60000 });
+      if (!r.datos) return r.miniatura || a.miniatura || '';
+      const bin = atob(r.datos), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      b = new Blob([u], { type: r.mime || 'image/jpeg' });
+      kv.set('pv:' + a.id, b).catch(() => { });
+    }
+    const url = URL.createObjectURL(b); pvUrls.set(a.id, url); return url;
+  })().finally(() => pvLoading.delete(a.id));
+  pvLoading.set(a.id, p);
+  return p;
+}
+// Fotos grandes tipo Instagram: se ven directamente (primero la miniatura borrosa, luego la
+// vista previa al llegar a la pantalla). Pulsar = verla a pantalla completa.
+const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { io.unobserve(e.target); e.target._load && e.target._load(); } }), { rootMargin: '400px' }) : null;
+export function mediaFeed(list) {
+  const fotos = list.filter(a => a.tipo === 'foto'), otros = list.filter(a => a.tipo !== 'foto');
+  const box = h('div.media-feed');
+  if (fotos.length) {
+    const track = h('div.mf-track' + (fotos.length > 1 ? '.multi' : ''), fotos.map((a, i) => {
+      const img = h('img', { alt: a.nombre, src: a.miniatura || '', decoding: 'async', class: 'blur' });
+      const fig = h('figure.mf', { onclick: () => lightbox(fotos, i) }, img, fotos.length > 1 ? h('span.mf-n', (i + 1) + '/' + fotos.length) : null);
+      fig._load = () => previewUrl(a).then(u => { if (!u) return; const t = new Image(); t.onload = () => { img.src = u; img.classList.remove('blur'); }; t.src = u; }).catch(() => { });
+      if (io) io.observe(fig); else fig._load();
+      return fig;
+    }));
+    box.appendChild(track);
+  }
+  if (otros.length) box.appendChild(gallery(otros));
+  return box;
+}
+export function lightbox(fotos, i) {
+  let k = i;
+  const img = h('img', { alt: '' });
+  const cap = h('div.lb-cap');
+  const show = () => { const a = fotos[k]; img.src = a.miniatura || ''; mount(cap, h('span', a.nombre), h('span.grow'), fotos.length > 1 ? h('span', (k + 1) + ' / ' + fotos.length) : null); previewUrl(a).then(u => { if (u && fotos[k] === a) img.src = u; }).catch(() => { }); };
+  const close = () => { lb.remove(); document.removeEventListener('keydown', key); };
+  const key = e => { if (e.key === 'Escape') close(); if (e.key === 'ArrowRight' && k < fotos.length - 1) { k++; show(); } if (e.key === 'ArrowLeft' && k > 0) { k--; show(); } };
+  const lb = h('div.lightbox', { onclick: e => { if (e.target === lb || e.target === img) close(); } },
+    h('div.lb-bar', h('button.btn.ghost.sm', { onclick: close }, '✕ Cerrar'), h('span.grow'),
+      h('button.btn.ghost.sm', { onclick: async () => { try { toast('Descargando el original…'); download(await fetchFile(fotos[k]), fotos[k].nombre); } catch (e) { toast(e.message, 'bad'); } } }, '⬇ Descargar original')),
+    img, cap,
+    fotos.length > 1 ? h('button.lb-prev', { onclick: e => { e.stopPropagation(); if (k > 0) { k--; show(); } } }, '‹') : null,
+    fotos.length > 1 ? h('button.lb-next', { onclick: e => { e.stopPropagation(); if (k < fotos.length - 1) { k++; show(); } } }, '›') : null);
+  document.body.appendChild(lb); document.addEventListener('keydown', key); show();
 }
 function blobToB64(blob) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });

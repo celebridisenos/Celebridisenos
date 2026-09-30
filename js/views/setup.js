@@ -1,5 +1,5 @@
 // ================= Primera conexión, configuración inicial y entrada =================
-import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials, area } from '../ui.js';
+import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials, area, modal } from '../ui.js';
 import { S, api, setServer, afterLogin, pull, login, passHash, checkNewPassword, parseInvite, joinWithInvite } from '../store.js';
 import { rolePicker, ROLE_INFO } from '../roles.js';
 import { iaSetupStep } from '../ai/models.js';
@@ -59,9 +59,38 @@ export function renderLogin(app, done, st) {
     last ? h('div.row', avatar({ nombre: last }), h('div.grow', h('div.bold', last), h('button.btn.ghost.sm', { onclick: () => { u.value = ''; u.focus(); } }, 'No soy yo'))) : null,
     field('Usuario', u, null, last ? 'hidden' : ''), field('Contraseña', p), msg, b,
     desktop.portable ? h('p.small', { style: { background: 'var(--surface-2)', padding: '8px 10px', borderRadius: '10px' } }, '🔌 Modo USB: tendrás que escribir la contraseña cada vez y, al cerrar el programa, no queda nada guardado en este ordenador.') : null,
-    h('p.tiny.muted', '¿Has olvidado la contraseña? Pide a una administradora que te ponga una nueva desde Configuración > Usuarios.'),
+    h('button.btn.ghost.sm', { onclick: () => forgotPassword(u.value.trim()) }, '¿Has olvidado tu contraseña?'),
     h('div.row.wrap', h('button.btn.ghost.sm', { onclick: () => renderInvite(app, done) }, '🎟️ Tengo una invitación'), h('span.grow'), h('button.btn.ghost.sm', { onclick: async () => { await setServer(''); done(); } }, 'Cambiar de servidor')))));
-  setTimeout(() => (last ? p : u).focus(), 50);
+  // no quitar el foco si la persona ya ha empezado a escribir en otro campo
+  setTimeout(() => { const a = document.activeElement; if (!a || a === document.body) (last ? p : u).focus(); }, 50);
+}
+
+// ---------- v10: ¿Has olvidado tu contraseña? ----------
+// La contraseña nunca se muestra: se pide un código de un solo uso y se elige una NUEVA.
+function forgotPassword(pre) {
+  const u = inp({ value: pre || '', placeholder: 'Tu usuario', autocomplete: 'username', autocapitalize: 'off' });
+  const code = inp({ placeholder: 'XXXX-XXXX', style: { letterSpacing: '.12em', textTransform: 'uppercase' }, autocomplete: 'one-time-code' });
+  const p1 = inp({ type: 'password', placeholder: 'Nueva contraseña (mín. 6)', autocomplete: 'new-password' }), p2 = inp({ type: 'password', placeholder: 'Repite la nueva contraseña', autocomplete: 'new-password' });
+  const msg = h('p.small'), step2 = h('div.col', { style: { display: 'none' } }, field('Código que te han dado', code), field('Nueva contraseña', p1), field('Repite la contraseña', p2));
+  let fase = 1;
+  modal('¿Has olvidado tu contraseña?', h('div.col', h('p.small.muted', 'Por seguridad nadie puede ver tu contraseña, ni siquiera las administradoras. Te daremos un código de un solo uso para que elijas una nueva.'), field('Usuario', u), step2, msg,
+    h('button.btn.ghost.sm', { onclick: () => { fase = 2; step2.style.display = ''; code.focus(); } }, 'Ya tengo un código')),
+    close => [btn('Cancelar', close), btn('Continuar', async ev => {
+      const b = ev.target.closest('button'); msg.className = 'small'; msg.textContent = '';
+      if (!u.value.trim()) { msg.textContent = 'Escribe tu usuario.'; return; }
+      b.disabled = true;
+      try {
+        if (fase === 1) {
+          const r = await api('auth.recuperar.pedir', { usuario: u.value.trim(), dispositivo: S.device }, { token: '' });
+          msg.textContent = '✅ ' + r.mensaje; fase = 2; step2.style.display = ''; b.textContent = 'Cambiar contraseña';
+        } else {
+          const er = checkNewPassword(p1.value, p2.value); if (er) { msg.className = 'small bad-t'; msg.textContent = er; b.disabled = false; return; }
+          await api('auth.recuperar.usar', { usuario: u.value.trim(), codigo: code.value.trim(), ph: await passHash(p1.value), dispositivo: S.device }, { token: '' });
+          close(); toast('Contraseña cambiada. Ya puedes entrar con la nueva.', 'ok', 6000);
+        }
+      } catch (e) { msg.className = 'small bad-t'; msg.textContent = e.message; }
+      b.disabled = false;
+    }, { cls: 'primary' })], { size: 'narrow' });
 }
 
 // ---------- Unirse con una invitación (cualquier PC o móvil) ----------

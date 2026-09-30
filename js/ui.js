@@ -149,8 +149,11 @@ export function btn(label, onclick, opts = {}) {
   const b = h('button.btn' + (opts.cls ? '.' + opts.cls.split(' ').join('.') : ''), { type: opts.type || 'button', title: opts.title, disabled: opts.disabled, autofocus: opts.autofocus, onclick }, opts.icon ? icon(opts.icon, opts.small ? 's' : '') : null, label ? h('span', label) : null);
   return b;
 }
+let avatarSrc = null; // v10: la app indica cómo encontrar la foto de perfil (miniatura guardada)
+export function setAvatarSource(fn) { avatarSrc = fn; }
 export function avatar(u, cls, fileUrl) {
   const name = u && (u.nombre || u) || '?';
+  if (!fileUrl && avatarSrc && u && u.avatarId) fileUrl = avatarSrc(u.avatarId);
   const a = h('span.avatar' + (cls ? '.' + cls : ''), { style: { background: (u && u.color) || stringColor(name) }, title: name });
   if (fileUrl) a.appendChild(h('img', { src: fileUrl, alt: '' })); else a.textContent = initials(name);
   return a;

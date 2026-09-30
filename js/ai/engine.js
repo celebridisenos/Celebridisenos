@@ -8,9 +8,10 @@ import { desktop } from '../desktop.js';
 import { localStatus } from './models.js';
 import { salesCalc, isPriceObjection, eur } from './calc.js';
 import { search, norm } from './rag.js';
+import { isBriefQuestion, briefText, objetivos, objetivoTexto } from './celebrity.js';
 
 export const NO_DATA = 'No encuentro ese dato en la información disponible.';
-const LABEL = { buscar_pedidos: 'Pedidos', ver_pedido: 'Pedido', buscar_clientes: 'Clientes', ver_cliente: 'Cliente', buscar_productos: 'Productos', consejo_precio: 'Costes y precios', listar_tareas: 'Tareas', crear_tarea: 'Propuesta de tarea', proponer_cambio: 'Propuesta de cambio', estadisticas: 'Ventas y estadísticas', calendario_redes: 'Calendario de redes', noticias_recientes: 'Noticias', buscar_archivos: 'Archivos', stock: 'Stock', proponer_memoria: 'Memoria' };
+const LABEL = { buscar_pedidos: 'Pedidos', ver_pedido: 'Pedido', buscar_clientes: 'Clientes', ver_cliente: 'Cliente', buscar_productos: 'Productos', consejo_precio: 'Costes y precios', listar_tareas: 'Tareas', crear_tarea: 'Propuesta de tarea', proponer_cambio: 'Propuesta de cambio', estadisticas: 'Ventas y estadísticas', calendario_redes: 'Calendario de redes', noticias_recientes: 'Noticias', buscar_archivos: 'Archivos', stock: 'Stock', proponer_memoria: 'Memoria', crear_objetivo: 'Propuesta de objetivo' };
 export const toolLabel = n => LABEL[n] || n;
 
 // ---------- 1) Entender la pregunta y decidir qué datos consultar ----------
@@ -22,6 +23,12 @@ export function plan(question, ctx = {}) {
   const mem = /^(?:por favor,?\s*)?(?:recuerda|apunta en (?:la )?memoria|guarda en (?:la )?memoria|no olvides)\s+(?:que\s+)?(.{4,})/i.exec(String(question).trim());
   if (mem) add('proponer_memoria', { texto: mem[1].replace(/[.?!]+$/, ''), ambito: /(empresa|equipo|todos|todas)/.test(norm(mem[1])) ? 'empresa' : 'usuario' });
   const task = /(?:crea|crear|anade|añade|apunta|pon)\s+(?:una\s+)?tarea\s+(?:para\s+|de\s+|:\s*)?(.{4,})/i.exec(String(question));
+  // Objetivos: "objetivo: publicar 3 productos hoy", "pon como objetivo vender 200 € este mes"
+  const ob = /objetivo/.test(norm(question)) && /(\d+(?:[.,]\d+)?)/.exec(norm(question));
+  if (ob && /(pon|crea|nuevo|marca|fija|quiero|objetivo:|objetivo de)/.test(norm(question))) {
+    const qn = norm(question), tipo = /(public|subir|post|redes)/.test(qn) ? 'publicar' : /(vend|venta|factur|€|euros)/.test(qn) ? 'ventas' : /pedido/.test(qn) ? 'pedidos' : /tarea/.test(qn) ? 'tareas' : /producto/.test(qn) ? 'productos' : '';
+    if (tipo) add('crear_objetivo', { tipo, meta: Number(ob[1].replace(',', '.')), periodo: /semana/.test(qn) ? 'semana' : /mes/.test(qn) ? 'mes' : 'dia' });
+  }
   if (task) add('crear_tarea', { titulo: task[1].replace(/[.?!]+$/, '').slice(0, 150), responsable: /\b(para mi|me)\b/.test(q) ? me : '' });
   // Referencias concretas
   const num = /(?:pedido|n[ºo°]\.?|numero|#)\s*#?\s*(\d{2,7})\b/.exec(q);
@@ -76,19 +83,40 @@ async function gather(question, ctx, onStatus) {
   onStatus && onStatus('Consultando datos…');
   const jobs = [];
   if (calls.length) jobs.push(ctx.tools(calls).then(r => { out.results = r.resultados || r; out.acciones = r.acciones || []; }).catch(e => { out.toolError = e.message; }));
-  jobs.push(search(question, { k: 4, allowed: ctx.allowed || null }).then(d => { out.docs = d; }).catch(e => { out.ragError = e.message; }));
+  // v10: la biblioteca solo se consulta si hace falta (consejos, cómo…, o no hay datos que buscar)
+  const needDocs = !calls.length || /(como|consejo|ideas?|respond|contest|objecion|caro|negoci|mensaje|email|escrib|redact|descripcion|vender mas|estrategia|por que)/.test(norm(question));
+  if (needDocs) jobs.push(search(question, { k: 3, allowed: ctx.allowed || null }).then(d => { out.docs = d.map(x => Object.assign({}, x, { texto: String(x.texto).slice(0, 900) })); }).catch(e => { out.ragError = e.message; }));
   await Promise.all(jobs);
+  if (wantsWeb(question)) await webLookup(question, out, onStatus);
   out.calc = salesCalc(question, { iva: S.cfg && S.cfg.precios ? S.cfg.precios.iva : 0.21 });
   out.objecion = isPriceObjection(question);
   out.memoria = ctx.memoria || [];
   out.ms = Date.now() - t0;
   return out;
 }
+// ---------- v10: herramienta de Internet (solo si se pide y con permiso; queda registrada) ----------
+export const wantsWeb = q => /(internet|en la web|busca(r)? en (google|la red)|online|precio(s)? actual|cuanto cuesta (el|un) envio|gastos? de envio|tarifa|correos|seur|mrw|gls|nacex|packlink|ups|dhl|precio de mercado|competencia)/.test(norm(q));
+async function webLookup(question, out, onStatus) {
+  out.web = [];
+  if (!desktop.on) { out.webNota = 'La búsqueda en Internet solo está disponible en el programa del PC.'; return; }
+  if (!can('ia.internet')) { out.webNota = 'Buscar en Internet requiere el permiso «Celebrity puede buscar en Internet».'; return; }
+  onStatus && onStatus('Buscando en Internet…');
+  try {
+    const qq = String(question).replace(/(busca(r)? en (internet|google|la web)|en internet|por favor)/gi, '').trim() + ' España';
+    const r = await desktop.webBuscar(qq);
+    const top = (r.resultados || []).slice(0, 4);
+    const pages = await Promise.all(top.slice(0, 2).map(x => Promise.race([desktop.webLeer(x.url), new Promise((_, rej) => setTimeout(() => rej(new Error('lenta')), 9000))]).then(p => p.texto).catch(() => '')));
+    top.forEach((x, i) => out.web.push({ ref: 'W' + (i + 1), titulo: x.titulo, url: x.url, texto: ((pages[i] || '').slice(0, 1600) || x.resumen || '') }));
+    out.webQuery = qq;
+  } catch (e) { out.webNota = 'No se pudo buscar en Internet: ' + e.message; }
+}
 function contextText(g) {
   const parts = [];
   g.results.forEach((r, i) => { r.ref = 'T' + (i + 1); parts.push('[T' + (i + 1) + '] ' + toolLabel(r.nombre) + ': ' + compact(r.resultado)); });
   if (g.calc) parts.push('CÁLCULOS EXACTOS (cópialos tal cual, no recalcules):\n' + g.calc.lineas.map(l => '- ' + l).join('\n'));
   g.docs.forEach((d, i) => { d.ref = 'D' + (i + 1); parts.push('[D' + (i + 1) + '] ' + d.titulo + (d.seccion ? ' › ' + d.seccion : '') + ':\n' + d.texto); });
+  (g.web || []).forEach(w => parts.push('[' + w.ref + '] INTERNET · ' + w.titulo + ' (' + w.url + '):\n' + w.texto));
+  if (g.webNota) parts.push('INTERNET: ' + g.webNota);
   if (g.memoria.length) parts.push('MEMORIA (datos guardados por el equipo; tenlos en cuenta):\n' + g.memoria.map(m => '- ' + (m.ambito === 'usuario' ? '[preferencia de ' + ((m.autor) || 'esta persona') + '] ' : m.ambito === 'empresa' ? '[empresa] ' : '[privado] ') + m.texto).join('\n'));
   return parts.join('\n\n');
 }
@@ -96,8 +124,9 @@ function systemPrompt(ctx) {
   const emp = (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa';
   const u = ctx.usuario || { nombre: S.me && S.me.nombre, rol: '' };
   const hoy = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  return ['Eres el asistente interno de ' + emp + ', un pequeño negocio español de impresión 3D y reventa que vende online (Vinted, Wallapop, Etsy, Instagram, TikTok, WhatsApp).',
+  return ['Eres CELEBRITY, la coordinadora interna de ' + emp + ' (negocio español de impresión 3D y venta online: Vinted, Wallapop, Etsy, Instagram, TikTok, WhatsApp). No eres un chatbot genérico: conoces pedidos, tareas, productos, stock y objetivos, y dices qué hacer.',
     'Hablas con ' + (u.nombre || 'una persona del equipo') + (u.rol ? ' (' + u.rol + ')' : '') + '. Hoy es ' + hoy + '.',
+    S.ws === 'noorko' ? 'ESPACIO ACTUAL: THE NOORKO, la marca de ropa streetwear (espacio independiente). Todos los datos del CONTEXTO son SOLO de THE NOORKO: habla de prendas, tallas, drops y colecciones, no de impresión 3D.' : 'ESPACIO ACTUAL: Negocio principal.',
     'REGLAS OBLIGATORIAS:',
     '1. Los datos del negocio (pedidos, clientes, precios, costes, fechas, estados, ventas, stock, tareas) SOLO pueden salir del CONTEXTO. Nunca inventes cifras, nombres, fechas ni estados.',
     '2. Si el dato que piden no está en el CONTEXTO, responde: "' + NO_DATA + '" y di brevemente qué has buscado.',
@@ -106,7 +135,9 @@ function systemPrompt(ctx) {
     '5. Cita las fuentes entre corchetes al final de la frase: [T1] para datos, [D1] para biblioteca.',
     '6. No puedes cambiar ni borrar nada. Si procede un cambio, di "Te propongo…" y explica que hay que confirmarlo con el botón.',
     '7. Si una herramienta dice "Sin permiso", explica que esa información requiere autorización de una administradora.',
-    '8. Responde en español de España, claro y breve. Usa viñetas para listas. Importes con coma decimal y €.'].join('\n');
+    '8. ESTILO: español de España, natural y directo. Respuestas CORTAS: 1-3 frases o viñetas breves. Nada de introducciones ("Claro", "Aquí tienes", "Actualmente…"), no repitas la pregunta, no expliques lo obvio. Ejemplo bueno: "Hoy faltan 3 productos. Publica 2 y revisa los mensajes." Solo te extiendes si te piden un texto largo (descripción, mensaje, email).',
+    '9. Importes con coma decimal y €.',
+    '10. Datos de INTERNET [W…]: úsalos solo si aparecen en el texto, cita la web y da un rango (p. ej. "Envío estimado España: 4–7 €") y de qué depende (peso, medidas, destino, transportista). Si no aparece el dato, dilo; nunca inventes precios.'].join('\n');
 }
 
 // ---------- 3) Redactar con el modelo local (streaming) ----------
@@ -127,7 +158,10 @@ async function runModel(question, history, g, ctx, { onToken, onStatus, signal, 
     text = '';
     let inThink = false;
     onStatus && onStatus(round ? 'Consultando más datos…' : 'Redactando…');
-    await desktop.iaChat({ model, messages: msgs, tools: round < 2 ? tools : undefined, stream: true, think: false, keep_alive: '30m', options: { temperature: (S.cfg && S.cfg.ia && S.cfg.ia.temperatura) || 0.3, num_ctx: 8192 } }, ch => {
+    // v10: si ya tenemos los datos (plan), no se mandan las herramientas: menos texto = respuesta más rápida
+    const useTools = round < 2 && (!g.calls.length || round > 0) && tools.length;
+    const longAnswer = /(descripcion|redacta|escribe|mensaje|email|correo|texto para|post|anuncio|guion)/.test(norm(question));
+    await desktop.iaChat({ model, messages: msgs, tools: useTools ? tools : undefined, stream: true, think: false, keep_alive: '60m', options: { temperature: (S.cfg && S.cfg.ia && S.cfg.ia.temperatura) || 0.3, num_ctx: 6144, num_predict: longAnswer ? 700 : 320 } }, ch => {
       const m = ch.message || {};
       if (m.tool_calls && m.tool_calls.length) msg.tool_calls.push(...m.tool_calls);
       if (m.content) {
@@ -167,7 +201,7 @@ function fmtTool(r) {
     case 'calendario_redes': return (x.publicaciones || []).length ? '📱 Redes:\n' + x.publicaciones.slice(0, 10).map(p => '• ' + p.fecha + ' ' + p.red + ': ' + (p.titulo || '') + ' · ' + p.estado).join('\n') : '📱 No hay publicaciones en esas fechas.';
     case 'noticias_recientes': return (x.noticias || []).length ? '📰 ' + x.noticias.map(n => n.titulo + ' (' + n.fecha + ')').join(' · ') : '📰 Sin noticias.';
     case 'buscar_archivos': return x.encontrados ? '📁 ' + x.archivos.slice(0, 8).map(a => a.nombre).join(' · ') : '📁 Ningún archivo coincide.';
-    case 'crear_tarea': case 'proponer_cambio': case 'proponer_memoria': return x.propuesto ? '📝 Te propongo el cambio de abajo: confírmalo con el botón.' : '';
+    case 'crear_tarea': case 'proponer_cambio': case 'proponer_memoria': case 'crear_objetivo': return x.propuesto ? '📝 Te propongo el cambio de abajo: confírmalo con el botón.' : '';
   }
   return '• ' + toolLabel(r.nombre) + ': ' + compact(x, 500);
 }
@@ -176,6 +210,8 @@ function basicAnswer(g) {
   if (g.calc) parts.push('🧮 ' + g.calc.lineas.join('\n'));
   g.results.forEach(r => { const t = fmtTool(r); if (t) parts.push(t); });
   if (g.docs.length && (!g.results.length || g.objecion)) parts.push('📚 De la biblioteca:\n' + g.docs.slice(0, 2).map(d => '**' + d.titulo + (d.seccion ? ' › ' + d.seccion : '') + '**\n' + d.texto.slice(0, 700) + (d.texto.length > 700 ? '…' : '')).join('\n\n'));
+  if ((g.web || []).length) parts.push('🌐 En Internet:\n' + g.web.map(w => '• ' + w.titulo + ' — ' + w.url).join('\n'));
+  if (g.webNota) parts.push('🌐 ' + g.webNota);
   if (!parts.length) return NO_DATA + ' He buscado en los datos de la empresa y en la biblioteca y no hay nada relacionado.';
   return parts.join('\n\n');
 }
@@ -186,12 +222,21 @@ function sources(g) {
   if (g.calc) f.push({ tipo: 'calculo', ref: 'C', titulo: 'Cálculo exacto' });
   g.docs.forEach(d => f.push({ tipo: d.origen === 'memoria' ? 'memoria' : 'doc', ref: d.ref, titulo: d.titulo + (d.seccion ? ' › ' + d.seccion : ''), docId: d.docId, origen: d.origen }));
   if (g.memoria.length) f.push({ tipo: 'memoria', ref: 'M', titulo: g.memoria.length + ' recuerdo(s)' });
+  (g.web || []).forEach(w => f.push({ tipo: 'web', ref: w.ref, titulo: w.titulo, url: w.url }));
   return f;
 }
 
 // ---------- Ejecutar en ESTE dispositivo (PC con modelo o modo básico) ----------
+const cache = new Map(); // pregunta + estado de los datos → respuesta (10 min)
 export async function answerHere(question, history, ctx, cbs = {}) {
   const t0 = Date.now();
+  // v10: "¿qué hay hoy?", "resumen", "objetivos"… → Celebrity responde al instante con datos reales
+  if (isBriefQuestion(question) && String(question).length < 80 && !ctx.remoto) {
+    return { texto: briefText(), fuentes: [{ tipo: 'datos', ref: 'Hoy', titulo: 'Resumen del día (datos reales)' }], herramientas: [], acciones: [], modo: 'celebrity', modelo: '', ms: Date.now() - t0 };
+  }
+  const ck = S.ws + '|' + norm(question) + '|' + (S.lastSync || '') + '|' + (history || []).length;
+  const hit = !cbs.forceBasic && cache.get(ck);
+  if (hit && Date.now() - hit.t < 600000) { cbs.onToken && cbs.onToken(hit.r.texto); return Object.assign({}, hit.r, { ms: Date.now() - t0, cache: true }); }
   const g = await gather(question, ctx, cbs.onStatus);
   const st = cbs.forceBasic ? { disponible: false } : await localStatus();
   let texto = '', modo = 'basico', modelo = '';
@@ -205,7 +250,8 @@ export async function answerHere(question, history, ctx, cbs = {}) {
       texto = basicAnswer(g) + '\n\n_(La IA local no pudo redactar: ' + e.message + ')_';
     }
   } else texto = basicAnswer(g);
-  const res = { texto, fuentes: sources(g), herramientas: g.results.map(r => r.nombre), acciones: g.acciones || [], modo, modelo, ms: Date.now() - t0, motivoBasico: st.disponible ? '' : (st.motivo || '') };
+  const res = { texto, fuentes: sources(g), herramientas: g.results.map(r => r.nombre).concat((g.web || []).length ? ['internet: ' + g.webQuery] : []), acciones: g.acciones || [], modo, modelo, ms: Date.now() - t0, motivoBasico: st.disponible ? '' : (st.motivo || '') };
+  if (modo === 'local' && !res.acciones.length) { cache.set(ck, { t: Date.now(), r: res }); if (cache.size > 60) cache.delete(cache.keys().next().value); }
   return res;
 }
 
@@ -223,6 +269,8 @@ export function myContext() {
 // ---------- Punto de entrada: decide dónde se responde ----------
 // local (este PC) → equipo (el PC servidor responde por Google) → básico (aquí, sin modelo)
 export async function ask(question, history, cbs = {}) {
+  // el resumen del día se calcula en el propio dispositivo (con los permisos de quien pregunta)
+  if (isBriefQuestion(question) && String(question).length < 80) return answerHere(question, history, myContext(), cbs);
   const st = await localStatus();
   if (st.disponible) return answerHere(question, history, myContext(), cbs);
   // ¿Hay ahora mismo un PC atendiendo? (consulta rápida para no depender de la última sincronización)
@@ -253,6 +301,10 @@ async function askTeam(question, history, cbs) {
 
 // ---------- Trabajador: este PC atiende las preguntas del equipo ----------
 let workerOn = false;
+// v10: el modelo se carga en memoria al abrir el programa: la primera pregunta ya no espera
+export async function warmUp() {
+  try { const st = await localStatus(); if (st.disponible) await desktop.iaChat({ model: st.modelo, messages: [], stream: true, keep_alive: '60m' }, () => { }); } catch (e) { }
+}
 export function startWorker() {
   if (workerOn || !desktop.on) return;
   workerOn = true;
@@ -281,6 +333,7 @@ async function serveJob(job) {
     const c = await api('ia.cola.contexto', { jobId: job.id });
     const ctx = {
       usuario: job.usuario,
+      remoto: true,
       tools: calls => api('ia.cola.herramientas', { jobId: job.id, llamadas: calls }),
       allowed: new Set(c.documentos.map(d => d.id)),
       memoria: c.memoria || []

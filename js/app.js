@@ -1,11 +1,11 @@
 // ================= Arranque, navegación y estructura =================
-import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg } from './ui.js';
-import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer } from './store.js';
+import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
+import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo } from './store.js';
 import { desktop } from './desktop.js';
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
 import { startChat, CHAT } from './chat.js';
-import { startWorker } from './ai/engine.js';
+import { startWorker, warmUp } from './ai/engine.js';
 
 const CL = window.CL;
 const VIEWS = {
@@ -13,6 +13,7 @@ const VIEWS = {
   pedidos: () => import('./views/pedidos.js'),
   clientes: () => import('./views/clientes.js'),
   productos: () => import('./views/productos.js'),
+  catalogo: () => import('./views/catalogo.js'),
   tareas: () => import('./views/tareas.js'),
   noticias: () => import('./views/noticias.js'),
   redes: () => import('./views/redes.js'),
@@ -29,13 +30,14 @@ export const NAV = [
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
+  { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
   { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' },
   { sep: true, t: 'Equipo' },
   { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' },
   { k: 'noticias', t: 'Noticias', i: 'news', p: 'noticias.ver' },
   { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
   { k: 'archivos', t: 'Archivos', i: 'folder', p: 'archivos.ver' },
-  { k: 'ia', t: 'Asistente IA', i: 'sparkles', p: 'ia.usar' },
+  { k: 'ia', t: 'Celebrity', i: 'sparkles', p: 'ia.usar' },
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
   { sep: true },
   { k: 'config', t: 'Configuración', i: 'settings' },
@@ -43,6 +45,7 @@ export const NAV = [
 ];
 
 const app = document.getElementById('app');
+setAvatarSource(id => { const a = S.t.archivos.find(x => x.id === id); return a && a.miniatura || ''; });
 let current = { name: '', view: null, params: [] };
 let shell = null;
 
@@ -77,26 +80,76 @@ async function route() {
 }
 window.addEventListener('hashchange', route);
 
+// ---------- v10: menú lateral y cuenta ----------
+function openNav() { document.body.classList.add('nav-open'); }
+export function closeNav() { document.body.classList.remove('nav-open'); }
+function toggleNav() {
+  if (document.body.classList.contains('nav-pinned') && matchMedia('(min-width: 900px)').matches) return pinNav(false);
+  document.body.classList.toggle('nav-open');
+}
+function pinNav(v) {
+  document.body.classList.toggle('nav-pinned', v); closeNav();
+  try { localStorage.setItem('cd.navFijo', v ? '1' : '0'); } catch (e) { }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) closeNav(); });
+function accountMenu(anchor) {
+  const old = document.querySelector('.acct-menu'); if (old) { old.remove(); return; }
+  const r = anchor.getBoundingClientRect();
+  const m = h('div.acct-menu', { style: { top: (r.bottom + 6) + 'px', right: Math.max(8, innerWidth - r.right) + 'px' } },
+    h('div.acct-head', avatar(S.me), h('div', h('b', S.me.nombre), h('div.tiny.muted', S.me.usuario + ' · ' + roleName(S.me.rol)), h('div.tiny', h('span.st-dot.' + (S.online ? 'on' : 'off')), ' ', S.online ? 'Conectado' : 'Sin conexión'))),
+    wsInfo().lista.length > 1 ? h('div.acct-ws', h('div.tiny.muted', 'Espacio de trabajo'), wsInfo().lista.map(w => h('button' + (w.id === S.ws ? '.on' : ''), { onclick: () => { m.remove(); changeWs(w.id); } }, h('span.ws-mark.' + (w.tema || 'principal')), w.nombre, w.id === S.ws ? ' ✓' : ''))) : null,
+    h('button', { onclick: () => { m.remove(); go('config/perfil'); } }, icon('user', 's'), 'Mi perfil'),
+    h('button', { onclick: () => { m.remove(); go('config'); } }, icon('settings', 's'), 'Configuración'),
+    h('button.danger', { onclick: async () => { m.remove(); await logout(); start(); } }, icon('logout', 's'), 'Cerrar sesión'));
+  document.body.appendChild(m);
+  setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
+}
+
+// ---------- v10.5: espacios de trabajo (Negocio principal / THE NOORKO) ----------
+export async function changeWs(id) {
+  const w = wsInfo().lista.find(x => x.id === id);
+  if (!w) return;
+  if (!w.listo) { toast('Este espacio aún no está preparado. Configuración → Espacios → Preparar.', 'warn', 6000); return; }
+  closeNav();
+  toast('Entrando en ' + w.nombre + '…');
+  await switchWs(id);
+  go('inicio');
+}
+function wsSwitch() {
+  const list = wsInfo().lista;
+  if (list.length < 2) return null;
+  const cur = list.find(w => w.id === S.ws) || list[0];
+  return h('div.ws-switch', list.map(w => h('button' + (w.id === cur.id ? '.on' : ''), { title: 'Cambiar a ' + w.nombre, dataset: { ws: w.id }, onclick: () => w.id !== S.ws && changeWs(w.id) }, h('span.ws-mark.' + (w.tema || 'principal')), h('span.ellipsis', w.nombre))));
+}
+
 // ---------- Estructura ----------
 function buildShell() {
   if (shell && document.body.contains(shell.root)) return;
   const nav = h('nav.nav', { 'aria-label': 'Secciones' });
-  const sidebar = h('aside.sidebar', h('div.brand', h('div.logo', h('img.brand-logo', { src: (S.cfg && S.cfg.empresa && S.cfg.empresa.logo) || 'icons/icon-192.png', alt: '' })), h('div', h('b.ellipsis', (S.cfg && S.cfg.empresa.nombre) || 'CelebriDiseños'), h('small', 'Gestión del negocio'))), nav, h('div.me', { onclick: () => go('config/perfil') }));
+  // v10: menú tipo "cajón": se abre con ☰, se cierra con ←, al pulsar fuera, con Esc o al elegir
+  // una sección. En pantallas grandes se puede FIJAR (📌) y funciona como barra lateral.
+  const closeB = h('button.btn.ghost.icon.sm.nav-close', { title: 'Cerrar menú', 'aria-label': 'Cerrar menú', onclick: () => closeNav() }, icon('left', 's'));
+  const pinB = h('button.btn.ghost.icon.sm.nav-pin', { title: 'Fijar el menú a la izquierda', 'aria-label': 'Fijar menú', onclick: () => pinNav(!document.body.classList.contains('nav-pinned')) }, '📌');
+  const sidebar = h('aside.sidebar', { 'aria-label': 'Menú' }, h('div.brand', h('div.logo', h('img.brand-logo', { src: (S.cfg && S.cfg.empresa && S.cfg.empresa.logo) || 'icons/icon-192.png', alt: '' })), h('div.grow', h('b.ellipsis', (S.cfg && S.cfg.empresa.nombre) || 'CelebriDiseños'), h('small', 'Gestión del negocio')), pinB, closeB), h('div.ws-box'), nav, h('div.me', { onclick: () => go('config/perfil') }));
+  const scrim = h('div.scrim', { onclick: () => closeNav() });
   const syncEl = h('button.sync', { title: 'Estado de la sincronización', onclick: () => syncPanel() });
   const bell = h('button.btn.ghost.icon.icon-btn', { title: 'Notificaciones', onclick: () => go('notificaciones') }, icon('bell'));
   const chatB = can('chat.usar') ? h('button.btn.ghost.icon.icon-btn.chat-btn', { title: 'Chat del equipo', 'aria-label': 'Chat', onclick: () => go('chat') }, icon('msg')) : h('span');
+  const meDot = h('span.st-dot.on');
+  const meBtn = h('button.me-chip', { title: 'Tu cuenta', 'aria-label': 'Tu cuenta', onclick: e => accountMenu(e.currentTarget) });
   const topbar = h('header.topbar',
-    h('button.btn.ghost.icon.show-m', { onclick: () => sidebar.classList.toggle('open'), title: 'Menú' }, icon('menu')),
+    h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú', 'aria-label': 'Abrir menú' }, icon('menu')),
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
-    h('div.right.row', syncEl, chatB, bell));
+    h('div.right.row', syncEl, chatB, bell, meBtn));
   const banner = h('div');
   const content = h('main.content', { id: 'main' });
   const tabbar = h('nav.tabbar', { 'aria-label': 'Secciones principales' });
   const fab = h('button.fab', { title: 'Crear', onclick: () => quickCreate() }, icon('plus', 'l'));
-  const root = h('div.shell', sidebar, h('div.main', topbar, banner, content), tabbar, fab);
+  const root = h('div.shell', sidebar, scrim, h('div.main', topbar, banner, content), tabbar, fab);
   mount(app, root);
-  sidebar.addEventListener('click', e => { if (e.target.closest('a')) sidebar.classList.remove('open'); });
-  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar };
+  sidebar.addEventListener('click', e => { if (e.target.closest('a') && !document.body.classList.contains('nav-pinned')) closeNav(); });
+  try { if (localStorage.getItem('cd.navFijo') === '1') document.body.classList.add('nav-pinned'); } catch (e) { }
+  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar, meBtn, meDot };
   refreshShell();
 }
 function markNav(name) { if (!shell) return; shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
@@ -113,7 +166,13 @@ function refreshShell() {
   markNav(parseHash().name);
   const me = shell.sidebar.querySelector('.me');
   if (S.me) mount(me, avatar(S.me), h('div.grow', h('div.bold.ellipsis', S.me.nombre), h('div.tiny.muted', roleName(S.me.rol))), icon('settings', 's'));
-  const brand = shell.sidebar.querySelector('.brand b'); if (brand && S.cfg) brand.textContent = S.cfg.empresa.nombre;
+  // v10: quién está conectado, arriba y siempre a la vista
+  if (S.me) mount(shell.meBtn, h('span.av-wrap', avatar(S.me, 's'), shell.meDot), h('span.me-txt', h('b.ellipsis', S.me.nombre.split(' ')[0]), h('small', S.online ? 'Conectado' : 'Sin conexión')));
+  const noorko = S.ws === 'noorko';
+  const brand = shell.sidebar.querySelector('.brand b'); if (brand && S.cfg) brand.textContent = noorko ? 'THE NOORKO' : S.cfg.empresa.nombre;
+  const bsm = shell.sidebar.querySelector('.brand small'); if (bsm) bsm.textContent = noorko ? 'Streetwear · espacio propio' : 'Gestión del negocio';
+  const wb = shell.sidebar.querySelector('.ws-box'); if (wb) { const k = S.ws + ':' + JSON.stringify(wsInfo().lista.map(w => w.id + w.listo)); if (wb.dataset.k !== k) { wb.dataset.k = k; mount(wb, wsSwitch()); } }
+  document.documentElement.dataset.ws = S.ws;
   const lg = shell.sidebar.querySelector('.brand-logo'); if (lg && S.cfg) { const src = S.cfg.empresa.logo || 'icons/icon-192.png'; if (lg.getAttribute('src') !== src) { lg.setAttribute('src', src); const fav = document.querySelector('link[rel="icon"]'); if (fav) fav.href = S.cfg.empresa.logo || 'icons/favicon.png'; } }
   const oc = shell.chatB.querySelector && shell.chatB.querySelector('.badge-n'); if (oc) oc.remove();
   if (S.chatUnread && shell.chatB.appendChild) shell.chatB.appendChild(h('span.badge-n', S.chatUnread > 99 ? '99+' : String(S.chatUnread)));
@@ -128,8 +187,12 @@ let lastSync = '';
 function updateSync() {
   if (!shell) return;
   const q = S.queue.length;
-  const cls = !S.online ? 'off' : S.syncError ? 'err' : (S.busy || S.syncing) ? 'busy' : '';
-  const txt = !S.online ? (q ? `Sin conexión · ${q} cambio(s) pendiente(s)` : 'Sin conexión') : S.syncError ? 'Error de sincronización' : (S.busy || S.syncing) ? 'Consultando…' : q ? `Enviando ${q}…` : 'Al día';
+  // v10: ● Conectado · ● Reconectando… · ● Sin conexión · "Conexión restablecida" (3 s)
+  const restored = S.online && S.restored && Date.now() - S.restored < 3000;
+  const cls = !S.online ? (S.reconnecting ? 'recon' : 'off') : S.syncError ? 'err' : restored ? 'ok' : (S.busy || S.syncing) ? 'busy' : '';
+  const txt = !S.online ? ((S.reconnecting ? 'Reconectando…' : 'Sin conexión') + (q ? ` · ${q} pendiente(s)` : ''))
+    : S.syncError ? 'Error de sincronización' : restored ? 'Conexión restablecida' : q ? `Enviando ${q}…` : (S.busy || S.syncing) ? 'Sincronizando…' : 'Conectado';
+  if (shell.meDot) { shell.meDot.className = 'st-dot ' + (!S.online ? 'off' : 'on'); shell.meDot.title = S.online ? 'Conectado' : 'Sin conexión'; }
   if (lastSync === cls + '|' + txt && shell.syncEl.firstChild) return;
   lastSync = cls + '|' + txt;
   shell.syncEl.className = 'sync ' + cls;
@@ -139,7 +202,6 @@ function refreshBanner(n) {
   // Avisos generales
   const errs = Object.keys(S.errors || {});
   mount(shell.banner,
-    !S.online ? h('div.banner.warn', icon('wifioff', 's'), h('span', 'Sin conexión con el servidor. Puedes seguir trabajando: los cambios se guardan en este dispositivo y se enviarán solos al volver la conexión.')) : null,
     errs.length ? h('div.banner.bad', icon('alert', 's'), h('span', 'No se pudo leer: ' + errs.map(k => k + ' (' + S.errors[k] + ')').join(' · '))) : null,
     S.perms && S.perms.temp && S.perms.temp.length ? h('div.banner.info', icon('key', 's'), h('span', 'Tienes acceso temporal a: ' + S.perms.temp.map(t => (S.cfg.permisos[t.permiso] || t.permiso) + ' (hasta ' + new Date(t.hasta).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ')').join(', '))) : null);
   document.title = (n ? `(${n}) ` : '') + ((S.cfg && S.cfg.empresa.nombre) || 'CelebriDiseños');
@@ -287,6 +349,8 @@ let unsub = null;
 export async function start() {
   applyTheme();
   await loadLocal();
+  // v10.6: avisar al programa del PC de que la app arranca bien (confirma la actualización)
+  if (desktop.on && !start._ready) { start._ready = true; desktop.ready(); desktop.anterior().then(r => { if (r && r.aviso) { toast('⚠️ ' + r.aviso, 'warn', 15000); desktop.avisoVisto(); } }).catch(() => { }); }
   onAuthLostHandler(msg => { toast(msg || 'Vuelve a entrar', 'warn'); shell = null; start(); });
   // Enlace de invitación (móvil): ?s=servidor&inv=CD-XXXX-XXXX
   const qs = new URLSearchParams(location.search), invCode = qs.get('inv');
@@ -311,7 +375,7 @@ export async function start() {
   startAutoSync();
   pull().then(() => { startChat(); startWorker(); });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
-  if (desktop.on) desktopDaily();
+  if (desktop.on) { desktopDaily(); setTimeout(warmUp, 6000); }
 }
 // En el PC: copia local diaria de todos los datos (por si Google fallara algún día)
 async function desktopDaily() {

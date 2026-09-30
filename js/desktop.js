@@ -30,6 +30,11 @@ export const desktop = {
   backup: json => call('backup', { method: 'POST', body: JSON.stringify(json) }),
   backups: () => call('backups'),
   update: () => call('update'),
+  // v10.6: la app ya funciona con esta versión (confirma la actualización) y vuelta atrás
+  ready: () => H ? call('ping').catch(() => { }) : Promise.resolve(),
+  anterior: () => call('update/anterior'),
+  volverAnterior: () => call('update/anterior', { method: 'POST' }),
+  avisoVisto: () => call('update/anterior', { method: 'DELETE' }).catch(() => { }),
   applyUpdate: () => call('update', { method: 'POST' }),
   pickFolder: () => call('pick', { method: 'POST' }),
   // ---- IA local (Ollama en este PC) ----
@@ -57,6 +62,9 @@ export const desktop = {
     if (buf.trim()) { try { onChunk(JSON.parse(buf)); } catch (e) { } }
   },
   // ---- Apps instaladas (TikTok, Instagram…) ----
+  // Internet para Celebrity (limitado y registrado)
+  webBuscar: q => call('web/buscar?' + q({ q })),
+  webLeer: url => call('web/leer?' + q({ url })),
   appsDetectar: (redes = []) => call('apps/detectar?' + redes.map(r => 'red=' + encodeURIComponent(r)).join('&')),
   appsElegir: () => call('apps/elegir', { method: 'POST' }),
   appsBuscar: nombre => call('apps/buscar?' + q({ nombre })),

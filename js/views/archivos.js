@@ -26,7 +26,7 @@ export function render(el, params) {
   el.append(h('div.page-head', h('h1', 'Archivos'), can('archivos.subir') ? btn('Subir archivos', upload, { cls: 'primary', icon: 'upload' }) : null),
     sum, h('div.row.wrap', { style: { marginBottom: '14px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '190px' } }, fTipo), h('div', { style: { width: '230px' } }, fEnt)), box);
   function draw() {
-    const all = S.t.archivos;
+    const all = S.t.archivos.filter(a => a.entidad !== 'usuarios'); // v10: las fotos de perfil no son archivos del equipo
     mount(sum, Object.keys(RULES).map(k => { const l = all.filter(a => a.tipo === k); return h('button.kpi' + (st.tipo === k ? '.on' : ''), { onclick: () => { st.tipo = st.tipo === k ? '' : k; fTipo.value = st.tipo; draw(); } }, h('span.n', String(l.length)), h('span.l', RULES[k].t + ' · ' + bytes(l.reduce((s, a) => s + (Number(a.tamano) || 0), 0)))); }));
     const rows = all.filter(a => (!st.tipo || a.tipo === st.tipo) && (!st.ent || (st.ent === '_none' ? !a.entidadId : a.entidad === st.ent)) && (!st.q || CL.matches(a.nombre + ' ' + (linkOf(a) || {}).t, st.q)))
       .sort((a, b) => String(b.creado).localeCompare(String(a.creado)));

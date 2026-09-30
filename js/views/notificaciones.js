@@ -4,8 +4,17 @@ import { S, api, emit, on, byId } from '../store.js';
 import { go } from '../app.js';
 
 const ICON = { urgente: '🔴', incidencia: '⚠️', tarea: '📋', noticia: '📰', comentario: '💬', mencion: '🗣️', solicitud: '🔑', seguridad: '🛡️', pedido: '📦', redes: '📱', informe: '📊', bienvenida: '👋' };
+// v10: cada aviso lleva directamente a su contenido (noticia y comentario exacto, mensaje del chat…)
 export function linkPath(enlace) {
-  const [k, id] = String(enlace || '').split(':');
+  // v10.5: "noorko>producto:ID" → el aviso es de otro espacio: se cambia de espacio y se abre
+  let m = String(enlace || '').match(/^([a-z]+)>(.*)$/);
+  if (!m && S.ws !== 'principal' && /^(pedido|pedidos|producto|cliente|tarea|redes):?/.test(String(enlace || ''))) m = [null, 'principal', String(enlace)];
+  if (m) { const p = linkPath(m[2]); if (m[1] !== S.ws) { import('../store.js').then(st => st.switchWs(m[1])).then(() => p && go(p)); return ''; } return p; }
+  const [k, id, sub] = String(enlace || '').split(':');
+  if (k === 'noticia' && sub) return 'noticias/' + id + '/' + sub;
+  if (k === 'chat' && id) return 'chat/' + id;
+  if (k === 'producto' && id) return 'productos/' + id;
+  if (k === 'cliente' && id) return 'clientes/' + id;
   return { pedido: 'pedidos/' + id, tarea: 'tareas/' + id, noticia: 'noticias/' + id, redes: 'redes/' + id, solicitudes: 'config/solicitudes', auditoria: 'config/auditoria', copias: 'config/copias', informes: 'informes', pedidos: 'pedidos' }[k] || (k ? k : '');
 }
 async function markRead(ids, all) {

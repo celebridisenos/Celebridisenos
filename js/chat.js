@@ -1,8 +1,8 @@
 // ================= Chat del equipo: servicio en segundo plano =================
 // Consulta mensajes nuevos cada pocos segundos (más a menudo con el chat abierto)
 // y mantiene el contador de no leídos para el icono 💬.
-import { S, api, can, kv, emit } from './store.js';
-import { uid } from './ui.js';
+import { S, api, can, kv, emit, syncRevs } from './store.js';
+import { uid, confirmDlg, toast } from './ui.js';
 
 export const CHAT = { msgs: [], conectados: [], lastSeen: '', open: false, error: '', ready: false, pending: [] };
 const listeners = new Set();
@@ -10,26 +10,39 @@ export function onChat(fn) { listeners.add(fn); return () => listeners.delete(fn
 const notify = () => listeners.forEach(f => { try { f(CHAT); } catch (e) { console.error(e); } });
 
 let timer = null, running = false, started = false;
+// v10: ¿la persona está usando la app de verdad? (ratón, teclado, toques o desplazamiento en los últimos 2 min)
+let lastUse = Date.now();
+['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(ev => addEventListener(ev, () => { lastUse = Date.now(); }, { passive: true, capture: true }));
+const usando = () => document.visibilityState === 'visible' && Date.now() - lastUse < 120000;
+// v10: además del chat, esta consulta ligera ("pulso") trae la revisión de cada tabla:
+// notificaciones, noticias, pedidos… llegan en segundos sin recargar nada.
 export async function startChat() {
-  if (started || !can('chat.usar')) return;
+  if (started || !S.me) return;
   started = true;
-  CHAT.msgs = (await kv.get('chat.msgs')) || [];
-  CHAT.lastSeen = (await kv.get('chat.visto.' + S.me.id)) || '';
+  if (can('chat.usar')) {
+    CHAT.msgs = (await kv.get('chat.msgs')) || [];
+    CHAT.lastSeen = (await kv.get('chat.visto.' + S.me.id)) || '';
+  }
   unread();
   tick();
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
 }
 function schedule() {
   clearTimeout(timer);
-  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? 2500 : document.visibilityState === 'visible' ? 15000 : 60000;
+  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? 2000 : document.visibilityState === 'visible' ? 5000 : 60000;
   timer = setTimeout(tick, ms);
 }
 export async function tick() {
-  if (running || !S.token || !can('chat.usar')) return schedule();
+  if (running || !S.token) return schedule();
   running = true;
   try {
-    const last = CHAT.msgs.length ? CHAT.msgs[CHAT.msgs.length - 1].creado : '';
-    const r = await api('chat.poll', { desde: last, activo: document.visibilityState === 'visible' });
+    const last = CHAT.msgs.length ? CHAT.msgs.reduce((a, m) => m.creado > a ? m.creado : a, '') : '';
+    const r = await api('rt.poll', { desde: last, activo: document.visibilityState === 'visible', usando: usando() }, { quiet: true });
+    syncRevs(r.revs || {});
+    r.mensajes = r.mensajes || [];
+    // mensajes borrados por una administradora: desaparecen al momento
+    r.mensajes.filter(m => m.borrado).forEach(m => { CHAT.msgs = CHAT.msgs.filter(x => x.id !== m.id); });
+    r.mensajes = r.mensajes.filter(m => !m.borrado);
     if (r.mensajes.length) {
       const ids = new Set(CHAT.msgs.map(m => m.id));
       r.mensajes.forEach(m => { if (!ids.has(m.id)) CHAT.msgs.push(m); });
@@ -54,8 +67,8 @@ function ping(list) {
   }
 }
 function unread() {
-  S.chatUnread = CHAT.msgs.filter(m => m.autorId !== (S.me && S.me.id) && m.creado > CHAT.lastSeen).length;
-  emit();
+  const n = CHAT.msgs.filter(m => m.autorId !== (S.me && S.me.id) && m.creado > CHAT.lastSeen).length;
+  if (n !== S.chatUnread) { S.chatUnread = n; emit(); } // solo se redibuja si cambia el contador
 }
 export function markRead() {
   const last = CHAT.msgs.length ? CHAT.msgs[CHAT.msgs.length - 1].creado : '';
@@ -75,6 +88,11 @@ export async function send(texto) {
     } catch (e) { if (e.code !== 'NET' && e.code !== 'BUSY') { tmp.error = e.message; tmp.pendiente = false; notify(); return; } await new Promise(r => setTimeout(r, 1500 * (i + 1))); }
   }
   tmp.error = 'No se pudo enviar (sin conexión). Pulsa para reintentar.'; tmp.pendiente = false; notify();
+}
+export async function delMsg(m) {
+  if (!await confirmDlg('Borrar mensaje', 'Irá a la papelera: una administradora puede restaurarlo.', 'Borrar', true)) return;
+  try { await api('chat.borrar', { id: m.id }); CHAT.msgs = CHAT.msgs.filter(x => x.id !== m.id); kv.set('chat.msgs', CHAT.msgs); notify(); }
+  catch (e) { toast(e.message, 'bad'); }
 }
 export async function retry(m) { CHAT.msgs = CHAT.msgs.filter(x => x !== m); await send(m.texto); }
 export async function loadOlder() {

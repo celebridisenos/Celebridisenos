@@ -20,6 +20,8 @@ function zip(files) {
   end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, off, true);
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
+// v10: el mismo empaquetador sirve para documentos Word (.docx). files: { 'ruta': 'texto' }
+export function zipFiles(files) { return zip(Object.entries(files).map(([k, v]) => [k, typeof v === 'string' ? enc.encode(v) : v])); }
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
 function col(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
 function sheetXml(rows) {
