@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '9.6.2';
+export const APP_VERSION = '9.7.0';
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros'];
 
 export const S = {
@@ -17,6 +17,10 @@ export const S = {
 const listeners = new Set();
 export function on(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 let emitQueued = false;
+// v9.7: el indicador "Consultando…" se actualiza aparte, sin redibujar la pantalla entera
+let statusCb = null;
+export function onStatus(fn) { statusCb = fn; }
+function status() { if (statusCb) { try { statusCb(S); } catch (e) { console.error(e); } } }
 export function emit() { if (emitQueued) return; emitQueued = true; requestAnimationFrame(() => { emitQueued = false; listeners.forEach(f => { try { f(S); } catch (e) { console.error(e); } }); }); }
 
 // ---------- IndexedDB ----------
@@ -43,7 +47,7 @@ export const kv = {
 export class ApiError extends Error { constructor(code, msg, extra) { super(msg); this.code = code; this.extra = extra; } }
 export async function api(a, d, opts = {}) {
   if (!S.server) throw new ApiError('SETUP', 'Falta la dirección del servidor.');
-  S.busy++; emit();
+  S.busy++; status();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeout || 60000);
   try {
@@ -63,7 +67,7 @@ export async function api(a, d, opts = {}) {
       throw new ApiError(j.err.code, j.err.msg, j.err.extra);
     }
     return j.data;
-  } finally { clearTimeout(timer); S.busy--; emit(); }
+  } finally { clearTimeout(timer); S.busy--; status(); }
 }
 function setOnline(v) { if (S.online !== v) { S.online = v; emit(); if (v) flushSoon(); } }
 window.addEventListener('online', () => { setOnline(true); pull(); });
@@ -175,31 +179,41 @@ export function pull(full) {
   if (!S.token || !S.server) return Promise.resolve();
   if (pulling) return pulling;
   pulling = (async () => {
-    S.syncing = true; emit();
+    S.syncing = true; status();
+    let changed = !S.ready;
     try {
       if (S.queue.length) await flush();
       if (S.queue.length) return; // aún hay cambios sin enviar: no pisamos la copia local
       const known = {};
       if (!full) TABLES.forEach(k => { if (S.meta[k]) known[k] = S.meta[k]; });
       const r = await api('sync.pull', { tablas: known, completo: !!full });
+      const sig = x => JSON.stringify(x);
+      if (sig(r.yo) !== sig(S.me) || sig(r.permisos) !== sig(S.perms) || sig(r.config) !== sig(S.cfg) || r.hoy !== S.hoy || sig(r.iaServidor || null) !== sig(S.iaServidor || null)) changed = true;
       S.me = r.yo; S.perms = r.permisos; S.cfg = r.config; S.hoy = r.hoy; S.iaServidor = r.iaServidor || null;
       try { const lg = (r.config && r.config.empresa && r.config.empresa.logo) || ''; if (lg !== (localStorage.getItem('cd.logo') || '')) { if (lg) localStorage.setItem('cd.logo', lg); else localStorage.removeItem('cd.logo'); } } catch (e) { }
+      if (Object.keys(S.errors || {}).length) changed = true;
       S.errors = {};
       for (const k of Object.keys(r.tablas)) {
         const x = r.tablas[k];
-        if (x.error) { S.errors[k] = x.error; continue; }
-        if (!x.igual) { S.t[k] = x.filas; idb('tables', 'readwrite', s => s.put({ rows: x.filas, rev: x.rev, hash: x.hash }, k)).catch(() => { }); }
+        if (x.error) { S.errors[k] = x.error; changed = true; continue; }
+        if (!x.igual) { changed = true; S.t[k] = x.filas; idb('tables', 'readwrite', s => s.put({ rows: x.filas, rev: x.rev, hash: x.hash }, k)).catch(() => { }); }
         S.meta[k] = { rev: x.rev, hash: x.hash };
       }
       // tablas que ya no puedo ver (permiso retirado): se vacían
-      TABLES.forEach(k => { if (!(k in r.tablas)) { S.t[k] = []; delete S.meta[k]; idb('tables', 'readwrite', s => s.delete(k)).catch(() => { }); } });
+      TABLES.forEach(k => { if (!(k in r.tablas)) { if (S.t[k].length) changed = true; S.t[k] = []; delete S.meta[k]; idb('tables', 'readwrite', s => s.delete(k)).catch(() => { }); } });
       S.lastSync = new Date().toISOString(); S.syncError = '';
       kv.set('me', { me: S.me, perms: S.perms, cfg: S.cfg });
       kv.set('lastSync', S.lastSync);
     } catch (e) {
-      S.syncError = e.code === 'NET' ? '' : e.message;
+      const se = e.code === 'NET' ? '' : e.message;
+      if (se !== S.syncError) changed = true;
+      S.syncError = se;
       if (e.code !== 'NET' && e.code !== 'AUTH') console.warn('sync', e);
-    } finally { S.syncing = false; S.ready = true; pulling = null; emit(); }
+    } finally {
+      S.syncing = false; S.ready = true; pulling = null;
+      // Solo se redibuja la pantalla si ha llegado algo nuevo
+      if (changed) emit(); else status();
+    }
   })();
   return pulling;
 }

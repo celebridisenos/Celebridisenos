@@ -1,6 +1,6 @@
 // ================= Arranque, navegación y estructura =================
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg } from './ui.js';
-import { S, on, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer } from './store.js';
+import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer } from './store.js';
 import { desktop } from './desktop.js';
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
@@ -117,15 +117,25 @@ function refreshShell() {
   const lg = shell.sidebar.querySelector('.brand-logo'); if (lg && S.cfg) { const src = S.cfg.empresa.logo || 'icons/icon-192.png'; if (lg.getAttribute('src') !== src) { lg.setAttribute('src', src); const fav = document.querySelector('link[rel="icon"]'); if (fav) fav.href = S.cfg.empresa.logo || 'icons/favicon.png'; } }
   const oc = shell.chatB.querySelector && shell.chatB.querySelector('.badge-n'); if (oc) oc.remove();
   if (S.chatUnread && shell.chatB.appendChild) shell.chatB.appendChild(h('span.badge-n', S.chatUnread > 99 ? '99+' : String(S.chatUnread)));
-  // Estado de sincronización
-  const q = S.queue.length;
-  const cls = !S.online ? 'off' : S.syncError ? 'err' : (S.busy || S.syncing) ? 'busy' : '';
-  const txt = !S.online ? (q ? `Sin conexión · ${q} cambio(s) pendiente(s)` : 'Sin conexión') : S.syncError ? 'Error de sincronización' : (S.busy || S.syncing) ? 'Consultando…' : q ? `Enviando ${q}…` : 'Al día';
-  shell.syncEl.className = 'sync ' + cls;
-  mount(shell.syncEl, h('span.dot'), h('span.txt', txt));
+  updateSync();
   const n = unreadCount();
   const old = shell.bell.querySelector('.badge-n'); if (old) old.remove();
   if (n) shell.bell.appendChild(h('span.badge-n', n > 99 ? '99+' : String(n)));
+  refreshBanner(n);
+}
+// Indicador de sincronización (se actualiza solo, sin redibujar nada más)
+let lastSync = '';
+function updateSync() {
+  if (!shell) return;
+  const q = S.queue.length;
+  const cls = !S.online ? 'off' : S.syncError ? 'err' : (S.busy || S.syncing) ? 'busy' : '';
+  const txt = !S.online ? (q ? `Sin conexión · ${q} cambio(s) pendiente(s)` : 'Sin conexión') : S.syncError ? 'Error de sincronización' : (S.busy || S.syncing) ? 'Consultando…' : q ? `Enviando ${q}…` : 'Al día';
+  if (lastSync === cls + '|' + txt && shell.syncEl.firstChild) return;
+  lastSync = cls + '|' + txt;
+  shell.syncEl.className = 'sync ' + cls;
+  mount(shell.syncEl, h('span.dot'), h('span.txt', txt));
+}
+function refreshBanner(n) {
   // Avisos generales
   const errs = Object.keys(S.errors || {});
   mount(shell.banner,
@@ -293,6 +303,7 @@ export async function start() {
   }
   applyTheme();
   buildShell();
+  onStatus(() => updateSync());
   if (!unsub) unsub = on(debounce(() => { refreshShell(); if (current.view && current.view.update) current.view.update(); }, 60));
   route();
   window.__appStarted = true;

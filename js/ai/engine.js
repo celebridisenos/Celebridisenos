@@ -256,17 +256,20 @@ let workerOn = false;
 export function startWorker() {
   if (workerOn || !desktop.on) return;
   workerOn = true;
+  // v9.7: si no hay preguntas, se consulta cada vez con más calma (3 s → 6 s) para no cargar el PC ni la red
+  let idle = 0;
   const loop = async () => {
     try {
       if (S.token && can('ia.servidor') && localStorage.getItem('cd.iaServidor') !== '0' && !(S.cfg && S.cfg.ia && S.cfg.ia.servidorEquipo === false)) {
         const st = await localStatus();
         if (st.disponible) {
           const job = await api('ia.cola.siguiente', { dispositivo: S.device, modelo: st.modelo });
-          if (job) { await serveJob(job); setTimeout(loop, 300); return; }
+          if (job) { idle = 0; await serveJob(job); setTimeout(loop, 300); return; }
         }
       }
     } catch (e) { console.warn('IA equipo', e.message); }
-    setTimeout(loop, document.visibilityState === 'visible' ? 3000 : 5000);
+    idle = Math.min(idle + 1, 3);
+    setTimeout(loop, (document.visibilityState === 'visible' ? 3000 : 5000) + idle * 1000);
   };
   setTimeout(loop, 4000);
 }

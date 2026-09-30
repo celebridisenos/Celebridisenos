@@ -108,6 +108,27 @@ export function postForm(n) {
       if (!f.titulo.value.trim()) return msg.textContent = 'Pon un título.';
       if (zones.some(z => z.busy())) return msg.textContent = 'Espera a que se preparen los archivos…';
       b.disabled = true; b.textContent = 'Publicando…';
+      // v9.7: noticia nueva con fotos → se publica YA y las fotos suben por detrás
+      const pend = zones.reduce((a, z) => a + z.pendingCount(), 0);
+      if (isNew && pend) {
+        try {
+          const id = uid('w');
+          const datos = { titulo: f.titulo.value.trim(), texto: f.texto.value.trim(), tipo: f.tipo.value, etiquetas: f.etiquetas.value.trim(), tienda: f.tienda.value.trim(), publicarEn: f.publicarEn.value ? new Date(f.publicarEn.value).toISOString() : '', fijada, archivos: [] };
+          const r = await mutate('noticias.guardar', { id, datos }, { onlineOnly: true });
+          upsertLocal('noticias', r); emit(); close();
+          toast('Publicada 🎉 · subiendo ' + pend + ' archivo(s) por detrás…', 'ok', 4000);
+          (async () => {
+            try {
+              const up = [];
+              for (const z of zones) up.push(...await z.uploadAll('noticias', ''));
+              if (up.length) { const r2 = await api('noticias.guardar', { id, adjuntar: true, datos: { archivos: up.map(a => a.id) } }); upsertLocal('noticias', r2); emit(); }
+              if (zones.some(z => z.hasErrors())) toast('Algún archivo de «' + datos.titulo + '» no se pudo subir. Edita la noticia para añadirlo otra vez.', 'warn', 9000);
+              else toast('Archivos de «' + datos.titulo + '» subidos ✓', 'ok');
+            } catch (e) { toast('No se pudieron subir los archivos de la noticia: ' + e.message, 'bad', 9000); }
+          })();
+        } catch (e) { msg.textContent = e.message; b.disabled = false; b.textContent = 'Publicar'; handleError(e); }
+        return;
+      }
       try {
         const up = [];
         for (const z of zones) up.push(...await z.uploadAll('noticias', ''));

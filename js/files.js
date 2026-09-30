@@ -54,8 +54,27 @@ export async function makeThumb(file, kind) {
   return '';
 }
 
+// v9.7: las fotos del móvil (3-8 MB) se reducen antes de subir (lado mayor 2048 px, JPEG 85 %).
+// Se ven igual de bien en la app y en las redes y suben 10-20 veces más rápido.
+export async function shrinkPhoto(file, max = 2048, q = 0.85) {
+  try {
+    if (!/^image\/(jpeg|jpg|png|webp|heic|heif)$/i.test(file.type || '') || file.size < 700 * 1024) return file;
+    const bmp = await createImageBitmap(file);
+    const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    if (s === 1 && file.size < 2.5 * 1048576) return file;
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const png = /png/i.test(file.type);
+    const type = png ? 'image/webp' : 'image/jpeg'; // webp mantiene la transparencia de los PNG
+    const blob = await new Promise(r => c.toBlob(r, type, q));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + (png ? '.webp' : '.jpg'), { type, lastModified: file.lastModified });
+  } catch (e) { return file; }
+}
+
 // Sube un archivo a Drive por trozos. onProgress(0..1)
 export async function uploadFile(file, meta, onProgress) {
+  if (kindOf(file.name) === 'foto' && !meta.original) file = await shrinkPhoto(file);
   const tipo = kindOf(file.name);
   const huella = meta.huella !== undefined ? meta.huella : await sha256(file);
   const miniatura = meta.miniatura !== undefined ? meta.miniatura : await makeThumb(file, tipo);
@@ -217,7 +236,14 @@ export function dropZone(tipo, opts = {}) {
     hasPending: () => items.some(i => !i.err && i.state !== 'subido'),
     hasErrors: () => items.some(i => i.err),
     busy: () => items.some(i => i.state === 'preparando' || i.state === 'subiendo'),
-    uploadAll: async (entidad, id) => { const out = []; for (const it of items) { const r = await upload(it, entidad, id); if (r) out.push(r); } return out; }
+    // v9.7: se suben de 2 en 2 (más rápido) y en el orden en que se añadieron
+    uploadAll: async (entidad, id) => {
+      const res = new Array(items.length); let next = 0;
+      const worker = async () => { while (next < items.length) { const i = next++; res[i] = await upload(items[i], entidad, id); } };
+      await Promise.all([worker(), worker()]);
+      return res.filter(Boolean);
+    },
+    pendingCount: () => items.filter(i => !i.err && i.state !== 'subido').length
   };
 }
 
