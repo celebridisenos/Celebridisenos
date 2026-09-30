@@ -296,9 +296,9 @@ export async function ask(question, history, cbs = {}) {
   return res;
 }
 // El PC servidor responde (móvil, portátil sin modelo)
-async function askTeam(question, history, cbs) {
+async function askTeam(question, history, cbs, modo) {
   cbs.onStatus && cbs.onStatus('Enviando la pregunta a ' + S.iaServidor.dispositivo + '…');
-  const j = await api('ia.cola.crear', { pregunta: question, historial: (history || []).slice(-6), contexto: decodeURIComponent(location.hash.slice(2)).split('?')[0] });
+  const j = await api('ia.cola.crear', { pregunta: question, historial: (history || []).slice(-6), contexto: modo === 'redactar' ? 'redactar' : decodeURIComponent(location.hash.slice(2)).split('?')[0] });
   const t0 = Date.now();
   for (;;) {
     if (cbs.signal && cbs.signal.aborted) { api('ia.cola.cancelar', { id: j.id }).catch(() => { }); throw new DOMException('cancelado', 'AbortError'); }
@@ -350,7 +350,10 @@ async function serveJob(job) {
       allowed: new Set(c.documentos.map(d => d.id)),
       memoria: c.memoria || []
     };
-    const res = await answerHere(job.pregunta, job.historial || [], ctx, {});
+    // v10.8: encargos de redacción (respuestas a clientes desde el móvil): texto directo, sin el modo "datos del negocio"
+    const res = String(job.contexto || '') === 'redactar'
+      ? { texto: await writeLocal(job.pregunta, await localStatus()), modo: 'local', fuentes: [], herramientas: [] }
+      : await answerHere(job.pregunta, job.historial || [], ctx, {});
     res.ms = Date.now() - t0;
     await api('ia.cola.responder', { jobId: job.id, respuesta: res });
   } catch (e) {
@@ -360,16 +363,17 @@ async function serveJob(job) {
 
 // ---------- Redactar un texto (redes, resúmenes de informes…) con la IA local ----------
 // Solo con los datos que se le pasan en el propio encargo. En el móvil lo redacta el PC servidor.
-export async function write(prompt, { onToken, signal } = {}) {
+async function writeLocal(prompt, st, onToken, signal) {
+  let text = '';
+  await desktop.iaChat({ model: st.modelo, stream: true, think: false, keep_alive: '30m', options: { temperature: 0.6, num_ctx: 8192 },
+    messages: [{ role: 'system', content: 'Eres redactor/a de ' + ((S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa') + ', un pequeño negocio español de impresión 3D. Escribes en español de España, cercano y claro. Usa SOLO los datos que te den; no inventes cifras, precios ni características. Devuelve solo el texto pedido.\n/no_think' }, { role: 'user', content: prompt }] },
+    ch => { const c = ch.message && ch.message.content; if (c) { text += c; onToken && onToken(cleanThink(text)); } }, signal);
+  return cleanThink(text, true);
+}
+export async function write(prompt, { onToken, signal, onStatus } = {}) {
   const st = await localStatus();
-  if (st.disponible) {
-    let text = '';
-    await desktop.iaChat({ model: st.modelo, stream: true, think: false, keep_alive: '30m', options: { temperature: 0.6, num_ctx: 8192 },
-      messages: [{ role: 'system', content: 'Eres redactor/a de ' + ((S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa') + ', un pequeño negocio español de impresión 3D. Escribes en español de España, cercano y claro. Usa SOLO los datos que te den; no inventes cifras, precios ni características. Devuelve solo el texto pedido.\n/no_think' }, { role: 'user', content: prompt }] },
-      ch => { const c = ch.message && ch.message.content; if (c) { text += c; onToken && onToken(cleanThink(text)); } }, signal);
-    return cleanThink(text, true);
-  }
+  if (st.disponible) return writeLocal(prompt, st, onToken, signal);
   if (S.online) { try { S.iaServidor = await api('ia.servidor', {}, { timeout: 8000 }); } catch (e) { } }
-  if (S.iaServidor && S.online) { const r = await askTeam(prompt, [], { signal }); return r.texto; }
+  if (S.iaServidor && S.online) { const r = await askTeam(prompt, [], { signal, onStatus }, 'redactar'); onToken && onToken(r.texto); return r.texto; }
   throw new Error('Para redactar textos hace falta la IA local (en el PC) o que el PC servidor de IA esté encendido con la app abierta.');
 }

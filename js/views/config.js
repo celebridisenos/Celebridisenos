@@ -28,6 +28,8 @@ const SECTIONS = [
   { k: 'clientes', t: 'Clientes', i: 'star', p: 'config.editar' },
   { k: 'precios', t: 'Precios y comisiones', i: 'euro', p: 'config.editar' },
   { k: 'alertas', t: 'Alertas inteligentes', i: 'alert', p: 'config.editar' },
+  { k: 'facturacion', t: 'Facturación y presupuestos', i: 'file', p: 'config.editar' },
+  { k: 'taller', t: 'Taller y filamento', i: 'cube', p: 'config.editar' },
   { k: 'juego', t: 'Motivación y juego', i: 'star', p: 'config.editar' },
   { g: 'Inteligencia artificial' },
   { k: 'ia', t: 'IA local y modelos', i: 'sparkles' },
@@ -64,6 +66,17 @@ export function render(el, params) {
   };
   draw();
   return { params: p => { sec = (p && p[0]) || 'perfil'; draw(); }, update: () => { } };
+}
+
+// v10.8: resumen de la mañana (Telegram y avisos)
+function resumenCard(c) {
+  const hora = sel(Array.from({ length: 17 }, (_, i) => ({ v: i + 6, t: (i + 6) + ':00' })), c.horaResumen ?? 9);
+  let on = c.resumenDiario !== false;
+  const out = h('div.inv-msg', { style: { display: 'none' } });
+  return card('☀️ Resumen de la mañana', h('p.small.muted', 'Cada día, a la hora que elijas, cada persona recibe (en la app y en Telegram si lo tiene conectado) lo importante: pedidos que vencen, qué imprime cada impresora, filamento bajo, tareas y presupuestos pendientes. Solo ve lo que su rol le permite.'),
+    h('label.check', sw(on, v => { on = v; }), 'Enviar el resumen de la mañana'), field('Hora', hora),
+    h('div.row.wrap', btn('Guardar', () => saveCfg('notificaciones', Object.assign(JSON.parse(JSON.stringify(S.cfg.notificaciones)), { resumenDiario: on, horaResumen: Number(hora.value) })), { cls: 'primary' }),
+      btn('Probar ahora (a mí)', async () => { try { const r = await api('resumen.probar', {}); out.style.display = ''; out.textContent = r.texto || '(vacío)'; toast('Enviado a tus avisos' + (S.me.telegramId ? ' y a Telegram' : ''), 'ok'); } catch (e) { handleError(e); } }, { icon: 'send' })), out);
 }
 
 // Guarda una sección de configuración del servidor
@@ -342,6 +355,27 @@ const SEC = {
       h('p.small', 'También se avisa de: precios por debajo del coste, pedidos vencidos o sin revisar, números de pedido repetidos, documentos pendientes de revisar y otras anomalías.'),
       btn('Guardar', () => saveCfg('alertas', { margenMinimo: (Number(f.margen.value) || 0) / 100, clienteInactivoDias: Number(f.inactivo.value) || 120, caidaVentas: (Number(f.caida.value) || 25) / 100, stockBajo: stock }), { cls: 'primary' })));
   },
+  facturacion(b) {
+    const c = JSON.parse(JSON.stringify(S.cfg.facturacion || {}));
+    const F = [['razonSocial', 'Nombre o razón social *', 'Tal como aparece en Hacienda'], ['nif', 'NIF / CIF *', ''], ['direccion', 'Dirección', 'Calle, número, piso'], ['cp', 'Código postal', ''], ['ciudad', 'Ciudad', ''], ['provincia', 'Provincia', ''], ['email', 'Email para facturas', ''], ['telefono', 'Teléfono', '']];
+    const f = {}; F.forEach(([k]) => { f[k] = inp({ value: c[k] || '' }); });
+    const iva = sel([{ v: 0.21, t: '21 %' }, { v: 0.10, t: '10 %' }, { v: 0.04, t: '4 %' }, { v: 0, t: '0 %' }], Number(c.tipoIva ?? 0.21));
+    const val = inp({ type: 'number', min: 1, max: 365, value: c.validezPresupuesto || 15 });
+    const pie = area({ value: c.pie || '', placeholder: 'Ej.: Inscrita en… · IBAN para transferencias… · Régimen de…' });
+    const cond = area({ value: c.condiciones || '' });
+    b.append(card(null, h('p.small.muted', 'Salen en las facturas, los presupuestos y como remitente en las etiquetas de envío. Los precios de la app llevan el IVA incluido.'),
+      h('div.form', F.map(([k, l, hint]) => field(l, f[k], hint || null)), field('IVA de tus ventas', iva), field('Validez de los presupuestos (días)', val), field('Pie de las facturas', pie, null, 'full'), field('Condiciones de los presupuestos', cond, null, 'full')),
+      h('p.tiny.muted', 'Numeración: F2026-0001 (factura completa, con NIF del cliente), FS2026-0001 (simplificada, sin NIF) y R2026-0001 (rectificativas). Consulta con tu gestor si necesitas otra serie.'),
+      btn('Guardar', () => { const v = {}; F.forEach(([k]) => { v[k] = f[k].value.trim(); }); if (v.nif) v.nif = v.nif.toUpperCase().replace(/[\s-]/g, ''); saveCfg('facturacion', Object.assign(c, v, { tipoIva: Number(iva.value), validezPresupuesto: Number(val.value) || 15, pie: pie.value.trim(), condiciones: cond.value.trim() })); }, { cls: 'primary' })));
+  },
+  taller(b) {
+    const c = JSON.parse(JSON.stringify(S.cfg.taller || {}));
+    const a1 = inp({ type: 'number', min: 0, step: 10, value: c.avisoGramos ?? 150 }), a2 = inp({ type: 'number', min: 0, step: 50, value: c.avisoColorGramos ?? 300 });
+    b.append(card(null, h('p.small.muted', 'Cuándo avisar de que queda poco filamento. Al bajar del mínimo de un color, se añade solo a la lista de la compra.'),
+      h('div.form', field('Avisar cuando a una bobina le queden (g)', a1), field('Comprar cuando de un color queden en total (g)', a2)),
+      btn('Guardar', () => saveCfg('taller', { avisoGramos: Number(a1.value) || 0, avisoColorGramos: Number(a2.value) || 0 }), { cls: 'primary' })),
+      card('Impresoras y bobinas', h('p.small', 'Se gestionan en el menú ', h('a', { href: '#/taller' }, 'Taller 3D'), '.')));
+  },
   juego(b) {
     const c = JSON.parse(JSON.stringify(S.cfg.gamificacion || { puntos: {}, recompensas: [] }));
     let on = c.activa !== false;
@@ -377,8 +411,9 @@ const SEC = {
     const tog = (k, t) => h('label.check', sw(c[k], v => { c[k] = v; }), t);
     b.append(card('Bot de Telegram', h('p.small.muted', 'Crea un bot con @BotFather en Telegram (/newbot) y pega aquí su token. Después, cada persona conecta su Telegram desde su perfil.'), h('p', S.cfg.secretos.telegram ? '✅ Bot configurado.' : 'Sin configurar (opcional).'), field('Token del bot', tok), res,
       btn('Guardar y probar', async () => { if (!tok.value.trim()) return; try { const r = await api('config.secreto', { nombre: 'telegram', valor: tok.value.trim() }); tok.value = ''; res.textContent = r.error ? '⚠️ ' + r.error : '✅ Bot ' + r.prueba; await pull(); } catch (e) { res.textContent = e.message; } }, { cls: 'primary' })),
-      card('Qué avisos llegan a Telegram', tog('telegram', 'Enviar avisos a Telegram'), tog('pedidosUrgentes', 'Pedidos vencidos o a punto de vencer'), tog('tareas', 'Tareas asignadas y vencidas'), tog('seguridad', 'Alertas de seguridad y solicitudes de acceso'), h('p.small.muted', 'Dentro de la app (campana) aparecen siempre todos.'),
-        btn('Guardar', () => saveCfg('notificaciones', c), { cls: 'primary' })));
+      card('Qué avisos llegan a Telegram', tog('telegram', 'Enviar avisos a Telegram'), tog('pedidosUrgentes', 'Pedidos vencidos o a punto de vencer'), tog('tareas', 'Tareas asignadas y vencidas'), tog('seguridad', 'Alertas de seguridad y solicitudes de acceso'), tog('taller', 'Taller: impresora terminada y filamento bajo'), h('p.small.muted', 'Dentro de la app (campana) aparecen siempre todos.'),
+        btn('Guardar', () => saveCfg('notificaciones', c), { cls: 'primary' })),
+      resumenCard(c));
   },
   async redes(b) {
     const c = JSON.parse(JSON.stringify(S.cfg.redes));

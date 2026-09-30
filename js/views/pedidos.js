@@ -3,6 +3,7 @@ import { h, mount, clear, icon, btn, modal, drawer, toast, eur, fdate, fdt, ago,
 import { S, can, mutate, api, timing, stateColor, byId, upsertLocal, removeLocal, emit, clientStats } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { filesSection, filesOf } from '../files.js';
+import { printDoc, labelDoc, preview } from '../print.js';
 
 const CL = window.CL;
 const PRESETS = [
@@ -107,7 +108,8 @@ export function render(el, params) {
             h('td', h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto)),
             h('td', pill(o.estado, '', stateColor(o.estado))), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
             h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—')))))));
-    mount(listBox, h('div.row.small.muted', { style: { margin: '0 0 8px' } }, h('span', rows.length + (rows.length === 1 ? ' pedido' : ' pedidos')), can('informes.ver') ? h('span', '· ' + eur(total)) : null),
+    mount(listBox, h('div.row.small.muted', { style: { margin: '0 0 8px' } }, h('span', rows.length + (rows.length === 1 ? ' pedido' : ' pedidos')), can('informes.ver') ? h('span', '· ' + eur(total)) : null,
+        ['enviar', 'empaquetar'].includes(st.preset) && rows.length ? btn('Imprimir etiquetas (' + rows.length + ')', () => printLabels(rows.map(x => x.o)), { cls: 'sm ghost', icon: 'printer' }) : null),
       body, rows.length > st.limit ? h('div.pager', btn('Mostrar más (' + (rows.length - st.limit) + ')', () => { st.limit += 100; drawList(); })) : null);
   }
   let openId = null, dr = null;
@@ -118,6 +120,8 @@ export function render(el, params) {
     drawKpis(); drawList();
     if (pp.id === 'nuevo') { history.replaceState(null, '', '#/pedidos'); orderForm(); }
     else if (pp.id && (pp.id !== openId || !document.querySelector('.drawer'))) { openId = pp.id; dr = orderDrawer(pp.id, () => { openId = null; dr = null; if (location.hash.startsWith('#/pedidos/' + pp.id)) history.replaceState(null, '', '#/pedidos'); }); }
+    // v10.8: QR de la etiqueta → marcar como enviado desde el móvil
+    if (pp.id && pp.q.enviar) { const o = byId('pedidos', pp.id); history.replaceState(null, '', '#/pedidos/' + pp.id); if (o && can('pedidos.editar')) { const t = timing(o); if (t.enviado) toast('Este pedido ya estaba enviado (' + o.estado + ').', 'ok'); else setTimeout(() => shipDialog(o), 250); } }
   }
   fillSelects();
   applyParams(params);
@@ -149,7 +153,8 @@ export function orderDrawer(id, onClose) {
       const states = S.cfg.pedidos.estados.filter(s => !s.issue && !s.cancelled);
       const idx = states.findIndex(s => s.k === o.estado);
       const c = byId('clientes', o.clienteId);
-      const tabs = [['resumen', 'Resumen'], ['fechas', 'Fechas'], ['envio', 'Envío'], ['archivos', 'Archivos (' + filesOf('pedidos', o.id).length + ')'], ['tareas', 'Tareas (' + S.t.tareas.filter(k => k.pedidoId === o.id).length + ')'], ['historial', 'Historial']];
+      const tabs = [['resumen', 'Resumen'], can('productos.costes') ? ['beneficio', 'Beneficio'] : null, ['fechas', 'Fechas'], ['envio', 'Envío'], can('taller.ver') ? ['taller', 'Impresión (' + (S.t.trabajos || []).filter(j => j.pedidoId === o.id && j.estado !== 'Cancelado').length + ')'] : null, ['archivos', 'Archivos (' + filesOf('pedidos', o.id).length + ')'], ['tareas', 'Tareas (' + S.t.tareas.filter(k => k.pedidoId === o.id).length + ')'], ['historial', 'Historial']].filter(Boolean);
+      if (!tabs.some(x => x[0] === tab)) tab = 'resumen';
       const body = h('div');
       mount(d,
         h('div.drawer-h', h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null)),
@@ -168,6 +173,10 @@ export function orderDrawer(id, onClose) {
             editable ? btn('Editar', () => orderForm(o), { icon: 'edit' }) : null,
             can('pedidos.crear') ? btn('Duplicar', () => orderForm(Object.assign({}, o, { id: '', numero: '', fecha: '', estado: 'Nuevo', seguimiento: '', fechaEnvio: '', fechaEntrega: '', incidencia: '' }), true), { icon: 'copy' }) : null,
             btn('Mensaje para el cliente', () => messageDialog(o), { icon: 'msg' }),
+            can('ia.usar') ? btn('Responder con IA', () => import('./respuestas.js').then(m => m.replyAssistant({ pedido: o })), { icon: 'sparkles' }) : null,
+            btn('Etiqueta', () => labelDialog(o), { icon: 'printer' }),
+            can('taller.editar') && t.abierto && !t.enviado ? btn('Imprimir en 3D', () => import('./taller.js').then(m => m.jobForm(null, o)), { icon: 'cube' }) : null,
+            can('facturas.emitir') ? btn(o.factura ? 'Factura ' + o.factura : 'Factura', () => import('./facturas.js').then(m => m.invoiceForm(o)), { icon: 'file' }) : null,
             h('span.grow'),
             can('pedidos.borrar') ? btn('Borrar', () => delOrder(o, closeAll), { cls: 'danger', icon: 'trash' }) : btn('Borrar', () => requestAccess('pedidos.borrar', 'pedidos', 'Borrar pedido nº ' + o.numero), { cls: 'ghost locked', icon: 'trash' }))));
       TABS[tab](body, o, t, c);
@@ -190,6 +199,30 @@ const TABS = {
       o.incidencia ? h('div.card.flat', { style: { background: 'var(--bad-soft)', marginTop: '12px' } }, h('b.bad-t', '⚠️ Incidencia'), h('p', o.incidencia)) : null,
       h('h4', { style: { margin: '16px 0 8px' } }, 'Notas'), o.notas ? h('p', { style: { whiteSpace: 'pre-wrap' } }, o.notas) : h('p.na', 'Sin notas'),
       cs ? h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row', h('b', 'Sobre ' + c.nombre), h('span.tiny.muted', cs.pedidos + ' pedidos · ' + eur(cs.gasto))), h('div.tags', { style: { marginTop: '6px' } }, cs.etiquetas.map(e => pill(e.i + ' ' + e.t, 'brand')))) : null);
+  },
+  beneficio(el, o) {
+    const p = CL.orderProfit(o, S.t, S.cfg);
+    const minM = Number((S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15);
+    const est = x => x ? h('span.est', ' (estimado)') : null;
+    const row = (l, v, e) => [h('span.l', l, est(e)), h('span.v', v)];
+    mount(el, h('div.card.flat', h('div.profit',
+      row('Cobrado al cliente', eur(p.total)),
+      row('Fabricación' + (p.unidad !== null && (Number(o.cantidad) || 1) > 1 ? ' (' + (Number(o.cantidad) || 1) + ' × ' + eur(p.unidad) + ')' : ''), p.produccion === null ? h('span.warn-t', 'sin coste') : '− ' + eur(p.produccion)),
+      row('Envío que pagaste', '− ' + eur(p.envio), p.envioEstimado),
+      row('Comisión ' + (o.canal || 'de la plataforma'), '− ' + eur(p.comision), p.comisionEstimada),
+      p.gastos.map(g => row(g.concepto || 'Otro gasto', '− ' + eur(g.coste))),
+      h('span.l.sum', 'Beneficio real'), h('span.v.sum' + (p.beneficio !== null && p.beneficio < 0 ? '.bad-t' : ''), p.beneficio === null ? '—' : eur(p.beneficio)),
+      h('span.l', 'Margen'), h('span.v', p.margen === null ? '—' : Math.round(p.margen * 100) + ' %'))),
+      !p.conCoste ? h('p.small.warn-t', '⚠️ Este producto no tiene coste guardado: añádelo en Productos → Costes y precio para saber el beneficio.') : null,
+      p.beneficio !== null && p.beneficio < 0 ? h('p.small.bad-t', '🔴 Con este pedido pierdes dinero.') : p.margen !== null && p.margen < minM ? h('p.small.warn-t', '🟡 Margen por debajo del mínimo (' + Math.round(minM * 100) + ' %).') : p.margen !== null ? h('p.small.ok-t', '🟢 Buen margen.') : null,
+      p.envioEstimado || p.comisionEstimada ? h('p.tiny.muted', 'Lo marcado como estimado sale de Configuración → Precios y comisiones. Pon el importe real para que el beneficio sea exacto.') : null,
+      can('pedidos.editar') ? btn('Poner costes reales', () => costsDialog(o), { icon: 'euro', cls: 'sm' }) : null);
+  },
+  taller(el, o) {
+    const js = (S.t.trabajos || []).filter(j => j.pedidoId === o.id && j.estado !== 'Cancelado');
+    mount(el, js.length ? h('div.list.boxed', js.map(j => { const p = byId('impresoras', j.impresoraId); return h('div.item', { onclick: () => go('taller') },
+      h('span', { Terminado: '✅', Fallido: '❌', Imprimiendo: '🖨️' }[j.estado] || '⏳'), h('div.grow', h('div.small.bold', j.titulo), h('div.tiny.muted', [j.estado, p ? p.nombre : '', (Number(j.horas) || 0) + ' h', j.gramos ? Math.round(j.gramos) + ' g' : '', j.color].filter(Boolean).join(' · ')))); })) : h('p.small.muted', 'Este pedido aún no está en ninguna cola de impresión.'),
+      can('taller.editar') ? btn('Mandar a imprimir', () => import('./taller.js').then(m => m.jobForm(null, o)), { icon: 'plus', cls: 'sm' }) : null);
   },
   fechas(el, o, t) {
     mount(el, h('div.facts',
@@ -273,9 +306,10 @@ function shipDialog(o, estado) {
   const envio = sel([''].concat(S.cfg.pedidos.envios), o.envio);
   const seg = inp({ value: o.seguimiento || '', placeholder: 'Ej.: PK123456789ES' });
   const fecha = inp({ type: 'date', value: S.hoy });
-  modal('Enviar pedido nº ' + o.numero, h('div.form', field('Transportista / método', envio), field('Nº de seguimiento', seg, 'Si no tiene, déjalo vacío.'), field('Fecha de envío', fecha)), close => [
+  const coste = inp({ type: 'number', min: 0, step: 0.01, value: o.costeEnvio ?? '', placeholder: 'Ej.: 3,20' });
+  modal('Enviar pedido nº ' + o.numero, h('div.form', field('Transportista / método', envio), field('Nº de seguimiento', seg, 'Si no tiene, déjalo vacío.'), field('Fecha de envío', fecha), field('Lo que has pagado por el envío (€)', coste, 'Opcional. Sirve para saber el beneficio real. Si lo paga el cliente, pon 0.')), close => [
     btn('Cancelar', close),
-    btn('Marcar como enviado', async () => { close(); await changeState(o, estado || 'Enviado', { envio: envio.value, seguimiento: seg.value.trim(), fechaEnvio: fecha.value }); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
+    btn('Marcar como enviado', async () => { close(); const ex = { envio: envio.value, seguimiento: seg.value.trim(), fechaEnvio: fecha.value }; if (coste.value !== '') ex.costeEnvio = Number(coste.value); await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
 }
 function issueDialog(o) {
   const t = area({ value: o.incidencia || '', placeholder: 'Qué ha pasado: pieza rota, cliente no responde, paquete perdido…' });
@@ -299,6 +333,56 @@ function messageDialog(o, kind) {
   const t = area({ value: T[s.value], style: { minHeight: '140px' } });
   s.addEventListener('change', () => { t.value = T[s.value]; });
   modal('Mensaje para ' + o.cliente, h('div.col', field('Plantilla', s), field('Texto (puedes cambiarlo)', t), h('p.tiny.muted', 'Cópialo y pégalo en Vinted, Wallapop, WhatsApp…')), close => [btn('Cerrar', close), btn('Copiar', () => { copyText(t.value); close(); }, { cls: 'primary', icon: 'copy' })]);
+}
+
+// ---------- v10.8: costes reales, etiqueta de envío ----------
+function costsEditor(o) {
+  const canal = () => o.canal;
+  const env = inp({ type: 'number', min: 0, step: 0.01, value: o.costeEnvio ?? '', placeholder: 'Vacío = estimado (' + eur((S.cfg.precios || {}).envio || 0) + ')' });
+  const com = inp({ type: 'number', min: 0, step: 0.01, value: o.comision ?? '' });
+  const setComPh = (c, total) => { com.placeholder = 'Vacío = estimada (' + eur(CL.estComision(c, total, S.cfg.precios)) + ')'; };
+  setComPh(canal(), CL.orderTotal(o));
+  const list = (Array.isArray(o.gastosPedido) ? o.gastosPedido : []).map(g => Object.assign({}, g));
+  const box = h('div.col', { style: { gap: '6px' } });
+  const pick = sel([{ v: '', t: '+ Añadir gasto de la lista…' }].concat((S.t.gastos || []).map(g => ({ v: g.nombre, t: g.nombre + ' · ' + eur(g.coste) }))).concat([{ v: '__otro', t: '+ Otro gasto (escribirlo)' }]), '');
+  const draw = () => mount(box, list.map((g, i) => {
+    const c = inp({ value: g.concepto, placeholder: 'Concepto' }), v = inp({ type: 'number', min: 0, step: 0.01, value: g.coste, style: { width: '100px' } });
+    c.addEventListener('input', () => { g.concepto = c.value; }); v.addEventListener('input', () => { g.coste = v.value; });
+    return h('div.row', h('div.grow', c), v, btn('', () => { list.splice(i, 1); draw(); }, { cls: 'ghost icon sm', icon: 'x' }));
+  }), pick);
+  pick.addEventListener('change', () => { if (!pick.value) return; if (pick.value === '__otro') list.push({ concepto: '', coste: '' }); else { const g = (S.t.gastos || []).find(x => x.nombre === pick.value); list.push({ concepto: g.nombre, coste: Number(g.coste) || 0 }); } pick.value = ''; draw(); });
+  draw();
+  return {
+    el: h('div.form', field('Envío que pagaste (€)', env), field('Comisión de la plataforma (€)', com), h('div.full', h('div.lbl', 'Otros gastos de este pedido'), box)),
+    setCanal: (c, total) => setComPh(c, total),
+    value: () => ({ costeEnvio: env.value === '' ? '' : Number(env.value), comision: com.value === '' ? '' : Number(com.value), gastosPedido: list.filter(g => String(g.concepto || '').trim() || Number(g.coste)).map(g => ({ concepto: String(g.concepto || '').trim(), coste: Number(g.coste) || 0 })) })
+  };
+}
+function costsDialog(o) {
+  const ed = costsEditor(o);
+  modal('Costes reales · nº ' + o.numero, h('div.col', h('p.small.muted', 'Lo que te ha costado de verdad este pedido. Si dejas algo vacío se estima con Configuración → Precios.'), ed.el), close => [btn('Cancelar', close), btn('Guardar', async () => {
+    const v = ed.value(), ch = {};
+    Object.keys(v).forEach(k => { if (JSON.stringify(v[k] ?? '') !== JSON.stringify(o[k] ?? (k === 'gastosPedido' ? [] : ''))) ch[k] = v[k]; });
+    if (!Object.keys(ch).length) return close();
+    if (await save(o, ch, 'Costes de nº ' + o.numero)) { close(); profitWarn(byId('pedidos', o.id)); }
+  }, { cls: 'primary' })], { size: 'wide' });
+}
+function profitWarn(o) {
+  if (!o || !can('productos.costes')) return;
+  const p = CL.orderProfit(o, S.t, S.cfg), minM = Number((S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15);
+  if (p.beneficio !== null && p.beneficio < 0) toast('🔴 Pedido nº ' + o.numero + ': pierdes ' + eur(-p.beneficio), 'bad', 6000);
+  else if (p.margen !== null && p.margen < minM) toast('🟡 Pedido nº ' + o.numero + ': margen bajo (' + Math.round(p.margen * 100) + ' %)', 'warn', 6000);
+}
+function labelDialog(o) {
+  const c = byId('clientes', o.clienteId);
+  const noAddr = !c || !c.direccion || c.direccion === '•••';
+  modal('Etiqueta de envío · nº ' + o.numero, h('div.col', noAddr ? h('p.small.warn-t', can('clientes.datos') ? '⚠️ Este cliente no tiene dirección guardada: saldrá un hueco para escribirla a mano (o añádela en su ficha).' : '🔒 No tienes permiso para ver direcciones: saldrá un hueco para escribirla a mano.') : null,
+    preview(labelDoc(o, c), 'label'), h('p.tiny.muted', 'Tamaño 10 × 15 cm (el de las impresoras de etiquetas). En A4 sale una por hoja. El QR abre este pedido en el móvil para marcarlo como enviado.')),
+    close => [btn('Cerrar', close), btn('Imprimir', () => printDoc(labelDoc(o, c), { size: 'label' }), { cls: 'primary', icon: 'printer' })], { size: 'narrow' });
+}
+function printLabels(list) {
+  const wrap = h('div', list.map(o => h('div', { style: { pageBreakAfter: 'always', breakAfter: 'page' } }, labelDoc(o, byId('clientes', o.clienteId)))));
+  printDoc(wrap, { size: 'label' });
 }
 
 // ---------- Formulario (nuevo / editar) ----------
@@ -328,6 +412,8 @@ export function orderForm(o, duplicate) {
   };
   const limitTxt = h('span.small.muted');
   const clientInfo = h('div.small.muted');
+  const costs = can('productos.costes') ? costsEditor(o) : null;
+  if (costs) [f.canal, f.precio, f.cantidad].forEach(x => x.addEventListener('input', () => costs.setCanal(f.canal.value, (Number(f.cantidad.value) || 1) * (Number(f.precio.value) || 0))));
   const updLimit = () => { const d = CL.addDays(f.fecha.value, f.plazoDias.value); limitTxt.textContent = d ? 'Fecha límite: ' + fdate(d, true) + ' (' + (CL.days(S.hoy, d) >= 0 ? 'quedan ' + CL.days(S.hoy, d) + ' días' : 'ya vencida') + ')' : ''; };
   const updClient = () => {
     const c = S.t.clientes.find(x => CL.norm(x.nombre) === CL.norm(f.cliente.value));
@@ -374,6 +460,7 @@ export function orderForm(o, duplicate) {
       field('Canal / tienda', f.canal), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
     h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Color', f.color), h('div'), field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
     h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Método de envío', f.envio), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada))),
+    costs ? h('details.more', h('summary', 'Costes reales del pedido (envío, comisión, caja…)'), h('div.in', costs.el)) : null,
     msg);
   const m = modal(isNew ? 'Nuevo pedido' : 'Editar pedido nº ' + o.numero, body, close => [btn('Cancelar', close), btn(isNew ? 'Crear pedido' : 'Guardar cambios', async (ev) => {
     msg.textContent = '';
@@ -383,6 +470,7 @@ export function orderForm(o, duplicate) {
     if (!datos.producto) return msg.textContent = 'Indica el producto.';
     if (!(datos.cantidad > 0)) return msg.textContent = 'La cantidad debe ser mayor que 0.';
     if (!datos.numero) delete datos.numero;
+    if (costs) Object.assign(datos, costs.value());
     const b = ev.target.closest('button'); b.disabled = true;
     try {
       if (isNew) {
@@ -391,11 +479,12 @@ export function orderForm(o, duplicate) {
         if (r && r.id) { upsertLocal('pedidos', r); emit(); }
         close();
         toast(r && r.queued ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : 'Pedido nº ' + r.numero + ' creado', r && r.queued ? 'warn' : 'ok');
+        if (r && r.id) setTimeout(() => profitWarn(byId('pedidos', id)), 1200);
         go('pedidos/' + id);
       } else {
-        const ch = {}; Object.keys(datos).forEach(k => { if (String(datos[k] ?? '') !== String(o[k] ?? '')) ch[k] = datos[k]; });
+        const ch = {}; Object.keys(datos).forEach(k => { const a = datos[k], b0 = o[k]; if (typeof a === 'object' ? JSON.stringify(a || []) !== JSON.stringify(b0 || []) : String(a ?? '') !== String(b0 ?? '')) ch[k] = a; });
         if (!Object.keys(ch).length) { close(); return; }
-        if (await save(o, ch)) close();
+        if (await save(o, ch)) { close(); profitWarn(byId('pedidos', o.id)); }
       }
     } catch (e) { msg.textContent = e.message; handleError(e, 'pedidos'); } finally { b.disabled = false; }
   }, { cls: 'primary' })], { size: 'wide' });

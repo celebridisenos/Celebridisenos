@@ -15,6 +15,10 @@ export function linkPath(enlace) {
   if (k === 'chat' && id) return 'chat/' + id;
   if (k === 'producto' && id) return 'productos/' + id;
   if (k === 'cliente' && id) return 'clientes/' + id;
+  if (k === 'taller') return 'taller' + (id ? '/' + id : '');
+  if (k === 'presupuesto' && id) return 'presupuestos/' + id;
+  if (k === 'factura') return 'facturas';
+  if (k === 'inicio') return 'inicio';
   return { pedido: 'pedidos/' + id, tarea: 'tareas/' + id, noticia: 'noticias/' + id, redes: 'redes/' + id, solicitudes: 'config/solicitudes', auditoria: 'config/auditoria', copias: 'config/copias', informes: 'informes', pedidos: 'pedidos' }[k] || (k ? k : '');
 }
 async function markRead(ids, all) {

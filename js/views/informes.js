@@ -68,6 +68,7 @@ export function render(el) {
     mount(box,
       h('p.muted.small', 'Del ' + (d.a === '0000-01-01' ? 'inicio' : fdate(d.a)) + ' al ' + (d.b === '9999-12-31' ? 'hoy' : fdate(d.b)) + ' · calculado con los datos reales de la app'),
       biCard(),
+      profitCard(d),
       h('div.grid.g4.kpis', [sales ? ['Ventas', eur(d.total)] : null, ['Pedidos', num(d.valid.length)], sales ? ['Ticket medio', eur(d.valid.length ? d.total / d.valid.length : 0)] : null, ['Enviados', num(d.shipped.length)], ['A tiempo', d.shipped.length ? Math.round((d.shipped.length - d.late.length) / d.shipped.length * 100) + '%' : '—'],
         ['Clientes que compran', num(d.clientsIn.length)], ['Clientes nuevos', num(d.nuevos)], ['Tareas completadas', num(d.tareas.length)]].filter(Boolean).map(x => h('div.kpi', { style: { cursor: 'default' } }, h('span.n', x[1]), h('span.l', x[0])))),
       sales ? h('div.card', h('div.card-h', h('h3', 'Ventas de los últimos 12 meses')), h('div.row', { style: { alignItems: 'flex-end', gap: '6px', height: '160px' } }, last12.map(m => h('div.col', { style: { flex: 1, alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }, title: m[0] + ': ' + eur(m[1]) },
@@ -80,6 +81,21 @@ export function render(el) {
         h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Tareas completadas por persona'), d.tareasPor.length ? bars(d.tareasPor) : h('p.muted.small', 'Ninguna en este periodo')),
         h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Publicaciones en redes'), d.redesPor.length ? bars(d.redesPor) : h('p.muted.small', 'Ninguna en este periodo'), h('p.small.muted', d.redes.filter(r => r.estado === 'Publicado').length + ' publicadas de ' + d.redes.length + ' planificadas'))),
       d.late.length ? h('div.card', h('h3', 'Enviados con retraso (' + d.late.length + ')'), h('div.list', d.late.slice(0, 20).map(o => h('div.item', { onclick: () => location.hash = '#/pedidos/' + o.id }, h('b', 'nº ' + o.numero), h('span.grow', o.cliente + ' · ' + o.producto), h('span.small.bad-t', 'enviado ' + fdate(o.fechaEnvio)))))) : null);
+  }
+  // v10.8: beneficio REAL (con envíos, comisiones y gastos de cada pedido)
+  function profitCard(d) {
+    if (!can('productos.costes') || !can('informes.ver')) return null;
+    const ps = CL.profitSummary(S.t, S.cfg, d.a === '0000-01-01' ? '' : d.a, d.b === '9999-12-31' ? '' : d.b);
+    if (!ps.pedidos) return null;
+    const minM = Number((S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15);
+    return h('div.card', h('div.card-h', h('h3', '💶 Beneficio real (con envíos, comisiones y gastos de cada pedido)')),
+      h('div.grid.g4.kpis', [['Cobrado', eur(ps.ventas)], ['Beneficio real', eur(ps.beneficio)], ['Margen real', ps.margen === null ? '—' : Math.round(ps.margen * 100) + ' %'], ['Envíos pagados', eur(ps.envios)], ['Comisiones', eur(ps.comisiones)], ['Otros gastos', eur(ps.otros)]]
+        .map(x => h('div.kpi', { style: { cursor: 'default' } }, h('span.n', x[1]), h('span.l', x[0])))),
+      ps.sinCoste ? h('p.small.warn-t', '⚠️ ' + ps.sinCoste + ' pedido(s) sin coste del producto no cuentan en el beneficio. Añade su coste en Productos.') : null,
+      ps.estimados ? h('p.tiny.muted', ps.estimados + ' pedido(s) con envío o comisión estimados (sin importe real).') : null,
+      ps.meses.length > 1 ? h('div', h('div.lbl', 'Por meses'), bars(ps.meses.map(m => [m.mes + ' · ' + eur(m.ventas) + ' cobrado', m.beneficio]), eur)) : null,
+      ps.bajos.length ? h('div', h('div.lbl', { style: { marginTop: '10px' } }, 'Pedidos con margen por debajo del ' + Math.round(minM * 100) + ' % (' + ps.bajos.length + ')'),
+        h('div.list', ps.bajos.slice(0, 12).map(b => h('div.item', { onclick: () => location.hash = '#/pedidos/' + b.id }, h('b', 'nº ' + b.numero), h('span.grow.ellipsis', b.producto + ' · ' + b.cliente), h('span.small' + (b.beneficio < 0 ? '.bad-t' : '.warn-t'), eur(b.beneficio) + ' · ' + Math.round(b.margen * 100) + ' %'))))) : null);
   }
   function biPer() { return { hoy: 'hoy', semana: 'semana', mes: 'mes', año: 'año', trimestre: '30d' }[st.p] || null; }
   function biCard() {

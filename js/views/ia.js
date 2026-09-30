@@ -52,7 +52,7 @@ const SUGG = [
 
 export function render(el, params) {
   const st = { tab: params && params[0] === 'biblioteca' ? 'biblioteca' : params && params[0] === 'memoria' ? 'memoria' : params && params[0] === 'actividad' ? 'actividad' : params && params[0] === 'objetivos' ? 'objetivos' : 'chat', msgs: [], busy: false, ctrl: null, voz: localStorage.getItem('cd.voz') === '1' };
-  const head = h('div.page-head', h('div', h('h1.celeb-title', '✨ Celebrity'), h('div.muted.small', 'Tu coordinadora: sabe qué hay pendiente, controla los objetivos y responde con vuestros datos. Privada: funciona en vuestros ordenadores.')), h('div.right.row'));
+  const head = h('div.page-head', h('div', h('h1.celeb-title', '✨ Celebrity'), h('div.muted.small', 'Tu coordinadora: sabe qué hay pendiente, controla los objetivos y responde con vuestros datos. Privada: funciona en vuestros ordenadores.')), h('div.right.row', btn('Responder a un cliente', () => import('./respuestas.js').then(m => m.replyAssistant()), { icon: 'msg', cls: 'primary' })));
   const status = h('div.ia-status');
   const tabs = h('div.tabs');
   const body = h('div');

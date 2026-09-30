@@ -6,8 +6,8 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '10.7.0';
-const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros'];
+export const APP_VERSION = '10.8.0';
+const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas'];
 
 export const S = {
   server: '', token: '', device: '', me: null, perms: { all: false, list: [], temp: [] }, cfg: null,

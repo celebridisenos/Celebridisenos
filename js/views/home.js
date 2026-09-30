@@ -14,6 +14,7 @@ const MODS = [
   { k: 'inteligencia', t: 'Centro de inteligencia (ventas, beneficios, tendencias)', p: 'informes.ver' },
   { k: 'juego', t: 'Tu nivel, insignias y ranking' },
   { k: 'produccion', t: 'Producción', p: 'pedidos.ver' },
+  { k: 'taller', t: 'Impresoras y filamento', p: 'taller.ver' },
   { k: 'hoy', t: 'Agenda de hoy' },
   { k: 'ventas', t: 'Ventas', p: 'informes.ver' },
   { k: 'clientes', t: 'Clientes para seguimiento', p: 'clientes.ver' },
@@ -116,6 +117,24 @@ function attention(d) {
 }
 
 const MOD_FNS = {
+  // v10.8: qué hace cada impresora ahora y filamento bajo
+  taller() {
+    const imps = (S.t.impresoras || []).filter(p => p.activa !== false);
+    if (!imps.length) return null;
+    const jobs = S.t.trabajos || [];
+    const aviso = Number((S.cfg.taller || {}).avisoColorGramos) || 300, colors = {};
+    (S.t.bobinas || []).forEach(b => { if (b.estado === 'Agotada') return; const k = (b.material || 'PLA') + ' ' + b.color; colors[k] = (colors[k] || 0) + (Number(b.restante) || 0); });
+    const low = Object.keys(colors).filter(k => colors[k] <= aviso);
+    return h('section.card', h('div.row', h('h3.grow', '🖨️ Impresoras'), btn('Ver taller', () => go('taller'), { cls: 'sm' })),
+      h('div.col', { style: { gap: '8px', marginTop: '8px' } }, imps.map(p => {
+        const cur = jobs.find(j => j.impresoraId === p.id && j.estado === 'Imprimiendo'), q = jobs.filter(j => j.impresoraId === p.id && j.estado === 'En cola').length;
+        const late = cur && cur.finPrevisto && new Date(cur.finPrevisto) < new Date();
+        const pc = cur ? Math.max(0, Math.min(1, (Date.now() - new Date(cur.inicio)) / Math.max(1, new Date(cur.finPrevisto) - new Date(cur.inicio)))) : 0;
+        return h('div', { onclick: () => go('taller'), style: { cursor: 'pointer' } }, h('div.row.small', h('b', p.nombre), h('span.grow.ellipsis.muted', p.estado === 'Mantenimiento' ? '🔧 mantenimiento' : cur ? cur.titulo : 'libre'), cur ? h('span' + (late ? '.bad-t' : ''), late ? '⏰ revisar' : new Date(cur.finPrevisto).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })) : null, q ? h('span.tiny.muted', '+' + q + ' en cola') : null),
+          cur ? h('div.bar' + (late ? '.bad' : ''), { style: { marginTop: '4px' } }, h('i', { style: { width: Math.round(pc * 100) + '%' } })) : null);
+      })),
+      low.length ? h('p.small.warn-t', { style: { marginTop: '8px' } }, '🧵 Queda poco: ' + low.map(k => k + ' (' + Math.round(colors[k]) + ' g)').join(', ')) : null);
+  },
   // v10: Celebrity resume el día en pocas líneas y controla los objetivos
   celebrity() {
     const b = brief();

@@ -225,7 +225,7 @@ var CL = (function () {
       // si la hoja aún no ha calculado la fórmula, se calcula igual que el Excel
       if (!(ct > 0) && pp && (n(c.gramos) > 0 || n(c.horas) > 0 || n(c.horasMO) > 0)) { try { ct = prices(c, pp).desglose.costeTotal; } catch (e) { ct = 0; } }
       if (!(ct > 0)) return;
-      var rec = { coste: ct, recomendado: n(c.precioVenta), minimo: n(c.precioMinimo), nombre: c.nombre };
+      var rec = { coste: ct, recomendado: n(c.precioVenta), minimo: n(c.precioMinimo), nombre: c.nombre, envio: n((pp || {}).envio) };
       if (c.id) byId[s(c.id)] = rec;
       if (c.nombre) byName[norm(c.nombre)] = rec;
     });
@@ -288,6 +288,64 @@ var CL = (function () {
     if (!ci) out.avisos.push('No hay coste guardado para este producto: no puedo calcular beneficio ni margen. Añádelo en Productos → Costes.');
     out.total = price ? r2(price * qty) : null;
     return out;
+  }
+
+  // v10.8 · Beneficio REAL de un pedido: coste de fabricación + envío pagado + comisión + otros gastos.
+  // Si falta el envío o la comisión se ESTIMAN (y se marca como estimado); si falta el coste del producto, se dice.
+  function estComision(canal, total, pp) {
+    var c = norm(canal); pp = pp || {};
+    if (c.indexOf('vinted') >= 0) return total * n(pp.vinted);
+    if (c.indexOf('etsy') >= 0) return total * (n(pp.etsyVenta) + n(pp.etsyPago) + n(pp.etsyReg)) + n(pp.etsyFijo) + n(pp.etsyAnuncioUSD) * n(pp.usdEur);
+    return 0;
+  }
+  function has(v) { return v !== '' && v !== null && v !== undefined; }
+  function orderProfit(o, data, cfg, costOf) {
+    var pp = (cfg && cfg.precios) || {};
+    costOf = costOf || costIndex(data || {}, pp);
+    var total = orderTotal(o), qty = n(o.cantidad) || 1, ci = costOf(o);
+    var unit = ci ? Math.max(0, ci.coste - n(ci.envio)) : null;
+    var envReal = has(o.costeEnvio), comReal = has(o.comision);
+    var env = envReal ? n(o.costeEnvio) : n(pp.envio);
+    var com = comReal ? n(o.comision) : estComision(o.canal, total, pp);
+    var list = Array.isArray(o.gastosPedido) ? o.gastosPedido : [];
+    var otros = list.reduce(function (a, g) { return a + n(g && g.coste); }, 0);
+    var prod = unit === null ? null : r2(unit * qty);
+    var coste = prod === null ? null : r2(prod + env + com + otros);
+    var ben = coste === null ? null : r2(total - coste);
+    return { total: r2(total), unidad: unit === null ? null : r2(unit), produccion: prod, envio: r2(env), envioEstimado: !envReal, comision: r2(com), comisionEstimada: !comReal,
+      otros: r2(otros), gastos: list, coste: coste, beneficio: ben, margen: ben !== null && total > 0 ? ben / total : null, conCoste: unit !== null };
+  }
+  // Resumen de beneficio real de un conjunto de pedidos (por meses)
+  function profitSummary(data, cfg, desde, hasta) {
+    var cp = (cfg && cfg.pedidos) || {}, costOf = costIndex(data, (cfg && cfg.precios) || {});
+    var out = { pedidos: 0, ventas: 0, ventasConCoste: 0, coste: 0, beneficio: 0, envios: 0, comisiones: 0, otros: 0, sinCoste: 0, estimados: 0, meses: {}, bajos: [] };
+    var minM = n(((cfg || {}).alertas || {}).margenMinimo) || n(((cfg || {}).precios || {}).margenMin) || 0.15;
+    (data.pedidos || []).forEach(function (o) {
+      if (!o.fecha || (desde && o.fecha < desde) || (hasta && o.fecha > hasta) || stateOf(cp, o.estado).cancelled) return;
+      var p = orderProfit(o, data, cfg, costOf), m = s(o.fecha).substring(0, 7);
+      var mm = out.meses[m] || (out.meses[m] = { mes: m, pedidos: 0, ventas: 0, beneficio: 0, sinCoste: 0 });
+      out.pedidos++; mm.pedidos++; out.ventas += p.total; mm.ventas += p.total;
+      out.envios += p.envio; out.comisiones += p.comision; out.otros += p.otros;
+      if (p.envioEstimado || p.comisionEstimada) out.estimados++;
+      if (!p.conCoste) { out.sinCoste++; mm.sinCoste++; return; }
+      out.coste += p.coste; out.beneficio += p.beneficio; out.ventasConCoste += p.total; mm.beneficio += p.beneficio;
+      if (p.margen !== null && p.margen < minM) out.bajos.push({ id: o.id, numero: o.numero, producto: o.producto, cliente: o.cliente, beneficio: p.beneficio, margen: p.margen });
+    });
+    ['ventas', 'ventasConCoste', 'coste', 'beneficio', 'envios', 'comisiones', 'otros'].forEach(function (k) { out[k] = r2(out[k]); });
+    out.meses = Object.keys(out.meses).sort().map(function (k) { var x = out.meses[k]; x.ventas = r2(x.ventas); x.beneficio = r2(x.beneficio); return x; });
+    out.bajos.sort(function (a, b) { return a.margen - b.margen; });
+    out.margen = out.ventasConCoste > 0 ? out.beneficio / out.ventasConCoste : null;
+    return out;
+  }
+  // v10.8 · Facturas: importes con IVA incluido → base, cuota y base por línea (cuadra al céntimo)
+  function invoiceAmounts(lineas, tipoIva) {
+    var iva = n(tipoIva);
+    var ls = (lineas || []).map(function (l) { var imp = r2(n(l.cantidad) * n(l.precio)); return { descripcion: s(l.descripcion), cantidad: n(l.cantidad), precio: r2(n(l.precio)), importe: imp, precioBase: r2(n(l.precio) / (1 + iva)), base: r2(imp / (1 + iva)) }; });
+    var total = r2(ls.reduce(function (a, l) { return a + l.importe; }, 0));
+    var base = r2(total / (1 + iva)), cuota = r2(total - base);
+    var sumB = r2(ls.reduce(function (a, l) { return a + l.base; }, 0));
+    if (ls.length && sumB !== base) ls[ls.length - 1].base = r2(ls[ls.length - 1].base + (base - sumB));
+    return { lineas: ls, total: total, base: base, cuota: cuota, tipoIva: iva };
   }
 
   // Periodos: [desde, hasta] y el periodo anterior equivalente
@@ -471,7 +529,7 @@ var CL = (function () {
     var meta = n(o.meta) || 0;
     return { valor: v, meta: meta, pct: meta ? Math.min(1, v / meta) : 0, hecho: meta > 0 && v >= meta, desde: from, hasta: hoy };
   }
-  return { objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
+  return { orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches };
