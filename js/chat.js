@@ -1,5 +1,5 @@
 // ================= Chat del equipo: servicio en segundo plano =================
-// Consulta mensajes nuevos cada pocos segundos (más a menudo con el chat abierto)
+// Consulta mensajes nuevos cada pocos segundos (con el chat abierto, en cuanto termina la consulta anterior)
 // y mantiene el contador de no leídos para el icono 💬.
 import { S, api, can, kv, emit, syncRevs } from './store.js';
 import { uid, confirmDlg, toast } from './ui.js';
@@ -29,14 +29,16 @@ export async function startChat() {
 }
 function schedule() {
   clearTimeout(timer);
-  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? 2000 : document.visibilityState === 'visible' ? 5000 : 60000;
+  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? 600 : document.visibilityState === 'visible' ? 5000 : 60000;
   timer = setTimeout(tick, ms);
 }
 export async function tick() {
   if (running || !S.token) return schedule();
   running = true;
   try {
-    const last = CHAT.msgs.length ? CHAT.msgs.reduce((a, m) => m.creado > a ? m.creado : a, '') : '';
+    // v10.6.2: solo cuentan los mensajes confirmados por el servidor (la hora de un mensaje aún
+    // enviándose es la del PC y, si el reloj va adelantado, se saltaban mensajes de otras personas)
+    const last = CHAT.msgs.reduce((a, m) => !m.pendiente && !m.error && m.creado > a ? m.creado : a, '');
     const r = await api('rt.poll', { desde: last, activo: document.visibilityState === 'visible', usando: usando() }, { quiet: true });
     syncRevs(r.revs || {});
     r.mensajes = r.mensajes || [];
@@ -84,7 +86,9 @@ export async function send(texto) {
   for (let i = 0; i < 3; i++) {
     try {
       const m = await api('chat.enviar', { id: tmp.id, texto });
-      Object.assign(tmp, m, { pendiente: false }); kv.set('chat.msgs', CHAT.msgs); markRead(); notify(); return;
+      Object.assign(tmp, m, { pendiente: false }); kv.set('chat.msgs', CHAT.msgs); markRead(); notify();
+      tick(); // v10.6.2: se consulta enseguida para ver las respuestas sin esperar al siguiente pulso
+      return;
     } catch (e) { if (e.code !== 'NET' && e.code !== 'BUSY') { tmp.error = e.message; tmp.pendiente = false; notify(); return; } await new Promise(r => setTimeout(r, 1500 * (i + 1))); }
   }
   tmp.error = 'No se pudo enviar (sin conexión). Pulsa para reintentar.'; tmp.pendiente = false; notify();

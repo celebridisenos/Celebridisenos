@@ -7,7 +7,7 @@ import { desktop } from '../desktop.js';
 
 export const PROFILES = {
   rapido: { t: 'Rápido', modelo: 'qwen3:1.7b', gb: 1.4, vram: 2, ram: 6, d: 'Respuestas casi instantáneas. Para ordenadores sin gráfica potente.' },
-  equilibrado: { t: 'Equilibrado', modelo: 'qwen3:4b', gb: 2.5, vram: 3.5, ram: 12, d: 'El mejor equilibrio entre inteligencia y velocidad. Bueno en español y con herramientas.' },
+  equilibrado: { t: 'Equilibrado', modelo: 'qwen3:4b-instruct', gb: 2.5, vram: 3.5, ram: 12, d: 'El mejor equilibrio entre inteligencia y velocidad. Responde directo (sin pensar en voz alta). Bueno en español y con herramientas.' },
   inteligente: { t: 'Inteligente', modelo: 'qwen3:8b', gb: 5.2, vram: 7, ram: 24, d: 'Razona mejor en preguntas complejas. Necesita una gráfica con 8 GB o más para ir rápido.' }
 };
 export const EMBED = { t: 'Búsqueda inteligente (RAG)', modelo: 'qwen3-embedding:0.6b', gb: 0.64, d: 'Entiende el significado de las preguntas para encontrar el documento correcto (multilingüe).' };

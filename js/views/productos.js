@@ -246,18 +246,54 @@ export function productWizard(p) {
   let cats = [...new Set(S.t.productos.map(x => x.categoria).filter(Boolean).concat(['HOGAR', 'ESCRITORIO Y SETUP', 'NAVIDAD', 'HALLOWEEN', 'CELEBRACIONES', 'JUGUETES Y JUEGOS', 'LLAVEROS Y PERSONALIZADOS', 'COCINA Y MESA']))];
   let subs = [...new Set(S.t.productos.map(x => x.subcategoria).filter(Boolean))];
   let folderTree = null;
+  // v10.6.3: Categoría y Subcategoría se ELIGEN de una lista con las carpetas que ya existen
+  // (y "➕ Otra (escribir)" para poner una nueva). Sin carpeta de productos, lista con lo ya usado.
+  const OTRA = '__otra__';
+  const combo = (input) => {
+    const s2 = h('select.inp', { 'aria-label': 'Elegir de la lista' });
+    const wrap = h('div.col', { style: { gap: '6px' } }, s2, input);
+    let opts = [];
+    const sync = () => {
+      const cur = CL.norm(input.value);
+      const hit = opts.find(o => CL.norm(o) === cur);
+      if (!opts.length) { s2.style.display = 'none'; input.style.display = ''; return; }
+      s2.style.display = '';
+      if (hit) { s2.value = hit; input.value = hit; input.style.display = 'none'; }
+      else if (input.value.trim()) { s2.value = OTRA; input.style.display = ''; }
+      else { s2.value = ''; input.style.display = 'none'; }
+    };
+    s2.addEventListener('change', () => {
+      if (s2.value === OTRA) { input.value = ''; input.style.display = ''; input.focus(); }
+      else { input.value = s2.value; input.style.display = 'none'; }
+      input.dispatchEvent(new Event('change'));
+    });
+    return {
+      el: wrap,
+      set(list) {
+        const seen = new Set();
+        opts = list.filter(Boolean).filter(o => { const k = CL.norm(o); if (seen.has(k)) return false; seen.add(k); return true; });
+        mount(s2, h('option', { value: '' }, '— Elige —'), opts.map(o => h('option', { value: o }, pretty(o))), h('option', { value: OTRA }, '➕ Otra (escribir)'));
+        sync();
+      }
+    };
+  };
+  const isProductDir = n => /^[A-Z]{2,5}-\d+/i.test(n);
+  const loadSubs = async () => {
+    const cur = CL.norm(f.categoria.value);
+    const fromProducts = S.t.productos.filter(x => CL.norm(x.categoria) === cur).map(x => x.subcategoria).filter(Boolean);
+    let list = [];
+    const hit = folderTree && folderTree.find(e => CL.norm(e.name.replace(/^\d+_/, '').replace(/_/g, ' ')) === cur);
+    if (hit) { try { const r = await desktop.list(hit.path); list = (r.entries || []).filter(e => e.type === 'dir' && !isProductDir(e.name)).map(e => pretty(e.name)); } catch (e) { } }
+    cSub.set(list.concat(fromProducts.map(pretty)));
+  };
   if (desktop.on) desktop.getConfig('productRoot').then(root => root && desktop.list(root)).then(r => {
     if (!r) return;
-    folderTree = (r.entries || []).filter(e => e.type === 'dir' && /^\d+_/.test(e.name) && !/^00_/.test(e.name));
-    cats = [...new Set(folderTree.map(e => e.name.replace(/^\d+_/, '').replace(/_/g, ' ')).concat(cats))];
-    const dl = document.getElementById('dl-pcat'); if (dl) mount(dl, cats.map(c => h('option', { value: c })));
+    folderTree = (r.entries || []).filter(e => e.type === 'dir' && /^\d+_/.test(e.name) && !/^(00|99)_/.test(e.name));
+    const folderCats = folderTree.map(e => e.name.replace(/^\d+_/, '').replace(/_/g, ' '));
+    cats = [...new Set(folderCats.concat(cats))];
+    cCat.set(folderCats.concat(S.t.productos.map(x => x.categoria)));
+    loadSubs();
   }).catch(() => { });
-  const loadSubs = async () => {
-    if (!folderTree) return;
-    const hit = folderTree.find(e => CL.norm(e.name.replace(/^\d+_/, '').replace(/_/g, ' ')) === CL.norm(f.categoria.value));
-    if (!hit) return;
-    try { const r = await desktop.list(hit.path); const list = (r.entries || []).filter(e => e.type === 'dir').map(e => pretty(e.name)); const dl = document.getElementById('dl-psub'); if (dl) mount(dl, list.concat(subs).map(c => h('option', { value: c }))); } catch (e) { }
-  };
   const f = {
     nombre: inp({ value: p.nombre || '', placeholder: 'Ej.: Maceta geométrica' }),
     tipo: sel(['3D', 'Reventa', 'Otro'], p.tipo || '3D'),
@@ -272,7 +308,9 @@ export function productWizard(p) {
     descripcion: area({ value: p.descripcion || '', placeholder: 'Texto para el anuncio: medidas, colores disponibles, detalles…' }),
     estado: sel(STATES, pState(p.estado)), precio: inp({ type: 'number', min: 0, step: 0.1, value: p.precio || '' })
   };
-  f.categoria.addEventListener('change', loadSubs);
+  const cCat = combo(f.categoria), cSub = combo(f.subcategoria);
+  cCat.set(cats); loadSubs();
+  f.categoria.addEventListener('change', () => { f.subcategoria.value = ''; loadSubs(); });
   const zones = { foto: dropZone('foto', { title: 'FOTO', existing: () => p.id ? filesOf('productos', p.id) : [] }), video: dropZone('video', { title: 'VÍDEO', existing: () => p.id ? filesOf('productos', p.id) : [] }), stl: dropZone('stl', { title: 'STL / 3MF', existing: () => p.id ? filesOf('productos', p.id) : [] }) };
   let pa = null;
   const msg = h('p.bad-t');
@@ -284,7 +322,7 @@ export function productWizard(p) {
     msg.textContent = '';
     const bar = h('div.wiz-steps', titles.map((t, i) => h('div.st' + (i === step ? '.on' : i < step ? '.done' : ''))));
     if (step === 0) mount(body, bar, h('h3', titles[0]), h('datalist', { id: 'dl-pcat' }, cats.map(c => h('option', { value: c }))), h('datalist', { id: 'dl-psub' }, subs.map(c => h('option', { value: c }))),
-      h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', f.categoria, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', f.subcategoria),
+      h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
         field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full')),
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),

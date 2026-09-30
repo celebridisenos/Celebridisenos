@@ -140,6 +140,18 @@ function systemPrompt(ctx) {
     '10. Datos de INTERNET [W…]: úsalos solo si aparecen en el texto, cita la web y da un rango (p. ej. "Envío estimado España: 4–7 €") y de qué depende (peso, medidas, destino, transportista). Si no aparece el dato, dilo; nunca inventes precios.'].join('\n');
 }
 
+// v10.6.1: limpia el "pensamiento en voz alta" de los modelos qwen3. Algunas versiones (qwen3:4b 2507)
+// piensan aunque se pida think:false y lo escriben SIN la etiqueta <think> de apertura, solo con </think> al final.
+const LEAK_RE = /^\s*(okay|ok[,.]|alright|all right|let me|let's|let us|first,|hmm|so,|so the user|the user|we need|i need|wait,)/i;
+export function cleanThink(raw, done) {
+  let t = String(raw || '');
+  if (t.includes('</think>')) t = t.split('</think>').pop();
+  t = t.replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
+  // razonamiento en inglés sin etiquetas: se oculta mientras llega; si termina sin respuesta, se descarta
+  if (LEAK_RE.test(t)) return '';
+  return done ? t.trim() : t;
+}
+
 // ---------- 3) Redactar con el modelo local (streaming) ----------
 let defs = null;
 async function toolDefs() {
@@ -148,7 +160,7 @@ async function toolDefs() {
 }
 async function runModel(question, history, g, ctx, { onToken, onStatus, signal, model }) {
   const tools = await toolDefs();
-  const msgs = [{ role: 'system', content: systemPrompt(ctx) }]
+  const msgs = [{ role: 'system', content: systemPrompt(ctx) + '\n/no_think' }]
     .concat((history || []).slice(-6).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 2000) })))
     .concat([{ role: 'user', content: 'CONTEXTO:\n' + (contextText(g) || '(vacío: no hay datos relacionados)') + '\n\nPREGUNTA: ' + question }]);
   let text = '';
@@ -156,7 +168,7 @@ async function runModel(question, history, g, ctx, { onToken, onStatus, signal, 
   for (let round = 0; round < 3; round++) {
     let msg = { role: 'assistant', content: '', tool_calls: [] };
     text = '';
-    let inThink = false;
+    let raw = '';
     onStatus && onStatus(round ? 'Consultando más datos…' : 'Redactando…');
     // v10: si ya tenemos los datos (plan), no se mandan las herramientas: menos texto = respuesta más rápida
     const useTools = round < 2 && (!g.calls.length || round > 0) && tools.length;
@@ -165,11 +177,11 @@ async function runModel(question, history, g, ctx, { onToken, onStatus, signal, 
       const m = ch.message || {};
       if (m.tool_calls && m.tool_calls.length) msg.tool_calls.push(...m.tool_calls);
       if (m.content) {
-        let c = m.content;
-        // algunos modelos "piensan" en voz alta: se oculta
-        if (c.includes('<think>')) { inThink = true; c = c.split('<think>')[0]; }
-        if (inThink) { if (m.content.includes('</think>')) { inThink = false; c = m.content.split('</think>').pop(); } else c = ''; }
-        if (c) { text += c; msg.content += c; onToken && onToken(text); }
+        // algunos modelos "piensan" en voz alta: se oculta (con o sin etiquetas <think>)
+        raw += m.content;
+        text = cleanThink(raw);
+        msg.content = text;
+        onToken && onToken(text);
       }
     }, signal);
     if (!msg.tool_calls.length) break;
@@ -181,7 +193,7 @@ async function runModel(question, history, g, ctx, { onToken, onStatus, signal, 
     (r.acciones || []).forEach(a => g.acciones.push(a));
     res.forEach((x, i) => { const ref = 'T' + (g.results.length + 1); x.ref = ref; g.results.push(x); extra.push(x); msgs.push({ role: 'tool', content: '[' + ref + '] ' + compact(x.resultado) }); });
   }
-  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  return cleanThink(text, true);
 }
 
 // ---------- 4) Modo básico (sin modelo): mismos datos, sin redactar ----------
@@ -353,9 +365,9 @@ export async function write(prompt, { onToken, signal } = {}) {
   if (st.disponible) {
     let text = '';
     await desktop.iaChat({ model: st.modelo, stream: true, think: false, keep_alive: '30m', options: { temperature: 0.6, num_ctx: 8192 },
-      messages: [{ role: 'system', content: 'Eres redactor/a de ' + ((S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa') + ', un pequeño negocio español de impresión 3D. Escribes en español de España, cercano y claro. Usa SOLO los datos que te den; no inventes cifras, precios ni características. Devuelve solo el texto pedido.' }, { role: 'user', content: prompt }] },
-      ch => { const c = ch.message && ch.message.content; if (c) { text += c; onToken && onToken(text.replace(/<think>[\s\S]*?(<\/think>|$)/g, '')); } }, signal);
-    return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      messages: [{ role: 'system', content: 'Eres redactor/a de ' + ((S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa') + ', un pequeño negocio español de impresión 3D. Escribes en español de España, cercano y claro. Usa SOLO los datos que te den; no inventes cifras, precios ni características. Devuelve solo el texto pedido.\n/no_think' }, { role: 'user', content: prompt }] },
+      ch => { const c = ch.message && ch.message.content; if (c) { text += c; onToken && onToken(cleanThink(text)); } }, signal);
+    return cleanThink(text, true);
   }
   if (S.online) { try { S.iaServidor = await api('ia.servidor', {}, { timeout: 8000 }); } catch (e) { } }
   if (S.iaServidor && S.online) { const r = await askTeam(prompt, [], { signal }); return r.texto; }
