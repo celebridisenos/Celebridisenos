@@ -1,8 +1,8 @@
 // ================= Arranque, navegación y estructura =================
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg } from './ui.js';
-import { S, on, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush } from './store.js';
+import { S, on, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer } from './store.js';
 import { desktop } from './desktop.js';
-import { renderSetup, renderLogin, renderConnect } from './views/setup.js';
+import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
 import { startChat, CHAT } from './chat.js';
 import { startWorker } from './ai/engine.js';
@@ -278,6 +278,12 @@ export async function start() {
   applyTheme();
   await loadLocal();
   onAuthLostHandler(msg => { toast(msg || 'Vuelve a entrar', 'warn'); shell = null; start(); });
+  // Enlace de invitación (móvil): ?s=servidor&inv=CD-XXXX-XXXX
+  const qs = new URLSearchParams(location.search), invCode = qs.get('inv');
+  if (invCode && (!S.token || !S.me)) {
+    if (qs.get('s') && qs.get('s') !== S.server) await setServer(qs.get('s'));
+    if (S.server) return renderInvite(app, () => { history.replaceState(null, '', location.pathname + location.hash); start(); }, { codigo: invCode, auto: true });
+  }
   if (!S.server) return renderConnect(app, start);
   if (!S.token || !S.me) {
     let st = null;

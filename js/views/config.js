@@ -109,7 +109,9 @@ const SEC = {
       .catch(e => mount(upd, h('p.small.muted', 'No se pudo comprobar: ' + e.message)));
   },
   movil(b) {
-    const base = (S.cfg.appUrl || localStorage.getItem('cd.appUrl') || (location.protocol === 'https:' ? location.origin + location.pathname : '')) || '';
+    // Una dirección de la página del código (github.com/…) no sirve para instalar: se usa la publicada
+    const saved = localStorage.getItem('cd.appUrl') || '';
+    const base = (S.cfg.appUrl || (saved && !/^https:\/\/github\.com\//i.test(saved) ? saved : '') || (location.protocol === 'https:' ? location.origin + location.pathname : '') || (S.cfg.invitaciones && S.cfg.invitaciones.appUrl)) || '';
     const urlI = inp({ value: base, placeholder: 'https://vuestro-usuario.github.io/celebridisenos/' });
     const qrBox = h('div');
     const drawQr = () => {
@@ -139,7 +141,49 @@ const SEC = {
   },
   async usuarios(b) {
     const box = h('div');
-    b.append(h('div.row', btn('Nuevo usuario', () => userForm(), { cls: 'primary', icon: 'plus' })), box);
+    const invBox = h('div');
+    b.append(h('div.row.wrap', btn('🎟️ Invitar a alguien', () => inviteForm(), { cls: 'primary' }), btn('Nuevo usuario', () => userForm(), { icon: 'plus' })),
+      h('p.tiny.muted', 'Con una invitación, la persona instala el programa en cualquier PC (o abre el enlace en el móvil), pega el mensaje y elige su propia contraseña.'), box, invBox);
+    const drawInv = async () => {
+      let list = [];
+      try { list = await api('invitaciones.lista', {}); } catch (e) { return mount(invBox); }
+      if (!list.length) return mount(invBox);
+      const tone = { pendiente: 'brand', usada: 'ok', caducada: '', anulada: 'bad' };
+      mount(invBox, h('h3', { style: { margin: '18px 0 6px' } }, 'Invitaciones'), h('div.list.boxed', list.slice(0, 20).map(x => h('div.item', { style: { cursor: 'default' } },
+        h('div.grow', h('div.bold', x.nombre, ' ', pill(x.estado, tone[x.estado])), h('div.tiny.muted', x.rolNombre + ' · …' + x.pista + ' · por ' + x.creadoPor + ' ' + ago(x.creado) + (x.estado === 'usada' ? ' · usuario "' + x.usuario + '" desde ' + (x.dispositivo || '?') : x.estado === 'pendiente' ? ' · caduca ' + fdt(x.caduca) : ''))),
+        x.estado === 'pendiente' ? btn('Anular', async () => { try { await api('invitaciones.anular', { id: x.id }); toast('Invitación anulada', 'ok'); drawInv(); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm danger' }) : null))));
+    };
+    function inviteForm() {
+      const roles = S._roles || [];
+      const f = { nombre: inp({ placeholder: 'Ej.: Marta López' }), rol: rolePicker(roles, 'trabajador'), horas: sel([{ v: 24, t: '1 día' }, { v: 48, t: '2 días' }, { v: 168, t: '1 semana' }], 48) };
+      modal('🎟️ Invitar a alguien', h('div.form', field('Nombre', f.nombre), field('Rol', f.rol, 'Lo que podrá ver y hacer. Se puede cambiar después.', 'full'), field('La invitación caduca en', f.horas)),
+        close => [h('span.grow'), btn('Cancelar', close), btn('Crear invitación', async ev => {
+          const bt = ev.target.closest('button');
+          if (!f.nombre.value.trim()) return toast('Escribe el nombre', 'bad');
+          bt.disabled = true;
+          try { const r = await api('invitaciones.crear', { nombre: f.nombre.value.trim(), rol: f.rol.value, horas: Number(f.horas.value) }); close(); showInvite(r); drawInv(); }
+          catch (e) { bt.disabled = false; toast(e.message, 'bad'); }
+        }, { cls: 'primary' })], { size: 'wide' });
+      setTimeout(() => f.nombre.focus(), 50);
+    }
+    function showInvite(r) {
+      const appUrl = String(r.appUrl || S.cfg.appUrl || '').replace(/\/?$/, '/');
+      const link = appUrl + '?s=' + encodeURIComponent(S.server) + '&inv=' + r.codigo;
+      const cad = new Date(r.invitacion.caduca).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const text = '¡Hola ' + r.invitacion.nombre.split(' ')[0] + '! Te invito a ' + (r.empresa || 'CelebriDiseños') + ' 🎉\n\n' +
+        '💻 En el ordenador:\n1. Descarga e instala el programa: ' + r.descarga + '\n2. Ábrelo y pulsa «Tengo una invitación».\n3. Pega ESTE MENSAJE ENTERO y elige tu usuario y contraseña.\n\n' +
+        '📱 En el móvil: abre este enlace:\n' + link + '\n\n' +
+        'Código: ' + r.codigo + '\nServidor: ' + S.server + '\n(Sirve una sola vez y caduca el ' + cad + '.)';
+      modal('Invitación para ' + r.invitacion.nombre, h('div.col',
+        h('p.small', 'Manda este mensaje a ', h('b', r.invitacion.nombre), ' (WhatsApp, Telegram o email). ', h('b', 'El código solo se ve ahora:'), ' si lo pierdes, anula esta invitación y crea otra.'),
+        h('div.inv-code', r.codigo),
+        h('div.row.wrap.top', { style: { gap: '16px' } }, h('div', { html: qrSvg(link, 4), style: { background: '#fff', padding: '8px', borderRadius: '12px', lineHeight: 0 }, title: 'Para el móvil: escanear con la cámara' }),
+          h('div.col.grow', h('div.inv-msg', text), h('p.tiny.muted', 'El QR es para el móvil: se escanea con la cámara y se une directamente.')))),
+        close => [btn('Copiar mensaje', () => copyText(text), { icon: 'copy', cls: 'primary' }),
+          navigator.share ? btn('Compartir', () => navigator.share({ title: 'Invitación a ' + (r.empresa || 'CelebriDiseños'), text }).catch(() => { }), { icon: 'send' }) : null,
+          btn('WhatsApp', () => desktop.openUrl('https://wa.me/?text=' + encodeURIComponent(text))),
+          h('span.grow'), btn('Hecho', close)], { size: 'wide' });
+    }
     const drawU = async () => {
       const list = await api('usuarios.lista', {});
       mount(box, h('div.list.boxed', list.map(u => h('div.item', { onclick: () => userForm(u) }, avatar(u), h('div.grow', h('div.bold', u.nombre, !u.activo ? pill('Desactivado') : null, u.bloqueadoHasta && u.bloqueadoHasta > new Date().toISOString() ? pill('Bloqueado', 'bad') : null), h('div.tiny.muted', u.usuario + ' · ' + roleName(u.rol) + ' · último acceso ' + (u.ultimoAcceso ? ago(u.ultimoAcceso) : 'nunca'))), icon('right', 's')))));
@@ -163,6 +207,7 @@ const SEC = {
     }
     S._roles = (await api('roles.lista', {})).roles;
     await drawU();
+    drawInv();
   },
   async roles(b) {
     const r = await api('roles.lista', {});

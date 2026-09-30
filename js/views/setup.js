@@ -1,6 +1,6 @@
 // ================= Primera conexión, configuración inicial y entrada =================
-import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials } from '../ui.js';
-import { S, api, setServer, afterLogin, pull, login, passHash, checkNewPassword } from '../store.js';
+import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials, area } from '../ui.js';
+import { S, api, setServer, afterLogin, pull, login, passHash, checkNewPassword, parseInvite, joinWithInvite } from '../store.js';
 import { rolePicker, ROLE_INFO } from '../roles.js';
 import { iaSetupStep } from '../ai/models.js';
 import { desktop } from '../desktop.js';
@@ -32,6 +32,8 @@ export function renderConnect(app, done) {
     h('h2', 'Conectar con vuestro servidor'),
     h('p.muted', 'Pega la dirección de la aplicación web de Google que creasteis al instalar (la guía lo explica paso a paso). Solo hay que hacerlo una vez en cada dispositivo.'),
     field('Dirección del servidor', url), msg, b,
+    h('div.sep-or', h('span', 'o')),
+    btn('🎟️ Tengo una invitación', () => renderInvite(app, done)),
     h('p.tiny.muted', 'En el móvil también puedes escanear el código QR que aparece en el ordenador, en Configuración > Móvil.'))));
   if (url.value) b.click();
 }
@@ -57,8 +59,63 @@ export function renderLogin(app, done, st) {
     last ? h('div.row', avatar({ nombre: last }), h('div.grow', h('div.bold', last), h('button.btn.ghost.sm', { onclick: () => { u.value = ''; u.focus(); } }, 'No soy yo'))) : null,
     field('Usuario', u, null, last ? 'hidden' : ''), field('Contraseña', p), msg, b,
     h('p.tiny.muted', '¿Has olvidado la contraseña? Pide a una administradora que te ponga una nueva desde Configuración > Usuarios.'),
-    h('button.btn.ghost.sm', { onclick: async () => { await setServer(''); done(); } }, 'Cambiar de servidor'))));
+    h('div.row.wrap', h('button.btn.ghost.sm', { onclick: () => renderInvite(app, done) }, '🎟️ Tengo una invitación'), h('span.grow'), h('button.btn.ghost.sm', { onclick: async () => { await setServer(''); done(); } }, 'Cambiar de servidor')))));
   setTimeout(() => (last ? p : u).focus(), 50);
+}
+
+// ---------- Unirse con una invitación (cualquier PC o móvil) ----------
+// Paso 1: pegar el mensaje (o el código). Paso 2: elegir usuario y contraseña. Y dentro.
+export function renderInvite(app, done, pre) {
+  pre = pre || {};
+  const txt = area({ placeholder: 'Pega aquí el mensaje de invitación entero (o escribe el código CD-XXXX-XXXX)', value: pre.codigo || '', style: { minHeight: '110px' }, autocomplete: 'off' });
+  const msg = errBox();
+  const back = h('button.btn.ghost.sm', { onclick: () => done() }, '← Volver');
+  const b = btn('Continuar', async () => {
+    msg.textContent = '';
+    const p = parseInvite(txt.value);
+    if (!p.codigo) { msg.textContent = 'No encuentro el código. Tiene este formato: CD-XXXX-XXXX.'; return; }
+    const server = p.server || S.server;
+    if (!server) { msg.textContent = 'Falta la dirección del servidor: pega el mensaje de invitación ENTERO, no solo el código.'; return; }
+    b.disabled = true; b.textContent = 'Comprobando…';
+    try {
+      if (server !== S.server) await setServer(server);
+      const inv = await api('invitaciones.ver', { codigo: p.codigo }, { token: '' });
+      step2(p.codigo, inv);
+    } catch (e) { msg.textContent = e.code === 'NET' ? 'Sin conexión: para unirte necesitas Internet.' : e.message; b.disabled = false; b.textContent = 'Continuar'; }
+  }, { cls: 'primary' });
+  mount(app, page(h('div.card.auth-card.col', { style: { padding: '28px' } }, logo(),
+    h('h2', '🎟️ Unirme con una invitación'),
+    h('p.muted', 'Te lo ha mandado una administradora por WhatsApp, Telegram o email. Cópialo y pégalo aquí.'),
+    field('Invitación', txt), msg, b, back)));
+  function step2(codigo, inv) {
+    const f = { nombre: inp({ value: inv.nombre, autocomplete: 'name' }), usuario: inp({ value: inv.usuarioSugerido, autocomplete: 'username', autocapitalize: 'off' }),
+      p1: inp({ type: 'password', autocomplete: 'new-password', placeholder: 'Mínimo 6 caracteres' }), p2: inp({ type: 'password', autocomplete: 'new-password', placeholder: 'Repite la contraseña' }) };
+    const m2 = errBox();
+    const go = btn('Crear mi cuenta y entrar', async () => {
+      m2.textContent = '';
+      const u = f.usuario.value.trim().toLowerCase().replace(/\s+/g, '.');
+      if (!/^[a-z0-9._\-ñáéíóú]{2,30}$/i.test(u)) { m2.textContent = 'El usuario solo puede tener letras, números y puntos (2-30).'; return; }
+      const er = checkNewPassword(f.p1.value, f.p2.value); if (er) { m2.textContent = er; return; }
+      go.disabled = true; go.textContent = 'Creando tu cuenta…';
+      try {
+        await joinWithInvite(codigo, u, f.nombre.value.trim() || inv.nombre, f.p1.value);
+        try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { }
+        toast('¡Bienvenida/o a ' + (inv.empresa || 'CelebriDiseños') + '!', 'ok', 5000);
+        done();
+      } catch (e) { m2.textContent = e.message; go.disabled = false; go.textContent = 'Crear mi cuenta y entrar'; }
+    }, { cls: 'primary' });
+    [f.p1, f.p2].forEach(x => x.addEventListener('keydown', e => { if (e.key === 'Enter') go.click(); }));
+    const cad = inv.caduca ? new Date(inv.caduca) : null;
+    mount(app, page(h('div.card.auth-card.col', { style: { padding: '28px' } }, logo(),
+      h('h2', '¡Hola, ' + String(inv.nombre).split(' ')[0] + '! 👋'),
+      h('p.muted', 'Te han invitado a ', h('b', inv.empresa || 'CelebriDiseños'), ' como ', h('b', inv.rolNombre), '. Elige tu usuario y tu contraseña: solo los sabrás tú.'),
+      field('Tu nombre', f.nombre), field('Usuario (para entrar)', f.usuario), field('Contraseña', f.p1), field('Repite la contraseña', f.p2), m2, go,
+      cad ? h('p.tiny.muted', 'La invitación sirve una sola vez y caduca el ' + cad.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + '.') : null,
+      h('button.btn.ghost.sm', { onclick: () => renderInvite(app, done) }, '← Volver'))));
+    setTimeout(() => f.p1.focus(), 50);
+  }
+  if (pre.auto && pre.codigo) b.click();
+  else setTimeout(() => txt.focus(), 50);
 }
 
 // ---------- Configuración inicial (instalación nueva) ----------

@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '9.5.0';
+export const APP_VERSION = '9.6.0';
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros'];
 
 export const S = {
@@ -122,6 +122,23 @@ export async function login(usuario, password) {
   }
   await afterLogin(r, password);
   return r;
+}
+// ---------- Invitaciones: crear la cuenta con el código y entrar directamente ----------
+export async function joinWithInvite(codigo, usuario, nombre, password) {
+  const r = await api('invitaciones.canjear', { codigo, usuario, nombre, ph: await passHash(password), dispositivo: S.device }, { token: '' });
+  await afterLogin(r, password);
+  return r;
+}
+// Del mensaje de invitación (o del enlace) saca la dirección del servidor y el código
+export function parseInvite(text) {
+  const t = String(text || '');
+  let server = '', codigo = '';
+  const m = /https:\/\/script\.google(?:usercontent)?\.com\/[^\s"'<>&?#]+?\/exec/.exec(t) || /https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/exec\b/.exec(t);
+  if (m) server = m[0];
+  else { const e = /[?&]s=(https%3A%2F%2Fscript\.google[^&\s]+)/i.exec(t); if (e) { try { server = decodeURIComponent(e[1]); } catch (x) { } } }
+  const c = /\bCD[-\s]?([A-HJKMNP-Z2-9]{4})[-\s]?([A-HJKMNP-Z2-9]{4})\b/i.exec(t);
+  if (c) codigo = ('CD-' + c[1] + '-' + c[2]).toUpperCase();
+  return { server, codigo };
 }
 export async function afterLogin(res, password) {
   S.token = res.token; S.me = res.user; S.perms = res.perms;
