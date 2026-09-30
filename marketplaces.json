@@ -1,0 +1,45 @@
+{
+  "_info": "Plantillas por plataforma. {campo} se rellena con los datos del producto. Lo que va entre [corchetes] es opcional: si falta algún dato, ese trozo no aparece.",
+  "vinted": {
+    "titulo": [
+      "{nombre}[ {color}]",
+      "{nombre}[ · {material}]",
+      "{nombre} nuevo"
+    ],
+    "descripcion": [
+      "{nombre}. {apertura}\n[Material: {material}.][ Color: {color}.]\n[Tallas: {tallas}.]\n[Medidas: {medidas}.]\nNuevo, hecho bajo pedido. {envio}"
+    ],
+    "max_titulo": 60
+  },
+  "wallapop": {
+    "titulo": [
+      "{nombre}[ - {color}]",
+      "{nombre} nuevo · envío",
+      "{nombre} hecho a mano"
+    ],
+    "descripcion": [
+      "{apertura}\n\n{nombre}.[ Material: {material}.][ Color: {color}.]\n[Medidas: {medidas}.]\n[Tallas disponibles: {tallas}.]\n{calidad}\n{personalizacion}\n{envio}\n{cierre}"
+    ],
+    "max_titulo": 50
+  },
+  "etsy": {
+    "titulo": [
+      "{nombre}[ | {material}] | Hecho a mano",
+      "{nombre} personalizado[ | {color}] | Regalo original"
+    ],
+    "descripcion": [
+      "{apertura}\n\n✦ DETALLES\n• Producto: {nombre}\n[• Material: {material}]\n[• Color: {color}]\n[• Medidas: {medidas}]\n[• Tallas: {tallas}]\n• Referencia (SKU): {sku}\n\n✦ FABRICACIÓN\n{calidad} Fabricado bajo pedido en nuestro taller.\n\n✦ PERSONALIZACIÓN\n{personalizacion}\n\n✦ ENVÍO\n{envio}\n\n{cierre}"
+    ],
+    "max_titulo": 140
+  },
+  "instagram": {
+    "texto": [
+      "{gancho}\n\n{nombre}. {cuerpo}\n\n{llamada}\n\n{hashtags}"
+    ]
+  },
+  "tiktok": {
+    "texto": [
+      "{gancho} {nombre} ✨ {llamada} {hashtags}"
+    ]
+  }
+}

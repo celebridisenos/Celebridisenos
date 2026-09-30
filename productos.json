@@ -1,0 +1,65 @@
+{
+  "_info": "Biblioteca de frases para describir productos. Las listas de arriba valen para todo; las de '3d' y 'textil' solo se usan con ese tipo de producto (se detecta por categoría, nombre o material). Añade líneas libremente.",
+  "aperturas": [
+    "Una pieza práctica que además queda bonita.",
+    "Lo hacemos bajo pedido, así que llega recién salido del taller.",
+    "Pequeño detalle, gran diferencia en tu día a día.",
+    "Una de esas cosas que no sabías que necesitabas.",
+    "Pensado para durar y para que se note."
+  ],
+  "calidad": [
+    "Acabado cuidado y revisado antes de enviarlo.",
+    "Cada pieza se revisa a mano antes de salir."
+  ],
+  "personalizacion": [
+    "Se puede hacer en otros colores: pregúntanos.",
+    "¿Otra medida o un nombre? Lo personalizamos.",
+    "Si lo quieres en otro color, dímelo y te lo preparo.",
+    "Admite cambios de color bajo pedido."
+  ],
+  "envio": [
+    "Envío rápido y bien protegido.",
+    "Sale en 24-72 h, embalado con cuidado.",
+    "Lo enviamos bien protegido para que llegue perfecto.",
+    "Envío a toda España."
+  ],
+  "cierres": [
+    "Cualquier duda, escríbeme.",
+    "Si tienes dudas, pregunta sin compromiso.",
+    "Hago descuento si te llevas varios.",
+    "¡Gracias por mirar!"
+  ],
+  "3d": {
+    "aperturas": [
+      "Diseñado e impreso aquí mismo, pieza a pieza.",
+      "Hecho a mano con impresión 3D, sin prisas y con buen acabado.",
+      "Ligero, resistente y con un diseño limpio."
+    ],
+    "calidad": [
+      "Sin rebabas ni bordes cortantes.",
+      "Material resistente y agradable al tacto.",
+      "Impreso con capas finas para un acabado limpio."
+    ],
+    "personalizacion": [
+      "¿Otra medida o un nombre? Lo personalizamos.",
+      "Admite cambios de tamaño y color bajo pedido."
+    ]
+  },
+  "textil": {
+    "aperturas": [
+      "Prenda de diseño propio, pensada para llevarla a diario.",
+      "Corte cómodo y un diseño que no pasa desapercibido.",
+      "Básico con carácter: combina con todo.",
+      "Diseño propio, edición cuidada."
+    ],
+    "calidad": [
+      "Tejido agradable y costuras revisadas una a una.",
+      "Estampado revisado antes de enviarlo.",
+      "Lavar del revés en frío para que el diseño dure más."
+    ],
+    "personalizacion": [
+      "¿Dudas con la talla? Pregúntame y te paso medidas.",
+      "Si necesitas otra talla, escríbeme y lo miramos."
+    ]
+  }
+}
