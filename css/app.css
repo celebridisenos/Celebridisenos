@@ -472,3 +472,5 @@ details.more > .in { padding: 0 14px 14px; }
 .sep-or::before, .sep-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .inv-code { font: 700 26px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .12em; text-align: center; padding: 14px; border-radius: 12px; background: var(--soft, rgba(124,58,237,.08)); user-select: all; }
 .inv-msg { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; background: var(--bg2, rgba(0,0,0,.04)); border-radius: 10px; padding: 10px 12px; max-height: 180px; overflow: auto; }
+/* Logo de la empresa (circular): sin el fondo de color detrás */
+.brand .logo:has(img) { background: transparent; }
