@@ -284,7 +284,20 @@ export function productWizard(p) {
     let list = [];
     const hit = folderTree && folderTree.find(e => CL.norm(e.name.replace(/^\d+_/, '').replace(/_/g, ' ')) === cur);
     if (hit) { try { const r = await desktop.list(hit.path); list = (r.entries || []).filter(e => e.type === 'dir' && !isProductDir(e.name)).map(e => pretty(e.name)); } catch (e) { } }
+    else { const sh = sharedTree().find(x => CL.norm(x.c) === cur); if (sh) list = sh.s.slice(); } // móvil: la lista que publicó el PC
     cSub.set(list.concat(fromProducts.map(pretty)));
+  };
+  // v10.6.4: el PC con la carpeta de productos publica la lista de carpetas (categoría → subcategorías)
+  // en la configuración del servidor, para que los móviles y los PC sin carpeta vean las mismas listas.
+  const sharedTree = () => (S.cfg && S.cfg.sku && Array.isArray(S.cfg.sku.carpetas)) ? S.cfg.sku.carpetas : [];
+  const publishTree = async () => {
+    if (!folderTree || !can('config.editar') || (S.ws && S.ws !== 'principal')) return;
+    const tree = [];
+    for (const e of folderTree) {
+      try { const r = await desktop.list(e.path); tree.push({ c: e.name.replace(/^\d+_/, '').replace(/_/g, ' '), s: (r.entries || []).filter(x => x.type === 'dir' && !isProductDir(x.name)).map(x => pretty(x.name)) }); } catch (err) { }
+    }
+    if (!tree.length || JSON.stringify(tree) === JSON.stringify(sharedTree())) return;
+    try { S.cfg = await api('config.guardar', { clave: 'sku', valor: Object.assign({}, (S.cfg && S.cfg.sku) || {}, { carpetas: tree }) }, { quiet: true }); } catch (err) { }
   };
   if (desktop.on) desktop.getConfig('productRoot').then(root => root && desktop.list(root)).then(r => {
     if (!r) return;
@@ -293,6 +306,7 @@ export function productWizard(p) {
     cats = [...new Set(folderCats.concat(cats))];
     cCat.set(folderCats.concat(S.t.productos.map(x => x.categoria)));
     loadSubs();
+    publishTree();
   }).catch(() => { });
   const f = {
     nombre: inp({ value: p.nombre || '', placeholder: 'Ej.: Maceta geométrica' }),
@@ -309,7 +323,7 @@ export function productWizard(p) {
     estado: sel(STATES, pState(p.estado)), precio: inp({ type: 'number', min: 0, step: 0.1, value: p.precio || '' })
   };
   const cCat = combo(f.categoria), cSub = combo(f.subcategoria);
-  cCat.set(cats); loadSubs();
+  { const sh = sharedTree().map(x => x.c); if (sh.length) cats = [...new Set(sh.concat(cats))]; cCat.set(sh.length ? sh.concat(S.t.productos.map(x => x.categoria)) : cats); } loadSubs();
   f.categoria.addEventListener('change', () => { f.subcategoria.value = ''; loadSubs(); });
   const zones = { foto: dropZone('foto', { title: 'FOTO', existing: () => p.id ? filesOf('productos', p.id) : [] }), video: dropZone('video', { title: 'VÍDEO', existing: () => p.id ? filesOf('productos', p.id) : [] }), stl: dropZone('stl', { title: 'STL / 3MF', existing: () => p.id ? filesOf('productos', p.id) : [] }) };
   let pa = null;
