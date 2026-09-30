@@ -58,6 +58,7 @@ export function renderLogin(app, done, st) {
     h('h2', 'Hola de nuevo 👋'), h('p.muted', st && st.empresa ? 'Entra en ' + st.empresa : 'Entra con tu usuario'),
     last ? h('div.row', avatar({ nombre: last }), h('div.grow', h('div.bold', last), h('button.btn.ghost.sm', { onclick: () => { u.value = ''; u.focus(); } }, 'No soy yo'))) : null,
     field('Usuario', u, null, last ? 'hidden' : ''), field('Contraseña', p), msg, b,
+    desktop.portable ? h('p.small', { style: { background: 'var(--surface-2)', padding: '8px 10px', borderRadius: '10px' } }, '🔌 Modo USB: tendrás que escribir la contraseña cada vez y, al cerrar el programa, no queda nada guardado en este ordenador.') : null,
     h('p.tiny.muted', '¿Has olvidado la contraseña? Pide a una administradora que te ponga una nueva desde Configuración > Usuarios.'),
     h('div.row.wrap', h('button.btn.ghost.sm', { onclick: () => renderInvite(app, done) }, '🎟️ Tengo una invitación'), h('span.grow'), h('button.btn.ghost.sm', { onclick: async () => { await setServer(''); done(); } }, 'Cambiar de servidor')))));
   setTimeout(() => (last ? p : u).focus(), 50);

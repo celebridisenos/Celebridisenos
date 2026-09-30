@@ -14,6 +14,7 @@ export const desktop = {
   on: !!H,
   name: H ? H.name : '',
   version: H ? H.version : '',
+  portable: !!(H && H.portable), // programa abierto desde un USB
   info: () => H ? call('info') : null,
   getConfig: async k => { if (!H) return null; try { return (await call('config?' + q({ k }))).v || null; } catch (e) { return null; } },
   setConfig: async (k, v) => { if (H) await call('config?' + q({ k }), { method: 'POST', body: JSON.stringify({ v }) }); },
@@ -56,7 +57,7 @@ export const desktop = {
     if (buf.trim()) { try { onChunk(JSON.parse(buf)); } catch (e) { } }
   },
   // ---- Apps instaladas (TikTok, Instagram…) ----
-  appsDetectar: () => call('apps/detectar'),
+  appsDetectar: (redes = []) => call('apps/detectar?' + redes.map(r => 'red=' + encodeURIComponent(r)).join('&')),
   appsElegir: () => call('apps/elegir', { method: 'POST' }),
   appsBuscar: nombre => call('apps/buscar?' + q({ nombre })),
   appsComprobar: destino => call('apps/comprobar', { method: 'POST', body: JSON.stringify({ destino }) }),

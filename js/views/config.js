@@ -464,7 +464,7 @@ async function logoDataUrl(file) {
 // Apps instaladas en ESTE PC para abrir cada red (TikTok, Instagram…)
 export async function appsCard(redes) {
   const box = h('div.col');
-  const names = [...new Set(['Instagram', 'TikTok'].concat(redes || []))].filter(Boolean);
+  const names = [...new Set(['Instagram', 'TikTok'].concat(redes || [], (S.cfg && S.cfg.redesLista) || [], ['Opla']))].filter(Boolean);
   let apps = {};
   try { apps = JSON.parse((await desktop.getConfig('apps')) || '{}'); } catch (e) { apps = {}; }
   const save = async () => { await desktop.setConfig('apps', JSON.stringify(apps)); };
@@ -486,8 +486,18 @@ export async function appsCard(redes) {
         t ? btn('Probar', async () => { try { await desktop.appsAbrir(t); } catch (e) { toast(e.message, 'bad', 8000); draw(); } }, { cls: 'sm' }) : null,
         t ? btn('', async () => { delete apps[red]; await save(); draw(); }, { cls: 'ghost sm icon', icon: 'x', title: 'Quitar' }) : null));
     }
-    mount(box, h('p.small.muted', 'Al pulsar TikTok o Instagram en la app se abrirá la aplicación instalada en este PC. Arrastra su .exe (o acceso directo), elígelo, o usa "Detectar". Si la ruta deja de existir, se avisa y se abre la web como alternativa.'),
-      h('div.row', btn('Detectar apps instaladas', async () => { try { found = await desktop.appsDetectar(); toast(found.length ? 'Encontradas: ' + found.map(f => f.nombre).join(', ') : 'No se han encontrado apps conocidas', found.length ? 'ok' : 'warn'); draw(); } catch (e) { toast(e.message, 'bad'); } }, { icon: 'search', cls: 'sm' })),
+    mount(box, h('p.small.muted', 'Al pulsar una red (TikTok, Instagram, Wallapop, Vinted, Opla, Etsy…) se abrirá la aplicación instalada en este PC. Pulsa "Detectar", o arrastra aquí su icono del escritorio (.exe o acceso directo). Si deja de existir, se avisa y se abre la web.'),
+      h('div.row', btn('Detectar apps instaladas', async () => {
+        try {
+          found = await desktop.appsDetectar(names);
+          // Las que no estaban configuradas se ponen solas (la primera encontrada de cada red)
+          const nuevas = [];
+          for (const red of names) { if (apps[red]) continue; const f = found.find(x => x.red.toLowerCase() === red.toLowerCase()); if (f) { apps[red] = f.destino; nuevas.push(red); } }
+          if (nuevas.length) await save();
+          toast(nuevas.length ? 'Configuradas: ' + nuevas.join(', ') : found.length ? 'Ya estaban configuradas' : 'No se han encontrado apps. Arrastra su acceso directo del escritorio.', nuevas.length ? 'ok' : 'warn', 6000);
+          draw();
+        } catch (e) { toast(e.message, 'bad'); }
+      }, { icon: 'search', cls: 'sm' })),
       h('div.list.boxed', rows));
   }
   draw();

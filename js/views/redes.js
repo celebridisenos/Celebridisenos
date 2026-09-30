@@ -7,7 +7,9 @@ import { desktop } from '../desktop.js';
 
 const CL = window.CL;
 const ST_CLS = { Idea: '', Pendiente: 'warn', Preparando: 'info', Programado: 'info', Publicado: 'ok', Cancelado: '' };
-const RED_I = { Instagram: '📸', TikTok: '🎵', Facebook: '👥', WhatsApp: '💬', Vinted: '👗', Wallapop: '🛒', Milanuncios: '📢', Etsy: '🧶', YouTube: '▶️' };
+const WEB_DEF = { Instagram: 'https://www.instagram.com/', TikTok: 'https://www.tiktok.com/', Facebook: 'https://www.facebook.com/', WhatsApp: 'https://web.whatsapp.com/', Vinted: 'https://www.vinted.es/', Wallapop: 'https://es.wallapop.com/', Milanuncios: 'https://www.milanuncios.com/', Etsy: 'https://www.etsy.com/', YouTube: 'https://www.youtube.com/', Opla: 'https://www.opla.co/' };
+let localApps = {};
+const RED_I = { Instagram: '📸', TikTok: '🎵', Facebook: '👥', WhatsApp: '💬', Vinted: '👗', Wallapop: '🛒', Milanuncios: '📢', Etsy: '🧶', YouTube: '▶️', Opla: '🏷️' };
 
 export function render(el, params) {
   const today = CL.parse(S.hoy);
@@ -16,7 +18,11 @@ export function render(el, params) {
   el.append(h('div.page-head', h('h1', 'Redes sociales'), can('redes.preparar') ? btn('Nueva publicación', () => socialForm({ fecha: S.hoy }), { cls: 'primary', icon: 'plus' }) : null), links, head, cal);
   function drawLinks() {
     if (!can('redes.abrir')) { mount(links, can('redes.ver') ? h('p.small.muted', { style: { marginBottom: '10px' } }, '🔒 Para abrir las redes desde aquí necesitas el permiso "Abrir las redes sociales".') : null); return; }
-    const acc = (S.cfg.redes && S.cfg.redes.accesos) || [];
+    const acc = ((S.cfg.redes && S.cfg.redes.accesos) || []).slice();
+    // Redes con app configurada en ESTE PC aunque no estén en la lista del equipo (p. ej. Wallapop)
+    // Opla (marketplace) siempre disponible aunque la lista guardada sea anterior
+    if (!acc.some(a => String(a.red).toLowerCase() === 'opla')) acc.push({ red: 'Opla', web: WEB_DEF.Opla, app: '' });
+    Object.keys(localApps).forEach(red => { if (!acc.some(a => String(a.red).toLowerCase() === red.toLowerCase())) acc.push({ red, web: WEB_DEF[red] || '', app: '' }); });
     const goal = Number(S.cfg.redes.objetivoSemanal) || 0;
     const ws = CL.weekStart(S.hoy), we = CL.addDays(ws, 6);
     const done = S.t.redes.filter(r => r.estado === 'Publicado' && r.fecha >= ws && r.fecha <= we).length;
@@ -25,7 +31,7 @@ export function render(el, params) {
       goal ? h('div.row', { style: { marginTop: '10px' } }, h('div.grow', h('div.bar', { style: { height: '8px', background: 'var(--line)', borderRadius: '9px', overflow: 'hidden' } }, h('i', { style: { display: 'block', height: '100%', width: Math.min(100, done / goal * 100) + '%', background: done >= goal ? 'var(--ok)' : 'var(--brand)' } }))), h('span.small', done + ' de ' + goal + ' publicaciones esta semana' + (done >= goal ? ' 🎉' : ''))) : null));
   }
   function drawHead() {
-    const redes = [...new Set((S.cfg.redesLista || []).concat(S.t.redes.map(r => r.red).filter(Boolean)))];
+    const redes = [...new Set((S.cfg.redesLista || []).concat(['Opla'], S.t.redes.map(r => r.red).filter(Boolean)))];
     const fRed = sel([{ v: '', t: 'Todas las redes' }].concat(redes), st.red); fRed.onchange = () => { st.red = fRed.value; drawCal(); };
     const fEst = sel([{ v: '', t: 'Todos los estados' }].concat(S.cfg.estadosRedes || []), st.est); fEst.onchange = () => { st.est = fEst.value; drawCal(); };
     const title = st.view === 'mes' ? monthName(st.m).replace(/^./, c => c.toUpperCase()) + ' ' + st.y : 'Semana del ' + fdate(st.ws);
@@ -62,6 +68,7 @@ export function render(el, params) {
     else if (id) { history.replaceState(null, '', '#/redes'); const r = byId('redes', id); if (r) socialForm(r); }
   }
   applyParams(params);
+  if (desktop.on) desktop.getConfig('apps').then(v => { try { localApps = JSON.parse(v || '{}'); } catch (e) { localApps = {}; } drawLinks(); }).catch(() => { });
   return { params: applyParams, update: () => { drawLinks(); drawCal(); } };
 }
 
@@ -100,7 +107,7 @@ export function socialForm(r) {
   const isNew = !r.id;
   if (isNew && !can('redes.preparar')) return requestAccess('redes.preparar', 'redes');
   const canEdit = can('redes.preparar');
-  const redes = [...new Set((S.cfg.redesLista || []).concat(S.t.redes.map(x => x.red).filter(Boolean)))];
+  const redes = [...new Set((S.cfg.redesLista || []).concat(['Opla'], S.t.redes.map(x => x.red).filter(Boolean)))];
   const states = (S.cfg.estadosRedes || []).filter(s => can('redes.publicar') || !['Programado', 'Publicado'].includes(s) || s === r.estado);
   const f = {
     fecha: inp({ type: 'date', value: r.fecha || S.hoy }), hora: inp({ type: 'time', value: r.hora || '' }), red: sel(redes, r.red || 'Instagram'),
