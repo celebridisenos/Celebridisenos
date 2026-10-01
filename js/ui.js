@@ -4,7 +4,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 // h('div.card#id', {onclick}, hijos...)
 export function h(sel, attrs, ...kids) {
   if (attrs === null || typeof attrs !== 'object' || attrs instanceof Node || Array.isArray(attrs)) { kids.unshift(attrs); attrs = {}; }
-  const m = sel.match(/^([a-z0-9]+)?((?:[.#][\w-]+)*)$/i);
+  const m = sel.replace(/\.(?=\.|$)/g, '').match(/^([a-z0-9]+)?((?:[.#][\w-]+)*)$/i); // v11: tolera clases vacías ('div.x.' + '')
   const el = document.createElement(m[1] || 'div');
   (m[2].match(/[.#][\w-]+/g) || []).forEach(p => { if (p[0] === '.') el.classList.add(p.slice(1)); else el.id = p.slice(1); });
   for (const k in attrs) {
@@ -238,4 +238,19 @@ export function toast(text, kind, ms) {
 
 export function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 export function uid(prefix) { const a = new Uint8Array(8); crypto.getRandomValues(a); return (prefix ? prefix + '_' : '') + Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); }
+// v11: menú desplegable pequeño ("Más ⋯") para acciones secundarias
+export function menu(label, items, opts = {}) {
+  const b = btn(label, ev => {
+    ev.stopPropagation();
+    document.querySelectorAll('.pop-menu').forEach(x => x.remove());
+    const list = items.filter(Boolean);
+    const m = h('div.pop-menu', { role: 'menu' }, list.map(it => h('button' + (it.danger ? '.danger' : ''), { role: 'menuitem', onclick: () => { m.remove(); it.on(); } }, it.icon ? icon(it.icon, 's') : null, it.t)));
+    document.body.appendChild(m);
+    const r = b.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
+    m.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.left)) + 'px';
+    m.style.top = (r.bottom + mh + 8 > window.innerHeight ? Math.max(8, r.top - mh - 6) : r.bottom + 6) + 'px';
+    setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }), 0);
+  }, Object.assign({ icon: 'menu' }, opts));
+  return b;
+}
 export function copyText(t) { navigator.clipboard.writeText(t).then(() => toast('Copiado'), () => toast('No se pudo copiar', 'bad')); }

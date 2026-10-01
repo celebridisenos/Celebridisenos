@@ -1,21 +1,25 @@
 // ================= Pedidos: panel, filtros, ficha y formulario =================
-import { h, mount, clear, icon, btn, modal, drawer, toast, eur, fdate, fdt, ago, pill, dueBadge, empty, field, inp, sel, area, debounce, confirmDlg, uid, copyText, avatar, na } from '../ui.js';
+import { menu, h, mount, clear, icon, btn, modal, drawer, toast, eur, fdate, fdt, ago, pill, dueBadge, empty, field, inp, sel, area, debounce, confirmDlg, uid, copyText, avatar, na } from '../ui.js';
 import { S, can, mutate, api, timing, stateColor, byId, upsertLocal, removeLocal, emit, clientStats } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { filesSection, filesOf } from '../files.js';
-import { printDoc, labelDoc, preview } from '../print.js';
 
 const CL = window.CL;
+// v11: los filtros van por FASE (no por nombre de estado) y lo terminado hace +30 días se archiva solo
+export const ph = o => CL.phaseOf(S.cfg.pedidos, o.estado);
+export const archived = o => { const p = ph(o); if (p !== 'entregado' && p !== 'cancelado') return false; const d = o.fechaEntrega || o.fechaEnvio || o.actualizado || o.fecha; return !!d && CL.days(CL.day(d), S.hoy) > 30; };
 const PRESETS = [
   { k: 'abiertos', t: 'En curso', f: (o, t) => t.abierto },
   { k: 'urgentes', t: 'Urgentes', cls: 'bad', f: (o, t) => CL.isUrgent(o, t) },
-  { k: 'fabricar', t: 'Por empezar', f: o => ['Nuevo', 'Pendiente de revisión', 'Pendiente de fabricación'].includes(o.estado) },
-  { k: 'fabricando', t: 'En fabricación', f: o => o.estado === 'En fabricación' },
-  { k: 'empaquetar', t: 'Por empaquetar', f: o => o.estado === 'Fabricado' },
-  { k: 'enviar', t: 'Por enviar', f: o => ['Empaquetado', 'Listo para enviar'].includes(o.estado) },
-  { k: 'enviados', t: 'Enviados', cls: 'ok', f: o => ['Enviado', 'En tránsito'].includes(o.estado) },
+  { k: 'reservas', t: 'Reservas', f: o => ph(o) === 'reserva' },
+  { k: 'fabricar', t: 'Por imprimir', f: o => ph(o) === 'confirmado' },
+  { k: 'fabricando', t: 'Imprimiendo', f: o => ph(o) === 'impresion' },
+  { k: 'empaquetar', t: 'Postprocesado', f: o => ph(o) === 'postpro' },
+  { k: 'enviar', t: 'Por enviar', f: o => ph(o) === 'listo' },
+  { k: 'enviados', t: 'Enviados', cls: 'ok', f: o => ph(o) === 'enviado' },
   { k: 'incidencias', t: 'Incidencias', cls: 'warn', f: (o, t) => t.incidencia },
-  { k: 'todos', t: 'Todos', f: () => true },
+  { k: 'todos', t: 'Todos', f: o => !archived(o) },
+  { k: 'archivo', t: 'Archivados', f: o => archived(o) },
   { k: 'vencidos', t: 'Vencidos', hidden: true, f: (o, t) => t.abierto && t.nivel === 'late' },
   { k: 'hoy', t: 'Vencen hoy', hidden: true, f: (o, t) => t.abierto && t.nivel === 'today' },
   { k: 'proximos', t: 'Próximos a vencer', hidden: true, f: (o, t) => t.abierto && (t.nivel === 'soon' || t.nivel === 'today') }
@@ -32,7 +36,7 @@ export function render(el, params) {
   const st = { preset: 'abiertos', q: '', estado: '', canal: '', resp: '', desde: '', hasta: '', sort: 'limite', limit: 60 };
   const head = h('div.page-head', h('h1', 'Pedidos'), h('div.row',
     can('pedidos.crear') ? btn('Nuevo pedido', () => orderForm(), { cls: 'primary', icon: 'plus' }) : null));
-  const kpis = h('div.grid.g4.kpis', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', marginBottom: '14px' } });
+  const kpis = h('div.kpis.compact', { style: { marginBottom: '14px' } });
   const search = inp({ placeholder: 'Buscar nº, cliente, producto, seguimiento…', type: 'search', 'aria-label': 'Buscar pedidos' });
   search.addEventListener('input', debounce(() => { st.q = search.value; st.limit = 60; drawList(); }, 120));
   const fEstado = h('select.inp'), fCanal = h('select.inp'), fResp = h('select.inp');
@@ -136,8 +140,23 @@ export function render(el, params) {
 function nextState(o) {
   const list = S.cfg.pedidos.estados.filter(s => !s.issue && !s.cancelled);
   const i = list.findIndex(s => s.k === o.estado);
-  if (o.estado === 'Incidencia') return null;
   return i >= 0 && i < list.length - 1 ? list[i + 1].k : (i < 0 ? list[0].k : null);
+}
+// v11: ¿hay piezas libres en la estantería para este pedido? (mismo criterio que el servidor)
+export function freePieces(o) {
+  const k = CL.norm(o.producto); let fab = 0, out = 0, held = 0;
+  (S.t.fabricacion || []).forEach(r => { if (CL.norm(r.producto) === k) fab += Number(r.unidades) || 0; });
+  S.t.pedidos.forEach(x => { if (x.id === o.id || CL.norm(x.producto) !== k) return; const p = ph(x), q = Number(x.cantidad) || 1; if (p === 'enviado' || p === 'entregado') out += q; else if (p === 'postpro' || p === 'listo') held += q; });
+  return fab - out - held;
+}
+function fromStockBtn(o) {
+  if (!['reserva', 'confirmado', 'impresion'].includes(ph(o))) return null;
+  const free = freePieces(o), q = Number(o.cantidad) || 1;
+  if (free < q) return null;
+  return btn('📦 Servir desde stock (' + free + ' en estantería)', async () => {
+    try { const r = await mutate('pedidos.desdeStock', { id: o.id }, { onlineOnly: true, label: 'nº ' + o.numero + ' desde stock' }); if (r && r.id) { upsertLocal('pedidos', r); emit(); } toast('Pedido nº ' + o.numero + ' → ' + (r && r.estado), 'ok'); }
+    catch (e) { handleError(e, 'pedidos'); }
+  }, { cls: 'ok-btn' });
 }
 export function orderDrawer(id, onClose) {
   let tab = 'resumen', ctl;
@@ -160,25 +179,30 @@ export function orderDrawer(id, onClose) {
         h('div.drawer-h', h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null)),
           btn('', closeAll, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
         h('div.drawer-b.col', { style: { gap: '14px' } },
-          h('div.steps', { title: 'Progreso' }, states.map((s, i) => h('div.s' + (o.estado === 'Incidencia' ? '.bad' : i <= idx ? '.on' : ''), { title: s.k }))),
+          h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k)))),
+          o.incidencia && t.abierto ? h('div.issue-bar', icon('alert', 's'), h('span.grow', h('b', 'Incidencia: '), o.incidencia), editable ? btn('Resuelta', () => save(o, { incidencia: '' }, 'Incidencia resuelta · nº ' + o.numero), { cls: 'sm', icon: 'check' }) : null) : null,
           editable ? h('div.row.wrap',
-            nx ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
-            !t.enviado && !t.cancelado ? btn('Enviar pedido', () => shipDialog(o), { icon: 'truck' }) : null,
+            nx && !(ph(o) === 'listo' && nx && S.cfg.pedidos.estados.find(s => s.k === nx && s.shipped)) ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
+            !t.enviado && !t.cancelado ? btn('Enviar pedido', () => shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,
+            fromStockBtn(o),
             btn('Cambiar estado', () => stateDialog(o), { icon: 'refresh' }),
-            o.estado !== 'Incidencia' && t.abierto ? btn('Incidencia', () => issueDialog(o), { icon: 'alert', cls: 'danger' }) : null)
+            !o.incidencia && t.abierto ? btn('Incidencia', () => issueDialog(o), { icon: 'alert', cls: 'danger' }) : null)
             : h('p.small.muted', 'Solo lectura: no tienes permiso para cambiar pedidos.'),
           h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))),
           body,
           h('div.row.wrap', { style: { marginTop: '10px', borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             editable ? btn('Editar', () => orderForm(o), { icon: 'edit' }) : null,
-            can('pedidos.crear') ? btn('Duplicar', () => orderForm(Object.assign({}, o, { id: '', numero: '', fecha: '', estado: 'Nuevo', seguimiento: '', fechaEnvio: '', fechaEntrega: '', incidencia: '' }), true), { icon: 'copy' }) : null,
-            btn('Mensaje para el cliente', () => messageDialog(o), { icon: 'msg' }),
-            can('ia.usar') ? btn('Responder con IA', () => import('./respuestas.js').then(m => m.replyAssistant({ pedido: o })), { icon: 'sparkles' }) : null,
             btn('Etiqueta', () => labelDialog(o), { icon: 'printer' }),
-            can('taller.editar') && t.abierto && !t.enviado ? btn('Imprimir en 3D', () => import('./taller.js').then(m => m.jobForm(null, o)), { icon: 'cube' }) : null,
+            btn('Mensaje', () => messageDialog(o), { icon: 'msg' }),
             can('facturas.emitir') ? btn(o.factura ? 'Factura ' + o.factura : 'Factura', () => import('./facturas.js').then(m => m.invoiceForm(o)), { icon: 'file' }) : null,
             h('span.grow'),
-            can('pedidos.borrar') ? btn('Borrar', () => delOrder(o, closeAll), { cls: 'danger', icon: 'trash' }) : btn('Borrar', () => requestAccess('pedidos.borrar', 'pedidos', 'Borrar pedido nº ' + o.numero), { cls: 'ghost locked', icon: 'trash' }))));
+            menu('Más', [
+              can('ia.usar') ? { t: 'Responder con IA', icon: 'sparkles', on: () => import('./respuestas.js').then(m => m.replyAssistant({ pedido: o })) } : null,
+              can('taller.editar') && t.abierto && !t.enviado ? { t: 'Imprimir en 3D', icon: 'cube', on: () => import('./taller.js').then(m => m.jobForm(null, o)) } : null,
+              can('pedidos.crear') ? { t: 'Duplicar', icon: 'copy', on: () => orderForm(Object.assign({}, o, { id: '', numero: '', fecha: '', estado: '', seguimiento: '', fechaEnvio: '', fechaEntrega: '', incidencia: '' }), true) } : null,
+              { t: 'Etiqueta QR del pedido', icon: 'printer', on: () => import('../labels.js').then(L => L.labelDialog('qr', [L.dataFor('qr', { tipo: 'pedido', id: o.id, titulo: 'Pedido nº ' + o.numero })])) },
+              can('pedidos.borrar') ? { t: 'Borrar', icon: 'trash', danger: true, on: () => delOrder(o, closeAll) } : { t: 'Borrar (pedir permiso)', icon: 'lock', on: () => requestAccess('pedidos.borrar', 'pedidos', 'Borrar pedido nº ' + o.numero) }
+            ]))));
       TABS[tab](body, o, t, c);
     };
     res.update = draw;
@@ -207,7 +231,7 @@ const TABS = {
     const row = (l, v, e) => [h('span.l', l, est(e)), h('span.v', v)];
     mount(el, h('div.card.flat', h('div.profit',
       row('Cobrado al cliente', eur(p.total)),
-      row('Fabricación' + (p.unidad !== null && (Number(o.cantidad) || 1) > 1 ? ' (' + (Number(o.cantidad) || 1) + ' × ' + eur(p.unidad) + ')' : ''), p.produccion === null ? h('span.warn-t', 'sin coste') : '− ' + eur(p.produccion)),
+      row('Fabricación' + (p.costeCongelado ? ' (coste del ' + p.costeCongelado + ')' : '') + (p.unidad !== null && (Number(o.cantidad) || 1) > 1 ? ' (' + (Number(o.cantidad) || 1) + ' × ' + eur(p.unidad) + ')' : ''), p.produccion === null ? h('span.warn-t', 'sin coste') : '− ' + eur(p.produccion)),
       row('Envío que pagaste', '− ' + eur(p.envio), p.envioEstimado),
       row('Comisión ' + (o.canal || 'de la plataforma'), '− ' + eur(p.comision), p.comisionEstimada),
       p.gastos.map(g => row(g.concepto || 'Otro gasto', '− ' + eur(g.coste))),
@@ -216,7 +240,10 @@ const TABS = {
       !p.conCoste ? h('p.small.warn-t', '⚠️ Este producto no tiene coste guardado: añádelo en Productos → Costes y precio para saber el beneficio.') : null,
       p.beneficio !== null && p.beneficio < 0 ? h('p.small.bad-t', '🔴 Con este pedido pierdes dinero.') : p.margen !== null && p.margen < minM ? h('p.small.warn-t', '🟡 Margen por debajo del mínimo (' + Math.round(minM * 100) + ' %).') : p.margen !== null ? h('p.small.ok-t', '🟢 Buen margen.') : null,
       p.envioEstimado || p.comisionEstimada ? h('p.tiny.muted', 'Lo marcado como estimado sale de Configuración → Precios y comisiones. Pon el importe real para que el beneficio sea exacto.') : null,
-      can('pedidos.editar') ? btn('Poner costes reales', () => costsDialog(o), { icon: 'euro', cls: 'sm' }) : null);
+      can('pedidos.editar') ? btn('Poner costes reales', () => costsDialog(o), { icon: 'euro', cls: 'sm' }) : null,
+      h('div', { style: { marginTop: '12px' } }, h('div.cost-snap')));
+    // v11.3: coste de fabricación CONGELADO con su desglose (precios del día del pedido)
+    import('./costes.js').then(C => { const box = el.querySelector('.cost-snap'); if (box) mount(box, C.orderCostCard(o)); });
   },
   taller(el, o) {
     const js = (S.t.trabajos || []).filter(j => j.pedidoId === o.id && j.estado !== 'Cancelado');
@@ -287,7 +314,7 @@ async function save(o, changes, label) {
     return true;
   } catch (e) { handleError(e, 'pedidos'); return false; }
 }
-function changeState(o, estado, extra) {
+export function changeState(o, estado, extra) {
   const ch = Object.assign({ estado }, extra || {});
   const st = S.cfg.pedidos.estados.find(s => s.k === estado) || {};
   if (st.shipped && !o.fechaEnvio && !ch.fechaEnvio) ch.fechaEnvio = S.hoy;
@@ -302,7 +329,7 @@ function stateDialog(o) {
     return h('div', h('div.lbl', { style: { marginBottom: '6px' } }, groups[g]), h('div.row.wrap', list.map(s => h('button.btn' + (s.k === o.estado ? '.primary' : ''), { onclick: () => { m.close(); if (s.issue) issueDialog(o); else if (s.shipped && !o.seguimiento) shipDialog(o, s.k); else changeState(o, s.k); } }, h('span.pill', { style: { background: 'transparent', padding: 0 } }, h('span.d', { style: { background: s.c } })), s.k))));
   })), null, { size: 'narrow' });
 }
-function shipDialog(o, estado) {
+export function shipDialog(o, estado) {
   const envio = sel([''].concat(S.cfg.pedidos.envios), o.envio);
   const seg = inp({ value: o.seguimiento || '', placeholder: 'Ej.: PK123456789ES' });
   const fecha = inp({ type: 'date', value: S.hoy });
@@ -313,7 +340,7 @@ function shipDialog(o, estado) {
 }
 function issueDialog(o) {
   const t = area({ value: o.incidencia || '', placeholder: 'Qué ha pasado: pieza rota, cliente no responde, paquete perdido…' });
-  modal('Incidencia · nº ' + o.numero, field('Descripción', t), close => [btn('Cancelar', close), btn('Guardar incidencia', () => { if (!t.value.trim()) return toast('Describe la incidencia', 'warn'); close(); changeState(o, 'Incidencia', { incidencia: t.value.trim() }); }, { cls: 'danger solid' })], { size: 'narrow' });
+  modal('Incidencia · nº ' + o.numero, h('div.col', field('Descripción', t), h('p.tiny.muted', 'El pedido sigue en su paso (' + o.estado + ') con una marca roja hasta que la marques como resuelta. Se avisa al equipo.')), close => [btn('Cancelar', close), btn('Guardar incidencia', () => { if (!t.value.trim()) return toast('Describe la incidencia', 'warn'); close(); save(o, { incidencia: t.value.trim() }, 'Incidencia en nº ' + o.numero); }, { cls: 'danger solid' })], { size: 'narrow' });
 }
 async function delOrder(o, done) {
   if (!await confirmDlg('Borrar pedido nº ' + o.numero, 'Se moverá a la papelera y se podrá restaurar. ¿Seguro?', 'Borrar', true)) return;
@@ -373,16 +400,29 @@ function profitWarn(o) {
   if (p.beneficio !== null && p.beneficio < 0) toast('🔴 Pedido nº ' + o.numero + ': pierdes ' + eur(-p.beneficio), 'bad', 6000);
   else if (p.margen !== null && p.margen < minM) toast('🟡 Pedido nº ' + o.numero + ': margen bajo (' + Math.round(p.margen * 100) + ' %)', 'warn', 6000);
 }
-function labelDialog(o) {
+// v11: etiqueta al tamaño exacto (plantilla de envío, o QR del pedido) con un único botón
+export function labelDialog(o) {
   const c = byId('clientes', o.clienteId);
   const noAddr = !c || !c.direccion || c.direccion === '•••';
-  modal('Etiqueta de envío · nº ' + o.numero, h('div.col', noAddr ? h('p.small.warn-t', can('clientes.datos') ? '⚠️ Este cliente no tiene dirección guardada: saldrá un hueco para escribirla a mano (o añádela en su ficha).' : '🔒 No tienes permiso para ver direcciones: saldrá un hueco para escribirla a mano.') : null,
-    preview(labelDoc(o, c), 'label'), h('p.tiny.muted', 'Tamaño 10 × 15 cm (el de las impresoras de etiquetas). En A4 sale una por hoja. El QR abre este pedido en el móvil para marcarlo como enviado.')),
-    close => [btn('Cerrar', close), btn('Imprimir', () => printDoc(labelDoc(o, c), { size: 'label' }), { cls: 'primary', icon: 'printer' })], { size: 'narrow' });
+  import('../labels.js').then(L => L.labelDialog('envio', [{ o, c }], {
+    plantillas: ['envio', 'qr'],
+    dataFor: t => t === 'envio' ? L.dataFor('envio', { o, c }) : L.dataFor('qr', { tipo: 'pedido', id: o.id, titulo: 'Pedido nº ' + o.numero }),
+    aviso: noAddr ? (can('clientes.datos') ? '⚠️ Este cliente no tiene dirección guardada: saldrá un hueco para escribirla a mano (o añádela en su ficha).' : '🔒 Sin permiso para ver direcciones: saldrá un hueco para escribirla.') : ''
+  }));
 }
-function printLabels(list) {
-  const wrap = h('div', list.map(o => h('div', { style: { pageBreakAfter: 'always', breakAfter: 'page' } }, labelDoc(o, byId('clientes', o.clienteId)))));
-  printDoc(wrap, { size: 'label' });
+export function printLabels(list) {
+  import('../labels.js').then(L => L.labelDialog('envio', list.map(o => ({ o, c: byId('clientes', o.clienteId) })), {
+    dataFor: (t, i) => L.dataFor('envio', { o: list[i || 0], c: byId('clientes', list[i || 0].clienteId) })
+  }));
+}
+
+// v11: al elegir producto, decir si hay stock para enviarlo ya o hay que imprimirlo
+function stockHint(name, o) {
+  if (!name || !name.trim()) return null;
+  const x = CL.stockLevels({ productos: S.t.productos, stock: S.t.stock, fabricacion: S.t.fabricacion || [], pedidos: S.t.pedidos.filter(p => p.id !== o.id) }, S.cfg.pedidos).of(name);
+  if (!x || !x.controlado) return null;
+  return x.disponible > 0 ? h('div.pi-tip.ok', '📦 Hay ' + x.disponible + ' disponible(s) en la estantería' + (x.ubicacion ? ' (' + x.ubicacion + ')' : '') + ': se puede enviar sin imprimir.')
+    : h('div.pi-tip.info', '🖨️ No hay piezas libres en stock' + (x.fisico > 0 ? ' (las ' + x.fisico + ' de la estantería ya están apartadas)' : '') + ': habrá que imprimirlo.');
 }
 
 // ---------- Formulario (nuevo / editar) ----------
@@ -434,21 +474,34 @@ export function orderForm(o, duplicate) {
     const a = CL.orderAssist({ id: o.id, producto: f.producto.value, productoId: p ? p.id : '', cliente: f.cliente.value, cantidad: f.cantidad.value, precio: f.precio.value }, S.t, S.cfg, S.hoy);
     const costs = can('productos.costes');
     const pc = x => x === null || x === undefined ? '—' : Math.round(x * 100) + ' %';
-    const box = (l, v, cls) => h('div.pa-k' + (cls ? '.' + cls : ''), h('span.l', l), h('span.v', v));
-    mount(assist, h('div.pa-head', '🤖 Asistente de precio', a.fuente ? h('span.tiny.muted', ' · ' + a.fuente) : null),
-      h('div.pa-grid',
-        box('Precio sugerido', a.sugerido ? eur(a.sugerido) : '—', 'brand'),
-        costs ? box('Coste', a.coste !== null ? eur(a.coste) : 'sin datos') : null,
-        costs ? box('Beneficio' + (a.cantidad > 1 ? ' (' + a.cantidad + ' uds.)' : ''), a.beneficio !== undefined ? eur(a.beneficio) : '—', a.beneficio < 0 ? 'bad' : '') : null,
-        costs ? box('Margen', pc(a.margen), a.margen !== undefined && a.margen < ((S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15) ? 'warn' : '') : null,
-        box('Descuento recomendado', a.descuentoRecomendado ? pc(a.descuentoRecomendado) + (a.sugerido ? ' → ' + eur(CL.sale.discount(a.sugerido, a.descuentoRecomendado)) : '') : 'ninguno')),
-      a.anteriorCliente ? h('div.tiny.muted', 'Este cliente pagó ' + eur(a.anteriorCliente) + ' la última vez.') : a.anterior ? h('div.tiny.muted', 'Último precio de venta de este producto: ' + eur(a.anterior) + ' (' + a.ventasPrevias + ' ventas).') : null,
-      costs && a.descuentoMax !== null && a.descuentoMax !== undefined ? h('div.tiny.muted', 'Descuento máximo sin bajar del margen mínimo: ' + pc(a.descuentoMax) + (a.minimo ? ' · precio mínimo ' + eur(a.minimo) : '')) : null,
+    const box = (l, v, cls) => h('div.pi-k' + (cls ? '.' + cls : ''), h('span.l', l), h('span.v', v));
+    // v11: precio inteligente — nunca impone: muestra beneficio, margen y un rango para negociar
+    const price = Number(f.precio.value) || 0, minM = (S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15;
+    const mCls = a.margen === undefined ? '' : a.beneficio < 0 ? 'bad' : a.margen < minM ? 'warn' : 'ok';
+    const rg = a.rango, lo = rg ? Math.min(rg[0], a.minimo || rg[0], price || rg[0]) * 0.9 : 0, hi = rg ? Math.max(rg[1], price || 0) * 1.08 : 1;
+    const pos = v => Math.max(0, Math.min(100, (v - lo) / Math.max(0.01, hi - lo) * 100)) + '%';
+    const e0 = v => Number.isInteger(Number(v)) ? Number(v) + ' €' : eur(v);
+    mount(assist,
+      h('div.pi-kpis',
+        box('Precio acordado' + (a.cantidad > 1 ? ' (ud.)' : ''), price ? eur(price) : '—', 'acc'),
+        costs ? box('Beneficio' + (a.cantidad > 1 ? ' (' + a.cantidad + ' uds.)' : ''), a.beneficio !== undefined ? eur(a.beneficio) : 'sin coste', mCls) : null,
+        costs ? box('Margen', pc(a.margen), mCls) : null,
+        box('Recomendado', a.recomendado ? eur(a.recomendado) : a.sugerido ? eur(a.sugerido) : '—')),
+      rg ? h('div.pi-range', { title: 'Rango sugerido' },
+        h('div.track', costs && a.minimo ? h('i.min', { style: { left: pos(a.minimo) }, title: 'Mínimo: ' + eur(a.minimo) }) : null,
+          h('i.band', { style: { left: pos(rg[0]), width: 'calc(' + pos(rg[1]) + ' - ' + pos(rg[0]) + ')' } }),
+          price ? h('i.cur.' + (a.sugerencia ? a.sugerencia.nivel : ''), { style: { left: pos(price) }, title: 'Precio acordado' }) : null),
+        h('div.lbls', costs && a.minimo ? h('span', { style: { left: pos(a.minimo) } }, 'mín. ' + e0(a.minimo)) : null, h('span.b', { style: { left: 'calc((' + pos(rg[0]) + ' + ' + pos(rg[1]) + ') / 2)' } }, e0(rg[0]) + ' – ' + e0(rg[1])))) : null,
+      a.sugerencia ? h('div.pi-tip.' + a.sugerencia.nivel, a.sugerencia.nivel === 'ok' ? '✓ ' : a.sugerencia.nivel === 'bad' ? '⛔ ' : '💡 ', costs || a.sugerencia.nivel !== 'bad' ? a.sugerencia.texto : 'Precio muy bajo para este producto.') : !costs || a.coste !== null ? null : h('div.pi-tip.warn', 'Este producto no tiene costes guardados: añádelos para saber el beneficio.'),
+      a.anteriorCliente ? h('div.tiny.muted', 'Este cliente pagó ' + eur(a.anteriorCliente) + ' la última vez.') : a.anterior ? h('div.tiny.muted', 'Último precio de venta: ' + eur(a.anterior) + ' (' + a.ventasPrevias + ' ventas).') : null,
       a.notas.map(n => h('div.tiny', '💡 ' + n)),
-      costs ? a.avisos.map(n => h('div.tiny.warn-t', n)) : null,
-      h('div.row.wrap', a.sugerido && Number(f.precio.value) !== a.sugerido ? btn('Usar ' + eur(a.sugerido), () => { f.precio.value = a.sugerido; updAssist(); }, { cls: 'sm' }) : null,
-        a.descuentoRecomendado && a.sugerido ? btn('Aplicar descuento (' + pc(a.descuentoRecomendado) + ')', () => { f.precio.value = CL.sale.discount(a.sugerido, a.descuentoRecomendado); updAssist(); }, { cls: 'sm ghost' }) : null,
-        h('span.tiny.muted', 'El precio se puede cambiar a mano.')));
+      costs ? a.avisos.filter(x => !/margen bajo/i.test(x)).map(n => h('div.tiny.warn-t', n)) : null,
+      h('div.row.wrap', { style: { marginTop: '4px' } },
+        rg && price !== rg[1] ? btn('Usar ' + e0(rg[1]), () => { f.precio.value = rg[1]; updAssist(); }, { cls: 'sm' }) : null,
+        a.recomendado && price !== a.recomendado ? btn('Usar recomendado ' + eur(a.recomendado), () => { f.precio.value = a.recomendado; updAssist(); }, { cls: 'sm ghost' }) : null,
+        a.descuentoRecomendado && a.sugerido ? btn('Descuento ' + pc(a.descuentoRecomendado) + ' → ' + eur(CL.sale.discount(a.sugerido, a.descuentoRecomendado)), () => { f.precio.value = CL.sale.discount(a.sugerido, a.descuentoRecomendado); updAssist(); }, { cls: 'sm ghost' }) : null,
+        h('span.tiny.muted', 'Tú decides el precio.')),
+      stockHint(f.producto.value, o));
   };
   [f.fecha, f.plazoDias].forEach(x => x.addEventListener('input', updLimit));
   f.cliente.addEventListener('input', () => { updClient(); updAssist(); }); f.producto.addEventListener('change', () => { updPrice(); updAssist(); });
@@ -475,7 +528,7 @@ export function orderForm(o, duplicate) {
     try {
       if (isNew) {
         const id = uid('o');
-        const r = await mutate('pedidos.guardar', { id, datos }, { label: 'Nuevo pedido de ' + datos.cliente, tables: ['pedidos'], optimistic: t => t.pedidos.push(Object.assign({ id, numero: datos.numero || '(pendiente)', estado: 'Nuevo', creado: new Date().toISOString(), creadoPor: S.me.nombre, version: 0 }, datos)) });
+        const r = await mutate('pedidos.guardar', { id, datos }, { label: 'Nuevo pedido de ' + datos.cliente, tables: ['pedidos'], optimistic: t => t.pedidos.push(Object.assign({ id, numero: datos.numero || '(pendiente)', estado: CL.stateOfPhase(S.cfg.pedidos, 'confirmado') || 'Confirmado', creado: new Date().toISOString(), creadoPor: S.me.nombre, version: 0 }, datos)) });
         if (r && r.id) { upsertLocal('pedidos', r); emit(); }
         close();
         toast(r && r.queued ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : 'Pedido nº ' + r.numero + ' creado', r && r.queued ? 'warn' : 'ok');

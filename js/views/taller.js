@@ -2,29 +2,36 @@
 import { h, mount, btn, modal, toast, eur, fdate, pill, empty, field, inp, sel, area, confirmDlg, promptDlg, icon } from '../ui.js';
 import { S, can, api, upsertLocal, removeLocal, emit, byId, timing, stateColor } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
+import { bambuFor } from '../bambu.js';
+import { bambuLine } from './centro_impresion.js';
 
 const CL = window.CL;
 const MATERIALES = ['PLA', 'PLA Silk', 'PLA Mate', 'PETG', 'TPU', 'ABS', 'ASA', 'Otro'];
 const COLORES = ['Blanco', 'Negro', 'Gris', 'Rojo', 'Azul', 'Celeste', 'Verde', 'Amarillo', 'Naranja', 'Rosa', 'Morado', 'Marrón', 'Beige', 'Dorado', 'Plata', 'Transparente'];
 const OPEN = { 'En cola': 1, 'Imprimiendo': 1 };
+const phase = o => CL.phaseOf(S.cfg.pedidos, o.estado);
+const PRE_PRINT = { reserva: 1, confirmado: 1 }, PRE_FAB = { reserva: 1, confirmado: 1, impresion: 1 };
 const n = v => Number(v) || 0;
-const hrs = x => { const t = Math.max(0, Math.round(n(x) * 60)); if (t < 60) return t + ' min'; const hh = Math.floor(t / 60), mm = t % 60; return hh + ' h' + (mm ? ' ' + mm + ' min' : ''); };
+export const hrs = x => { const t = Math.max(0, Math.round(n(x) * 60)); if (t < 60) return t + ' min'; const hh = Math.floor(t / 60), mm = t % 60; return hh + ' h' + (mm ? ' ' + mm + ' min' : ''); };
 const g = x => Math.round(n(x)) + ' g';
 const hhmm = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); };
-const whenTxt = iso => { const d = new Date(iso); if (isNaN(d)) return ''; const today = new Date(); const same = d.toDateString() === today.toDateString(); const tm = new Date(Date.now() + 86400000).toDateString() === d.toDateString(); return (same ? 'hoy' : tm ? 'mañana' : d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })) + ' a las ' + hhmm(iso); };
+export const whenTxt = iso => { const d = new Date(iso); if (isNaN(d)) return ''; const today = new Date(); const same = d.toDateString() === today.toDateString(); const tm = new Date(Date.now() + 86400000).toDateString() === d.toDateString(); return (same ? 'hoy' : tm ? 'mañana' : d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })) + ' a las ' + hhmm(iso); };
 const dot = (hex, lg) => h('span.dot' + (lg ? '.lg' : ''), { style: { background: hex || '#ccc' } });
-const printers = () => (S.t.impresoras || []).filter(p => p.activa !== false).sort((a, b) => n(a.orden) - n(b.orden));
+export const printers = () => (S.t.impresoras || []).filter(p => p.activa !== false).sort((a, b) => n(a.orden) - n(b.orden));
 const jobsOf = id => (S.t.trabajos || []).filter(j => j.impresoraId === id);
-const queueOf = id => jobsOf(id).filter(j => j.estado === 'En cola').sort((a, b) => n(a.orden) - n(b.orden) || String(a.creado).localeCompare(String(b.creado)));
-const nowOf = id => jobsOf(id).find(j => j.estado === 'Imprimiendo');
+export const queueOf = id => jobsOf(id).filter(j => j.estado === 'En cola').sort((a, b) => n(a.orden) - n(b.orden) || String(a.creado).localeCompare(String(b.creado)));
+export const nowOf = id => jobsOf(id).find(j => j.estado === 'Imprimiendo');
 const spoolName = b => (b.material || 'PLA') + ' ' + (b.color || '') + (b.marca ? ' · ' + b.marca : '');
 function colorHexOf(color) { const b = (S.t.bobinas || []).find(x => CL.norm(x.color) === CL.norm(color) && x.colorHex); return b ? b.colorHex : ''; }
 
 // Cuándo queda libre cada impresora (lo que falta de la actual + la cola)
+// v11.2: si la Bambu Lab está imprimiendo, su hora de fin real manda sobre la estimación
+export const liveFin = id => { const b = bambuFor(id); return b && b.conectada && b.fin && ['imprimiendo', 'pausada', 'preparando'].includes(b.estado) ? b.fin : ''; };
 export function freeAt(id) {
   const cur = nowOf(id);
   let t = Date.now();
-  if (cur && cur.finPrevisto) t = Math.max(t, new Date(cur.finPrevisto).getTime());
+  const fin = liveFin(id) || (cur ? cur.finPrevisto : ''); // también si imprime algo lanzado fuera del programa
+  if (fin) t = Math.max(t, new Date(fin).getTime());
   queueOf(id).forEach(j => { t += n(j.horas) * 3600000; });
   return t;
 }
@@ -49,10 +56,11 @@ async function call(a, d, okMsg) {
   try { const r = await api(a, d); if (okMsg) toast(okMsg, 'ok'); return r; }
   catch (e) { handleError(e, 'taller'); return null; }
 }
-function applyJob(r) {
+export function applyJob(r) {
   if (!r) return;
   if (r.trabajo) upsertLocal('trabajos', r.trabajo);
   if (r.pedido) upsertLocal('pedidos', r.pedido);
+  (r.pedidos || []).forEach(p => upsertLocal('pedidos', p));
   if (r.bobina) upsertLocal('bobinas', r.bobina);
   if (r.repetida && r.repetida.id) upsertLocal('trabajos', r.repetida);
   emit();
@@ -77,7 +85,7 @@ export function render(el, params) {
   function drawPrinters() {
     const list = printers();
     if (!list.length) { mount(body, h('div.card', empty('cube', 'Todavía no hay impresoras', 'Añade vuestras impresoras para organizar la cola de impresión.', edit ? btn('Añadir impresora', () => printerForm(), { cls: 'primary', icon: 'plus' }) : null))); return; }
-    const pendingOrders = S.t.pedidos.filter(o => ['Nuevo', 'Pendiente de revisión', 'Pendiente de fabricación'].includes(o.estado) && !(S.t.trabajos || []).some(j => j.pedidoId === o.id && j.estado !== 'Cancelado'))
+    const pendingOrders = S.t.pedidos.filter(o => phase(o) === 'confirmado' && !(S.t.trabajos || []).some(j => j.pedidoId === o.id && j.estado !== 'Cancelado'))
       .map(o => ({ o, t: timing(o) })).sort((a, b) => String(a.t.limite || '9').localeCompare(String(b.t.limite || '9')));
     mount(body,
       pendingOrders.length && edit ? h('div.card', { style: { marginBottom: '14px' } }, h('div.row', h('b', '📋 Pedidos por imprimir (' + pendingOrders.length + ')'), h('span.tiny.muted', 'Aún no están en ninguna cola')),
@@ -88,27 +96,32 @@ export function render(el, params) {
   }
   function printerCard(p) {
     const cur = nowOf(p.id), q = queueOf(p.id), maint = p.estado === 'Mantenimiento';
-    const late = cur && cur.finPrevisto && new Date(cur.finPrevisto) < new Date();
+    const lf = cur ? liveFin(p.id) : '', finP = lf || (cur && cur.finPrevisto);
+    const late = cur && finP && new Date(finP) < new Date();
     const qh = q.reduce((a, j) => a + n(j.horas), 0);
     let now = null;
     if (cur) {
-      const t0 = new Date(cur.inicio).getTime(), t1 = new Date(cur.finPrevisto).getTime();
-      const pc = Math.max(0, Math.min(1, (Date.now() - t0) / Math.max(1, t1 - t0)));
+      const t0 = new Date(cur.inicio).getTime(), t1 = new Date(finP).getTime(), lv = lf ? bambuFor(p.id) : null;
+      const pc = lv ? Math.max(0, Math.min(1, (Number(lv.pct) || 0) / 100)) : Math.max(0, Math.min(1, (Date.now() - t0) / Math.max(1, t1 - t0)));
       const left = (t1 - Date.now()) / 3600000;
       const b = cur.bobinaId ? byId('bobinas', cur.bobinaId) : null;
       now = h('div.now',
         h('div.row', h('b.grow', cur.titulo), cur.pedidoId ? h('a.small', { href: '#/pedidos/' + cur.pedidoId }, 'ver pedido') : null),
         h('div.bar' + (late ? '.bad' : ''), h('i', { style: { width: Math.round(pc * 100) + '%' } })),
-        h('div.small', late ? h('b.bad-t', '⏰ Debería haber terminado ' + whenTxt(cur.finPrevisto)) : 'Termina ' + whenTxt(cur.finPrevisto) + ' (quedan ' + hrs(left) + ')'),
+        h('div.small', late ? h('b.bad-t', '⏰ Debería haber terminado ' + whenTxt(finP)) : 'Termina ' + whenTxt(finP) + ' (quedan ' + hrs(left) + ')' + (lf ? ' · según la impresora' : '')),
         h('div.tiny.muted', [cur.cantidad > 1 ? cur.cantidad + ' uds.' : '', cur.gramos ? g(cur.gramos) : '', b ? spoolName(b) : (cur.color ? cur.color : '')].filter(Boolean).join(' · ')),
         edit ? h('div.row.wrap', btn('Terminada', () => finishDialog(cur, 'Terminado'), { cls: 'primary sm', icon: 'check' }), btn('Falló', () => finishDialog(cur, 'Fallido'), { cls: 'sm danger', icon: 'alert' }),
           btn('Volver a la cola', async () => applyJob(await call('trabajos.estado', { id: cur.id, estado: 'En cola' }, 'Devuelta a la cola')), { cls: 'sm ghost' })) : null);
     }
+    // v11.2: estado REAL de la Bambu Lab vinculada (por la red local)
+    const live = bambuFor(p.id), ext = !cur && !!liveFin(p.id); // imprime algo que no está en la cola del programa
+    const liveBox = live ? h('div.live', { style: { background: 'var(--surface-2)', borderRadius: '10px', padding: '8px 10px' } }, h('div.tiny.muted', '📡 En la impresora ahora' + (live.conectada ? '' : ' (sin conexión)')), bambuLine(live)) : null;
     return h('div.card.printer' + (cur ? '.busy' : '') + (late ? '.late' : ''),
       h('div.ph', h('div.pi', maint ? '🔧' : cur ? '🖨️' : '💤'), h('div.grow', h('div.bold', p.nombre), h('div.tiny.muted', p.modelo || '')),
-        maint ? pill('Mantenimiento', 'warn') : cur ? pill(late ? 'Revisar' : 'Imprimiendo', late ? 'bad' : 'ok') : pill('Libre'),
+        maint ? pill('Mantenimiento', 'warn') : cur ? pill(late ? 'Revisar' : 'Imprimiendo', late ? 'bad' : 'ok') : ext ? pill(live.estadoTexto || 'Imprimiendo', live.estado === 'pausada' ? 'warn' : 'brand') : pill('Libre'),
         edit ? btn('', () => printerForm(p), { cls: 'ghost icon sm', icon: 'edit', title: 'Editar impresora' }) : null),
-      now || h('div.small.muted', maint ? 'En mantenimiento: no se empiezan impresiones.' : 'Libre ahora.'),
+      liveBox,
+      now || h('div.small.muted', maint ? 'En mantenimiento: no se empiezan impresiones.' : ext ? 'Imprime algo que no está en esta cola (lanzado desde Bambu Studio o la propia impresora). Si es un trabajo de la cola, pulsa «Empezar» en él.' : 'Libre ahora.'),
       h('div.row', h('b.small.grow', 'Cola' + (q.length ? ' · ' + q.length + ' · ' + hrs(qh) : '')), q.length ? h('span.tiny.muted', 'Libre ' + whenTxt(new Date(freeAt(p.id)).toISOString())) : null),
       q.length ? h('div.queue', q.map((j, i) => queueItem(j, i, q, !cur && !maint))) : h('p.tiny.muted', 'Nada en cola.'),
       edit ? btn('Añadir a esta cola', () => jobForm({ impresoraId: p.id }), { cls: 'ghost sm', icon: 'plus' }) : null);
@@ -197,8 +210,13 @@ export function jobForm(j, pedido) {
   if (!can('taller.editar')) return requestAccess('taller.editar', 'taller');
   const isNew = !j || !j.id; j = Object.assign({}, j || {});
   if (!printers().length) return toast('Primero añade una impresora en Taller.', 'warn');
-  const ord = pedido || (j.pedidoId ? byId('pedidos', j.pedidoId) : null);
+  const ord = pedido || (j.pedidoId ? byId('pedidos', j.pedidoId) : null) || ((j.lote || []).length ? byId('pedidos', j.lote[0]) : null);
+  // v11: lote = varios pedidos del mismo producto en una sola impresión
+  const lote = (j.lote || []).length > 1 ? j.lote.map(id => byId('pedidos', id)).filter(Boolean) : null;
+  const loteQ = lote ? lote.reduce((a, o) => a + (n(o.cantidad) || 1), 0) : 0;
   const calcOf = o => { if (!o) return null; const p = o.productoId ? byId('productos', o.productoId) : null; const name = p ? p.nombre : o.producto; return (S.t.calculadora || []).find(c => CL.norm(c.nombre) === CL.norm(name)) || null; };
+  // v11: producto de la impresión (para stock): sus horas y gramos salen de la calculadora
+  const prodSel = sel([{ v: '', t: '— Sin producto (pruebas, piezas sueltas) —' }].concat(S.t.productos.filter(p => p.estado !== 'Archivado').slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map(p => ({ v: p.id, t: p.nombre }))), j.productoId || (ord && ord.productoId) || '');
   const openOrders = S.t.pedidos.filter(o => timing(o).abierto).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
   const best = bestPrinter();
   const f = {
@@ -234,22 +252,38 @@ export function jobForm(j, pedido) {
     if (force) { f.cantidad.value = o.cantidad || 1; f.fechaLimite.value = timing(o).limite || ''; }
     drawSpoolSel();
   };
-  f.pedidoId.addEventListener('change', () => fromOrder(true));
+  f.pedidoId.addEventListener('change', () => { fromOrder(true); const o = byId('pedidos', f.pedidoId.value); if (o && o.productoId) prodSel.value = o.productoId; prodBox.style.display = f.pedidoId.value ? 'none' : ''; });
+  const fromProduct = () => {
+    if (f.pedidoId.value) return;
+    const p = byId('productos', prodSel.value); if (!p) return;
+    const c = (S.t.calculadora || []).find(x => CL.norm(x.nombre) === CL.norm(p.nombre)), q = n(f.cantidad.value) || 1;
+    f.titulo.value = p.nombre + (q > 1 ? ' × ' + q : '') + ' (para stock)';
+    if (c && n(c.horas)) f.horas.value = Math.round(n(c.horas) * q * 10) / 10;
+    if (c && n(c.gramos)) f.gramos.value = Math.round(n(c.gramos) * q);
+    if (p.color && !f.color.value) f.color.value = p.color;
+    drawSpoolSel();
+  };
+  prodSel.addEventListener('change', fromProduct);
+  f.cantidad.addEventListener('change', fromProduct);
+  const prodBox = h('div.full', field('Producto (entra al stock al terminar)', prodSel));
+  prodBox.style.display = f.pedidoId.value ? 'none' : '';
   f.cantidad.addEventListener('change', () => { const o = byId('pedidos', f.pedidoId.value), c = calcOf(o); if (c) { const q = n(f.cantidad.value) || 1; if (n(c.horas)) f.horas.value = Math.round(n(c.horas) * q * 10) / 10; if (n(c.gramos)) f.gramos.value = Math.round(n(c.gramos) * q); drawSpoolSel(); } });
   [f.color, f.material].forEach(x => x.addEventListener('change', drawSpoolSel));
   f.gramos.addEventListener('input', drawSpoolSel);
-  if (ord && isNew) fromOrder(true); else drawSpoolSel();
+  if (ord && isNew && lote) { fromOrder(true); f.cantidad.value = loteQ; f.titulo.value = 'Lote · ' + ord.producto + ' × ' + loteQ + ' (nº ' + lote.map(o => o.numero).join(', ') + ')'; const c = calcOf(ord); if (c && n(c.horas)) f.horas.value = Math.round(n(c.horas) * loteQ * 10) / 10; if (c && n(c.gramos)) f.gramos.value = Math.round(n(c.gramos) * loteQ); f.pedidoId.disabled = true; drawSpoolSel(); }
+  else if (ord && isNew) fromOrder(true); else if (isNew && j.productoId && !j.horas) setTimeout(fromProduct); else drawSpoolSel();
   const calcInfo = h('div.tiny.muted');
   const o0 = byId('pedidos', f.pedidoId.value); if (o0 && !calcOf(o0) && isNew) calcInfo.textContent = 'Este producto no tiene horas ni gramos guardados en su calculadora de costes: escríbelos a mano.';
   const msg = h('p.bad-t');
   const colors = [...new Set((S.t.bobinas || []).map(b => b.color).filter(Boolean).concat(COLORES))];
   const m = modal(isNew ? 'Nueva impresión' : 'Editar impresión', h('div.col', h('datalist', { id: 'dl-colores' }, colors.map(c => h('option', { value: c }))),
-    h('div.form', field('Impresora *', f.impresoraId), field('Pedido', f.pedidoId), field('Qué se imprime *', f.titulo, null, 'full'), h('div.full', calcInfo),
+    lote ? h('div.pi-tip.ok', '🧩 Lote de ' + lote.length + ' pedidos (' + loteQ + ' uds.) en una sola impresión: al empezar y al terminar avanzan todos.') : null,
+    h('div.form', field('Impresora *', f.impresoraId), field('Pedido', f.pedidoId), prodBox, field('Qué se imprime *', f.titulo, null, 'full'), h('div.full', calcInfo),
       field('Cantidad', f.cantidad), field('Horas de impresión *', f.horas, 'Del laminador (Bambu Studio / Orca).'), field('Gramos', f.gramos, 'Se descuentan de la bobina al terminar.'), field('Material', f.material),
       field('Color', f.color), field('Bobina', f.bobinaId, null, 'full'), h('div.full', hint), field('Fecha límite', f.fechaLimite), field('Notas', f.notas, null, 'full')), msg),
     close => [btn('Cancelar', close), btn(isNew ? 'Añadir a la cola' : 'Guardar', async ev => {
       msg.textContent = '';
-      const datos = { impresoraId: f.impresoraId.value, pedidoId: f.pedidoId.value, titulo: f.titulo.value.trim(), cantidad: Number(f.cantidad.value) || 1, horas: Number(String(f.horas.value).replace(',', '.')),
+      const datos = { lote: lote ? lote.map(o => o.id) : undefined, impresoraId: f.impresoraId.value, pedidoId: f.pedidoId.value, productoId: f.pedidoId.value ? undefined : prodSel.value, titulo: f.titulo.value.trim(), cantidad: Number(f.cantidad.value) || 1, horas: Number(String(f.horas.value).replace(',', '.')),
         gramos: f.gramos.value === '' ? 0 : Number(f.gramos.value), material: f.material.value, color: f.color.value.trim(), bobinaId: f.bobinaId.value, fechaLimite: f.fechaLimite.value, notas: f.notas.value.trim() };
       if (!datos.titulo && !datos.pedidoId) return msg.textContent = 'Escribe qué se imprime.';
       if (!(datos.horas > 0)) return msg.textContent = 'Indica las horas de impresión (mira el laminador).';
@@ -263,7 +297,7 @@ export function jobForm(j, pedido) {
   return m;
 }
 
-function startDialog(j) {
+export function startDialog(j) {
   const p = byId('impresoras', j.impresoraId);
   const bob = h('select.inp');
   mount(bob, spoolOptions(j.color, j.material, j.bobinaId).map(o => h('option', { value: o.v }, o.t)));
@@ -273,10 +307,10 @@ function startDialog(j) {
   modal('Empezar en la ' + (p ? p.nombre : 'impresora'), h('div.col',
     h('p', h('b', j.titulo), h('br'), h('span.small.muted', 'Tarda ' + hrs(j.horas) + ' · terminará ' + whenTxt(new Date(Date.now() + n(j.horas) * 3600000).toISOString()))),
     field('Bobina que pones', bob, 'Al terminar se descontarán ' + g(j.gramos) + ' de esta bobina.'),
-    o && ['Nuevo', 'Pendiente de revisión', 'Pendiente de fabricación'].includes(o.estado) ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "En fabricación"') : null),
+    o && PRE_PRINT[phase(o)] ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "' + (CL.stateOfPhase(S.cfg.pedidos, 'impresion') || 'En impresión') + '"') : null),
     close => [btn('Cancelar', close), btn('Empezar', async () => { close(); applyJob(await call('trabajos.estado', { id: j.id, estado: 'Imprimiendo', bobinaId: bob.value, marcarPedido: mark.checked }, '▶️ Imprimiendo en la ' + (p ? p.nombre : 'impresora'))); }, { cls: 'primary', icon: 'play' })], { size: 'narrow' });
 }
-function finishDialog(j, estado) {
+export function finishDialog(j, estado) {
   const ok = estado === 'Terminado';
   const grams = inp({ type: 'number', min: 0, step: 1, value: j.gramos || 0 });
   const bob = h('select.inp');
@@ -285,18 +319,25 @@ function finishDialog(j, estado) {
   const o = j.pedidoId ? byId('pedidos', j.pedidoId) : null;
   const others = o ? (S.t.trabajos || []).filter(x => x.pedidoId === o.id && x.id !== j.id && OPEN[x.estado]) : [];
   const mark = h('input', { type: 'checkbox', checked: true }), again = h('input', { type: 'checkbox', checked: true });
+  // v11: lo impreso entra al stock (si era para un pedido, ese pedido ya lo tiene apartado)
+  const prod = j.productoId ? byId('productos', j.productoId) : null, pname = prod ? prod.nombre : o ? o.producto : '';
+  const units = inp({ type: 'number', min: 0, step: 1, value: n(j.cantidad) || 1, style: { width: '90px' } });
+  const stockRow = ok && pname ? h('div.row.wrap.small', '📦 Entran al stock', units, h('span', 'ud. de ' + pname + (o ? ' (apartadas para el pedido nº ' + o.numero + ')' : ''))) : null;
   modal(ok ? '✅ Impresión terminada' : '❌ La impresión falló', h('div.col',
     h('p', h('b', j.titulo)),
     h('div.form', field(ok ? 'Gramos usados' : 'Gramos gastados en el intento', grams, ok ? 'Los del laminador; corrígelo si hiciste cambios.' : 'Aproximado: lo que llegó a imprimir.'), field('De qué bobina', bob)),
-    ok && o && !others.length && ['Nuevo', 'Pendiente de revisión', 'Pendiente de fabricación', 'En fabricación'].includes(o.estado) ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "Fabricado"') : null,
+    stockRow,
+    ok && o && !others.length && PRE_FAB[phase(o)] ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "' + (CL.stateOfPhase(S.cfg.pedidos, 'postpro') || 'Postprocesado') + '"') : null,
     ok && o && others.length ? h('p.tiny.muted', 'Al pedido nº ' + o.numero + ' aún le quedan ' + others.length + ' impresión(es).') : null,
     !ok ? h('label.check.small', again, 'Volver a ponerla la primera de la cola') : null),
     close => [btn('Cancelar', close), btn(ok ? 'Guardar' : 'Guardar fallo', async () => {
       close();
-      const r = await call('trabajos.estado', { id: j.id, estado, gramos: grams.value === '' ? 0 : Number(grams.value), bobinaId: bob.value, marcarPedido: mark.checked, reencolar: !ok && again.checked }, ok ? 'Impresión terminada' + (bob.value && Number(grams.value) ? ' · descontados ' + g(grams.value) : '') : 'Fallo guardado');
+      const r = await call('trabajos.estado', { id: j.id, estado, gramos: grams.value === '' ? 0 : Number(grams.value), bobinaId: bob.value, marcarPedido: mark.checked, reencolar: !ok && again.checked, stock: stockRow ? Math.max(0, Math.round(n(units.value))) : undefined }, ok ? 'Impresión terminada' + (bob.value && Number(grams.value) ? ' · descontados ' + g(grams.value) : '') : 'Fallo guardado');
       if (!r) return;
       applyJob(r);
-      if (r.pedido && r.pedido.estado === 'Fabricado') toast('📦 Pedido nº ' + r.pedido.numero + ' → Fabricado', 'ok');
+      if (r.pedido && phase(r.pedido) === 'postpro') toast('📦 Pedido nº ' + r.pedido.numero + ' → ' + r.pedido.estado, 'ok');
+      if (r.stock && !r.pedido) toast('📦 ' + r.stock.producto + ': ' + r.stock.fisico + ' en la estantería', 'ok');
+      if (r.stock) import('../store.js').then(m => m.pull());
     }, { cls: ok ? 'primary' : 'danger solid', icon: 'check' })], { size: 'narrow' });
 }
 

@@ -2,12 +2,14 @@
 import { h, mount, icon, btn, modal, eur, fdate, ago, avatar, sw, pill } from '../ui.js';
 import { S, can, dash, unreadCount, byId, timing } from '../store.js';
 import { go } from '../app.js';
+import { BAMBU } from '../bambu.js';
 import { gameCard, checkLevelUp, loadFrases, fraseDelDia, game } from '../game.js';
 import { brief, objetivoTexto } from '../ai/celebrity.js';
 
 const CL = window.CL;
 
 const MODS = [
+  { k: 'kpis', t: 'Cifras del negocio (ventas, beneficio, pedidos, taller)' },
   { k: 'celebrity', t: 'Celebrity: resumen del día y objetivos' },
   { k: 'motivacion', t: 'Motivación del día' },
   { k: 'alertas', t: 'Alertas inteligentes' },
@@ -53,7 +55,7 @@ function noorkoHero() {
     h('div.nk-top', h('span.nk-tag', 'ESPACIO INDEPENDIENTE'), h('span.nk-date', S.hoy.split('-').reverse().join('.'))),
     h('h2.nk-word', 'THE NOORKO'),
     h('p.nk-sub', 'Streetwear · drops · catálogo · redes'),
-    h('div.nk-kpis', k(st('borrador'), 'En borrador', 'productos'), k(st('listo'), 'Listos', 'productos'), k(st('publicado'), 'Publicados', 'catalogo'), k(st('vendido'), 'Vendidos', 'productos'), k(abiertos, 'Pedidos abiertos', 'pedidos'), k(sem, 'Posts 7 días', 'redes')));
+    h('div.nk-kpis', k(st('idea'), 'Ideas', 'productos'), k(st('publicado'), 'Publicados', 'catalogo'), k(st('archivado'), 'Archivados', 'productos'), k(abiertos, 'Pedidos abiertos', 'pedidos'), k(sem, 'Posts 7 días', 'redes')));
 }
 
 let frasesLoaded = false, fraseOff = 0;
@@ -70,13 +72,41 @@ function draw(root) {
     h('div.page-head', h('div', h('h1', greet()), h('div.muted', hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1))), h('div.right.row',
       can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),
+    mods.some(m => m.k === 'kpis') ? kpiStrip(d) : null,
     mods.some(m => m.k === 'celebrity') ? MOD_FNS.celebrity(d) : null,
     mods.some(m => m.k === 'motivacion') ? MOD_FNS.motivacion(d) : null,
     h('div.grid', { style: { gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', alignItems: 'start' }, class: 'home-grid' },
       h('div.col', { style: { gap: 'var(--gap)' } }, attention(d), ...mods.filter(m => ['inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)),
-      h('div.col', { style: { gap: 'var(--gap)' } }, mods.filter(m => !['celebrity', 'motivacion', 'inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)))
+      h('div.col', { style: { gap: 'var(--gap)' } }, mods.filter(m => !['kpis', 'celebrity', 'motivacion', 'inteligencia', 'alertas'].includes(m.k)).map(m => MOD_FNS[m.k](d)).filter(Boolean)))
   );
   if (window.innerWidth <= 860) root.querySelector('.home-grid').style.gridTemplateColumns = '1fr';
+}
+
+// v11: tablero de cifras — lo primero que ves (cada tarjeta lleva a su sitio)
+function kpiStrip(d) {
+  const costs = can('productos.costes') && can('informes.ver'), sales = can('informes.ver');
+  const ms = S.hoy.slice(0, 8) + '01';
+  const pHoy = costs ? CL.profitSummary(S.t, S.cfg, S.hoy, S.hoy) : null, pMes = costs ? CL.profitSummary(S.t, S.cfg, ms, S.hoy) : null;
+  const jobs = S.t.trabajos || [], busyIds = new Set(jobs.filter(j => j.estado === 'Imprimiendo').map(j => j.impresoraId));
+  // v11.2: cuenta también las Bambu que imprimen algo lanzado fuera del programa
+  (BAMBU.list || []).filter(b => b.conectada && ['imprimiendo', 'pausada', 'preparando'].includes(b.estado)).forEach(b => busyIds.add(b.impresoraId || b.serial));
+  const printing = busyIds.size, queued = jobs.filter(j => j.estado === 'En cola').length;
+  const aviso = Number((S.cfg.taller || {}).avisoGramos) || 150;
+  const lowSpool = (S.t.bobinas || []).filter(b => b.estado !== 'Agotada' && Number(b.restante) <= aviso).length;
+  const top = {}; S.t.pedidos.filter(o => o.fecha >= ms && !CL.stateOf(S.cfg.pedidos, o.estado).cancelled).forEach(o => { top[o.producto] = (top[o.producto] || 0) + (Number(o.cantidad) || 1); });
+  const best = Object.entries(top).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const tile = (ic, v, l, sub, path, cls) => h('button.kt' + (cls ? '.' + cls : ''), { onclick: () => go(path) }, h('span.ki', ic), h('span.kv', v), h('span.kl', l), sub ? h('span.ks', sub) : null);
+  const tiles = [
+    sales ? tile('💶', eur(d.ventas.hoy), 'Ventas hoy', d.ventas.mes ? eur(d.ventas.mes) + ' este mes' : '', 'informes') : null,
+    costs ? tile('📈', eur(pHoy.beneficio), 'Beneficio hoy', pHoy.sinCoste ? pHoy.sinCoste + ' sin coste' : '', 'informes', pHoy.beneficio < 0 ? 'bad' : '') : null,
+    costs ? tile('🗓️', eur(pMes.beneficio), 'Beneficio del mes', pMes.margen !== null ? 'margen ' + Math.round(pMes.margen * 100) + ' %' : '', 'informes', pMes.beneficio < 0 ? 'bad' : 'ok') : null,
+    can('pedidos.ver') ? tile('📦', String(d.pedidos.abiertos), 'Pedidos pendientes', [d.pedidos.vencidos.length ? d.pedidos.vencidos.length + ' vencidos' : '', d.pedidos.enviar ? d.pedidos.enviar + ' por enviar' : ''].filter(Boolean).join(' · '), 'hoy', d.pedidos.vencidos.length ? 'bad' : '') : null,
+    can('chat.usar') ? tile('💬', String(S.chatUnread || 0), 'Mensajes sin leer', '', 'chat', S.chatUnread ? 'warn' : '') : null,
+    can('taller.ver') ? tile('🖨️', String(printing), 'Imprimiendo ahora', queued ? queued + ' en cola' : 'cola vacía', 'hoy') : null,
+    can('taller.ver') ? tile('🧵', String(lowSpool), 'Filamento crítico', lowSpool ? 'bobinas casi vacías' : 'todo bien', 'taller/filamento', lowSpool ? 'warn' : '') : null,
+    best.length ? h('div.kt.top', h('span.ki', '🏆'), h('span.kl', 'Más vendidos del mes'), h('div.kbest', best.map((b, i) => h('div.row', h('span.grow.ellipsis', (i + 1) + '. ' + b[0]), h('b', b[1] + ' ud.'))))) : null
+  ].filter(Boolean);
+  return tiles.length ? h('section.kstrip', tiles) : null;
 }
 
 function attention(d) {

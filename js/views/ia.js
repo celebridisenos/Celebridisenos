@@ -58,6 +58,8 @@ export function render(el, params) {
   const body = h('div');
   el.append(head, status, tabs, body);
   drawStatus();
+  // v11: al abrir Celebrity el modelo local se precarga en segundo plano (la primera respuesta sale antes)
+  if (desktop.on) import('../ai/engine.js').then(m => m.warmUp()).catch(() => { });
   function drawTabs() {
     mount(tabs, [['chat', 'Conversación'], ['objetivos', 'Objetivos'], ['biblioteca', 'Biblioteca'], ['memoria', 'Memoria'], ['actividad', 'Actividad']].map(t => h('button' + (st.tab === t[0] ? '.on' : ''), { onclick: () => { st.tab = t[0]; history.replaceState(null, '', '#/ia' + (t[0] === 'chat' ? '' : '/' + t[0])); drawTabs(); show(); } }, t[1])));
   }

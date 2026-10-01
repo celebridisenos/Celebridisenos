@@ -11,12 +11,12 @@ import { download, uploadFile } from '../files.js';
 import { copyText } from '../ui.js';
 
 const CL = window.CL;
-// v10: BORRADOR → LISTO → PUBLICADO → VENDIDO → ARCHIVADO (se conservan los de antes)
-export const STATES = ['Borrador', 'En proceso', 'Listo', 'Publicado', 'Reservado', 'Vendido', 'Archivado', 'Retirado'];
-const NEXT = { 'Borrador': ['Listo'], 'En proceso': ['Listo'], 'Listo': ['Publicado'], 'Publicado': ['Vendido', 'Reservado'], 'Reservado': ['Vendido', 'Publicado'], 'Vendido': ['Archivado'], 'Archivado': ['Borrador'], 'Retirado': ['Borrador'] };
-const ST_CLS = { 'Borrador': '', 'En proceso': 'info', 'Listo': 'info', 'Publicado': 'brand', 'Reservado': 'warn', 'Vendido': 'ok', 'Archivado': '', 'Retirado': '' };
-const LEGACY = { EN_PROCESO: 'En proceso', PUBLICADO: 'Publicado', RESERVADO: 'Reservado', VENDIDO: 'Vendido', RETIRADO: 'Retirado', BORRADOR: 'Borrador', LISTO: 'Listo', ARCHIVADO: 'Archivado' };
-export const pState = s => LEGACY[String(s || '').toUpperCase()] || s || 'En proceso';
+// v11: un diseño bajo demanda se vende muchas veces: IDEA → PUBLICADO → ARCHIVADO (los antiguos se convierten solos)
+export const STATES = ['Idea', 'Publicado', 'Archivado'];
+const NEXT = { 'Idea': ['Publicado'], 'Publicado': ['Archivado'], 'Archivado': ['Publicado'] };
+const ST_CLS = { 'Idea': 'info', 'Publicado': 'brand', 'Archivado': '' };
+const LEGACY = { BORRADOR: 'Idea', EN_PROCESO: 'Idea', LISTO: 'Idea', IDEA: 'Idea', PUBLICADO: 'Publicado', RESERVADO: 'Publicado', VENDIDO: 'Publicado', RETIRADO: 'Archivado', ARCHIVADO: 'Archivado' };
+export const pState = s => LEGACY[String(s || '').toUpperCase().replace(/ /g, '_')] || s || 'Idea';
 const PLATFORMS = [{ k: 'wallapop', t: 'Wallapop / venta directa' }, { k: 'vinted', t: 'Vinted' }, { k: 'etsy', t: 'Etsy' }];
 const pretty = s => String(s || '').replace(/^\d+_/, '').replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase()).replace(/\bBano\b/g, 'Baño').replace(/\bNinos\b/g, 'Niños').replace(/\bJardin\b/g, 'Jardín').replace(/\bDecoracion\b/g, 'Decoración');
 
@@ -64,13 +64,16 @@ function productDrawer(id, onClose) {
       const p = byId('productos', id);
       if (!p) return mount(d, h('div.drawer-h', h('h2.grow', 'Producto'), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })), h('div.drawer-b', empty('alert', 'Este producto ya no existe')));
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
-      const tabs = [['resumen', 'Resumen'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], ['pedidos', 'Pedidos (' + orders.length + ')'], ['historial', 'Historial']].filter(Boolean);
+      const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
       mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '14px' } }, h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
-            can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Listo']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
+            can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Publicado']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
             can('pedidos.crear') ? btn('Nuevo pedido', () => import('./pedidos.js').then(m => m.orderForm({ producto: p.nombre, productoId: p.id, precio: p.precio })), { icon: 'plus', cls: 'sm' }) : null,
+            btn('Etiqueta', () => productLabel(p), { icon: 'printer', cls: 'sm' }),
+            btn('Anuncio con IA', () => { closeAll(); go('anuncios/' + p.id + '/' + ((S.cfg.anuncios && S.cfg.anuncios.plataforma) || 'etsy')); }, { icon: 'sparkles', cls: 'sm' }),
+            desktop.on && can('config.ver') ? btn('Publicar con CelebryNova', () => import('./celebrynova.js').then(m => m.publishWithNova(p, modal, go)), { icon: 'send', cls: 'sm' }) : null,
             can('productos.editar') ? btn('Editar', () => productWizard(p), { icon: 'edit', cls: 'sm' }) : null,
             can('productos.borrar') ? btn('Borrar', () => delProduct(p, closeAll), { cls: 'danger sm', icon: 'trash' }) : null)));
       PTABS[tab](body, p, orders);
@@ -87,9 +90,14 @@ const PTABS = {
         fact('SKU', p.sku || p.id), fact('Tallas', na(p.tallas)), fact('Color', na(p.color)), fact('Material', na(p.material)), fact('Tamaño', na(p.tamano)), fact('Peso', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
       p.descripcion ? h('div', { style: { marginTop: '12px' } }, h('div.lbl', 'Descripción'), h('p', { style: { whiteSpace: 'pre-wrap' } }, p.descripcion)) : null,
       h('dl.kv', { style: { marginTop: '12px' } }, h('dt', 'Origen'), h('dd', [p.fuente, p.enlace].filter(Boolean).join(' · ') || h('span.na', 'No disponible')), h('dt', 'Licencia'), h('dd', na(p.licencia)), h('dt', 'Carpeta'), h('dd', p.ruta ? h('span.row', h('span.ellipsis', p.ruta), desktop.on ? btn('Abrir', () => desktop.open(p.ruta).catch(e => toast(e.message, 'bad')), { cls: 'sm', icon: 'folder' }) : null) : h('span.na', 'Sin carpeta')), h('dt', 'Creado por'), h('dd', na(p.creadoPor))),
-      stockInfo(p));
+      stockCard(p));
   },
-  precio(el, p) { mount(el, priceAssistant(p)); },
+  precio(el, p) {
+    // v11.3: primero el coste REAL por receta (con su desglose); debajo, la calculadora del Excel de siempre
+    const box = h('div.col', { style: { gap: '14px' } }, h('p.muted.small', 'Cargando…'));
+    mount(el, box);
+    import('./costes.js').then(C => mount(box, C.productCostCard(p), h('details', h('summary.small', 'Calculadora del Excel (hoja Productos)'), priceAssistant(p))));
+  },
   // v10: textos listos para Vinted, Wallapop, Etsy, Instagram y TikTok + documento Word
   venta(el, p) {
     const box = h('div.col', { style: { gap: '12px' } });
@@ -128,9 +136,23 @@ const PTABS = {
       }).catch(e => mount(local, h('p.small.warn-t', 'No se puede abrir la carpeta del producto: ' + e.message)));
     }
   },
+  // v11: rendimiento del diseño (biblioteca de diseños): ventas, beneficio, horas de impresión, clientes
   pedidos(el, p, orders) {
     const valid = orders.filter(o => !CL.stateOf(S.cfg.pedidos, o.estado).cancelled);
-    mount(el, h('div.facts', fact('Pedidos', String(valid.length)), fact('Unidades', String(valid.reduce((s, o) => s + (Number(o.cantidad) || 1), 0))), can('informes.ver') ? fact('Ventas', eur(valid.reduce((s, o) => s + CL.orderTotal(o), 0))) : null),
+    const uds = valid.reduce((s, o) => s + (Number(o.cantidad) || 1), 0);
+    const pr = can('productos.costes') ? valid.map(o => CL.orderProfit(o, S.t, S.cfg)) : [];
+    const ben = pr.filter(x => x.beneficio !== null).reduce((s, x) => s + x.beneficio, 0), withCost = pr.filter(x => x.beneficio !== null);
+    const ventas = valid.reduce((s, o) => s + CL.orderTotal(o), 0);
+    const calc = S.t.calculadora.find(c => CL.norm(c.nombre) === CL.norm(p.nombre));
+    const horas = (Number(calc && calc.horas) || Number(p.horas) || 0) * uds;
+    const last = valid.map(o => o.fecha).sort().pop();
+    const clientes = new Set(valid.map(o => CL.norm(o.cliente))).size;
+    const files = filesOf('productos', p.id);
+    mount(el, h('div.facts', fact('Vendidas', uds + ' ud.'), fact('Pedidos', String(valid.length)), can('informes.ver') ? fact('Ventas', eur(ventas)) : null,
+      can('productos.costes') ? fact('Beneficio generado', withCost.length ? h('b', { class: ben < 0 ? 'bad-t' : 'ok-t' }, eur(ben)) : na('sin costes')) : null,
+      can('productos.costes') && withCost.length && ventas ? fact('Margen medio', Math.round(ben / ventas * 100) + ' %') : null,
+      fact('Horas de impresora', horas ? Math.round(horas * 10) / 10 + ' h' : na('')), fact('Clientes distintos', String(clientes)), fact('Última venta', last ? fdate(last) : na('Nunca')),
+      fact('Archivos', files.filter(a => a.tipo === 'stl').length + ' STL · ' + files.filter(a => a.tipo === 'foto').length + ' fotos')),
       orders.length ? h('div.list.boxed', { style: { marginTop: '12px' } }, orders.slice().reverse().map(o => h('div.item', { onclick: () => go('pedidos/' + o.id) }, h('b', 'nº ' + o.numero), h('span.grow.ellipsis', o.cliente), pill(o.estado, '', stateColor(o.estado)), h('span.small', eur(CL.orderTotal(o)))))) : h('p.muted', 'Sin pedidos todavía.'));
   },
   historial(el, p) {
@@ -139,10 +161,24 @@ const PTABS = {
   }
 };
 function fact(l, v) { return h('div.fact', h('div.l', l), h('div.v', v)); }
-function stockInfo(p) {
-  const s = S.t.stock.find(x => CL.norm(x.producto) === CL.norm(p.nombre));
-  if (!s) return null;
-  return h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row', h('b', 'Stock (hoja Stock del Sheet)'), s.alerta ? pill(s.alerta, /rep/i.test(s.alerta) ? 'warn' : 'ok') : null), h('p.small', (s.unidades === '' ? 'Sin datos' : s.unidades + ' unidades') + (s.ubicacion ? ' · ' + s.ubicacion : '') + (s.minimo !== '' ? ' · mínimo ' + s.minimo : '')));
+// v11: etiqueta de producto / QR / ubicación al tamaño exacto
+export function productLabel(p) {
+  const x = stockLevel(p.nombre);
+  import('../labels.js').then(L => L.labelDialog('producto', [p], {
+    plantillas: ['producto', 'qr', 'almacen'],
+    dataFor: t => t === 'producto' ? L.dataFor('producto', { p }) : t === 'almacen' ? L.dataFor('almacen', { p, nombre: p.nombre, ubicacion: (x && x.ubicacion) || '' }) : L.dataFor('qr', { tipo: 'producto', id: p.id, titulo: p.nombre })
+  }));
+}
+// v11: stock del producto (la cuenta completa está en la pestaña Stock)
+function stockLevel(name) { return CL.stockLevels({ productos: S.t.productos, stock: S.t.stock, fabricacion: S.t.fabricacion || [], pedidos: S.t.pedidos }, S.cfg.pedidos).of(name); }
+function stockCard(p) {
+  const x = stockLevel(p.nombre);
+  const go2 = () => go('stock/' + encodeURIComponent(p.nombre));
+  if (!x || !x.controlado) return h('div.card.flat.row', { style: { marginTop: '12px' } }, h('span.grow.small.muted', '📦 Sin control de stock (bajo demanda).' + (x && x.reservado ? ' ' + x.reservado + ' apartada(s) para pedidos.' : '')), can('stock.mover') ? btn('Tengo unidades', go2, { cls: 'sm' }) : null);
+  const mv = d => btn(d > 0 ? '+1' : '−1', () => import('./stock.js').then(m => m.move(p.nombre, d)), { cls: 'sm', disabled: d < 0 && x.fisico <= 0 });
+  return h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row.wrap', h('b.grow', '📦 Stock' + (x.ubicacion ? ' · ' + x.ubicacion : '')), x.bajo ? pill(x.disponible < 0 ? 'Faltan ' + (-x.disponible) : 'Reponer', x.disponible < 0 ? 'bad' : 'warn') : pill('OK', 'ok')),
+    h('div.st-big.sm', h('div', h('b', String(x.fisico)), h('span', 'Estantería')), h('div', h('b', String(x.reservado)), h('span', 'Apartadas')), h('div', h('b', String(x.disponible)), h('span', 'Disponibles'))),
+    h('div.row.wrap', can('stock.mover') ? [mv(-1), mv(1)] : null, h('span.grow'), btn('Ver stock e historial', go2, { cls: 'sm ghost' })));
 }
 async function view3DLocal(path, name) {
   const c = h('canvas.stl-view');
@@ -194,7 +230,7 @@ export function priceAssistant(p, costsIn, onPick) {
 // v10: al pasar a LISTO, Celebrity genera el documento de venta y lo guarda en el producto
 async function changeState(p, estado) {
   await saveProduct(p, { estado });
-  if (estado === 'Listo' && can('archivos.subir')) {
+  if (estado === 'Publicado' && can('archivos.subir') && !filesOf('productos', p.id).some(a => /^Venta - /.test(a.nombre || ''))) {
     try { const d = await generate(p); await saveDoc(p, d); toast('✨ Celebrity ha preparado el documento de venta (Textos de venta y Archivos)', 'ok', 6000); api('ia.registrar', { tipo: 'documento', resumen: 'Documento de venta de ' + p.nombre + ' (' + (p.sku || p.id) + ')', herramientas: ['documento'], acciones: [] }).catch(() => { }); }
     catch (e) { toast('No se pudo generar el documento: ' + e.message, 'warn'); }
   }
@@ -322,6 +358,10 @@ export function productWizard(p) {
     descripcion: area({ value: p.descripcion || '', placeholder: 'Texto para el anuncio: medidas, colores disponibles, detalles…' }),
     estado: sel(STATES, pState(p.estado)), precio: inp({ type: 'number', min: 0, step: 0.1, value: p.precio || '' })
   };
+  // v11: stock desde el primer momento (bajo demanda lo normal es 0)
+  const lv = p.nombre ? stockLevel(p.nombre) : null;
+  const sk = { unidades: inp({ type: 'number', min: 0, step: 1, inputmode: 'numeric', value: lv && lv.controlado ? Math.max(0, lv.fisico) : 0 }), minimo: inp({ type: 'number', min: 0, step: 1, inputmode: 'numeric', value: lv && lv.minimo ? lv.minimo : '', placeholder: 'Sin aviso' }), ubicacion: inp({ value: (lv && lv.ubicacion) || '', placeholder: 'Ej.: Estantería 2 · caja A3' }) };
+  const skBox = h('div.stock-ask', h('div.lbl', '📦 Stock'), h('div.form', field('Unidades que tienes ahora', sk.unidades, 'Bajo demanda: deja 0. Se suman solas al terminar impresiones.'), field('Stock mínimo', sk.minimo, 'Aviso (app + Telegram) al bajar de aquí.'), field('Ubicación física', sk.ubicacion)));
   const cCat = combo(f.categoria), cSub = combo(f.subcategoria);
   { const sh = sharedTree().map(x => x.c); if (sh.length) cats = [...new Set(sh.concat(cats))]; cCat.set(sh.length ? sh.concat(S.t.productos.map(x => x.categoria)) : cats); } loadSubs();
   f.categoria.addEventListener('change', () => { f.subcategoria.value = ''; loadSubs(); });
@@ -338,18 +378,26 @@ export function productWizard(p) {
     if (step === 0) mount(body, bar, h('h3', titles[0]), h('datalist', { id: 'dl-pcat' }, cats.map(c => h('option', { value: c }))), h('datalist', { id: 'dl-psub' }, subs.map(c => h('option', { value: c }))),
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
         field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full')),
+      can('stock.mover') || can('productos.editar') ? skBox : null,
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),
-      h('div.drops', { style: { marginTop: '12px' } }, zones.foto.el, zones.video.el, zones.stl.el), msg);
+      h('div.drops', { style: { marginTop: '12px' } }, zones.foto.el, zones.video.el, zones.stl.el), missingHint(), msg);
     if (step === 2) {
       if (!pa) pa = priceAssistant(p.id ? p : null, null, (v) => { f.precio.value = v; toast('Precio puesto: ' + eur(v), 'ok'); });
       mount(body, bar, h('h3', titles[2]), h('p.small.muted', 'Rellena lo que sepas: el resto (IVA, margen, luz, mano de obra, comisiones) sale de la Configuración.'),
         can('productos.costes') ? pa : h('p.muted', '🔒 No tienes permiso para ver costes.'), h('div.form', { style: { marginTop: '12px' } }, field('Precio de venta (€)', f.precio, 'Pulsa "Usar" en la tabla o escríbelo.')), msg);
     }
     mount(foot, step > 0 ? btn('Atrás', () => { step--; draw(); }) : btn('Cancelar', async () => { if (anyFiles() && !await confirmDlg('Descartar', '¿Descartar el producto y los archivos preparados?', 'Descartar', true)) return; m.close(); }), h('span.grow'),
+      step < 2 ? btn(isNew ? 'Crear ya' : 'Guardar ya', ev => { if (!f.nombre.value.trim()) { msg.textContent = 'Escribe el nombre del producto.'; return; } saveAll(ev); }, { cls: 'ghost', title: 'Guardar ahora; los archivos y costes se pueden añadir después' }) : null,
       step < 2 ? btn('Siguiente', next, { cls: 'primary' }) : btn(isNew ? 'Crear producto' : 'Guardar', saveAll, { cls: 'primary', icon: 'check' }));
   };
   const anyFiles = () => Object.values(zones).some(z => z.items.length);
+  // v11: recordatorios sin ventanas que bloqueen (antes eran dos preguntas seguidas)
+  const missingHint = () => {
+    const has = t => zones[t].items.some(i => !i.err) || (p.id && filesOf('productos', p.id).some(a => a.tipo === t));
+    const miss = [f.tipo.value === '3D' && !has('stl') ? 'el STL/3MF (os ahorrará buscarlo después)' : null, !has('foto') ? 'una foto (ayuda a venderlo)' : null].filter(Boolean);
+    return miss.length ? h('p.small.muted', { style: { marginTop: '10px' } }, '💡 Falta ' + miss.join(' y ') + '. Puedes seguir y añadirlo cuando quieras.') : null;
+  };
   async function next() {
     if (step === 0) {
       if (!f.nombre.value.trim()) return msg.textContent = 'Escribe el nombre del producto.';
@@ -358,22 +406,24 @@ export function productWizard(p) {
     }
     if (step === 1) {
       if (Object.values(zones).some(z => z.busy())) return msg.textContent = 'Espera a que terminen de prepararse las vistas previas…';
-      const hasStl = zones.stl.items.some(i => !i.err) || (p.id && filesOf('productos', p.id).some(a => a.tipo === 'stl'));
-      if (f.tipo.value === '3D' && !hasStl && !await confirmDlgSimple('¿Sin archivo STL?', 'Es un producto 3D y no has adjuntado el STL o 3MF. Guardarlo con el producto os ahorrará buscarlo después. ¿Seguir sin él?')) return;
-      if (!zones.foto.items.some(i => !i.err) && !(p.id && filesOf('productos', p.id).some(a => a.tipo === 'foto')) && !await confirmDlgSimple('¿Sin foto?', 'Una foto ayuda mucho a reconocer el producto (y a venderlo). ¿Seguir sin foto?')) return;
     }
     step++; draw();
   }
-  function confirmDlgSimple(t, x) { return confirmDlg(t, x, 'Seguir sin él'); }
   async function saveAll(ev) {
     const b = ev.target.closest('button'); b.disabled = true; b.textContent = 'Guardando…';
     const datos = {}; Object.keys(f).forEach(k => { datos[k] = typeof f[k].value === 'string' ? f[k].value.trim() : f[k].value; });
     if (datos.precio === '') delete datos.precio; else datos.precio = Number(datos.precio);
     const costes = pa && can('productos.costes') ? pa.getCosts() : null;
+    // v11: unidades, mínimo y ubicación (solo si se han tocado o el producto es nuevo con datos)
+    let stock = null;
+    { const u = sk.unidades.value === '' ? '' : Math.round(Number(sk.unidades.value)), mi = sk.minimo.value === '' ? '' : Math.round(Number(sk.minimo.value)), ub = sk.ubicacion.value.trim();
+      const was = { u: lv && lv.controlado ? Math.max(0, lv.fisico) : 0, mi: lv && lv.minimo ? lv.minimo : '', ub: (lv && lv.ubicacion) || '' };
+      if (String(u) !== String(was.u) || String(mi) !== String(was.mi) || ub !== was.ub) stock = { unidades: String(u) !== String(was.u) && can('stock.mover') ? u : undefined, minimo: mi, ubicacion: ub }; }
     try {
       let prod;
-      if (isNew) prod = await mutate('productos.guardar', { datos, costes }, { onlineOnly: true, label: 'Nuevo producto' });
-      else { const orig = {}; Object.keys(datos).forEach(k => { orig[k] = p[k] ?? ''; }); prod = await mutate('productos.guardar', { id: p.id, datos, orig, costes }, { onlineOnly: true }); }
+      if (isNew) prod = await mutate('productos.guardar', { datos, costes, stock }, { onlineOnly: true, label: 'Nuevo producto' });
+      else { const orig = {}; Object.keys(datos).forEach(k => { orig[k] = p[k] ?? ''; }); prod = await mutate('productos.guardar', { id: p.id, datos, orig, costes, stock }, { onlineOnly: true }); }
+      if (prod && prod._stock) { import('../store.js').then(m => m.pull()); delete prod._stock; }
       upsertLocal('productos', prod); emit();
       // Carpeta en el ordenador + archivos
       let dir = prod.ruta;

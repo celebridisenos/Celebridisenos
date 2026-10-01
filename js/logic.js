@@ -30,6 +30,19 @@ var CL = (function () {
     return m;
   }
   function stateOf(cfgPedidos, k) { return stateMap(cfgPedidos)[k] || { k: k, open: true, c: '#64748b' }; }
+  // v11: fase fija de cada estado (la lógica usa la fase, nunca el nombre). Reconoce también los nombres antiguos.
+  var OLD_PHASE = { 'nuevo': 'confirmado', 'pendiente de revision': 'confirmado', 'pendiente de fabricacion': 'confirmado', 'incidencia': 'confirmado', 'reservado': 'reserva', 'apartado': 'reserva',
+    'en fabricacion': 'impresion', 'fabricado': 'postpro', 'empaquetado': 'listo', 'listo para enviar': 'listo', 'en transito': 'enviado', 'en reparto': 'enviado' };
+  var PHASES = ['reserva', 'confirmado', 'impresion', 'postpro', 'listo', 'enviado', 'entregado', 'cancelado'];
+  function phaseOf(cfgPedidos, k) {
+    var st = stateOf(cfgPedidos || {}, k);
+    if (st.f) return st.f;
+    if (st.cancelled) return 'cancelado';
+    if (st.done) return 'entregado';
+    if (st.shipped) return 'enviado';
+    return OLD_PHASE[norm(k)] || 'confirmado';
+  }
+  function stateOfPhase(cfgPedidos, f) { var l = (cfgPedidos || {}).estados || []; for (var i = 0; i < l.length; i++) if (l[i].f === f) return l[i].k; return ''; }
 
   // ---------- Pedidos: plazos ----------
   function orderTiming(o, cfgPedidos, hoy) {
@@ -92,8 +105,13 @@ var CL = (function () {
     if (n(fr.minGasto) > 0) conds.push(wGasto >= n(fr.minGasto));
     st.frecuente = conds.length ? (fr.modo === 'y' ? conds.every(Boolean) : conds.some(Boolean)) : false;
     if (st.frecuente) st.etiquetas.push({ k: 'frecuente', t: 'Cliente frecuente', i: '⭐' });
-    if (valid.length >= 2) st.etiquetas.push({ k: 'recurrente', t: 'Cliente recurrente', i: '💬' });
-    if (cc.altoValor && n(cc.altoValor.minGasto) > 0 && gasto >= n(cc.altoValor.minGasto)) st.etiquetas.push({ k: 'altovalor', t: 'Alto valor', i: '📈' });
+    // v11 · CRM: VIP / Recurrente / Mayorista (automáticas o puestas a mano en "Etiquetas")
+    var manual = ',' + norm(c && c.etiquetas).replace(/\s*,\s*/g, ',') + ',';
+    var has = function (t) { return manual.indexOf(',' + t + ',') >= 0; };
+    var maxQ = valid.reduce(function (a, o) { return Math.max(a, n(o.cantidad) || 1); }, 0);
+    if (valid.length >= 2 || has('recurrente')) st.etiquetas.push({ k: 'recurrente', t: 'Recurrente', i: '🔁' });
+    if ((cc.altoValor && n(cc.altoValor.minGasto) > 0 && gasto >= n(cc.altoValor.minGasto)) || has('vip')) st.etiquetas.push({ k: 'altovalor', t: 'VIP', i: '👑' });
+    if (has('mayorista') || maxQ >= (n(cc.mayoristaUds) || 10)) st.etiquetas.push({ k: 'mayorista', t: 'Mayorista', i: '🏭' });
     if (st.frecuente && !activos.length) st.etiquetas.push({ k: 'descuento', t: 'Posible descuento', i: '🎁' });
     if (valid.length && st.diasDesdeUltimo !== null && st.diasDesdeUltimo >= n(cc.inactivoDias || 120)) st.etiquetas.push({ k: 'inactivo', t: 'Hace ' + st.diasDesdeUltimo + ' días que no compra', i: '💤' });
     if (st.incidencias >= n(cc.incidenciasAviso || 2)) st.etiquetas.push({ k: 'incidencias', t: st.incidencias + ' incidencias', i: '⚠️' });
@@ -112,7 +130,7 @@ var CL = (function () {
     hoy = hoy || today();
     var cp = cfg.pedidos;
     var pedidos = data.pedidos || [], tareas = data.tareas || [], redes = data.redes || [];
-    var r = { pedidos: { total: pedidos.length, abiertos: 0, urgentes: [], vencidos: [], proximos: [], incidencias: [], fabricar: 0, fabricando: 0, empaquetar: 0, enviar: 0, enviados: 0, porEstado: {} },
+    var r = { pedidos: { total: pedidos.length, abiertos: 0, urgentes: [], vencidos: [], proximos: [], incidencias: [], reservados: 0, fabricar: 0, fabricando: 0, empaquetar: 0, enviar: 0, enviados: 0, porEstado: {} },
       tareas: { pendientes: 0, mias: 0, vencidas: 0, hoy: 0, enProgreso: 0, bloqueadas: 0, completadasHoy: 0 },
       redes: { hoy: [], semana: 0, publicadasSemana: 0, sinPreparar: 0 },
       ventas: { hoy: 0, semana: 0, mes: 0, pedidosSemana: 0, pedidosMes: 0, mesAnterior: 0 },
@@ -127,10 +145,12 @@ var CL = (function () {
       if (t.abierto && (t.nivel === 'soon' || t.nivel === 'today')) r.pedidos.proximos.push(o.id);
       if (isUrgent(o, t)) r.pedidos.urgentes.push(o.id);
       if (st.issue || (s(o.incidencia) && t.abierto)) r.pedidos.incidencias.push(o.id);
-      if (o.estado === 'Pendiente de fabricación' || o.estado === 'Nuevo' || o.estado === 'Pendiente de revisión') r.pedidos.fabricar++;
-      if (o.estado === 'En fabricación') r.pedidos.fabricando++;
-      if (o.estado === 'Fabricado') r.pedidos.empaquetar++;
-      if (o.estado === 'Empaquetado' || o.estado === 'Listo para enviar') r.pedidos.enviar++;
+      var ph = phaseOf(cp, o.estado);
+      if (ph === 'reserva') r.pedidos.reservados++;
+      if (ph === 'confirmado') r.pedidos.fabricar++;
+      if (ph === 'impresion') r.pedidos.fabricando++;
+      if (ph === 'postpro') r.pedidos.empaquetar++;
+      if (ph === 'listo') r.pedidos.enviar++;
       if (st.shipped) r.pedidos.enviados++;
       if (!st.cancelled && o.fecha) {
         var tot = orderTotal(o);
@@ -231,6 +251,12 @@ var CL = (function () {
     });
     var prodById = {};
     (data.productos || []).forEach(function (p) { prodById[p.id] = p; });
+    // v11.3: productos con receta de materiales y SIN coste en la calculadora del Excel → coste de la receta
+    if ((data.recetas || []).length) (data.productos || []).forEach(function (p) {
+      if (byId[s(p.id)] || byName[norm(p.nombre)]) return;
+      var c = productCost(p.id, data, pp);
+      if (c.tieneReceta && c.total !== null) byId[s(p.id)] = { coste: c.total, recomendado: 0, minimo: 0, nombre: p.nombre, envio: 0, receta: true, estado: c.estado };
+    });
     return function (o) {
       var p = o.productoId ? prodById[o.productoId] : null;
       return (p && (byId[s(p.id)] || byName[norm(p.nombre)])) || byId[s(o.productoId)] || byName[norm(o.producto)] || null;
@@ -278,6 +304,20 @@ var CL = (function () {
     if (want && maxD !== null && maxD < want) out.notas.push('No se recomienda más de un ' + Math.round(maxD * 100) + ' % para no bajar del margen mínimo (' + Math.round(minM * 100) + ' %).');
     var price = n(o.precio) > 0 ? n(o.precio) : sug;
     out.precio = price;
+    // v11: rango sugerido (nunca se impone: el usuario decide)
+    var base = out.recomendado || sug;
+    if (base) {
+      var rnd = function (x, mode) { var st = x < 10 ? 0.5 : 1, f = mode === 'up' ? Math.ceil : Math.round; return f(x / st - (mode === 'up' ? 1e-9 : 0)) * st; };
+      var lo = Math.max(rnd(base * 0.95), out.minimo ? rnd(n(out.minimo), 'up') : 0), hi = rnd(Math.max(base * 1.08, n(out.anterior) > base ? n(out.anterior) : 0));
+      if (hi <= lo) hi = lo + (lo < 10 ? 0.5 : 1);
+      out.rango = [lo, hi];
+      if (price) {
+        if (out.minimo && price < out.minimo) out.sugerencia = { nivel: 'bad', texto: 'Por debajo del mínimo: no bajes de ' + e2(out.minimo) + ' €. Podrías intentar entre ' + e2(lo) + ' € y ' + e2(hi) + ' €.' };
+        else if (price < lo) out.sugerencia = { nivel: 'warn', texto: 'Podrías intentar venderlo entre ' + e2(lo) + ' € y ' + e2(hi) + ' €.' };
+        else if (price <= hi) out.sugerencia = { nivel: 'ok', texto: 'Precio dentro del rango recomendado (' + e2(lo) + ' – ' + e2(hi) + ' €).' };
+        else out.sugerencia = { nivel: 'info', texto: 'Por encima del rango habitual (' + e2(lo) + ' – ' + e2(hi) + ' €): perfecto si el cliente lo acepta.' };
+      }
+    }
     if (price && ci) {
       out.beneficioUnidad = r2(price - ci.coste);
       out.beneficio = r2((price - ci.coste) * qty);
@@ -304,6 +344,9 @@ var CL = (function () {
     costOf = costOf || costIndex(data || {}, pp);
     var total = orderTotal(o), qty = n(o.cantidad) || 1, ci = costOf(o);
     var unit = ci ? Math.max(0, ci.coste - n(ci.envio)) : null;
+    // v11.3: el coste CONGELADO del pedido (precios de su fecha) manda sobre el coste de hoy
+    var snap = o.costeSnap && typeof o.costeSnap === 'object' ? o.costeSnap : null;
+    if (snap && snap.unidad !== null && snap.unidad !== undefined && snap.unidad !== '') unit = n(snap.unidad);
     var envReal = has(o.costeEnvio), comReal = has(o.comision);
     var env = envReal ? n(o.costeEnvio) : n(pp.envio);
     var com = comReal ? n(o.comision) : estComision(o.canal, total, pp);
@@ -312,8 +355,28 @@ var CL = (function () {
     var prod = unit === null ? null : r2(unit * qty);
     var coste = prod === null ? null : r2(prod + env + com + otros);
     var ben = coste === null ? null : r2(total - coste);
-    return { total: r2(total), unidad: unit === null ? null : r2(unit), produccion: prod, envio: r2(env), envioEstimado: !envReal, comision: r2(com), comisionEstimada: !comReal,
+    return { costeCongelado: snap ? snap.fecha : '', total: r2(total), unidad: unit === null ? null : r2(unit), produccion: prod, envio: r2(env), envioEstimado: !envReal, comision: r2(com), comisionEstimada: !comReal,
       otros: r2(otros), gastos: list, coste: coste, beneficio: ben, margen: ben !== null && total > 0 ? ben / total : null, conCoste: unit !== null };
+  }
+  // v11 · Centro financiero: de lo cobrado al beneficio neto (estimación orientativa, no sustituye al gestor)
+  // Precios con IVA incluido. IVA a pagar ≈ IVA de las ventas − IVA de lo que compras (costes con IVA y comisiones).
+  function finance(data, cfg, desde, hasta) {
+    var ps = profitSummary(data, cfg, desde, hasta);
+    var fz = (cfg && cfg.finanzas) || {}, iva = n(((cfg || {}).facturacion || {}).tipoIva) || 0.21, irpfP = fz.irpf === undefined ? 0.2 : n(fz.irpf);
+    var costOf = costIndex(data, (cfg && cfg.precios) || {}), cp = (cfg && cfg.pedidos) || {}, fab = 0;
+    (data.pedidos || []).forEach(function (o) {
+      if (!o.fecha || (desde && o.fecha < desde) || (hasta && o.fecha > hasta) || stateOf(cp, o.estado).cancelled) return;
+      var p = orderProfit(o, data, cfg, costOf); if (p.produccion !== null) fab += p.produccion;
+    });
+    fab = r2(fab);
+    var bruto = ps.beneficio, ventas = ps.ventasConCoste;
+    var ivaRep = fz.repercuteIva === false ? 0 : r2(ventas * iva / (1 + iva));
+    var ivaSop = fz.repercuteIva === false ? 0 : r2((fab + ps.comisiones + ps.otros) * iva / (1 + iva));
+    var ivaPagar = Math.max(0, r2(ivaRep - ivaSop));
+    var baseIrpf = Math.max(0, r2(bruto - ivaPagar)), irpf = r2(baseIrpf * irpfP);
+    return { ventas: ps.ventas, ventasConCoste: ventas, fabricacion: fab, envios: ps.envios, comisiones: ps.comisiones, otros: ps.otros, costes: r2(fab + ps.envios + ps.comisiones + ps.otros),
+      beneficioBruto: bruto, ivaRepercutido: ivaRep, ivaSoportado: ivaSop, ivaPagar: ivaPagar, irpf: irpf, irpfPct: irpfP, beneficioNeto: r2(bruto - ivaPagar - irpf),
+      margen: ps.margen, margenNeto: ventas > 0 ? r2(bruto - ivaPagar - irpf) / ventas : null, pedidos: ps.pedidos, sinCoste: ps.sinCoste, estimados: ps.estimados, meses: ps.meses, bajos: ps.bajos };
   }
   // Resumen de beneficio real de un conjunto de pedidos (por meses)
   function profitSummary(data, cfg, desde, hasta) {
@@ -415,12 +478,45 @@ var CL = (function () {
     return out;
   }
 
+  // v10.8.1 · STOCK. Una sola cuenta, igual que la fórmula de la hoja Stock del Excel:
+  //   lo anotado en Fabricación (entradas, impresiones, ajustes y recuentos, en + o en −)
+  //   menos lo pedido en Pedidos (todo lo que no esté Cancelado).
+  // Además se separa lo que ya salió de la estantería (pedidos enviados) de lo que está apartado:
+  //   físico = fabricado − enviado · reservado = pedidos abiertos sin enviar · disponible = físico − reservado
+  function stockLevels(data, cfgPedidos) {
+    var by = {}, list = [];
+    function get(name) {
+      var k = norm(name);
+      if (!k) return null;
+      if (!by[k]) { by[k] = { producto: s(name).trim(), clave: k, fabricado: 0, enviado: 0, reservado: 0, pedidosAbiertos: 0, movimientos: 0, minimo: 0, ubicacion: '', notas: '', fila: false, productoId: '' }; list.push(by[k]); }
+      return by[k];
+    }
+    (data.productos || []).forEach(function (p) { var x = get(p.nombre); if (x) { x.productoId = p.id; x.producto = s(p.nombre).trim(); } });
+    (data.stock || []).forEach(function (r) { var x = get(r.producto); if (!x) return; x.fila = true; x.minimo = n(r.minimo); x.ubicacion = s(r.ubicacion); x.notas = s(r.notas); });
+    (data.fabricacion || []).forEach(function (r) { var x = get(r.producto); if (!x) return; x.fabricado += n(r.unidades); x.movimientos++; });
+    (data.pedidos || []).forEach(function (o) {
+      var st = stateOf(cfgPedidos || {}, o.estado || 'Nuevo');
+      if (st.cancelled) return;
+      var x = get(o.producto); if (!x) return;
+      var q = n(o.cantidad) || 1;
+      if (st.shipped) x.enviado += q; else { x.reservado += q; x.pedidosAbiertos++; }
+    });
+    list.forEach(function (x) {
+      x.fisico = x.fabricado - x.enviado;
+      x.disponible = x.fisico - x.reservado;
+      x.controlado = x.fila || x.movimientos > 0;
+      x.estado = !x.controlado ? 'sin' : x.disponible < 0 ? 'faltan' : x.disponible === 0 ? 'agotado' : (x.minimo > 0 && x.disponible <= x.minimo) ? 'bajo' : 'ok';
+      x.bajo = x.controlado && (x.disponible < 0 || (x.minimo > 0 && x.disponible <= x.minimo) || (x.disponible === 0 && x.minimo > 0));
+    });
+    return { by: by, list: list, of: function (name) { return by[norm(name)] || null; } };
+  }
+
   // Alertas inteligentes (nunca cambian datos: solo avisan)
   function alerts(data, cfg, hoy, extra) {
     hoy = hoy || today(); extra = extra || {};
     var al = cfg.alertas || {}, out = [], cp = cfg.pedidos, minM = n(al.margenMinimo) || 0.15, costOf = costIndex(data, cfg.precios);
-    if (al.stockBajo !== false) (data.stock || []).forEach(function (x) {
-      if (x.producto && (x.alerta || (n(x.minimo) > 0 && n(x.unidades) <= n(x.minimo)))) out.push({ nivel: 'warn', tipo: 'stock', texto: 'Stock bajo: ' + x.producto + ' (' + n(x.unidades) + ' uds., mínimo ' + n(x.minimo) + ')', enlace: 'productos' });
+    if (al.stockBajo !== false) stockLevels(data, cp).list.forEach(function (x) {
+      if (x.bajo) out.push({ nivel: x.disponible < 0 ? 'bad' : 'warn', tipo: 'stock', texto: (x.disponible < 0 ? 'Faltan ' + (-x.disponible) + ' uds. de ' + x.producto + ' para servir los pedidos' : 'Stock bajo: ' + x.producto + ' (' + x.disponible + ' disponibles, mínimo ' + x.minimo + ')'), enlace: 'stock' });
     });
     (data.productos || []).forEach(function (p) {
       var ci = costOf({ productoId: p.id, producto: p.nombre }), pr = n(p.precio);
@@ -432,8 +528,8 @@ var CL = (function () {
     recent.forEach(function (o) { var ci = costOf(o); if (ci && n(o.precio) < ci.coste) out.push({ nivel: 'bad', tipo: 'precio', texto: 'Pedido nº ' + o.numero + ' vendido por debajo del coste (' + e2(n(o.precio)) + ' € < ' + e2(ci.coste) + ' €)', enlace: 'pedidos/' + o.id }); });
     var late = (data.pedidos || []).filter(function (o) { var t = orderTiming(o, cp, hoy); return t.abierto && t.nivel === 'late'; });
     if (late.length) out.push({ nivel: 'bad', tipo: 'pedido', texto: late.length + ' pedido(s) vencido(s) sin enviar', enlace: 'pedidos' });
-    var stale = (data.pedidos || []).filter(function (o) { var st = stateOf(cp, o.estado); return st.open && !st.issue && (o.estado === 'Nuevo' || o.estado === 'Pendiente de revisión') && o.fecha && days(o.fecha, hoy) >= 3; });
-    if (stale.length) out.push({ nivel: 'warn', tipo: 'pedido', texto: stale.length + ' pedido(s) llevan 3 días o más sin revisar', enlace: 'pedidos' });
+    var stale = (data.pedidos || []).filter(function (o) { return phaseOf(cp, o.estado) === 'reserva' && o.fecha && days(o.fecha, hoy) >= 3; });
+    if (stale.length) out.push({ nivel: 'warn', tipo: 'pedido', texto: stale.length + ' reserva(s) llevan 3 días o más sin confirmar', enlace: 'pedidos/?f=reservas' });
     var inDays = n(al.clienteInactivoDias) || 120;
     var cs = allClientStats(data.clientes || [], data.pedidos || [], cfg, hoy), inact = 0;
     Object.keys(cs).forEach(function (k) { var x = cs[k]; if (x.pedidos >= 2 && x.diasDesdeUltimo >= inDays && !x.activos) inact++; });
@@ -514,6 +610,150 @@ var CL = (function () {
     return { usuarios: byId, lista: list, ranking: { xp: rank('xpMes'), ventas: rank('ventasMes'), pedidos: rank('pedidosMes'), tareas: rank('tareasMes'), actividad: rank('diasActivosMes') }, insignias: BADGES, levelOf: levelOf };
   }
 
+  // ================= v11.3 · Materiales, embalaje, recetas (BOM) y coste real =================
+  // Idea: cada material se apunta UNA vez (lo que pagaste y cuánto traía) y el programa calcula
+  // el coste por unidad (€/g, €/m, €/m², €/ud…). Un producto es una RECETA: materiales + horas de
+  // impresora + mano de obra + componentes + embalaje + otros. Nada se inventa: si falta un dato,
+  // esa línea queda PENDIENTE y se dice qué falta. Los precios son los que pagas (IVA incluido).
+  var UNITS = {
+    g: { fam: 'masa', f: 1, t: 'g' }, kg: { fam: 'masa', f: 1000, t: 'kg' },
+    mm: { fam: 'long', f: 0.001, t: 'mm' }, cm: { fam: 'long', f: 0.01, t: 'cm' }, m: { fam: 'long', f: 1, t: 'm' },
+    cm2: { fam: 'area', f: 0.0001, t: 'cm²' }, m2: { fam: 'area', f: 1, t: 'm²' },
+    ml: { fam: 'vol', f: 1, t: 'ml' }, l: { fam: 'vol', f: 1000, t: 'l' },
+    ud: { fam: 'ud', f: 1, t: 'ud.' }, h: { fam: 'h', f: 1, t: 'h' }, eur: { fam: 'eur', f: 1, t: '€' }
+  };
+  var MAT_TIPOS = ['material', 'filamento', 'componente', 'caja', 'embalaje', 'otro'];
+  // Estado de un dato: de más fiable a menos. «pendiente» = falta el dato (no se puede calcular).
+  var CONF = ['confirmado', 'importado', 'calculado', 'estimado', 'orientativo', 'revisar', 'pendiente'];
+  var CONF_TXT = { confirmado: 'CONFIRMADO', importado: 'IMPORTADO', calculado: 'CALCULADO', estimado: 'ESTIMADO', orientativo: 'ORIENTATIVO', revisar: 'REVISAR', pendiente: 'PENDIENTE' };
+  function unitKey(u) {
+    var k = norm(u).replace(/[\s.]/g, '').replace('²', '2').replace(/^(unidad(es)?|uds?|u|pieza(s)?|pza)$/, 'ud').replace(/^(metros?|mts?)$/, 'm').replace(/^(gramos?|gr)$/, 'g')
+      .replace(/^(kilos?|kilogramos?)$/, 'kg').replace(/^(centimetros?)$/, 'cm').replace(/^(milimetros?)$/, 'mm').replace(/^(m\^?2|metros?cuadrados?)$/, 'm2').replace(/^(cm\^?2)$/, 'cm2')
+      .replace(/^(mililitros?)$/, 'ml').replace(/^(litros?)$/, 'l').replace(/^(horas?)$/, 'h');
+    return UNITS[k] ? k : '';
+  }
+  function worst(a, b) { return CONF.indexOf(a) > CONF.indexOf(b) ? a : b; }
+  function confOf(v, dflt) { v = norm(v); return CONF.indexOf(v) >= 0 ? v : (dflt || 'confirmado'); }
+  function filled(v) { return v !== '' && v !== null && v !== undefined && !(typeof v === 'number' && !isFinite(v)); }
+  // Coste por unidad de un material (y por m² si es un rollo con ancho)
+  function matCost(m) {
+    var u = unitKey(m.unidad) || 'ud', precio = m.precio, cant = m.cantidad;
+    var falta = [];
+    if (!filled(precio) || n(precio) < 0) falta.push('precio de compra');
+    if (!filled(cant) || !(n(cant) > 0)) falta.push(m.tipo === 'filamento' ? 'peso de la bobina' : 'cantidad que trae');
+    // un dato escrito con el estado «pendiente» olvidado → REVISAR (nunca se da por confirmado solo)
+    var cp = confOf(m.estadoPrecio), cq = confOf(m.estadoCantidad);
+    var est = falta.length ? 'pendiente' : worst(cp === 'pendiente' ? 'revisar' : cp, cq === 'pendiente' ? 'revisar' : cq);
+    var cu = falta.length ? null : n(precio) / n(cant);
+    var out = { unidad: u, unidadTxt: UNITS[u].t, coste: cu, estado: est, falta: falta };
+    if (cu !== null && u === 'm' && n(m.ancho) > 0) out.costeM2 = n(precio) / (n(cant) * n(m.ancho) / 100);
+    if (cu !== null && UNITS[u].fam === 'long') { out.costeM = cu / UNITS[u].f; out.costeCm = out.costeM / 100; }
+    if (cu !== null && UNITS[u].fam === 'masa') out.costeG = cu / UNITS[u].f;
+    return out;
+  }
+  // Pasa "cantidad" en la unidad "de" a la unidad del material (si se puede). null = incompatible.
+  function convert(cant, de, mat) {
+    var a = UNITS[unitKey(de) || unitKey(mat.unidad) || 'ud'], b = UNITS[unitKey(mat.unidad) || 'ud'];
+    if (a.fam === b.fam) return n(cant) * a.f / b.f;
+    // un rollo en metros con ancho: lo gastado en m² → metros de rollo
+    if (a.fam === 'area' && b.fam === 'long' && n(mat.ancho) > 0) return (n(cant) * a.f) / (n(mat.ancho) / 100) / b.f;
+    return null;
+  }
+  function eur2(x) { return x === null || x === undefined ? '—' : (Math.round(x * 100) / 100).toFixed(2).replace('.', ',') + ' €'; }
+  // Grupo de una línea para el desglose
+  function grupoOf(l, mat) {
+    if (l.grupo) return l.grupo;
+    if (l.materialId === '@luz') return 'Impresión'; if (l.materialId === '@mo') return 'Mano de obra'; if (l.materialId === '@otro') return 'Otros';
+    if (/^emb:/.test(s(l.materialId))) return 'Embalaje';
+    var t = mat ? mat.tipo : '';
+    return t === 'filamento' ? 'Filamento' : t === 'componente' ? 'Componentes' : (t === 'caja' || t === 'embalaje') ? 'Embalaje' : t === 'otro' ? 'Otros' : 'Materiales';
+  }
+  // Coste de una lista de líneas [{materialId, cantidad, unidad, grupo, notas}]
+  // data: { materiales, embalajes } · pp: cfg.precios (luzHora, manoObraHora)
+  function linesCost(lineas, data, pp, depth) {
+    pp = pp || {}; depth = depth || 0;
+    var mats = {}, embs = {};
+    (data.materiales || []).forEach(function (m) { mats[m.id] = m; });
+    (data.embalajes || []).forEach(function (e) { embs[e.id] = e; });
+    var out = { lineas: [], grupos: {}, total: 0, estado: 'confirmado', pendientes: [], conocido: 0 };
+    (lineas || []).forEach(function (l) {
+      var id = s(l.materialId), q = n(l.cantidad), r = { materialId: id, cantidad: q, unidad: l.unidad || '', notas: s(l.notas), coste: null, costeUnidad: null, estado: 'confirmado', nombre: '', aviso: '' };
+      if (id === '@luz' || id === '@mo') {
+        var rate = id === '@luz' ? pp.luzHora : pp.manoObraHora;
+        r.nombre = id === '@luz' ? 'Electricidad de la impresora' : 'Mano de obra'; r.unidad = 'h';
+        if (!filled(rate)) { r.estado = 'pendiente'; r.aviso = 'Falta el precio de la hora en Configuración → Precios'; }
+        else { r.costeUnidad = n(rate); r.coste = q * n(rate); r.estado = 'confirmado'; r.detalle = q + ' h × ' + eur2(n(rate)) + '/h'; }
+      } else if (id === '@otro') {
+        r.nombre = s(l.notas) || 'Otro coste'; r.unidad = 'eur'; r.costeUnidad = 1; r.coste = q; r.estado = confOf(l.estado, 'confirmado'); r.detalle = 'importe fijo';
+      } else if (/^emb:/.test(id)) {
+        var e = embs[id.substring(4)];
+        if (!e) { r.nombre = 'Embalaje borrado'; r.estado = 'pendiente'; r.aviso = 'Este embalaje ya no existe'; }
+        else if (depth > 2) { r.nombre = e.nombre; r.estado = 'revisar'; r.aviso = 'Embalaje dentro de embalaje (demasiados niveles)'; }
+        else {
+          var sub = linesCost(e.lineas || [], data, pp, depth + 1);
+          r.nombre = e.nombre; r.unidad = 'ud'; r.sub = sub; r.estado = sub.estado;
+          r.costeUnidad = sub.conocido; r.coste = q * sub.conocido;
+          if (sub.estado === 'pendiente') r.aviso = 'Falta: ' + sub.pendientes.map(function (p) { return p.nombre + ' (' + p.falta + ')'; }).join('; ');
+          r.detalle = q + ' × ' + sub.lineas.map(function (x) { return x.nombre; }).join(' + ');
+        }
+      } else {
+        var m = mats[id];
+        if (!m) { r.nombre = 'Material borrado'; r.estado = 'pendiente'; r.aviso = 'Este material ya no existe en la biblioteca'; }
+        else {
+          var mc = matCost(m);
+          r.nombre = m.nombre; r.tipo = m.tipo; r.unidad = l.unidad || mc.unidad;
+          var qm = convert(q, r.unidad, m);
+          if (qm === null) { r.estado = 'revisar'; r.aviso = 'No se puede pasar ' + (UNITS[unitKey(r.unidad)] || {}).t + ' a ' + mc.unidadTxt + (UNITS[unitKey(r.unidad)] && UNITS[unitKey(r.unidad)].fam === 'area' ? ' (falta el ancho del rollo)' : ''); }
+          else if (mc.coste === null) { r.estado = 'pendiente'; r.aviso = 'Falta ' + mc.falta.join(' y ') + ' de «' + m.nombre + '»'; }
+          else { r.costeUnidad = mc.coste; r.coste = qm * mc.coste; r.estado = mc.estado; r.detalle = q + ' ' + (UNITS[unitKey(r.unidad)] || UNITS.ud).t + ' × ' + eur2(mc.coste) + '/' + mc.unidadTxt + (unitKey(r.unidad) !== mc.unidad ? ' (= ' + (Math.round(qm * 1000) / 1000) + ' ' + mc.unidadTxt + ')' : ''); }
+        }
+      }
+      r.grupo = grupoOf(l, mats[id]);
+      if (r.coste !== null) { r.coste = Math.round(r.coste * 10000) / 10000; out.conocido += r.coste; out.grupos[r.grupo] = (out.grupos[r.grupo] || 0) + r.coste; }
+      if (r.estado === 'pendiente' || r.coste === null) out.pendientes.push({ nombre: r.nombre, falta: r.aviso || 'dato pendiente' });
+      out.estado = worst(out.estado, r.coste === null ? 'pendiente' : r.estado);
+      out.lineas.push(r);
+    });
+    out.conocido = Math.round(out.conocido * 100) / 100;
+    Object.keys(out.grupos).forEach(function (k) { out.grupos[k] = Math.round(out.grupos[k] * 100) / 100; });
+    out.total = out.estado === 'pendiente' ? null : out.conocido;
+    if (!(lineas || []).length) { out.estado = 'pendiente'; out.total = null; out.vacio = true; }
+    return out;
+  }
+  // Receta (BOM) de un producto: data.recetas = filas {productoId, materialId, cantidad, unidad, grupo, notas}
+  function bomOf(productoId, data) { return (data.recetas || []).filter(function (r) { return r.productoId === productoId; }).sort(function (a, b) { return n(a.orden) - n(b.orden); }); }
+  function productCost(productoId, data, pp) { var l = bomOf(productoId, data); var c = linesCost(l, data, pp); c.tieneReceta = l.length > 0; return c; }
+  // Comisión de cada plataforma: porcentaje + fijo (mismos parámetros que la hoja Configuración)
+  function feesOf(canal, pp) {
+    var c = norm(canal); pp = pp || {};
+    if (c.indexOf('etsy') >= 0) return { pct: n(pp.etsyVenta) + n(pp.etsyPago) + n(pp.etsyReg), fijo: n(pp.etsyFijo) + n(pp.etsyAnuncioUSD) * n(pp.usdEur) };
+    if (c.indexOf('vinted') >= 0) return { pct: n(pp.vinted), fijo: 0 };
+    return { pct: 0, fijo: 0 };
+  }
+  // Coste → punto de equilibrio, precio con margen objetivo (si lo hay), y margen real del precio de venta
+  function costPricing(total, pp, venta, canal) {
+    pp = pp || {};
+    if (total === null || total === undefined) return null;
+    var f = feesOf(canal, pp), m = filled(pp.margen) ? n(pp.margen) : null;
+    var eq = (total + f.fijo) / (1 - f.pct);
+    var out = { coste: Math.round(total * 100) / 100, canal: canal || 'General', comisionPct: f.pct, comisionFija: f.fijo, equilibrio: Math.round(eq * 100) / 100,
+      margenObjetivo: m, objetivo: m !== null && m > 0 && (1 - f.pct - m) > 0 ? Math.round((total + f.fijo) / (1 - f.pct - m) * 100) / 100 : null, venta: null, margen: null, margenPct: null };
+    if (filled(venta) && n(venta) > 0) {
+      var v = n(venta), com = v * f.pct + f.fijo;
+      out.venta = v; out.comision = Math.round(com * 100) / 100; out.margen = Math.round((v - com - total) * 100) / 100; out.margenPct = out.margen / v;
+    }
+    return out;
+  }
+  // Foto del coste de un pedido (se guarda con el pedido y NO cambia si luego suben los precios)
+  function costSnapshot(productoId, data, pp, fecha) {
+    var c = productCost(productoId, data, pp);
+    if (!c.tieneReceta) return null;
+    return { fecha: fecha || today(), unidad: c.total, conocido: c.conocido, estado: c.estado, grupos: c.grupos,
+      lineas: c.lineas.map(function (l) { return { n: l.nombre, g: l.grupo, q: l.cantidad, u: l.unidad, cu: l.costeUnidad === null ? null : Math.round(l.costeUnidad * 10000) / 10000, c: l.coste === null ? null : Math.round(l.coste * 100) / 100, e: l.estado }; }),
+      pendientes: c.pendientes };
+  }
+  function costText(c) { return (c.lineas || []).map(function (l) { return l.nombre + ' ' + (l.coste === null ? 'PENDIENTE' : eur2(l.coste)); }).join(' · '); }
+
   // v10 · Objetivos de Celebrity: progreso calculado SOLO con datos reales
   var OBJ_TIPOS = { publicar: 'Publicaciones en redes', pedidos: 'Pedidos', ventas: 'Ventas (€)', tareas: 'Tareas completadas', productos: 'Productos nuevos' };
   function objectiveProgress(o, data, cfg, hoy) {
@@ -529,7 +769,8 @@ var CL = (function () {
     var meta = n(o.meta) || 0;
     return { valor: v, meta: meta, pct: meta ? Math.min(1, v / meta) : 0, hecho: meta > 0 && v >= meta, desde: from, hasta: hoy };
   }
-  return { orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
+  return { UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
+    finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches };

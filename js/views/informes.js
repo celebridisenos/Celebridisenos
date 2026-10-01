@@ -44,7 +44,7 @@ export function render(el) {
     const valid = ped.filter(o => !CL.stateOf(cp, o.estado).cancelled);
     const total = valid.reduce((s, o) => s + CL.orderTotal(o), 0);
     const shipped = S.t.pedidos.filter(o => o.fechaEnvio && o.fechaEnvio >= a && o.fechaEnvio <= b);
-    const late = shipped.filter(o => { const t = CL.orderTiming(Object.assign({}, o, { estado: 'Nuevo' }), cp, o.fechaEnvio); return t.limite && o.fechaEnvio > t.limite; });
+    const late = shipped.filter(o => { const t = CL.orderTiming(Object.assign({}, o, { estado: CL.stateOfPhase(cp, 'confirmado') || 'Confirmado' }), cp, o.fechaEnvio); return t.limite && o.fechaEnvio > t.limite; });
     const group = (list, key, val) => { const m = {}; list.forEach(o => { const k = key(o) || '—'; m[k] = (m[k] || 0) + val(o); }); return Object.keys(m).map(k => [k, m[k]]).sort((x, y) => y[1] - x[1]); };
     const firstOrder = {};
     S.t.pedidos.filter(o => !CL.stateOf(cp, o.estado).cancelled).forEach(o => { const k = o.clienteId || CL.norm(o.cliente); if (!firstOrder[k] || o.fecha < firstOrder[k]) firstOrder[k] = o.fecha; });
@@ -82,20 +82,31 @@ export function render(el) {
         h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Publicaciones en redes'), d.redesPor.length ? bars(d.redesPor) : h('p.muted.small', 'Ninguna en este periodo'), h('p.small.muted', d.redes.filter(r => r.estado === 'Publicado').length + ' publicadas de ' + d.redes.length + ' planificadas'))),
       d.late.length ? h('div.card', h('h3', 'Enviados con retraso (' + d.late.length + ')'), h('div.list', d.late.slice(0, 20).map(o => h('div.item', { onclick: () => location.hash = '#/pedidos/' + o.id }, h('b', 'nº ' + o.numero), h('span.grow', o.cliente + ' · ' + o.producto), h('span.small.bad-t', 'enviado ' + fdate(o.fechaEnvio)))))) : null);
   }
-  // v10.8: beneficio REAL (con envíos, comisiones y gastos de cada pedido)
+  // v11: CENTRO FINANCIERO — de lo cobrado al beneficio neto, en cascada (estimación orientativa)
   function profitCard(d) {
     if (!can('productos.costes') || !can('informes.ver')) return null;
-    const ps = CL.profitSummary(S.t, S.cfg, d.a === '0000-01-01' ? '' : d.a, d.b === '9999-12-31' ? '' : d.b);
-    if (!ps.pedidos) return null;
+    const f = CL.finance(S.t, S.cfg, d.a === '0000-01-01' ? '' : d.a, d.b === '9999-12-31' ? '' : d.b);
+    if (!f.pedidos) return null;
     const minM = Number((S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15);
-    return h('div.card', h('div.card-h', h('h3', '💶 Beneficio real (con envíos, comisiones y gastos de cada pedido)')),
-      h('div.grid.g4.kpis', [['Cobrado', eur(ps.ventas)], ['Beneficio real', eur(ps.beneficio)], ['Margen real', ps.margen === null ? '—' : Math.round(ps.margen * 100) + ' %'], ['Envíos pagados', eur(ps.envios)], ['Comisiones', eur(ps.comisiones)], ['Otros gastos', eur(ps.otros)]]
-        .map(x => h('div.kpi', { style: { cursor: 'default' } }, h('span.n', x[1]), h('span.l', x[0])))),
-      ps.sinCoste ? h('p.small.warn-t', '⚠️ ' + ps.sinCoste + ' pedido(s) sin coste del producto no cuentan en el beneficio. Añade su coste en Productos.') : null,
-      ps.estimados ? h('p.tiny.muted', ps.estimados + ' pedido(s) con envío o comisión estimados (sin importe real).') : null,
-      ps.meses.length > 1 ? h('div', h('div.lbl', 'Por meses'), bars(ps.meses.map(m => [m.mes + ' · ' + eur(m.ventas) + ' cobrado', m.beneficio]), eur)) : null,
-      ps.bajos.length ? h('div', h('div.lbl', { style: { marginTop: '10px' } }, 'Pedidos con margen por debajo del ' + Math.round(minM * 100) + ' % (' + ps.bajos.length + ')'),
-        h('div.list', ps.bajos.slice(0, 12).map(b => h('div.item', { onclick: () => location.hash = '#/pedidos/' + b.id }, h('b', 'nº ' + b.numero), h('span.grow.ellipsis', b.producto + ' · ' + b.cliente), h('span.small' + (b.beneficio < 0 ? '.bad-t' : '.warn-t'), eur(b.beneficio) + ' · ' + Math.round(b.margen * 100) + ' %'))))) : null);
+    const max = Math.max(1, f.ventasConCoste || f.ventas);
+    const step = (l, v, kind, hint) => h('div.wf-row.' + kind, { title: hint || '' }, h('span.l', l), h('span.bar', h('i', { style: { width: Math.max(0.5, Math.abs(v) / max * 100) + '%' } })), h('span.v', (kind === 'neg' ? '− ' : '') + eur(Math.abs(v))));
+    const pc = x => x === null || x === undefined ? '—' : Math.round(x * 100) + ' %';
+    return h('div.card.fin', h('div.card-h', h('h3', '💶 Centro financiero'), h('span.tiny.muted', 'Estimación orientativa · consulta a tu gestor')),
+      h('div.fin-kpis', [['Ventas', eur(f.ventas), ''], ['Costes', eur(f.costes), ''], ['Beneficio', eur(f.beneficioBruto), f.beneficioBruto < 0 ? 'bad' : 'ok'], ['Impuestos estimados', eur(f.ivaPagar + f.irpf), 'warn'], ['Beneficio neto', eur(f.beneficioNeto), f.beneficioNeto < 0 ? 'bad' : 'ok'], ['Margen neto', pc(f.margenNeto), '']]
+        .map(x => h('div.fin-k' + (x[2] ? '.' + x[2] : ''), h('span.l', x[0]), h('span.v', x[1])))),
+      h('div.wf',
+        step('Cobrado (con coste conocido)', f.ventasConCoste, 'pos'),
+        step('Fabricación', f.fabricacion, 'neg', 'Filamento, luz, mano de obra, pintado y extras de cada producto'),
+        step('Envíos pagados', f.envios, 'neg'), step('Comisiones de plataformas', f.comisiones, 'neg'), f.otros ? step('Otros gastos de pedidos', f.otros, 'neg') : null,
+        step('Beneficio', f.beneficioBruto, 'sub'),
+        S.cfg.finanzas && S.cfg.finanzas.repercuteIva === false ? null : step('IVA a pagar (' + eur(f.ivaRepercutido) + ' de ventas − ' + eur(f.ivaSoportado) + ' de compras)', f.ivaPagar, 'neg', 'Precios con IVA incluido'),
+        step('IRPF estimado (' + Math.round(f.irpfPct * 100) + ' %)', f.irpf, 'neg', 'Se cambia en Configuración → Precios y comisiones'),
+        step('Beneficio neto', f.beneficioNeto, 'total')),
+      f.sinCoste ? h('p.small.warn-t', '⚠️ ' + f.sinCoste + ' pedido(s) sin coste del producto no cuentan en el beneficio (' + eur(f.ventas - f.ventasConCoste) + ' cobrados). Añade su coste en Productos.') : null,
+      f.estimados ? h('p.tiny.muted', f.estimados + ' pedido(s) con envío o comisión estimados (sin importe real).') : null,
+      f.meses.length > 1 ? h('div', h('div.lbl', 'Beneficio por meses'), bars(f.meses.map(m => [m.mes + ' · ' + eur(m.ventas) + ' cobrado', m.beneficio]), eur)) : null,
+      f.bajos.length ? h('div', h('div.lbl', { style: { marginTop: '10px' } }, 'Pedidos con margen por debajo del ' + Math.round(minM * 100) + ' % (' + f.bajos.length + ')'),
+        h('div.list', f.bajos.slice(0, 12).map(b => h('div.item', { onclick: () => location.hash = '#/pedidos/' + b.id }, h('b', 'nº ' + b.numero), h('span.grow.ellipsis', b.producto + ' · ' + b.cliente), h('span.small' + (b.beneficio < 0 ? '.bad-t' : '.warn-t'), eur(b.beneficio) + ' · ' + Math.round(b.margen * 100) + ' %'))))) : null);
   }
   function biPer() { return { hoy: 'hoy', semana: 'semana', mes: 'mes', año: 'año', trimestre: '30d' }[st.p] || null; }
   function biCard() {

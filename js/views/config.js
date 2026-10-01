@@ -30,12 +30,15 @@ const SECTIONS = [
   { k: 'alertas', t: 'Alertas inteligentes', i: 'alert', p: 'config.editar' },
   { k: 'facturacion', t: 'Facturación y presupuestos', i: 'file', p: 'config.editar' },
   { k: 'taller', t: 'Taller y filamento', i: 'cube', p: 'config.editar' },
+  { k: 'anuncios', t: 'Anuncios (reglas de plataformas)', i: 'sparkles', p: 'config.editar' },
+  { k: 'etiquetas', t: 'Centro de impresión', i: 'printer' },
   { k: 'juego', t: 'Motivación y juego', i: 'star', p: 'config.editar' },
   { g: 'Inteligencia artificial' },
   { k: 'ia', t: 'IA local y modelos', i: 'sparkles' },
   { k: 'biblioteca', t: 'Biblioteca y documentos', i: 'file' },
   { k: 'memoria', t: 'Memoria de la IA', i: 'history' },
   { g: 'Conexiones' },
+  { k: 'automatizaciones', t: 'Automatizaciones (reglas de avisos)', i: 'sparkles', p: 'config.editar' },
   { k: 'avisos', t: 'Telegram y avisos', i: 'bell', p: 'config.editar' },
   { k: 'redes', t: 'Redes (TikTok, Instagram…)', i: 'calendar' },
   { k: 'github', t: 'GitHub y actualizaciones', i: 'download' },
@@ -93,6 +96,34 @@ function rollbackBox(r) {
 function card(title, ...kids) { return h('div.card.col', title ? h('h3', title) : null, ...kids); }
 
 const SEC = {
+  // v11: impresoras detectadas en este PC, impresora por plantilla, tamaños y calibración
+  async etiquetas(b) {
+    const L = await import('../labels.js');
+    const CI = await import('./centro_impresion.js');
+    const c = await CI.render(b, L, () => SEC_RELOAD());
+    const list = L.realPrinters(await L.printers());
+    const rows = Object.keys(L.TEMPLATES).map(k => {
+      const t = L.TEMPLATES[k], s = L.sizeOf(k, c), auto = L.pickPrinter(k, list, Object.assign({}, c, { impresora: {} }));
+      const pr = sel([{ v: '', t: 'Automática' + (auto ? ' (' + auto.name + ')' : '') }].concat(list.map(p => ({ v: p.name, t: p.name }))), (c.impresora || {})[k] || '');
+      const w = inp({ type: 'number', min: 20, max: 210, value: s.w, style: { width: '76px' } }), hh = inp({ type: 'number', min: 20, max: 300, value: s.h, style: { width: '76px' } });
+      pr.onchange = () => { c.impresora = c.impresora || {}; if (pr.value) c.impresora[k] = pr.value; else delete c.impresora[k]; };
+      const sz = () => { c.tam = c.tam || {}; c.tam[k] = { w: Number(w.value) || t.w, h: Number(hh.value) || t.h }; };
+      w.onchange = sz; hh.onchange = sz;
+      return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('div.grow', { style: { minWidth: '180px' } }, h('b', t.t), h('div.tiny.muted', t.d)), h('div.row', w, '×', hh, h('span.small', 'mm')), desktop.on ? h('div', { style: { minWidth: '220px' } }, pr) : null);
+    });
+    const offs = list.map(p => {
+      const a = (c.ajuste || {})[p.name] || {};
+      const x = inp({ type: 'number', step: 0.5, value: a.x || 0, style: { width: '80px' } }), y = inp({ type: 'number', step: 0.5, value: a.y || 0, style: { width: '80px' } });
+      const upd = () => { c.ajuste = c.ajuste || {}; c.ajuste[p.name] = { x: Number(x.value) || 0, y: Number(y.value) || 0 }; };
+      x.onchange = upd; y.onchange = upd;
+      return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span.grow', p.name), h('span.small', '→'), x, h('span.small', 'mm'), h('span.small', '↓'), y, h('span.small', 'mm'),
+        btn('Hoja de prueba', async () => { await L.saveLabelCfg(c); L.printLabels('qr', [{ qr: 'CelebriDisenos-calibracion', titulo: 'Debe medir 40 × 40 mm' }], { printer: p.name }); }, { cls: 'sm ghost', icon: 'printer' }));
+    });
+    b.append(card('Plantillas', h('p.small.muted', 'Tamaño de cada etiqueta e impresora. "Automática": envíos a la impresora de etiquetas 10×15; si no hay, a la de folios a tamaño real (varias por hoja).'), h('div.list.boxed', rows)),
+      desktop.on && list.length ? card('Calibración', h('p.small.muted', 'Si la etiqueta sale desplazada, corrige aquí los milímetros (→ derecha, ↓ abajo) e imprime la hoja de prueba: el cuadrado debe medir exactamente 40 × 40 mm.'), h('div.list.boxed', offs)) : null,
+      btn('Guardar', async () => { await L.saveLabelCfg(c); toast('Impresoras y etiquetas guardadas en este ' + (desktop.on ? 'ordenador' : 'dispositivo'), 'ok'); }, { cls: 'primary' }));
+    function SEC_RELOAD() { go('config/perfil'); setTimeout(() => go('config/etiquetas'), 30); }
+  },
   // v10.5: espacios de trabajo independientes
   espacios(b) {
     const E = (S.cfg && S.cfg.espacio) || { lista: [] };
@@ -106,7 +137,36 @@ const SEC = {
         w.id !== 'principal' ? btn(w.listo ? 'Comprobar y completar' : 'Preparar', async ev => { const bt = ev.target.closest('button'); bt.disabled = true; try { const r = await api('espacios.preparar', { id: w.id }, { timeout: 120000 }); toast(r.creado ? 'Espacio creado con su propio libro de Google' : 'Espacio comprobado: todo en orden', 'ok'); await pull(true); draw(r.espacios); } catch (e) { toast(e.message, 'bad'); } bt.disabled = false; }, { cls: 'sm' }) : null))));
     draw(E.lista || []);
   },
+  // v11: MOTOR DE REGLAS — "Cuando pasa esto → avisar por…" (campana · Telegram · ventana flotante)
+  automatizaciones(b) {
+    const R = [['pedido_nuevo', '🛒 Entra un pedido nuevo'], ['urgente', '⏰ Un pedido urgente, vence hoy o se ha vencido'], ['incidencia', '⚠️ Se marca una incidencia en un pedido'], ['pedido', '📦 Te asignan un pedido o cambia uno tuyo'],
+      ['impresion_terminada', '🖨️ Una impresora debería haber terminado'], ['filamento_bajo', '🧵 Queda poco filamento / hay que comprar'], ['stock', '📦 Un producto baja del stock mínimo'], ['tarea', '✅ Te asignan una tarea o vence'],
+      ['mencion', '📣 Alguien te menciona en el chat (@nombre)'], ['mensaje_chat', '💬 Llega un mensaje al chat del equipo'], ['resumen', '☀️ Resumen de la mañana']];
+    const c = JSON.parse(JSON.stringify(S.cfg.automatizaciones || {}));
+    const tg = !!S.cfg.secretos.telegram;
+    const rows = R.map(([k, t]) => {
+      const r = c[k] = Object.assign({ app: true, telegram: true, popup: false }, c[k] || {});
+      const tog = (f, dis) => h('label.switch' + (dis ? '.dis' : ''), { title: dis || '' }, h('input', { type: 'checkbox', checked: !!r[f], disabled: !!dis, onchange: e => { r[f] = e.target.checked; } }), h('span'));
+      return h('tr', h('td', t), h('td.c', k === 'mensaje_chat' ? h('span.tiny.muted', '—') : tog('app')), h('td.c', k === 'mensaje_chat' ? h('span.tiny.muted', '—') : tog('telegram', tg ? '' : 'Configura antes el bot de Telegram')), h('td.c', tog('popup')));
+    });
+    b.append(h('p.small.muted', 'Cada fila es una regla: cuando pasa eso, avisa por donde marques. "Ventana" es el aviso flotante pequeño dentro de la app (cada persona puede apagarlos en su perfil).'),
+      h('div.card', h('div.table-wrap', h('table.t.rules', h('thead', h('tr', h('th', 'Cuando…'), h('th.c', 'Campana'), h('th.c', 'Telegram'), h('th.c', 'Ventana'))), h('tbody', rows)))),
+      h('div.row', btn('Guardar reglas', () => saveCfg('automatizaciones', Object.assign(c, { _editado: true })), { cls: 'primary' }), btn('Probar ventana', () => import('../popups.js').then(m => m.popup({ titulo: '🖨️ La P1P debería haber terminado', texto: 'Maceta Luna × 2 · márcala como terminada', enlace: 'hoy' }, true)), { cls: 'ghost' })));
+  },
   perfil(b) {
+    // v11: avisos flotantes de este dispositivo
+    import('../popups.js').then(PM => {
+      const p = PM.popupPrefs();
+      const pos = sel([{ v: 'br', t: 'Abajo a la derecha' }, { v: 'tr', t: 'Arriba a la derecha' }, { v: 'bl', t: 'Abajo a la izquierda' }, { v: 'tl', t: 'Arriba a la izquierda' }], p.pos);
+      const dur = sel([{ v: 4000, t: '4 segundos' }, { v: 6000, t: '6 segundos' }, { v: 10000, t: '10 segundos' }, { v: 20000, t: '20 segundos' }], String(p.ms));
+      const op = inp({ type: 'range', min: 55, max: 100, step: 5, value: Math.round(p.opacity * 100) });
+      let onV = p.on, snd = p.sound;
+      const save = () => { PM.savePopupPrefs({ on: onV, pos: pos.value, ms: Number(dur.value), opacity: Number(op.value) / 100, sound: snd }); };
+      [pos, dur, op].forEach(x => x.addEventListener('change', save));
+      b.append(card('Avisos flotantes (este dispositivo)', h('label.check', sw(onV, v => { onV = v; save(); }), 'Mostrar ventanitas de aviso (chat, pedidos nuevos, impresiones…)'), h('label.check', sw(snd, v => { snd = v; save(); }), 'Con sonido suave'),
+        h('div.form', field('Dónde', pos), field('Cuánto duran', dur), field('Transparencia', op, 'Más a la izquierda = más transparente')),
+        btn('Probar', () => { save(); PM.popup({ titulo: '💬 Laura', texto: '¿Imprimo hoy la maceta luna blanca?', enlace: 'chat' }, true); }, { cls: 'sm', icon: 'bell' })));
+    });
     const u = S.me;
     const nombre = inp({ value: u.nombre }), color = inp({ type: 'color', value: u.color || '#7c3aed', style: { width: '60px', padding: '2px' } });
     const tema = h('div.seg', [['claro', '☀️ Claro'], ['rosa', '🌸 Rosa sweet'], ['oscuro', '🌙 Oscuro'], ['sistema', '💻 Como Windows']].map(t => h('button' + ((u.tema || 'claro') === t[0] ? '.on' : ''), { onclick: async () => { applyTheme(t[0]); u.tema = t[0]; try { await api('usuarios.editar', { id: u.id, tema: t[0] }); } catch (e) { } SEC.perfil(mount(b, h('h2', 'Mi perfil'))) || null; } }, t[1])));
@@ -327,6 +387,13 @@ const SEC = {
     b.append(card('Código SKU de los productos nuevos', h('div.form', field('Formato', fmt, 'Piezas: {MARCA} {CAT} (3 letras de la categoría) {AÑO} {NUM3} {NUM4}'), field('Marca', marca)),
       h('p.small', 'Ejemplo: ', ej), h('p.small.muted', 'Solo afecta a los productos nuevos. Los que ya existen conservan su código. Nunca se repite.'),
       btn('Guardar formato', () => saveCfg('sku', { formato: fmt.value.trim() || '{CAT}-{NUM4}', marca: marca.value.trim().toUpperCase() }), { cls: 'primary' })));
+    // v11: centro financiero (impuestos estimados)
+    const fz = Object.assign({ repercuteIva: true, irpf: 0.2 }, S.cfg.finanzas || {});
+    let rep = fz.repercuteIva !== false;
+    const irpf = inp({ type: 'number', min: 0, max: 50, step: 1, value: Math.round(fz.irpf * 100) });
+    b.append(card('Impuestos estimados (centro financiero)', h('label.check', sw(rep, v => { rep = v; }), 'Mis precios incluyen IVA que pago a Hacienda (autónomo en régimen general)'),
+      h('div.form', field('IRPF que reservo (%)', irpf, 'Para calcular el beneficio neto. Lo habitual: 20 % (15 % los primeros años).')), h('p.small.muted', 'Son estimaciones para saber cuánto te queda de verdad. No sustituyen a tu gestor.'),
+      btn('Guardar', () => saveCfg('finanzas', { repercuteIva: rep, irpf: (Number(irpf.value) || 0) / 100 }), { cls: 'primary' })));
   },
   ia(b) {
     const panel = h('div');
@@ -351,7 +418,7 @@ const SEC = {
     let stock = c.stockBajo !== false;
     b.append(card(null, h('p.small.muted', 'Las alertas aparecen en el Inicio y, las importantes, como aviso. Nunca cambian datos: solo avisan.'),
       h('div.form', field('Avisar si el margen baja del (%)', f.margen), field('Cliente inactivo tras (días sin comprar)', f.inactivo), field('Avisar si las ventas caen más de un (%)', f.caida, 'Últimos 30 días frente a los 30 anteriores')),
-      h('label.check', sw(stock, v => { stock = v; }), 'Avisar de stock bajo (según la hoja Stock del Sheet)'),
+      h('label.check', sw(stock, v => { stock = v; }), 'Avisar de stock bajo (pestaña Stock: disponible por debajo del mínimo)'),
       h('p.small', 'También se avisa de: precios por debajo del coste, pedidos vencidos o sin revisar, números de pedido repetidos, documentos pendientes de revisar y otras anomalías.'),
       btn('Guardar', () => saveCfg('alertas', { margenMinimo: (Number(f.margen.value) || 0) / 100, clienteInactivoDias: Number(f.inactivo.value) || 120, caidaVentas: (Number(f.caida.value) || 25) / 100, stockBajo: stock }), { cls: 'primary' })));
   },
@@ -411,7 +478,7 @@ const SEC = {
     const tog = (k, t) => h('label.check', sw(c[k], v => { c[k] = v; }), t);
     b.append(card('Bot de Telegram', h('p.small.muted', 'Crea un bot con @BotFather en Telegram (/newbot) y pega aquí su token. Después, cada persona conecta su Telegram desde su perfil.'), h('p', S.cfg.secretos.telegram ? '✅ Bot configurado.' : 'Sin configurar (opcional).'), field('Token del bot', tok), res,
       btn('Guardar y probar', async () => { if (!tok.value.trim()) return; try { const r = await api('config.secreto', { nombre: 'telegram', valor: tok.value.trim() }); tok.value = ''; res.textContent = r.error ? '⚠️ ' + r.error : '✅ Bot ' + r.prueba; await pull(); } catch (e) { res.textContent = e.message; } }, { cls: 'primary' })),
-      card('Qué avisos llegan a Telegram', tog('telegram', 'Enviar avisos a Telegram'), tog('pedidosUrgentes', 'Pedidos vencidos o a punto de vencer'), tog('tareas', 'Tareas asignadas y vencidas'), tog('seguridad', 'Alertas de seguridad y solicitudes de acceso'), tog('taller', 'Taller: impresora terminada y filamento bajo'), h('p.small.muted', 'Dentro de la app (campana) aparecen siempre todos.'),
+      card('Qué avisos llegan a Telegram', tog('telegram', 'Enviar avisos a Telegram'), tog('pedidosUrgentes', 'Pedidos vencidos o a punto de vencer'), tog('tareas', 'Tareas asignadas y vencidas'), tog('seguridad', 'Alertas de seguridad y solicitudes de acceso'), tog('taller', 'Taller: impresora terminada y filamento bajo'), tog('stock', 'Stock por debajo del mínimo'), h('p.small.muted', 'Dentro de la app (campana) aparecen siempre todos.'),
         btn('Guardar', () => saveCfg('notificaciones', c), { cls: 'primary' })),
       resumenCard(c));
   },
@@ -433,6 +500,49 @@ const SEC = {
     b.append(card(null, h('div.form', field('Bloquear pantalla tras (minutos sin usar)', f.bloqueoMin, '0 = no bloquear (entrar directamente al abrir la app)'), field('La sesión caduca a los (días)', f.sesionDias), field('Intentos de contraseña antes de bloquear', f.intentos), field('Bloqueo tras fallos (minutos)', f.bloqueoIntentosMin), field('Las solicitudes de acceso caducan a las (horas)', f.solicitudCaducaHoras))),
       card('Cómo se protegen los datos', h('ul.small', { style: { margin: 0, paddingLeft: '18px' } }, h('li', 'Contraseñas: se protegen en tu dispositivo (PBKDF2, 150.000 vueltas) y el servidor solo guarda una huella con sal propia. La contraseña nunca viaja ni se guarda.'), h('li', 'La sesión se recuerda en cada dispositivo (en el PC, cifrada con Windows) y se renueva sola al usarla. Se puede cerrar a distancia desde Mi perfil o Usuarios.'), h('li', 'El token de Telegram está en el almacén protegido de Google. No hay claves de IA: la IA es local.'), h('li', 'Documentos y memoria privados: el servidor solo entrega a cada persona lo que puede ver; la IA tampoco puede saltárselo.'), h('li', 'Cada acción queda en la auditoría: quién, cuándo y qué cambió.'), h('li', 'Los permisos se comprueban en el servidor: aunque alguien manipule la app, no puede saltárselos.'))),
       btn('Guardar', () => saveCfg('seguridad', Object.fromEntries(Object.keys(f).map(k => [k, Number(f[k].value)]))), { cls: 'primary' }));
+    // v11.3: bloqueo de emergencia, credenciales a revisar y registro de seguridad
+    const sec = h('div.col', { style: { gap: '12px' } }, h('p.muted', 'Cargando seguridad…'));
+    b.append(sec);
+    const drawSec = async () => {
+      let st = null, reg = [];
+      try { if (can('usuarios.admin')) st = await api('seguridad.estado', {}); } catch (e) { }
+      try { if (can('auditoria.ver')) reg = await api('seguridad.registro', { limite: 150 }); } catch (e) { }
+      const motivo = inp({ placeholder: 'Motivo (p. ej. acceso desconocido)' }), conf = inp({ placeholder: st && st.bloqueo.activo ? 'Escribe DESBLOQUEAR' : 'Escribe BLOQUEAR' });
+      const cs = h('input', { type: 'checkbox', checked: true }), ops = h('input', { type: 'checkbox', checked: true }), sy = h('input', { type: 'checkbox' });
+      const NV = { alerta: ['🚨', 'bad'], aviso: ['⚠️', 'warn'], info: ['', ''] };
+      mount(sec,
+        st ? card('🚨 BLOQUEO DE EMERGENCIA', st.bloqueo.activo
+          ? h('div.col', h('p.bad-t.bold', 'ACTIVO desde ' + fdt(st.bloqueo.desde) + ' por ' + st.bloqueo.por + ' · ' + st.bloqueo.motivo), h('p.small', 'Solo las administradoras pueden entrar.' + (st.bloqueo.bloquearOperaciones ? ' Borrar, restaurar, importar y cambios de permisos están bloqueados.' : '') + (st.bloqueo.pararSync ? ' La sincronización automática con el Sheet está parada.' : '')),
+            field('Para desactivarlo', conf), btn('Desactivar el bloqueo', async () => { try { await api('seguridad.bloqueo', { activar: false, confirmar: conf.value }); toast('Bloqueo desactivado', 'ok'); drawSec(); } catch (e) { handleError(e); } }, { cls: 'primary' }))
+          : h('div.col', h('p.small', 'Úsalo si sospechas que alguien ha entrado sin permiso. Solo administradoras. Lo comprueba el servidor: no se puede saltar desde la app.'),
+            field('Motivo', motivo), h('label.row', cs, h('span.small', 'Cerrar TODAS las sesiones abiertas (menos la tuya)')), h('label.row', ops, h('span.small', 'Bloquear operaciones delicadas (borrar, restaurar copias, importar, permisos)')), h('label.row', sy, h('span.small', 'Parar la sincronización automática con el Sheet')),
+            field('Para confirmar', conf), btn('ACTIVAR BLOQUEO DE EMERGENCIA', async () => { try { const r = await api('seguridad.bloqueo', { activar: true, confirmar: conf.value, motivo: motivo.value, cerrarSesiones: cs.checked, bloquearOperaciones: ops.checked, pararSync: sy.checked }); toast('Bloqueo activado · ' + r.sesionesCerradas + ' sesiones cerradas', 'warn', 6000); drawSec(); } catch (e) { handleError(e); } }, { cls: 'danger solid' })),
+          h('p.tiny.muted', 'Última semana: ' + st.semana.alertas + ' alertas · ' + st.semana.avisos + ' avisos · ' + st.semana.fallos + ' entradas fallidas · ' + st.sesionesAbiertas + ' sesiones abiertas · administradoras: ' + st.administradoras.join(', '))) : null,
+        st ? card('🔑 Credenciales a revisar si hay un incidente', h('p.tiny.muted', 'Nunca se muestran sus valores: solo dónde están y qué hacer.'), h('div.table-wrap', h('table.t', h('thead', h('tr', h('th', 'Qué'), h('th', 'Dónde'), h('th', 'Qué hacer'))), h('tbody', st.credenciales.map(c => h('tr', { style: { cursor: 'default' } }, h('td.bold.small', c.tipo), h('td.small', c.donde), h('td.small', c.accion))))))) : null,
+        can('auditoria.ver') ? card('🛡️ Registro de seguridad (' + reg.length + ')', reg.length ? h('div.table-wrap', h('table.t', h('thead', h('tr', h('th', 'Cuándo'), h('th', 'Qué'), h('th.hide-m', 'Quién'), h('th', 'Detalle'), h('th.hide-m', 'Resultado'))),
+          h('tbody', reg.map(r => h('tr', { style: { cursor: 'default' } }, h('td.small', fdt(r.fecha)), h('td', pill((NV[r.nivel] || NV.info)[0] + ' ' + r.tipo.replace(/_/g, ' '), (NV[r.nivel] || NV.info)[1])), h('td.hide-m.small', r.usuario || '—'), h('td.small', r.detalle), h('td.hide-m.small.muted', r.resultado)))))) : h('p.small.muted', 'Sin eventos todavía.'),
+          h('p.tiny.muted', 'Aquí nunca aparecen contraseñas, tokens ni claves. Qué hacer ante cada alerta: docs/SEGURIDAD.md → «Respuesta a incidentes».')) : null);
+    };
+    drawSec();
+  },
+  // v11.3: reglas de cada plataforma para el asistente de anuncios (se cambian aquí si la plataforma las cambia)
+  anuncios(b) {
+    const c = JSON.parse(JSON.stringify(S.cfg.anuncios || {})); c.plataformas = c.plataformas || {};
+    const def = sel([['etsy', 'Etsy'], ['wallapop', 'Wallapop'], ['vinted', 'Vinted'], ['general', 'General']].map(([v, t]) => ({ v, t })), c.plataforma || 'etsy');
+    const marcas = area({ value: (c.marcasExtra || []).join(', '), rows: 2, placeholder: 'Marcas o personajes a vigilar además de la lista de fábrica' });
+    const rows = ['etsy', 'wallapop', 'vinted', 'general'].map(k => {
+      const base = window.LST.rules(k, {}), cur = c.plataformas[k] || {};
+      const f = {}; ['tituloMax', 'etiquetasMax', 'etiquetaMaxLen', 'descMax', 'fotosMin'].forEach(x => { f[x] = inp({ type: 'number', min: 0, value: cur[x] ?? '', placeholder: String(base[x] ?? '') }); });
+      f.fuente = inp({ value: cur.fuente ?? '', placeholder: base.fuente || 'De dónde sale (web oficial…)' }); f.revisado = inp({ type: 'date', value: cur.revisado ?? '', placeholder: base.revisado || '' });
+      return { k, t: base.t, f };
+    });
+    b.append(card(null, h('p.small', 'El asistente de anuncios usa estas reglas. Si la plataforma cambia sus límites, cámbialos aquí (vacío = valor de fábrica, que se ve en gris). Apunta de dónde lo sacas y cuándo lo revisaste.'),
+      field('Plataforma por defecto', def), field('Marcas y personajes a vigilar (propiedad intelectual)', marcas, 'Separados por comas. Se suman a la lista de fábrica.')),
+      ...rows.map(r => card(r.t, h('div.form', field('Título: máx. caracteres', r.f.tituloMax), field('Nº máx. de etiquetas (0 = no usa)', r.f.etiquetasMax), field('Caracteres por etiqueta', r.f.etiquetaMaxLen), field('Descripción: máx. caracteres (0 = sin límite)', r.f.descMax), field('Fotos mínimas', r.f.fotosMin), field('Fuente', r.f.fuente), field('Revisado el', r.f.revisado)))),
+      btn('Guardar', () => {
+        const pl = {}; rows.forEach(r => { const o = {}; Object.entries(r.f).forEach(([k, i]) => { if (i.value !== '') o[k] = i.type === 'number' ? Number(i.value) : i.value; }); if (Object.keys(o).length) pl[r.k] = o; });
+        saveCfg('anuncios', { plataforma: def.value, plataformas: pl, marcasExtra: marcas.value.split(',').map(x => x.trim()).filter(Boolean), categoriasExtra: c.categoriasExtra || [] });
+      }, { cls: 'primary' }));
   },
   async copias(b) {
     const box = h('div');

@@ -82,6 +82,7 @@ export function invoiceDoc(f) {
     h('div.tot', h('div', h('span', 'Base imponible'), h('b', eur(f.base))), h('div', h('span', 'IVA ' + pct(f.tipoIva)), h('b', eur(f.cuota))), h('div.big', h('span', 'TOTAL'), h('b', eur(f.total)))),
     f.motivo && f.tipo === 'Rectificativa' ? h('p.dn', 'Motivo de la rectificación: ' + f.motivo) : null,
     f.notas ? h('p.dn', f.notas) : null,
+    appUrl() && f.id ? h('div.dqr', { html: qrSvg(appUrl() + '#/q/factura/' + encodeURIComponent(f.id), 2) }, ) : null,
     h('div.df', em.pie || ''));
 }
 

@@ -12,7 +12,9 @@ const FILTERS = [
   { k: 'frecuentes', t: '⭐ Frecuentes', f: s => s.frecuente },
   { k: 'activos', t: '📦 Con pedido en curso', f: s => s.activos > 0 },
   { k: 'incidencias', t: '⚠️ Con incidencias', f: s => s.incidencias > 0 },
-  { k: 'altovalor', t: '📈 Alto valor', f: s => s.etiquetas.some(e => e.k === 'altovalor') },
+  { k: 'altovalor', t: '👑 VIP', f: s => s.etiquetas.some(e => e.k === 'altovalor') },
+  { k: 'recurrentes', t: '🔁 Recurrentes', f: s => s.etiquetas.some(e => e.k === 'recurrente') },
+  { k: 'mayoristas', t: '🏭 Mayoristas', f: s => s.etiquetas.some(e => e.k === 'mayorista') },
   { k: 'inactivos', t: '💤 Hace tiempo que no compran', f: s => s.etiquetas.some(e => e.k === 'inactivo') }
 ];
 const SORTS = [{ v: 'ultimo', t: 'Último pedido' }, { v: 'gasto', t: 'Más gasto' }, { v: 'pedidos', t: 'Más pedidos' }, { v: 'nombre', t: 'Nombre (A-Z)' }];
@@ -76,7 +78,8 @@ function clientDrawer(id, onClose) {
           h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             can('pedidos.crear') ? btn('Nuevo pedido para ' + c.nombre.split(' ')[0], () => orderForm({ cliente: c.nombre, clienteId: c.id }), { cls: 'primary', icon: 'plus' }) : null,
-            can('clientes.editar') ? btn('Editar', () => clientForm(c), { icon: 'edit' }) : null, h('span.grow'),
+            can('clientes.editar') ? btn('Editar', () => clientForm(c), { icon: 'edit' }) : null,
+            btn('QR', () => import('../labels.js').then(L => L.labelDialog('qr', [L.dataFor('qr', { tipo: 'cliente', id: c.id, titulo: c.nombre })])), { icon: 'printer', title: 'Etiqueta con QR que abre esta ficha' }), h('span.grow'),
             can('clientes.borrar') ? btn('Borrar', () => delClient(c, s, closeAll), { cls: 'danger', icon: 'trash' }) : null)));
       TABS[tab](body, c, s, orders, draw);
     };
@@ -90,10 +93,12 @@ const TABS = {
     mount(el, h('div.facts',
       big('🛍', s.pedidos + (s.pedidos === 1 ? ' pedido' : ' pedidos')),
       can('informes.ver') ? big('💰', eur(s.gasto) + ' gastados') : null,
-      big('📅', s.ultimo ? 'Último pedido: ' + ago(s.ultimo) : 'Sin pedidos todavía'),
+      can('productos.costes') && can('informes.ver') ? (() => { const pr = orders.filter(o => !CL.stateOf(S.cfg.pedidos, o.estado).cancelled).map(o => CL.orderProfit(o, S.t, S.cfg)).filter(p => p.beneficio !== null); return big('📈', pr.length ? eur(pr.reduce((a, p) => a + p.beneficio, 0)) + ' de beneficio' : 'Beneficio: sin costes', null, pr.length && pr.reduce((a, p) => a + p.beneficio, 0) < 0 ? 'bad' : ''); })() : null,
+      big('📅', s.ultimo ? 'Último pedido: ' + ago(s.ultimo) + ' (' + fdate(s.ultimo) + ')' : 'Sin pedidos todavía'),
       big(s.frecuente ? '⭐' : '👤', s.frecuente ? 'Cliente frecuente' : s.pedidos > 1 ? 'Cliente recurrente' : 'Cliente'),
       big('📦', act ? (s.activos > 1 ? s.activos + ' pedidos en curso (último: ' + act.estado + ')' : 'Pedido actual: ' + act.estado) : 'Sin pedido en curso', act ? () => go(s.activos > 1 ? 'pedidos/?cliente=' + encodeURIComponent(c.nombre) : 'pedidos/' + act.id) : null),
       s.incidencias ? big('⚠️', s.incidencias + (s.incidencias === 1 ? ' incidencia' : ' incidencias'), null, 'bad') : null),
+      tagToggles(c, s),
       opportunities(s),
       c.notas ? h('div.card.flat', { style: { marginTop: '12px' } }, h('div.lbl', 'Notas'), h('p', { style: { whiteSpace: 'pre-wrap', margin: '4px 0 0' } }, c.notas)) : null);
   },
@@ -126,6 +131,17 @@ const TABS = {
   },
   archivos(el, c) { mount(el, filesSection('clientes', c.id, { tipos: ['foto', 'doc'] }).el); }
 };
+// v11: etiquetas del CRM con un toque (se guardan en "Etiquetas" del cliente; las automáticas no se pueden quitar)
+function tagToggles(c, s) {
+  if (!can('clientes.editar')) return null;
+  const list = String(c.etiquetas || '').split(',').map(x => x.trim()).filter(Boolean);
+  const auto = k => s.etiquetas.some(e => e.k === k) && !list.some(x => CL.norm(x) === CL.norm({ altovalor: 'VIP', recurrente: 'Recurrente', mayorista: 'Mayorista' }[k]));
+  const T = [['VIP', 'altovalor', '👑'], ['Recurrente', 'recurrente', '🔁'], ['Mayorista', 'mayorista', '🏭']];
+  return h('div.row.wrap', { style: { marginTop: '12px', gap: '6px' } }, h('span.small.muted', 'Etiquetas:'), T.map(([t, k, i]) => {
+    const on = list.some(x => CL.norm(x) === CL.norm(t)), a = auto(k);
+    return h('button.chip' + (on || a ? '.on' : ''), { title: a ? 'Automática (por sus compras)' : on ? 'Quitar' : 'Poner', disabled: a, onclick: () => saveClient(c, { etiquetas: (on ? list.filter(x => CL.norm(x) !== CL.norm(t)) : list.concat(t)).join(', ') }) }, i + ' ' + t + (a ? ' · auto' : ''));
+  }));
+}
 function big(ic, t, onclick, cls) { return h('div.fact' + (onclick ? '.click' : ''), { onclick, style: onclick ? { cursor: 'pointer' } : {} }, h('div', { style: { fontSize: '20px' } }, ic), h('div.v' + (cls ? '.' + cls + '-t' : ''), t)); }
 function fact(l, v) { return h('div.fact', h('div.l', l), h('div.v', v)); }
 function opportunities(s) {

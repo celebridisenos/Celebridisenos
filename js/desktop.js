@@ -37,6 +37,19 @@ export const desktop = {
   avisoVisto: () => call('update/anterior', { method: 'DELETE' }).catch(() => { }),
   applyUpdate: () => call('update', { method: 'POST' }),
   pickFolder: () => call('pick', { method: 'POST' }),
+  // v11: impresoras de Windows y etiquetas al tamaño exacto (sin diálogo del navegador)
+  printers: usb => call('printers' + (usb ? '?usb=1' : '')),
+  // v11.2: búsqueda por todos los métodos (Windows, USB, red, Bambu) y Bambu Lab en vivo por la red local
+  discover: () => call('discover'),
+  bambu: () => call('bambu'),
+  bambuAccion: body => call('bambu', { method: 'POST', body: JSON.stringify(body) }),
+  print: job => call('print', { method: 'POST', body: JSON.stringify(job) }),
+  // v11.1 · CelebryNova (operador autónomo) dentro del programa
+  novaEstado: () => call('nova/estado'),
+  novaArrancar: () => call('nova/arrancar', { method: 'POST' }),
+  novaInstalar: () => call('nova/instalar', { method: 'POST' }),
+  novaUrl: () => call('nova/url'),
+  novaApi: (path, body) => call('nova/api/' + path, body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
   // ---- IA local (Ollama en este PC) ----
   hardware: () => call('ia/hardware'),
   iaEstado: () => call('ia/estado'),

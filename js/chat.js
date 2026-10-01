@@ -29,7 +29,8 @@ export async function startChat() {
 }
 function schedule() {
   clearTimeout(timer);
-  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? 600 : document.visibilityState === 'visible' ? 5000 : 60000;
+  // v11: con el chat abierto, cada 1,5 s (Google tarda ~1 s en responder: más rápido solo saturaba sin ganar nada)
+  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? 1500 : document.visibilityState === 'visible' ? 5000 : 60000;
   timer = setTimeout(tick, ms);
 }
 export async function tick() {
@@ -53,6 +54,8 @@ export async function tick() {
       kv.set('chat.msgs', CHAT.msgs);
       if (!CHAT.open || document.visibilityState !== 'visible') ping(r.mensajes.filter(m => m.autorId !== S.me.id));
     }
+    // v11: conversación borrada para todos
+    if (r.corte && r.corte !== CHAT.corte) { CHAT.corte = r.corte; CHAT.msgs = CHAT.msgs.filter(m => m.pendiente || m.creado > r.corte); kv.set('chat.msgs', CHAT.msgs); }
     CHAT.conectados = r.conectados || [];
     CHAT.error = ''; CHAT.ready = true;
     if (CHAT.open && document.visibilityState === 'visible') markRead();

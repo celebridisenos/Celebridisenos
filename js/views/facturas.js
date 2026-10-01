@@ -18,7 +18,7 @@ function fiscalBanner() {
     can('config.editar') ? h('a', { href: '#/config/facturacion' }, 'Configuración → Facturación') : 'Configuración → Facturación (pídeselo a una administradora)', '.');
 }
 
-export function render(el) {
+export function render(el, params) {
   if (!can('facturas.emitir')) { mount(el, h('div.card', h('h3', '🔒 Facturas'), h('p.muted', 'Necesitas el permiso "Emitir facturas y exportar el trimestre".'))); return {}; }
   const y0 = Number(S.hoy.slice(0, 4));
   const st = { y: y0, q: quarterOf(S.hoy) };
@@ -36,7 +36,7 @@ export function render(el) {
     const val = rows.filter(f => f.estado !== 'Anulada');
     const base = val.reduce((s, f) => s + n(f.base), 0), cuota = val.reduce((s, f) => s + n(f.cuota), 0), total = val.reduce((s, f) => s + n(f.total), 0);
     mount(kpis, h('div.kpi', h('span.n', String(rows.length)), h('span.l', 'Facturas')), h('div.kpi', h('span.n', eur(base)), h('span.l', 'Base imponible')), h('div.kpi', h('span.n', eur(cuota)), h('span.l', 'IVA repercutido')), h('div.kpi', h('span.n', eur(total)), h('span.l', 'Total facturado')));
-    const pend = S.t.pedidos.filter(o => !o.factura && ['Enviado', 'En tránsito', 'Entregado'].includes(o.estado) && o.fecha >= from && o.fecha <= to).length;
+    const pend = S.t.pedidos.filter(o => !o.factura && CL.stateOf(S.cfg.pedidos, o.estado).shipped && o.fecha >= from && o.fecha <= to).length;
     mount(list,
       pend ? h('p.small', { style: { margin: '0 0 10px' } }, '💡 Hay ' + pend + ' pedido(s) enviados de este trimestre sin factura. Se factura desde la ficha del pedido (botón "Factura").') : null,
       rows.length ? h('div.card', h('div.table-wrap', h('table.t', h('thead', h('tr', ['Nº', 'Fecha', 'Cliente', 'Tipo', 'Base', 'IVA', 'Total', ''].map(x => h('th', x)))),
@@ -45,6 +45,8 @@ export function render(el) {
         h('div.card', empty('file', 'No hay facturas en este trimestre', 'Se crean desde la ficha de cada pedido (botón "Factura") o con "Nueva factura".')));
   }
   draw();
+  // v11: QR universal → #/facturas/<id> abre la factura
+  const pid = (params || []).find(x => x && !x.startsWith('?')); if (pid) setTimeout(() => invoiceView(pid), 50);
   return { update: draw };
 }
 

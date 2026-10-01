@@ -10,12 +10,16 @@ import { startWorker, warmUp } from './ai/engine.js';
 const CL = window.CL;
 const VIEWS = {
   inicio: () => import('./views/home.js'),
+  hoy: () => import('./views/hoy.js'),
   pedidos: () => import('./views/pedidos.js'),
   clientes: () => import('./views/clientes.js'),
   productos: () => import('./views/productos.js'),
   catalogo: () => import('./views/catalogo.js'),
   gastos: () => import('./views/gastos.js'),
+  costes: () => import('./views/costes.js'),
+  anuncios: () => import('./views/anuncios.js'),
   taller: () => import('./views/taller.js'),
+  stock: () => import('./views/stock.js'),
   presupuestos: () => import('./views/presupuestos.js'),
   facturas: () => import('./views/facturas.js'),
   tareas: () => import('./views/tareas.js'),
@@ -23,6 +27,7 @@ const VIEWS = {
   redes: () => import('./views/redes.js'),
   archivos: () => import('./views/archivos.js'),
   ia: () => import('./views/ia.js'),
+  nova: () => import('./views/celebrynova.js'),
   chat: () => import('./views/chat.js'),
   estado: () => import('./views/estado.js'),
   informes: () => import('./views/informes.js'),
@@ -31,12 +36,16 @@ const VIEWS = {
 };
 export const NAV = [
   { k: 'inicio', t: 'Inicio', i: 'home' },
+  { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
+  { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
+  { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { k: 'gastos', t: 'Gastos', i: 'euro', p: 'productos.costes' },
   { k: 'taller', t: 'Taller 3D', i: 'cube', p: 'taller.ver' },
+  { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
   { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' },
@@ -46,6 +55,7 @@ export const NAV = [
   { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
   { k: 'archivos', t: 'Archivos', i: 'folder', p: 'archivos.ver' },
   { k: 'ia', t: 'Celebrity', i: 'sparkles', p: 'ia.usar' },
+  { k: 'nova', t: 'CelebryNova', i: 'play', p: 'config.ver', d: true }, // v11.1: operador autónomo (solo en el PC)
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
   { sep: true },
   { k: 'config', t: 'Configuración', i: 'settings' },
@@ -63,6 +73,8 @@ function parseHash() { const p = (location.hash || '#/inicio').replace(/^#\/?/, 
 async function route() {
   if (!S.token || !S.me) return;
   const { name, params } = parseHash();
+  // v11: QR universal → #/q/<tipo>/<id> abre directamente la ficha
+  if (name === 'q') { const T = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes', factura: 'facturas', stock: 'stock', caja: 'stock', presupuesto: 'presupuestos' }; const t = T[params[0]]; return go(t ? t + '/' + encodeURIComponent(params[1] || '') : 'inicio'); }
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
   buildShell();
@@ -162,20 +174,37 @@ function buildShell() {
 }
 function markNav(name) { if (!shell) return; shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
 
+// v11.1: decisiones pendientes de CelebryNova en el menú (solo en el PC y para quien lo administra)
+let novaTimer = null;
+function startNovaWatch() {
+  if (!desktop.on || novaTimer) return;
+  const tick = async () => {
+    if (!S.me || !can('config.ver')) return;
+    try { const st = await desktop.novaApi('estado'); const n = st.preguntas || 0; if (n !== S.novaPend) { S.novaPend = n; refreshShell(); } } catch (e) { if (S.novaPend) { S.novaPend = 0; refreshShell(); } }
+  };
+  novaTimer = setInterval(tick, 30000);
+  setTimeout(tick, 8000);
+}
+
 function refreshShell() {
   if (!shell) return;
   const d = S.cfg ? dash() : null;
-  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0 } : {};
-  mount(shell.nav, NAV.filter(n => n.sep || !n.p || can(n.p)).map(n => n.sep ? [h('div.sep'), n.t ? h('div.grp', n.t) : null] :
-    h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null)));
-  const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
+  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, nova: S.novaPend || 0 } : {};
+  // v11: solo se redibuja el menú si ha cambiado algo (antes se rehacía en cada sincronización y parpadeaba)
+  const navSig = JSON.stringify([counts, S.perms, S.ws]);
+  if (shell.navSig !== navSig) { shell.navSig = navSig;
+  mount(shell.nav, NAV.filter(n => n.sep || ((!n.p || can(n.p)) && (!n.d || desktop.on))).map(n => n.sep ? [h('div.sep'), n.t ? h('div.grp', n.t) : null] :
+    h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null))); }
+  const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
-  mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null)));
+  if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
   markNav(parseHash().name);
   const me = shell.sidebar.querySelector('.me');
-  if (S.me) mount(me, avatar(S.me), h('div.grow', h('div.bold.ellipsis', S.me.nombre), h('div.tiny.muted', roleName(S.me.rol))), icon('settings', 's'));
+  const meSig = S.me ? JSON.stringify([S.me.nombre, S.me.rol, S.me.avatarId, S.online]) : '';
+  if (S.me && shell.meSig !== meSig) { shell.meSig = meSig;
+  mount(me, avatar(S.me), h('div.grow', h('div.bold.ellipsis', S.me.nombre), h('div.tiny.muted', roleName(S.me.rol))), icon('settings', 's'));
   // v10: quién está conectado, arriba y siempre a la vista
-  if (S.me) mount(shell.meBtn, h('span.av-wrap', avatar(S.me, 's'), shell.meDot), h('span.me-txt', h('b.ellipsis', S.me.nombre.split(' ')[0]), h('small', S.online ? 'Conectado' : 'Sin conexión')));
+  mount(shell.meBtn, h('span.av-wrap', avatar(S.me, 's'), shell.meDot), h('span.me-txt', h('b.ellipsis', S.me.nombre.split(' ')[0]), h('small', S.online ? 'Conectado' : 'Sin conexión'))); }
   const noorko = S.ws === 'noorko';
   const brand = shell.sidebar.querySelector('.brand b'); if (brand && S.cfg) brand.textContent = noorko ? 'THE NOORKO' : S.cfg.empresa.nombre;
   const bsm = shell.sidebar.querySelector('.brand small'); if (bsm) bsm.textContent = noorko ? 'Streetwear · espacio propio' : 'Gestión del negocio';
@@ -210,6 +239,7 @@ function refreshBanner(n) {
   // Avisos generales
   const errs = Object.keys(S.errors || {});
   mount(shell.banner,
+    S.cfg && S.cfg.bloqueo && S.cfg.bloqueo.activo ? h('div.banner.bad', icon('lock', 's'), h('span', '🚨 BLOQUEO DE EMERGENCIA activo desde ' + new Date(S.cfg.bloqueo.desde).toLocaleString('es-ES') + ' (' + (S.cfg.bloqueo.motivo || '') + '). Solo administradoras.'), h('a', { href: '#/config/seguridad' }, 'Ver')) : null,
     errs.length ? h('div.banner.bad', icon('alert', 's'), h('span', 'No se pudo leer: ' + errs.map(k => k + ' (' + S.errors[k] + ')').join(' · '))) : null,
     S.perms && S.perms.temp && S.perms.temp.length ? h('div.banner.info', icon('key', 's'), h('span', 'Tienes acceso temporal a: ' + S.perms.temp.map(t => (S.cfg.permisos[t.permiso] || t.permiso) + ' (hasta ' + new Date(t.hasta).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) + ')').join(', '))) : null);
   document.title = (n ? `(${n}) ` : '') + ((S.cfg && S.cfg.empresa.nombre) || 'CelebriDiseños');
@@ -381,7 +411,7 @@ export async function start() {
   window.__appStarted = true;
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
-  pull().then(() => { startChat(); startWorker(); });
+  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); setTimeout(warmUp, 6000); }
 }
