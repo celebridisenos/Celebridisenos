@@ -153,6 +153,7 @@ const PTABS = {
       can('productos.costes') && withCost.length && ventas ? fact('Margen medio', Math.round(ben / ventas * 100) + ' %') : null,
       fact('Horas de impresora', horas ? Math.round(horas * 10) / 10 + ' h' : na('')), fact('Clientes distintos', String(clientes)), fact('Última venta', last ? fdate(last) : na('Nunca')),
       fact('Archivos', files.filter(a => a.tipo === 'stl').length + ' STL · ' + files.filter(a => a.tipo === 'foto').length + ' fotos')),
+      can('productos.costes') ? driftCard(p, orders) : null,
       orders.length ? h('div.list.boxed', { style: { marginTop: '12px' } }, orders.slice().reverse().map(o => h('div.item', { onclick: () => go('pedidos/' + o.id) }, h('b', 'nº ' + o.numero), h('span.grow.ellipsis', o.cliente), pill(o.estado, '', stateColor(o.estado)), h('span.small', eur(CL.orderTotal(o)))))) : h('p.muted', 'Sin pedidos todavía.'));
   },
   historial(el, p) {
@@ -161,6 +162,23 @@ const PTABS = {
   }
 };
 function fact(l, v) { return h('div.fact', h('div.l', l), h('div.v', v)); }
+// v11.8 · Rentabilidad real: primeros pedidos frente a los más recientes (detector de productos que pierden dinero)
+function driftCard(p, orders) {
+  const r = CL.productDrift(Object.assign({}, S.t, { pedidos: orders }), S.cfg).find(x => x.id === p.id || CL.norm(x.nombre) === CL.norm(p.nombre));
+  if (!r) return null;
+  const cls = r.estado === 'pierde' ? 'bad' : r.estado === 'empeora' ? 'warn' : r.estado === 'estable' ? 'ok' : '';
+  const signo = v => (v > 0 ? '−' : '+') + eur(Math.abs(v));
+  return h('div.card.drift' + (cls ? '.drift-' + cls : ''), { style: { marginTop: '12px' } },
+    h('div.row', h('b.grow', '💰 Rentabilidad real'), r.estimado ? pill('estimado', 'warn') : null),
+    h('p', { style: { margin: '6px 0' } }, r.texto),
+    r.inicial ? h('div.facts', fact('Al principio', eur(r.inicial.beneficio) + '/ud · ' + fdate(r.inicial.desde) + '–' + fdate(r.inicial.hasta)),
+      fact('Ahora', h('span', h('b', { class: r.reciente.beneficio < 0 ? 'bad-t' : '' }, eur(r.reciente.beneficio) + '/ud'), ' · ' + fdate(r.reciente.desde) + '–' + fdate(r.reciente.hasta))),
+      fact('Desde', r.desde ? h('a', { href: '#/pedidos/' + r.desde.id }, 'pedido nº ' + r.desde.numero + ' (' + fdate(r.desde.fecha) + ')') : na('sin bajada sostenida'))) : null,
+    r.factores.length ? h('div.list.boxed.drift-f', { style: { marginTop: '8px' } }, r.factores.map(f => h('div.item', h('span.grow', f.t), h('span.small.muted', eur(f.antes) + ' → ' + eur(f.ahora)), h('b.small', { class: f.efecto > 0 ? 'bad-t' : 'ok-t' }, signo(f.efecto) + '/ud')))) : null,
+    r.factores.length ? h('p.tiny.muted', 'Cada fila: cuánto resta (−) o suma (+) al beneficio por unidad frente a los primeros pedidos.') : null,
+    r.cambiosPrecio.length ? h('p.small', '📈 Cambios de precio registrados en sus materiales: ' + r.cambiosPrecio.map(c => c.material + ' ' + eur(c.antes) + ' → ' + eur(c.precio) + ' (' + fdate(c.fecha) + (c.motivo ? ', ' + c.motivo : '') + ')').join(' · ')) : null,
+    r.pendientes.length ? h('p.small.warn-t', '🟠 Dato pendiente: ' + r.pendientes.length + ' pedido(s) sin coste (' + r.pendientes.slice(0, 6).join(', ') + (r.pendientes.length > 6 ? '…' : '') + ') no se cuentan.') : null);
+}
 // v11: etiqueta de producto / QR / ubicación al tamaño exacto
 export function productLabel(p) {
   const x = stockLevel(p.nombre);

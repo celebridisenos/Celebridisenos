@@ -2,6 +2,7 @@
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
 import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo } from './store.js';
 import { desktop } from './desktop.js';
+import { BAMBU } from './bambu.js';
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
 import { startChat, CHAT } from './chat.js';
@@ -18,7 +19,8 @@ const VIEWS = {
   gastos: () => import('./views/gastos.js'),
   costes: () => import('./views/costes.js'),
   embalaje: () => import('./views/embalaje.js'),
-  escanear: () => import('./views/escanear.js'), // v11.6: escanear el QR del paquete y empaquetar
+  escanear: () => import('./views/escanear.js'),
+  camaras: () => import('./views/camaras.js'), // v11.7: cámaras de las Bambu Lab (en el PC) // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
   taller: () => import('./views/taller.js'),
   stock: () => import('./views/stock.js'),
@@ -48,6 +50,7 @@ export const NAV = [
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio
+  { k: 'camaras', t: 'Cámaras', i: 'camera', p: 'taller.ver', d: true }, // v11.7: P1P y A1 mini en directo (programa del PC)
   { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
@@ -200,12 +203,12 @@ function refreshShell() {
   if (shell.navSig !== navSig) { shell.navSig = navSig;
   mount(shell.nav, NAV.filter(n => n.sep || ((!n.p || can(n.p)) && (!n.d || desktop.on))).map(n => n.sep ? [h('div.sep'), n.t ? h('div.grp', n.t) : null] :
     h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null))); }
-  const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
+  const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
   if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
-  // v11.5: barra de acceso rápido (Cámaras aparecerá cuando esté integrada; nunca botones vacíos)
+  // v11.5: barra de acceso rápido · v11.7: «Cámaras» solo en el PC y si hay Bambu Lab vinculadas (nunca botones vacíos)
   const emq = S.cfg ? (S.t.pedidos || []).filter(o => CL.phaseOf(S.cfg.pedidos, o.estado) === 'empaquetar').length : 0;
-  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => can(x[3]));
+  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], desktop.on && BAMBU.list.length ? ['camaras', 'Cámaras', 'camera', 'taller.ver'] : null, ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
   const qSig = JSON.stringify([QB.map(x => x[0]), emq]);
   if (shell.quick && shell.qSig !== qSig) { shell.qSig = qSig; mount(shell.quick, QB.map(x => h('a', { href: '#/' + x[0], dataset: { k: x[0] }, title: x[1] }, icon(x[2], 's'), h('span.t', x[1]), x[4] ? h('span.count', String(x[4])) : null))); }
   markNav(parseHash().name);
@@ -385,8 +388,17 @@ function lockScreen() {
 }
 
 // ---------- Tema ----------
+// v11.8: temas · normales para todo el equipo y PREMIUM para administradoras (preparado para añadir más)
+export const THEMES = [
+  { k: 'claro', t: '☀️ Claro' }, { k: 'rosa', t: '🌸 Rosa' }, { k: 'oscuro', t: '🌙 Oscuro' }, { k: 'sistema', t: '💻 Como Windows' },
+  { k: 'adriana', t: '💎 Adriana', d: 'Rosa con identidad propia, degradados rosa → malva', premium: true },
+  { k: 'bio', t: '⚡ BIO', d: 'Minimalista y tecnológico: grafito y cian', premium: true }
+];
+export const isAdminUser = () => !!(S.perms && S.perms.all);
 export function applyTheme(t) {
-  const theme = t || (S.me && S.me.tema) || localStorage.getItem('cd.theme') || 'claro';
+  let theme = t || (S.me && S.me.tema) || localStorage.getItem('cd.theme') || 'claro';
+  const def = THEMES.find(x => x.k === theme);
+  if (!def || (def.premium && S.perms && !isAdminUser())) theme = 'claro';
   const real = theme === 'sistema' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro') : theme;
   document.documentElement.dataset.theme = real;
   localStorage.setItem('cd.theme', theme);

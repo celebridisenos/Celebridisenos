@@ -20,8 +20,11 @@ export const TEMPLATES = {
   // v11.6 · EMPAQUETAR
   oficial: { t: 'Etiqueta de envío oficial', w: 100, h: 150, d: 'la de Vinted, Correos, InPost…: la adjuntas y sale tal cual (nunca se inventa)' },
   paquete: { t: 'Código del paquete', w: 50, h: 50, d: 'QR + código interno CEB + nº de pedido: se escanea al empaquetar' },
-  gracias: { t: 'Tarjeta de agradecimiento', w: 50, h: 50, d: 'tu mensaje de gracias con tu logo' }
+  gracias: { t: 'Tarjeta de agradecimiento (50 × 50, modo antiguo)', w: 50, h: 50, d: 'en la impresora de etiquetas, una por pedido' },
+  // v11.8: tarjetas UNIVERSALES en hoja A4 para la impresora de papel fotográfico (varias por hoja, con corte)
+  tarjetas: { t: 'Tarjetas de agradecimiento (hoja A4)', w: 210, h: 297, d: 'varias tarjetas por hoja, para papel fotográfico' }
 };
+export const CARD_SIZES = { '85x55': { w: 85, h: 55, t: '85 × 55 mm (como una tarjeta de visita)' }, '100x70': { w: 100, h: 70, t: '100 × 70 mm' }, '105x74': { w: 105, h: 74, t: '105 × 74 mm (A7)' }, '148x105': { w: 148, h: 105, t: '148 × 105 mm (A6, postal)' } };
 const A4 = { w: 210, h: 297 };
 
 // ---------- Configuración de este PC (impresora por plantilla, tamaños y calibración) ----------
@@ -59,6 +62,7 @@ export function pickPrinter(tpl, list, c) {
   const lab = byName(v.etiquetas) || on.find(p => p.label && p.label4x6) || on.find(p => p.label);
   const sheet = byName(v.folios) || on.find(p => p.default && !p.label) || on.find(p => !p.label);
   if (tpl === 'envio' || tpl === 'oficial') return lab || sheet || null;
+  if (tpl === 'tarjetas') return sheet || null; // nunca a la de etiquetas
   // v11.6: código del paquete y tarjeta de gracias (50 × 50): mejor una de etiquetas con ese papel; si no, la de etiquetas
   if (tpl === 'paquete' || tpl === 'gracias') {
     const sq = on.find(p => p.label && (p.papers || []).some(x => Math.abs(x.wmm - 50) <= 4 && Math.abs(x.hmm - 50) <= 4));
@@ -294,10 +298,11 @@ export async function sendLabel(tpl, build, opts = {}) {
   if (desktop.on && t.pr) {
     const pr = t.pr, adj = (t.c.ajuste && t.c.ajuste[pr.name]) || {};
     if (pr.offline) throw new Error('La impresora «' + pr.name + '» está desconectada o apagada.');
-    const pages = t.sheet ? sheets(canv, s, dpi).map(cv => ({ cv, w: A4.w, h: A4.h })) : canv.map(cv => ({ cv, w: s.w, h: s.h }));
-    for (const p of pages) await desktop.print({ printer: pr.name, png: p.cv.toDataURL('image/png'), wmm: p.w, hmm: p.h, copies: 1, offx: Number(adj.x) || 0, offy: Number(adj.y) || 0 });
-    if (!opts.silent) toast('🖨️ ' + canv.length + (canv.length === 1 ? ' etiqueta enviada' : ' etiquetas enviadas') + ' a ' + pr.name + (t.sheet ? ' (a tamaño real en folio A4)' : ''), 'ok', 5000);
-    return { how: 'printer', printer: pr.name, sheet: t.sheet, count: canv.length };
+    const tile = t.sheet && tpl !== 'tarjetas';
+    const pages = tile ? sheets(canv, s, dpi).map(cv => ({ cv, w: A4.w, h: A4.h })) : canv.map(cv => ({ cv, w: s.w, h: s.h }));
+    for (const p of pages) await desktop.print({ printer: pr.name, png: p.cv.toDataURL('image/png'), wmm: p.w, hmm: p.h, copies: 1, offx: Number(adj.x) || 0, offy: Number(adj.y) || 0, calidad: opts.calidad || '' });
+    if (!opts.silent) toast('🖨️ ' + canv.length + (canv.length === 1 ? ' etiqueta enviada' : ' etiquetas enviadas') + ' a ' + pr.name + (tile ? ' (a tamaño real en folio A4)' : ''), 'ok', 5000);
+    return { how: 'printer', printer: pr.name, sheet: tile, count: canv.length };
   }
   // Sin el programa del PC: PDF con el tamaño exacto de la etiqueta
   const blob = pdfFromCanvases(canv.map(cv => ({ canvas: cv, wmm: s.w, hmm: s.h })));
@@ -350,3 +355,59 @@ export async function labelDialog(tpl, datas, opts = {}) {
   refresh();
   return m;
 }
+
+// ================= v11.8 · TARJETAS DE AGRADECIMIENTO EN HOJA A4 (papel fotográfico) =================
+// Tarjeta UNIVERSAL (sin el nombre del cliente): sirve para todos los pedidos y se imprimen varias por hoja.
+// Corte: marcas en las esquinas (fuera de la tarjeta, no estropean el diseño) o un borde fino.
+export function cardLayout(size, n) {
+  const c = CARD_SIZES[size] || CARD_SIZES['85x55'], m = 10, gap = 8;
+  const cols = Math.max(1, Math.floor((A4.w - 2 * m + gap) / (c.w + gap))), rows = Math.max(1, Math.floor((A4.h - 2 * m + gap) / (c.h + gap)));
+  const per = cols * rows, gw = cols * c.w + (cols - 1) * gap, gh = rows * c.h + (rows - 1) * gap;
+  return { w: c.w, h: c.h, cols, rows, per, n: Math.max(1, Math.min(per, Number(n) || per)), x0: (A4.w - gw) / 2, y0: (A4.h - gh) / 2, gap };
+}
+function rgba(hex, a) { const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i); const v = m ? parseInt(m[1], 16) : 0xe0457b; return 'rgba(' + (v >> 16) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')'; }
+function drawOneCard(g, k, x, y, w, hgt, d) {
+  const acc = d.color || '#e0457b', P = 4; // margen interior (mm)
+  g.save(); g.translate(x * k, y * k);
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w * k, hgt * k);
+  if (d.fondo) { g.fillStyle = rgba(acc, 0.06); g.fillRect(0, 0, w * k, hgt * k); }
+  if (d.corte === 'borde') { g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 0.2 * k; const r = 2.5 * k; g.beginPath(); g.moveTo(r, 0.1 * k); g.arcTo(w * k, 0, w * k, hgt * k, r); g.arcTo(w * k, hgt * k, 0, hgt * k, r); g.arcTo(0, hgt * k, 0, 0, r); g.arcTo(0, 0, w * k, 0, r); g.stroke(); }
+  const qs = d.qr ? Math.min(hgt * 0.36, 20) : 0, tw = w - 2 * P - (qs ? qs + 3 : 0), cx = P + tw / 2;
+  let y0 = P + 1;
+  // tamaño de todo el bloque para centrarlo en vertical
+  const sc = Math.min(w / 85, hgt / 55) || 1;
+  const parts = [];
+  if (d.logoImg && d.logoImg.width) { const lh = Math.min(hgt * 0.24, 16 * sc), lw = Math.min(tw, d.logoImg.width / d.logoImg.height * lh); parts.push({ t: 'logo', h: lw / (d.logoImg.width / d.logoImg.height), w: lw }); }
+  const font = (pt, wt, fam) => (wt || 400) + ' ' + Math.round(pt * sc * 0.3528 * k) + 'px ' + (fam || '"Segoe UI", Arial, sans-serif');
+  const lines = (txt, pt, wt, fam) => { g.font = font(pt, wt, fam); return wrap(g, txt, tw * k).filter(Boolean); };
+  const T1 = d.titulo ? lines(d.titulo, 15, 700, 'Georgia, "Times New Roman", serif') : [], T2 = d.texto ? lines(d.texto, 7.6, 400) : [], T3 = d.firma ? lines(d.firma, 7, 700) : [];
+  const lh = pt => pt * sc * 0.3528 * 1.25;
+  const total = (parts[0] ? parts[0].h + 2.2 : 0) + T1.length * lh(15) + (T1.length && (T2.length || T3.length) ? 3.2 : 0) + T2.length * lh(7.6) + (T3.length ? 2 + T3.length * lh(7) : 0);
+  y0 = Math.max(P, (hgt - total) / 2);
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  if (parts[0]) { g.drawImage(d.logoImg, (cx - parts[0].w / 2) * k, y0 * k, parts[0].w * k, parts[0].h * k); y0 += parts[0].h + 2.2; }
+  g.fillStyle = '#2b2230'; g.font = font(15, 700, 'Georgia, "Times New Roman", serif'); T1.forEach(l => { g.fillText(l, cx * k, y0 * k); y0 += lh(15); });
+  if (T1.length && (T2.length || T3.length)) { g.strokeStyle = acc; g.lineWidth = 0.35 * k; g.beginPath(); g.moveTo((cx - 9) * k, (y0 + 1.2) * k); g.lineTo((cx + 9) * k, (y0 + 1.2) * k); g.stroke(); y0 += 3.2; }
+  g.fillStyle = '#54495c'; g.font = font(7.6, 400); T2.forEach(l => { g.fillText(l, cx * k, y0 * k); y0 += lh(7.6); });
+  if (T3.length) { y0 += 2; g.fillStyle = acc; g.font = font(7, 700); T3.forEach(l => { g.fillText(l.toUpperCase(), cx * k, y0 * k); y0 += lh(7); }); }
+  if (qs) { const qx = w - P - qs, qy = (hgt - qs) / 2 - 1.5; qr(g, d.qr, qx * k, qy * k, qs * k); g.fillStyle = '#7a6f80'; g.font = font(5, 600); g.fillText('Escanéame', (qx + qs / 2) * k, (qy + qs + 0.6) * k); }
+  g.restore(); g.textAlign = 'left';
+}
+function cropMarks(g, k, x, y, w, hgt) {
+  g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 0.15 * k; const L = 3, o = 1;
+  [[x, y, -1, -1], [x + w, y, 1, -1], [x, y + hgt, -1, 1], [x + w, y + hgt, 1, 1]].forEach(([px, py, sx, sy]) => {
+    g.beginPath(); g.moveTo((px + sx * o) * k, py * k); g.lineTo((px + sx * (o + L)) * k, py * k); g.stroke();
+    g.beginPath(); g.moveTo(px * k, (py + sy * o) * k); g.lineTo(px * k, (py + sy * (o + L)) * k); g.stroke();
+  });
+}
+// Una hoja A4 con n tarjetas iguales
+export function drawCardSheet(d, dpi) {
+  const L = cardLayout(d.tam, d.n), { c, g, k } = mk(A4.w, A4.h, dpi);
+  for (let i = 0; i < L.n; i++) {
+    const x = L.x0 + (i % L.cols) * (L.w + L.gap), y = L.y0 + Math.floor(i / L.cols) * (L.h + L.gap);
+    drawOneCard(g, k, x, y, L.w, L.h, d);
+    if (d.corte === 'marcas') cropMarks(g, k, x, y, L.w, L.h);
+  }
+  return c;
+}
+export function drawOneCardCanvas(d, dpi) { const s = CARD_SIZES[d.tam] || CARD_SIZES['85x55'], { c, g, k } = mk(s.w, s.h, dpi); drawOneCard(g, k, 0, 0, s.w, s.h, d); return c; }

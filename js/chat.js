@@ -30,7 +30,7 @@ export async function startChat() {
 function schedule() {
   clearTimeout(timer);
   // v11: con el chat abierto, cada 1,5 s (Google tarda ~1 s en responder: más rápido solo saturaba sin ganar nada)
-  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? 1500 : document.visibilityState === 'visible' ? 5000 : 60000;
+  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? (CHAT.fast && !CHAT.noLong ? 60 : 1500) : document.visibilityState === 'visible' ? 5000 : 60000;
   timer = setTimeout(tick, ms);
 }
 export async function tick() {
@@ -40,7 +40,13 @@ export async function tick() {
     // v10.6.2: solo cuentan los mensajes confirmados por el servidor (la hora de un mensaje aún
     // enviándose es la del PC y, si el reloj va adelantado, se saltaban mensajes de otras personas)
     const last = CHAT.msgs.reduce((a, m) => !m.pendiente && !m.error && m.creado > a ? m.creado : a, '');
-    const r = await api('rt.poll', { desde: last, activo: document.visibilityState === 'visible', usando: usando() }, { quiet: true });
+    // v11.8: con el chat abierto, «espera larga»: el servidor contesta EN CUANTO llega un mensaje (hasta 20 s)
+    const longo = CHAT.open && document.visibilityState === 'visible' && S.online && !CHAT.noLong;
+    let r;
+    if (longo) {
+      try { r = await api('chat.esperar', { desde: last, max: 20000, activo: true, usando: usando() }, { quiet: true, timeout: 35000 }); CHAT.fast = Number(r.esperaMs) >= 5000; }
+      catch (e) { if (e.code === 'VALIDATION') CHAT.noLong = true; throw e; } // servidor antiguo sin «espera larga»: se vuelve al pulso
+    } else r = await api('rt.poll', { desde: last, activo: document.visibilityState === 'visible', usando: usando() }, { quiet: true });
     syncRevs(r.revs || {});
     r.mensajes = r.mensajes || [];
     // mensajes borrados por una administradora: desaparecen al momento
@@ -80,7 +86,7 @@ export function markRead() {
   if (last && last !== CHAT.lastSeen) { CHAT.lastSeen = last; kv.set('chat.visto.' + S.me.id, last); unread(); }
 }
 export function setOpen(v) { CHAT.open = v; if (v) { markRead(); tick(); } else schedule(); }
-export async function send(texto) {
+export async function send(texto, opts = {}) {
   texto = String(texto || '').trim();
   if (!texto) return;
   const tmp = { id: uid('ch').replace(/[^a-z0-9_]/gi, '').toLowerCase().slice(0, 19), autorId: S.me.id, autor: S.me.nombre, texto, creado: new Date().toISOString(), pendiente: true };
@@ -88,8 +94,10 @@ export async function send(texto) {
   CHAT.msgs.push(tmp); notify();
   for (let i = 0; i < 3; i++) {
     try {
-      const m = await api('chat.enviar', { id: tmp.id, texto });
+      const m = await api('chat.enviar', { id: tmp.id, texto, telegram: !!opts.telegram }, { quiet: true });
+      const tgr = m.telegram; delete m.telegram;
       Object.assign(tmp, m, { pendiente: false }); kv.set('chat.msgs', CHAT.msgs); markRead(); notify();
+      if (opts.telegram && tgr) toast(tgr.enviados ? '✈️ También enviado por Telegram a ' + tgr.enviados + ' persona(s)' + (tgr.sinTelegram ? ' · ' + tgr.sinTelegram + ' sin Telegram conectado' : '') : '✈️ ' + (tgr.aviso || 'No se envió por Telegram'), tgr.enviados ? 'ok' : 'warn', 7000);
       tick(); // v10.6.2: se consulta enseguida para ver las respuestas sin esperar al siguiente pulso
       return;
     } catch (e) { if (e.code !== 'NET' && e.code !== 'BUSY') { tmp.error = e.message; tmp.pendiente = false; notify(); return; } await new Promise(r => setTimeout(r, 1500 * (i + 1))); }

@@ -12,9 +12,11 @@ export function render(el, params) {
   const who = h('div.chat-who');
   const log = h('div.chat-log.team', { role: 'log', 'aria-live': 'polite' });
   const ta = h('textarea', { rows: 1, placeholder: 'Escribe un mensaje… (usa @Nombre para avisar a alguien)', 'aria-label': 'Mensaje' });
-  const sendB = btn('', go2, { cls: 'primary icon', icon: 'send', title: 'Enviar' });
+  // v11.8: dos botones claramente distintos (ninguno rojo): solo al chat, o al chat y también por Telegram
+  const sendB = btn('Enviar al chat', () => go2(false), { cls: 'primary send-chat', icon: 'msg', title: 'Enviar solo al chat del equipo (Intro)' });
+  const tgB = btn('Enviar por Telegram', () => go2(true), { cls: 'send-tg', icon: 'send', title: 'Enviar al chat y también al Telegram de quien lo tenga conectado' });
   ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; });
-  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go2(); } });
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go2(false); } });
   const more = btn('Ver mensajes anteriores', async () => { more.disabled = true; try { const n = await loadOlder(); if (!n) more.remove(); } catch (e) { toast(e.message, 'bad'); } more.disabled = false; }, { cls: 'ghost sm' });
   // v11: borrador guardado (si cambias de pantalla no se pierde lo que estabas escribiendo)
   const dKey = 'cd.chatDraft.' + S.me.id;
@@ -43,8 +45,8 @@ export function render(el, params) {
       } } : null
     ], { cls: 'ghost sm' }));
   const banner = h('div');
-  el.append(h('div.page-head', h('div', h('h1', '💬 Chat del equipo'), h('div.muted.small', 'Mensajes en vivo entre todo el equipo.')), who), tools, banner, h('div.chat.team', more, log, h('div.chat-in', ta, sendB)));
-  async function go2() { const t = ta.value; if (!t.trim()) return; ta.value = ''; ta.style.height = 'auto'; try { localStorage.removeItem(dKey); } catch (e) { } await send(t); }
+  el.append(h('div.page-head', h('div', h('h1', '💬 Chat del equipo'), h('div.muted.small', 'Mensajes en vivo entre todo el equipo.')), who), tools, banner, h('div.chat.team', more, log, h('div.chat-in', ta, h('div.send-btns', sendB, tgB))));
+  async function go2(telegram) { const t = ta.value; if (!t.trim()) return; ta.value = ''; ta.style.height = 'auto'; try { localStorage.removeItem(dKey); } catch (e) { } ta.focus(); await send(t, { telegram }); }
   function exportPdf() {
     const list = CHAT.msgs.filter(m => !m.pendiente && !m.error);
     printDoc(h('div.doc.a4', h('h2', 'Chat del equipo · ' + ((S.cfg && S.cfg.empresa.nombre) || '')), h('p.small', 'Exportado el ' + new Date().toLocaleString('es-ES') + ' · ' + list.length + ' mensajes'),
@@ -83,7 +85,7 @@ export function render(el, params) {
         return h('div.cmsg' + (mine ? '.me' : '') + (grouped ? '.grp' : ''), { dataset: { m: m.id } },
           !mine && !grouped ? avatar(u, 's') : h('span.av-sp'),
           h('div.cb', !mine && !grouped ? h('div.tiny.bold', m.autor) : null, h('div.ct', highlight(m.texto)),
-            h('div.tiny.muted.time', m.pendiente ? '🕓 Enviando…' : m.error ? h('a', { href: 'javascript:void 0', onclick: () => retry(m) }, '⚠️ ' + m.error) : hm(m.creado) + (mine ? ' ✓' : ''))),
+            h('div.tiny.muted.time', m.pendiente ? hm(m.creado) + ' 🕓' : m.error ? h('a', { href: 'javascript:void 0', onclick: () => retry(m) }, '⚠️ ' + m.error) : hm(m.creado) + (mine ? ' ✓' : ''))),
           canDel && !m.pendiente && !m.error ? h('button.cdel', { title: 'Borrar mensaje (va a la papelera)', onclick: () => delMsg(m) }, '🗑') : null);
       }]);
     });

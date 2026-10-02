@@ -4,7 +4,7 @@ import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHash, 
 import { rolePicker } from '../roles.js';
 import { iaPanel } from '../ai/models.js';
 import { biblioteca as bibliotecaView, memoria as memoriaView } from './ia.js';
-import { go, handleError, requestAccess, applyTheme, roleName, lockBox, start } from '../app.js';
+import { go, handleError, requestAccess, applyTheme, roleName, lockBox, start, THEMES, isAdminUser } from '../app.js';
 import { desktop } from '../desktop.js';
 import { connectTelegram } from './notificaciones.js';
 import { dropZone } from '../files.js';
@@ -171,7 +171,11 @@ const SEC = {
     });
     const u = S.me;
     const nombre = inp({ value: u.nombre }), color = inp({ type: 'color', value: u.color || '#7c3aed', style: { width: '60px', padding: '2px' } });
-    const tema = h('div.seg', [['claro', '☀️ Claro'], ['rosa', '🌸 Rosa sweet'], ['oscuro', '🌙 Oscuro'], ['sistema', '💻 Como Windows']].map(t => h('button' + ((u.tema || 'claro') === t[0] ? '.on' : ''), { onclick: async () => { applyTheme(t[0]); u.tema = t[0]; try { await api('usuarios.editar', { id: u.id, tema: t[0] }); } catch (e) { } SEC.perfil(mount(b, h('h2', 'Mi perfil'))) || null; } }, t[1])));
+    const pick = async k => { applyTheme(k); u.tema = k; try { await api('usuarios.editar', { id: u.id, tema: k }); } catch (e) { handleError(e); } SEC.perfil(mount(b, h('h2', 'Mi perfil'))) || null; };
+    const tema = h('div.col', { style: { gap: '10px' } },
+      h('div.seg', THEMES.filter(t => !t.premium).map(t => h('button' + ((u.tema || 'claro') === t.k ? '.on' : ''), { onclick: () => pick(t.k) }, t.t))),
+      isAdminUser() ? h('div', h('div.lbl', { style: { margin: '4px 0 6px' } }, 'TEMAS PREMIUM · administradoras'),
+        h('div.theme-cards', THEMES.filter(t => t.premium).map(t => h('button.theme-card.' + t.k + ((u.tema || '') === t.k ? '.on' : ''), { onclick: () => pick(t.k) }, h('span.sw'), h('b', t.t), h('span.tiny', t.d))))) : null);
     const foto = dropZone('foto', { title: 'Foto de perfil', single: true, multiple: false, entidad: 'usuarios', entidadId: u.id, onchange: items => { if (items.some(i => i.state === 'subido')) { toast('Foto actualizada', 'ok'); pull(); } } });
     const p1 = inp({ type: 'password', autocomplete: 'current-password' }), p2 = inp({ type: 'password', autocomplete: 'new-password' }), p3 = inp({ type: 'password', autocomplete: 'new-password' });
     const sessions = h('div');
@@ -307,7 +311,7 @@ const SEC = {
       if (isNew) f.nombre.addEventListener('input', () => { f.usuario.value = f.nombre.value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '.'); });
       let activo = u.activo !== false;
       modal(isNew ? 'Nuevo usuario' : u.nombre, h('div.col', h('div.form', field('Nombre', f.nombre), field('Usuario', f.usuario), field(isNew ? 'Contraseña' : 'Nueva contraseña', f.password, isNew ? 'Mínimo 6 caracteres. Podrá cambiarla desde su perfil.' : ''), field('Rol', f.rol, 'Qué puede ver y hacer. Los permisos de cada rol se ajustan en Roles y permisos.', 'full')), !isNew ? h('label.check', sw(activo, v => { activo = v; }), 'Usuario activo (si lo desactivas, no podrá entrar y se cierran sus sesiones)') : null),
-        close => [!isNew ? btn('Código de recuperación', () => { close(); giveCode(u.id); }, { cls: 'ghost', icon: 'key' }) : null, !isNew ? btn('Cerrar sus sesiones', async () => { await api('usuarios.cerrarSesiones', { userId: u.id }); toast('Sesiones cerradas', 'ok'); }, { cls: 'ghost' }) : null, h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
+        close => [!isNew && u.id !== S.me.id ? btn('Eliminar usuario', () => { close(); delUser(u); }, { cls: 'ghost danger', icon: 'trash' }) : null, !isNew ? btn('Código de recuperación', () => { close(); giveCode(u.id); }, { cls: 'ghost', icon: 'key' }) : null, !isNew ? btn('Cerrar sus sesiones', async () => { await api('usuarios.cerrarSesiones', { userId: u.id }); toast('Sesiones cerradas', 'ok'); }, { cls: 'ghost' }) : null, h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
           try {
             if (f.password.value || isNew) { const er = checkNewPassword(f.password.value); if (er) return toast(er, 'bad'); }
             if (isNew) await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ph: await passHash(f.password.value) });
@@ -315,6 +319,20 @@ const SEC = {
             close(); toast('Usuario guardado', 'ok'); drawU(); pull();
           } catch (e) { toast(e.message, 'bad'); }
         }, { cls: 'primary' })], { size: 'wide' });
+    }
+    // v11.8: eliminar sin perder nada (pedidos, ventas, gastos, documentos, movimientos y auditoría se quedan)
+    function delUser(u) {
+      const conf = inp({ placeholder: u.usuario, autocapitalize: 'off', autocomplete: 'off' }), anon = h('input', { type: 'checkbox' }), motivo = inp({ placeholder: 'Opcional' });
+      modal('Eliminar a ' + u.nombre, h('div.col',
+        h('p.small', 'Pierde el ACCESO: no podrá entrar, se cierran sus sesiones y se borran su contraseña, su Telegram y su foto. Deja de salir en las listas.'),
+        h('p.small.ok-t', '✓ NO se borra nada del negocio: sus pedidos, ventas, gastos, documentos, movimientos y la auditoría se conservan (con su nombre, que es lo que pasó).'),
+        h('p.tiny.muted', 'Si solo quieres que no entre durante un tiempo, mejor «Desactivar» (se puede volver a activar).'),
+        h('label.check', anon, 'Anonimizar su nombre en la ficha de usuario (los registros antiguos no se reescriben)'),
+        field('Motivo', motivo), field('Para confirmar, escribe su usuario: ' + u.usuario, conf)),
+      close => [btn('Cancelar', close), btn('Eliminar acceso', async () => {
+        try { await api('usuarios.eliminar', { id: u.id, confirmar: conf.value.trim(), anonimizar: anon.checked, motivo: motivo.value }); close(); toast('Acceso eliminado. Sus registros se conservan.', 'ok'); drawU(); pull(); }
+        catch (e) { toast(e.message, 'bad'); }
+      }, { cls: 'danger' })], { size: 'narrow' });
     }
     S._roles = (await api('roles.lista', {})).roles;
     await drawU();

@@ -96,6 +96,7 @@ export async function render(b, L, reload) {
         return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap', alignItems: 'flex-start' } }, icon('cube', 's'),
           h('div.grow', { style: { minWidth: '240px' } }, h('div.row.wrap', h('b', x.nombre || x.modelo), h('span.tiny.muted', x.ip + ' · ' + x.serial + (x.origenCodigo ? ' · código de ' + x.origenCodigo : ''))), bambuLine(x)),
           h('div.col', { style: { gap: '6px', minWidth: '200px' } }, h('span.tiny.muted', 'En el Taller es:'), asg,
+            /^(01S|01P|030|039)/.test(x.serial) ? btn('📷 Ver cámara', () => import('../camaras.js').then(C => C.openCam(x.serial)), { cls: 'sm' }) : null,
             btn('Desvincular', async () => { if (!await confirmDlg('Desvincular', '¿Dejar de seguir la ' + (x.nombre || x.modelo) + '?', 'Desvincular', true)) return; await desktop.bambuAccion({ accion: 'desvincular', serial: x.serial }); drawBambu(); }, { cls: 'sm ghost danger' })));
       })) : h('p.small.muted', 'Todavía no hay ninguna Bambu Lab vinculada.'),
       h('p.tiny.muted', r.studio.leido ? 'Bambu Studio de este PC tiene el acceso de ' + r.studio.impresoras + ' impresora(s): se usa sin enseñarlo nunca.' : 'Bambu Studio no está en este PC: escribe el código de acceso de cada impresora a mano.'));

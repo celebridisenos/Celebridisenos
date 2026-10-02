@@ -44,6 +44,17 @@ export const desktop = {
   bambu: () => call('bambu'),
   bambuAccion: body => call('bambu', { method: 'POST', body: JSON.stringify(body) }),
   print: job => call('print', { method: 'POST', body: JSON.stringify(job) }),
+  // v11.8: lo que puede hacer una impresora según su controlador y abrir sus preferencias de Windows
+  printerCaps: name => call('printers/capacidades?' + q({ name })),
+  printerPrefs: name => call('printers/capacidades', { method: 'POST', body: JSON.stringify({ printer: name }) }),
+  // v11.7: cámaras de las Bambu Lab P1/A1 (vídeo de la propia impresora por la red local; el código nunca llega aquí)
+  camaras: () => call('camara'),
+  camaraFoto: async serial => {
+    const r = await fetch('/local/camara?' + q({ serial }), { headers: { 'X-Host-Key': H.key }, cache: 'no-store' });
+    if (r.status === 200) return { blob: await r.blob(), edadMs: Number(r.headers.get('X-Edad-Ms')) || 0, estado: r.headers.get('X-Estado') || 'en_directo' };
+    let j = {}; try { j = await r.json(); } catch (e) { }
+    return { estado: j.estado || 'error', problema: j.problema || j.error || '' };
+  },
   // v11.1 · CelebryNova (operador autónomo) dentro del programa
   novaEstado: () => call('nova/estado'),
   novaArrancar: () => call('nova/arrancar', { method: 'POST' }),

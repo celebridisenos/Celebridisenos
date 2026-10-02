@@ -1,5 +1,5 @@
 // ================= Notificaciones =================
-import { h, mount, icon, btn, toast, ago, empty, pill } from '../ui.js';
+import { h, mount, icon, btn, toast, ago, empty, pill, confirmDlg } from '../ui.js';
 import { S, api, emit, on, byId } from '../store.js';
 import { go } from '../app.js';
 
@@ -28,14 +28,26 @@ async function markRead(ids, all) {
   try { await api('notificaciones.leer', all ? { todas: true } : { ids }); } catch (e) { }
 }
 
+// v11.8: borrar una, vaciar las leídas o vaciarlo todo (solo las tuyas)
+async function removeNotifs(ids, opts = {}) {
+  const before = S.t.notificaciones.slice();
+  S.t.notificaciones = opts.todas ? [] : opts.leidas ? S.t.notificaciones.filter(n => !n.leida) : S.t.notificaciones.filter(n => !ids.includes(n.id));
+  emit();
+  try { await api(opts.todas || opts.leidas ? 'notificaciones.vaciar' : 'notificaciones.borrar', opts.todas || opts.leidas ? { todas: !!opts.todas } : { ids }); }
+  catch (e) { S.t.notificaciones = before; emit(); toast(e.message, 'bad'); }
+}
 export function render(el) {
   const box = h('div');
-  el.append(h('div.page-head', h('h1', 'Notificaciones'), btn('Marcar todo como leído', () => markRead([], true), { icon: 'check' })), telegramCta(), pushCta(), box);
+  el.append(h('div.page-head', h('h1', 'Notificaciones'), h('div.row.wrap', btn('Marcar todo como leído', () => markRead([], true), { icon: 'check' }),
+    btn('Vaciar las leídas', () => removeNotifs([], { leidas: true }), { cls: 'ghost', icon: 'trash' }),
+    btn('Vaciar todo', async () => { if (await confirmDlg('Vaciar notificaciones', 'Se borran todas tus notificaciones (no afecta a nadie más ni a los pedidos, tareas…).', 'Vaciar todo', true)) removeNotifs([], { todas: true }); }, { cls: 'ghost danger' }))), ...[telegramCta(), pushCta()].filter(Boolean), box);
   const draw = () => {
     const list = S.t.notificaciones.slice().sort((a, b) => String(b.creado).localeCompare(String(a.creado)));
     if (!list.length) return mount(box, h('div.card', empty('bell', 'No tienes notificaciones', 'Aquí te avisaremos de pedidos urgentes, tareas, menciones, solicitudes…')));
     mount(box, h('div.list.boxed', list.slice(0, 200).map(n => h('div.item', { style: n.leida ? {} : { background: 'var(--brand-soft)' }, onclick: () => { markRead([n.id]); const p = linkPath(n.enlace); if (p) go(p); } },
-      h('span', { style: { fontSize: '20px' } }, ICON[n.tipo] || '🔔'), h('div.grow', h('div' + (n.leida ? '' : '.bold'), n.titulo), n.texto ? h('div.small.muted', n.texto) : null, h('div.tiny.muted', ago(n.creado))), !n.leida ? h('span.pill.brand', 'Nueva') : null))));
+      h('span', { style: { fontSize: '20px' } }, ICON[n.tipo] || '🔔'), h('div.grow', h('div' + (n.leida ? '' : '.bold'), n.titulo), n.texto ? h('div.small.muted', n.texto) : null, h('div.tiny.muted', ago(n.creado))), !n.leida ? h('span.pill.brand', 'Nueva') : null,
+      !n.leida ? h('button.btn.ghost.sm', { title: 'Marcar como leída', onclick: ev => { ev.stopPropagation(); markRead([n.id]); } }, '✓') : null,
+      h('button.btn.ghost.sm.icon', { title: 'Borrar', 'aria-label': 'Borrar notificación', onclick: ev => { ev.stopPropagation(); removeNotifs([n.id]); } }, icon('trash', 's'))))));
   };
   draw();
   return { update: draw };

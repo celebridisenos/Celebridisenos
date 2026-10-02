@@ -120,6 +120,9 @@ function contextText(g) {
   if (g.memoria.length) parts.push('MEMORIA (datos guardados por el equipo; tenlos en cuenta):\n' + g.memoria.map(m => '- ' + (m.ambito === 'usuario' ? '[preferencia de ' + ((m.autor) || 'esta persona') + '] ' : m.ambito === 'empresa' ? '[empresa] ' : '[privado] ') + m.texto).join('\n'));
   return parts.join('\n\n');
 }
+// v11.8: «Mensaje corto» o «Mensaje ampliado» (lo elige cada persona en Celeby Nova)
+export function respStyle() { try { return localStorage.getItem('cd.nova.estilo') === 'ampliado' ? 'ampliado' : 'corto'; } catch (e) { return 'corto'; } }
+export function setRespStyle(v) { try { localStorage.setItem('cd.nova.estilo', v === 'ampliado' ? 'ampliado' : 'corto'); } catch (e) { } }
 function systemPrompt(ctx) {
   const emp = (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa';
   const u = ctx.usuario || { nombre: S.me && S.me.nombre, rol: '' };
@@ -135,7 +138,9 @@ function systemPrompt(ctx) {
     '5. Cita las fuentes entre corchetes al final de la frase: [T1] para datos, [D1] para biblioteca.',
     '6. No puedes cambiar ni borrar nada. Si procede un cambio, di "Te propongo…" y explica que hay que confirmarlo con el botón.',
     '7. Si una herramienta dice "Sin permiso", explica que esa información requiere autorización de una administradora.',
-    '8. ESTILO: español de España, natural y directo. Respuestas CORTAS: 1-3 frases o viñetas breves. Nada de introducciones ("Claro", "Aquí tienes", "Actualmente…"), no repitas la pregunta, no expliques lo obvio. Ejemplo bueno: "Hoy faltan 3 productos. Publica 2 y revisa los mensajes." Solo te extiendes si te piden un texto largo (descripción, mensaje, email).',
+    respStyle() === 'ampliado'
+      ? '8. ESTILO (MENSAJE AMPLIADO): español de España, claro y ordenado. Explica con detalle: contexto, cifras del CONTEXTO, causas registradas y pasos a seguir, en párrafos cortos o viñetas. Sin relleno ni introducciones; no inventes nada para alargar.'
+      : '8. ESTILO (MENSAJE CORTO): español de España, natural y directo. Respuestas CORTAS: 1-3 frases o viñetas breves. Nada de introducciones ("Claro", "Aquí tienes", "Actualmente…"), no repitas la pregunta, no expliques lo obvio. Ejemplo bueno: "Hoy faltan 3 productos. Publica 2 y revisa los mensajes." Solo te extiendes si te piden un texto largo (descripción, mensaje, email).',
     '9. Importes con coma decimal y €.',
     '10. Datos de INTERNET [W…]: úsalos solo si aparecen en el texto, cita la web y da un rango (p. ej. "Envío estimado España: 4–7 €") y de qué depende (peso, medidas, destino, transportista). Si no aparece el dato, dilo; nunca inventes precios.',
     '11. DESCRIPCIONES DE PRODUCTO: céntrate en el producto (qué es, características, materiales, uso, detalles, ventajas y acabado). No hables de quién lo hizo: nada de «he creado», «he fabricado», «he diseñado» ni «fabricado por nosotros».'].join('\n');
@@ -247,7 +252,7 @@ export async function answerHere(question, history, ctx, cbs = {}) {
   if (isBriefQuestion(question) && String(question).length < 80 && !ctx.remoto) {
     return { texto: briefText(), fuentes: [{ tipo: 'datos', ref: 'Hoy', titulo: 'Resumen del día (datos reales)' }], herramientas: [], acciones: [], modo: 'celebrity', modelo: '', ms: Date.now() - t0 };
   }
-  const ck = S.ws + '|' + norm(question) + '|' + (S.lastSync || '') + '|' + (history || []).length;
+  const ck = S.ws + '|' + respStyle() + '|' + norm(question) + '|' + (S.lastSync || '') + '|' + (history || []).length;
   const hit = !cbs.forceBasic && cache.get(ck);
   if (hit && Date.now() - hit.t < 600000) { cbs.onToken && cbs.onToken(hit.r.texto); return Object.assign({}, hit.r, { ms: Date.now() - t0, cache: true }); }
   const g = await gather(question, ctx, cbs.onStatus);
@@ -299,6 +304,7 @@ export async function ask(question, history, cbs = {}) {
 // El PC servidor responde (móvil, portátil sin modelo)
 async function askTeam(question, history, cbs, modo) {
   cbs.onStatus && cbs.onStatus('Enviando la pregunta a ' + S.iaServidor.dispositivo + '…');
+  if (modo !== 'redactar') question = (respStyle() === 'ampliado' ? '[Responde con un MENSAJE AMPLIADO, detallado] ' : '[Responde con un MENSAJE CORTO, 1-3 frases] ') + question;
   const j = await api('ia.cola.crear', { pregunta: question, historial: (history || []).slice(-6), contexto: modo === 'redactar' ? 'redactar' : decodeURIComponent(location.hash.slice(2)).split('?')[0] });
   const t0 = Date.now();
   for (;;) {

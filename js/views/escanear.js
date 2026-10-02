@@ -73,9 +73,9 @@ async function lookup(text, result, hist) {
   let extra = null;
   if (!o && code) {
     try { extra = await api('pedidos.escanear', { codigo: code }); o = extra.pedido; upsertLocal('pedidos', o); emit(); }
-    catch (e) { mount(result, empty('alert', e.code === 'NOT_FOUND' ? 'No encontrado' : 'No se pudo buscar', e.message)); return; }
+    catch (e) { scanFail(result, e.code === 'NOT_FOUND' ? 'No encontrado' : 'No se pudo buscar', e.message); return; }
   }
-  if (!o) { mount(result, empty('alert', 'No encontrado', code ? 'No hay ningún pedido con el código ' + code + '.' : 'Escribe el código CEB-AAAA-NNNNNN (o el nº de pedido).')); return; }
+  if (!o) { scanFail(result, code ? 'QR no encontrado' : 'Código no válido', code ? 'No hay ningún pedido con el código ' + code + '.' : 'Esto no es un código de paquete (CEB-AAAA-NNNNNN) ni un nº de pedido.'); return; }
   recent.unshift({ id: o.id, at: new Date().toISOString() }); recent.splice(8);
   showOrder(o, extra, result, true);
   drawHist(hist);
@@ -86,38 +86,63 @@ function drawHist(el) {
   mount(el, list.length ? h('div', { style: { marginTop: '14px' } }, h('h3', 'Escaneados antes'), h('div.list', list.map(x => { const o = byId('pedidos', x.id); return o ? h('div.item', { onclick: () => go('escanear/' + (o.codigo || o.numero)) }, h('b', 'Nº ' + o.numero), h('span.grow.small', o.cliente + ' · ' + o.producto), h('span.tiny.muted', fdt(x.at))) : null; }))) : null);
 }
 
+// ---------- Confirmación inmediata: borde verde + pitido corto (bien) · borde rojo + doble tono grave (mal) ----------
+let actx = null;
+function beep(ok) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const tones = ok ? [[1046, 0, 0.09], [1568, 0.1, 0.12]] : [[220, 0, 0.18], [196, 0.22, 0.22]];
+    tones.forEach(([f, t0, d]) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = ok ? 'sine' : 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, actx.currentTime + t0); g.gain.exponentialRampToValueAtTime(ok ? 0.25 : 0.12, actx.currentTime + t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + t0 + d); o.connect(g).connect(actx.destination); o.start(actx.currentTime + t0); o.stop(actx.currentTime + t0 + d + 0.02); });
+  } catch (e) { }
+  try { navigator.vibrate && navigator.vibrate(ok ? 60 : [80, 60, 80]); } catch (e) { }
+}
+function flash(el, ok) { el.classList.remove('scan-ok', 'scan-bad'); void el.offsetWidth; el.classList.add(ok ? 'scan-ok' : 'scan-bad'); beep(ok); }
+export function scanFail(el, title, text) { mount(el, h('div.scan-card.scan-bad', h('div.scan-big', '❌'), h('h2', title), h('p.muted', text))); delete el.dataset.id; beep(false); }
+
+// ---------- La ficha: SOLO lo que hace falta para preparar el paquete. Se puede escanear las veces que haga falta. ----------
 function showOrder(o, extra, el, fresh) {
-  if (!o) { mount(el, empty('alert', 'Este pedido ya no existe', '')); delete el.dataset.id; return; }
+  if (!o) { scanFail(el, 'Este pedido ya no existe', ''); return; }
   el.dataset.id = o.id;
-  const D = { materiales: S.t.materiales || [], embalajes: S.t.embalajes || [], recetas: S.t.recetas || [], productos: S.t.productos || [], calculadora: S.t.calculadora || [], gastos: S.t.gastos || [] };
-  const c = CL.orderCosts(o, D, cfg()), ph = CL.phaseOf(cfg().pedidos, o.estado);
+  const ph = CL.phaseOf(cfg().pedidos, o.estado), t = CL.orderTiming(o, cfg().pedidos, S.hoy);
   const cli = o.clienteId ? byId('clientes', o.clienteId) : null, xc = extra && extra.cliente;
-  const pais = (cli && cli.pais && cli.pais !== '•••' && cli.pais) || (xc && xc.pais) || '';
   const dir = (cli && cli.direccion && cli.direccion !== '•••' && cli.direccion) || (xc && xc.direccion) || '';
   const hidden = !can('clientes.datos');
-  const caja = (o.embalaje && o.embalaje.snap && o.embalaje.snap.caja) || c.embalaje.caja || (extra && extra.caja) || '';
-  const peso = c.pesos.total !== null ? c.pesos.total : (extra && extra.peso);
-  const fact = (l, v) => h('div.fact', h('div.l', l), h('div.v', v));
-  const miss = t => h('span.warn-t', t);
-  const st = (cfg().pedidos.estados || []).find(s => s.k === o.estado) || {};
+  const st = (cfg().pedidos.estados || []).find(x => x.k === o.estado) || {};
   const edit = can('pedidos.editar');
   const redraw = () => showOrder(byId('pedidos', o.id), extra, el, false);
-  mount(el,
-    h('div.card', { style: { borderColor: ph === 'empaquetar' ? 'var(--brand)' : undefined } },
-      h('div.row.wrap', h('h2.grow', 'Pedido nº ' + o.numero), o.codigo ? h('code', o.codigo) : null, pill(o.estado, '', st.c)),
-      h('div.facts', fact('Cliente', o.cliente || miss('sin nombre')), fact('País', pais || miss('sin indicar')),
-        fact('Dirección', hidden ? h('span.muted', '🔒 sin permiso para verla') : dir || miss('no está guardada')),
-        fact('Producto', o.producto), fact('Cantidad', String(o.cantidad || 1)),
-        fact('Caja', caja || miss('sin elegir')), fact('Peso del paquete', peso !== null && peso !== undefined && peso !== '' ? Math.round(peso).toLocaleString('es-ES') + ' g' : miss('PENDIENTE')),
-        o.envio ? fact('Envío', o.envio + (o.seguimiento ? ' · ' + o.seguimiento : '')) : null),
-      o.personalizacion ? h('p.small', '✏️ Personalización: ', h('b', o.personalizacion)) : null,
-      o.incidencia ? h('p.small.bad-t', '⚠️ ' + o.incidencia) : null),
-    E.printBlock(o, { redraw }),
-    h('div.row.wrap', { style: { gap: '8px' } },
-      edit && ['reserva', 'confirmado', 'impresion', 'postpro'].includes(ph) ? btn('Pasar a «' + (CL.stateOfPhase(cfg().pedidos, 'empaquetar') || 'Empaquetar') + '»', async () => { const P = await import('./pedidos.js'); await P.changeState(o, CL.stateOfPhase(cfg().pedidos, 'empaquetar')); redraw(); }, { icon: 'box' }) : null,
-      edit && ph === 'empaquetar' ? btn('✅ Paquete hecho', async () => { const EM = await import('./embalaje.js'); if (await EM.closePack(o)) redraw(); }, { cls: 'primary' }) : null,
-      btn('📦 Abrir el embalaje', () => import('./embalaje.js').then(EM => EM.packPanel(o.id))),
-      btn('Abrir el pedido', () => go('pedidos/' + o.id), { cls: 'ghost' })));
+  const when = t.enviado ? (o.fechaEnvio ? 'Enviado el ' + o.fechaEnvio.split('-').reverse().join('/') : 'Enviado') : t.limite ? t.limite.split('-').reverse().join('/') + ' · ' + t.texto.toLowerCase() : 'sin fecha';
+  const row = (ic, label, v, cls) => h('div.scan-row' + (cls ? '.' + cls : ''), h('span.scan-ic', ic), h('div.grow', h('div.scan-l', label), h('div.scan-v', v)));
+  const lbl = o.etiquetaEnvio && o.etiquetaEnvio.archivoId;
+  const card = h('div.scan-card',
+    h('div.scan-head', h('b', 'Nº ' + o.numero), o.codigo ? h('code', o.codigo) : null, h('span.grow'), pill(o.estado, '', st.c)),
+    row('👤', 'Cliente', o.cliente || '—'),
+    row('📍', 'Dirección', hidden ? '🔒 sin permiso para verla' : dir || h('span.warn-t', 'no está guardada')),
+    row('📦', 'Producto', (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto),
+    row('🎨', 'Color', o.color || h('span.muted', 'sin indicar')),
+    row('📅', 'Cuándo se envía', when, t.nivel === 'late' ? 'late' : t.nivel === 'today' ? 'today' : ''),
+    row('🚚', 'Empresa de envío', o.envio || h('span.muted', 'sin indicar')),
+    row('🛒', 'Plataforma', o.canal || h('span.muted', 'sin indicar')),
+    o.personalizacion ? row('✏️', 'Personalización', o.personalizacion) : null,
+    o.incidencia ? row('⚠️', 'Incidencia', o.incidencia, 'late') : null,
+    h('div.scan-lbl' + (lbl ? '.ok' : '.warn'), lbl ? '🟢 ETIQUETA ADJUNTADA' : '🟠 FALTA ETIQUETA DE ENVÍO', !lbl && edit ? h('button.btn.sm', { style: { marginLeft: '10px' }, onclick: () => E.attachDialog(o, redraw) }, 'Adjuntar') : null));
+  const photo = h('input', { type: 'file', accept: 'image/*', capture: 'environment', style: { display: 'none' }, onchange: async () => {
+    const f = photo.files[0]; photo.value = ''; if (!f) return;
+    try { const F = await import('../files.js'); await F.uploadFile(f, { entidad: 'pedidos', entidadId: o.id }); toast('📷 Foto guardada en el pedido nº ' + o.numero, 'ok'); } catch (e) { handleError(e); }
+  } });
+  const P = () => import('./pedidos.js');
+  const wasOpen = !!(el.querySelector('details.scan-more') || {}).open;
+  mount(el, card,
+    edit ? h('div.scan-actions',
+      ph === 'empaquetar' ? btn('✅ Marcar preparado', async () => { const EM = await import('./embalaje.js'); if (await EM.closePack(o)) redraw(); }, { cls: 'primary' })
+        : ph === 'listo' ? btn('🚚 ' + (o.envio ? 'Enviar con ' + o.envio : 'Preparado para enviar'), () => E.sendCheck(o, redraw), { cls: 'primary' })
+        : ['reserva', 'confirmado', 'impresion', 'postpro'].includes(ph) ? btn('📦 Pasar a «' + (CL.stateOfPhase(cfg().pedidos, 'empaquetar') || 'Empaquetar') + '»', async () => { await (await P()).changeState(o, CL.stateOfPhase(cfg().pedidos, 'empaquetar')); redraw(); }, { cls: 'primary' }) : null,
+      btn('🔄 Cambiar estado', async () => (await P()).stateDialog(o)),
+      can('archivos.subir') ? btn('📷 Hacer foto', () => photo.click()) : null,
+      !o.incidencia ? btn('⚠️ Incidencia', async () => (await P()).issueDialog(o)) : null, photo) : null,
+    h('details.scan-more', { open: wasOpen }, h('summary', 'Etiquetas, impresión y más'),
+      E.printBlock(o, { redraw }),
+      h('div.row.wrap', { style: { gap: '8px' } }, btn('📦 Abrir el embalaje', () => import('./embalaje.js').then(EM => EM.packPanel(o.id))), btn('Abrir el pedido', () => go('pedidos/' + o.id), { cls: 'ghost' }))));
+  if (fresh) flash(card, true);
   // opcional (Embalaje → Tarjeta y mensajes): al escanear un pedido en «Empaquetar» se imprime lo que falta
   if (fresh && edit && ph === 'empaquetar' && (cfg().envio || {}).autoAlEscanear && E.pendingOf(o).length) E.printPending(o).then(redraw).catch(e => handleError(e));
 }

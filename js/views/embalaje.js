@@ -39,7 +39,8 @@ export function render(el, params) {
     (VIEWS[tab] || drawOrders)(body);
   };
   draw();
-  return { update: draw };
+  // los formularios (Packaging, Tarjeta y mensajes) no se rehacen al sincronizar: se perdería lo que estás escribiendo
+  return { update: () => { if (tab !== 'config' && tab !== 'tarjeta') draw(); } };
 }
 
 // ---------- Para empaquetar ----------
@@ -79,6 +80,7 @@ export function packPanel(id) {
     const sec = (t, ...k) => h('div.card.flat', { style: { marginBottom: '10px' } }, h('div.lbl', { style: { marginBottom: '6px', fontWeight: 700 } }, t), ...k);
     const fact = (l, v) => h('div.fact', h('div.l', l), h('div.v', v));
     mount(box,
+      E.prepareBanner(o, draw),
       sec('PRODUCTO', h('div.facts', fact('Producto', (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto),
         fact('Peso del producto (la pieza)', c.pesos.producto !== null ? gTxt(c.pesos.producto) + (Number(o.cantidad) > 1 ? ' × ' + o.cantidad + ' = ' + gTxt(c.pesos.productoTotal) : '') : h('span.warn-t', 'PENDIENTE: apúntalo en la ficha del producto')),
         fact('Medidas', dims ? dims.map(x => String(x).replace('.', ',')).join(' × ') + ' cm' : h('span.warn-t', 'PENDIENTE: «Tamaño» en la ficha')))),
@@ -108,6 +110,7 @@ export function packPanel(id) {
       h('div.row.wrap', { style: { marginTop: '6px' } },
         can('pedidos.editar') && !packed && ['reserva', 'confirmado', 'impresion', 'postpro'].includes(ph(o)) ? btn('Pasar a «' + (CL.stateOfPhase(cfg().pedidos, 'empaquetar') || 'Empaquetar') + '»', async () => { await changeTo(o, CL.stateOfPhase(cfg().pedidos, 'empaquetar')); draw(); }, { icon: 'box' }) : null,
         can('pedidos.editar') && !packed ? btn('✅ Paquete hecho → ' + (CL.stateOfPhase(cfg().pedidos, 'listo') || 'Listo para envío'), async () => { if (await closePack(o)) { draw(); } }, { cls: 'primary' }) : null,
+        packed && can('pedidos.editar') && ph(o) === 'listo' ? btn('🚚 Preparado para enviar', () => E.sendCheck(o, draw), { cls: 'primary' }) : null,
         packed && can('pedidos.editar') ? btn('Rehacer el embalaje', () => redoDialog(o, draw), { cls: 'ghost' }) : null,
         btn('Etiqueta de dirección propia', () => import('./pedidos.js').then(P => P.labelDialog(o)), { icon: 'printer', cls: 'ghost' }),
         h('span.grow'), btn('Abrir el pedido', () => { m && m.close(); go('pedidos/' + o.id); }, { cls: 'ghost' })));
@@ -318,22 +321,33 @@ function lossForm() {
 // ---------- v11.6 · Tarjeta de gracias, mensajes al cliente y qué se imprime en cada paquete ----------
 function drawCard(el) {
   const c0 = JSON.parse(JSON.stringify(cfg().envio || {})), g = Object.assign({ titulo: '', texto: '', firma: '', logo: true, qrCodigo: false }, c0.gracias || {});
+  const tj = Object.assign({ modo: 'hoja', tam: '85x55', n: 0, corte: 'marcas', color: '#e0457b', fondo: false, qr: false, pagina: {} }, c0.tarjeta || {}); tj.pagina = Object.assign({ mensaje: '', instagram: '', tiktok: '', web: '', whatsapp: '', email: '' }, tj.pagina || {});
   const im = Object.assign({ paquete: true, gracias: true, propiaSinOficial: false }, c0.imprimir || {});
   const msgs = (c0.mensajes || []).map(m => Object.assign({}, m));
   const editCfg = can('config.editar');
-  const sample = (S.t.pedidos || []).slice().reverse().find(o => ph(o) === 'empaquetar') || (S.t.pedidos || [])[(S.t.pedidos || []).length - 1] || { id: 'x', numero: '123', cliente: 'Ana', producto: 'Maceta Luna', cantidad: 1, codigo: 'CEB-' + String(S.hoy || '2026').slice(0, 4) + '-000123' };
   const ti = inp({ value: g.titulo, maxlength: 60 }), tx = area({ rows: 3, maxlength: 220 }), fi = inp({ value: g.firma, maxlength: 60 });
   tx.value = g.texto;
-  const lg = h('input', { type: 'checkbox', checked: g.logo !== false }), qc = h('input', { type: 'checkbox', checked: !!g.qrCodigo });
-  const prev = h('div.lbl-prev'), warn = h('p.small');
-  const cur = () => ({ titulo: ti.value, texto: tx.value, firma: fi.value, logo: lg.checked, qrCodigo: qc.checked });
-  const redraw = async () => {
-    const L = await import('../labels.js'), d = E.thanksData(sample, cur());
+  const lg = h('input', { type: 'checkbox', checked: g.logo !== false }), qr = h('input', { type: 'checkbox', checked: !!tj.qr }), fo = h('input', { type: 'checkbox', checked: !!tj.fondo });
+  const tam = sel(Object.keys({ '85x55': 1, '100x70': 1, '105x74': 1, '148x105': 1 }).map(k => ({ v: k, t: k.replace('x', ' × ') + ' mm' })), tj.tam);
+  const corte = sel([{ v: 'marcas', t: 'Marcas de corte en las esquinas' }, { v: 'borde', t: 'Borde fino redondeado' }, { v: 'ninguno', t: 'Sin marcas' }], tj.corte);
+  const color = inp({ type: 'color', value: tj.color || '#e0457b', style: { width: '60px', padding: '2px' } });
+  const nIn = inp({ type: 'number', min: 1, max: 40, value: tj.n || '', placeholder: 'llenar la hoja', style: { width: '120px' } });
+  const modo = sel([{ v: 'hoja', t: 'Hoja A4 con varias tarjetas (papel fotográfico) · recomendado' }, { v: 'etiqueta', t: 'Una etiqueta de 50 × 50 por pedido (impresora de etiquetas)' }], tj.modo);
+  const pg = {}; ['mensaje', 'instagram', 'tiktok', 'web', 'whatsapp', 'email'].forEach(k => { pg[k] = inp({ value: tj.pagina[k] || '', placeholder: { mensaje: 'Tu apoyo hace posible que sigamos creando.', instagram: 'usuario (sin @)', tiktok: 'usuario (sin @)', web: 'https://tu-tienda…', whatsapp: '+34…', email: 'hola@…' }[k] }); });
+  const sheetBox = h('div.card-sheet'), oneBox = h('div'), warn = h('div.small'), infoN = h('span.tiny.muted');
+  const curG = () => ({ titulo: ti.value, texto: tx.value, firma: fi.value, logo: lg.checked, qrCodigo: false });
+  const curT = () => ({ modo: modo.value, tam: tam.value, n: Number(nIn.value) || 0, corte: corte.value, color: color.value, fondo: fo.checked, qr: qr.checked, pagina: Object.fromEntries(Object.keys(pg).map(k => [k, pg[k].value.trim()])) });
+  let timer = null;
+  const redraw = () => { clearTimeout(timer); timer = setTimeout(paint, 120); };
+  const paint = async () => {
+    const L = await import('../labels.js'), d = E.universalCard(curG(), curT());
     if (d.logo) d.logoImg = await L.loadLogo();
-    const cv = L.draw('gracias', d, 300, L.sizeOf('gracias', await L.labelCfg())); cv.className = 'lbl-canvas'; cv.style.width = '50mm'; cv.style.height = '50mm';
-    mount(prev, cv); mount(warn, d.faltan.length ? h('span.warn-t', 'Con el pedido de ejemplo falta: ' + d.faltan.join(', ')) : h('span.tiny.muted', 'Ejemplo con el pedido nº ' + sample.numero + ' (a tamaño real en pantalla).'));
+    const lay = L.cardLayout(d.tam, d.n); infoN.textContent = lay.per + ' tarjetas caben en una hoja A4 (' + lay.cols + ' × ' + lay.rows + ')';
+    const sh = L.drawCardSheet(d, 60); sh.className = 'sheet-prev'; mount(sheetBox, sh);
+    const one = L.drawOneCardCanvas(d, 300), s = L.CARD_SIZES[d.tam]; one.className = 'lbl-canvas'; one.style.width = s.w + 'mm'; one.style.height = s.h + 'mm'; mount(oneBox, one);
+    mount(warn, d.avisos.concat(d.sinQr ? [d.sinQr] : []).map(x => h('div.warn-t', '⚠️ ' + x)), d.qr ? h('div.tiny.muted', 'El QR abre: ', h('a', { href: d.qr, target: '_blank', rel: 'noopener' }, 'la página de agradecimiento')) : null);
   };
-  [ti, tx, fi].forEach(x => x.addEventListener('input', redraw)); [lg, qc].forEach(x => x.addEventListener('change', redraw));
+  [ti, tx, fi, nIn, color].concat(Object.values(pg)).forEach(x => x.addEventListener('input', redraw)); [lg, qr, fo, tam, corte, modo].forEach(x => x.addEventListener('change', redraw));
   const ck = (k, t) => { const c = h('input', { type: 'checkbox', checked: !!im[k] }); c.onchange = () => { im[k] = c.checked; }; return h('label.check', c, t); };
   const auto = h('input', { type: 'checkbox', checked: !!c0.autoAlEscanear });
   const mbox = h('div.col', { style: { gap: '10px' } });
@@ -343,21 +357,60 @@ function drawCard(el) {
     return h('div.card.flat', h('div.row', t, editCfg ? btn('', () => { msgs.splice(i, 1); drawMsgs(); }, { cls: 'sm ghost icon', icon: 'trash', title: 'Quitar' }) : null), x);
   }), editCfg ? btn('Añadir mensaje', () => { msgs.push({ k: 'm' + Date.now().toString(36), t: 'Mensaje nuevo', texto: '¡Hola {cliente}! ' }); drawMsgs(); }, { cls: 'sm', icon: 'plus' }) : null);
   drawMsgs();
-  const prBox = h('div');
+  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, autoAlEscanear: auto.checked, mensajes: msgs } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
   mount(el,
-    h('div.card', h('h3', '💌 Tarjeta de agradecimiento (50 × 50 mm)'),
-      h('div.thanks-edit', h('div.col', field('Título', ti), field('Texto', tx), field('Firma', fi), h('label.check', lg, 'Con mi logo (Configuración → Empresa y logo)'), h('label.check', qc, 'Con un QR pequeño del código del paquete'),
-        h('p.tiny.muted', 'Marcadores: ' + E.MARCAS.map(m => '{' + m[0] + '} = ' + m[1]).join(' · ') + '. Del cliente solo se pone el nombre de pila. Si falta un dato, se avisa: no se inventa.')),
-        h('div.col', prev, warn))),
-    h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Qué se imprime con cada paquete'),
-      ck('paquete', 'Código del paquete 50 × 50 (QR + CEB-…) para escanearlo'), ck('gracias', 'Tarjeta de agradecimiento 50 × 50'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
+    h('div.card', h('h3', '💌 Tarjetas de agradecimiento'),
+      h('p.small.muted', 'Tarjeta UNIVERSAL: sin el nombre del cliente, sirve para todos los pedidos. Así se imprimen varias juntas en una hoja A4 de papel fotográfico y se recortan.'),
+      field('Cómo se imprimen', modo),
+      h('div.thanks-edit', h('div.col',
+        field('Título', ti), field('Texto', tx), field('Firma', fi, '{tienda} = el nombre de tu empresa'),
+        h('div.form', field('Tamaño de cada tarjeta', tam), field('Corte', corte), field('Color de acento', color), field('Tarjetas por hoja', nIn, 'Vacío = las que quepan')),
+        h('label.check', lg, 'Con mi logo (Configuración → Empresa y logo)'), h('label.check', fo, 'Fondo suave del color de acento'),
+        h('label.check', qr, 'Con un QR a una página de agradecimiento (opcional)'),
+        h('details.more', h('summary', 'Página de agradecimiento del QR'), h('div.in.form', field('Mensaje', pg.mensaje, null, 'full'), field('Instagram', pg.instagram), field('TikTok', pg.tiktok), field('Tienda / web', pg.web), field('WhatsApp', pg.whatsapp), field('Email', pg.email),
+          h('p.tiny.muted.full', 'Solo sale lo que rellenes: no se inventa ninguna red ni contacto. La página es pública y no tiene acceso a tus datos.'))),
+        warn),
+        h('div.col', { style: { alignItems: 'center', gap: '6px' } }, h('div.tiny.muted', 'Una tarjeta a tamaño real'), oneBox, h('div.tiny.muted', 'Hoja A4'), sheetBox, infoN))),
+    h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Imprimir hojas de tarjetas'), h('div', { id: 'card-print' })),
+    h('div.card', { style: { marginTop: '12px' } }, h('h3', '📦 Qué va con cada paquete'),
+      ck('paquete', 'Código del paquete 50 × 50 (QR + CEB-…) para escanearlo'), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
       h('label.check', auto, 'Al escanear un pedido en «Empaquetar», imprimir solo lo que falte'),
       h('p.tiny.muted', 'La etiqueta oficial (Vinted, Correos, InPost…) se imprime siempre que esté adjunta. Nada se imprime dos veces: para otra copia está «Reimprimir», que queda apuntado.')),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '💬 Mensajes para el cliente'), h('p.small.muted', 'Para copiar y pegar en Vinted, Wallapop, WhatsApp… Se rellenan con los datos del pedido; el programa no los envía solo.'), mbox),
-    editCfg ? h('div.row', { style: { marginTop: '12px' } }, btn('Guardar', () => call('config.guardar', { clave: 'envio', valor: { gracias: cur(), imprimir: im, autoAlEscanear: auto.checked, mensajes: msgs } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { }), { cls: 'primary' })) : h('p.tiny.muted', 'Solo una administradora puede cambiarlo.'),
-    prBox);
-  redraw();
-  labelPrinterBox(prBox);
+    editCfg ? h('div.row', { style: { marginTop: '12px' } }, btn('Guardar', save, { cls: 'primary' })) : h('p.tiny.muted', 'Solo una administradora puede cambiarlo.'),
+    h('div', { id: 'lbl-printers' }));
+  paint();
+  cardPrintBox(el.querySelector('#card-print'), () => E.universalCard(curG(), curT()));
+  labelPrinterBox(el.querySelector('#lbl-printers'));
+}
+// Imprimir hojas de tarjetas: impresora de folios/fotos, calidad máxima que dice SU controlador, papel fotográfico
+async function cardPrintBox(el, getCard) {
+  const L = await import('../labels.js'), D = await import('../desktop.js');
+  const hojas = inp({ type: 'number', min: 1, max: 20, value: 1, style: { width: '80px' } });
+  const calidad = sel([{ v: 300, t: 'Alta (300 ppp) · recomendada' }, { v: 600, t: 'Máxima (600 ppp) · más lenta' }], 300);
+  const info = h('div.small'), out = h('div');
+  let prSel = null;
+  if (D.desktop.on) {
+    const list = L.realPrinters(await L.printers()), t = await L.targetFor('tarjetas');
+    prSel = sel(list.filter(p => !p.label).map(p => ({ v: p.name, t: p.name + (p.offline ? ' · DESCONECTADA' : '') })), t.pr ? t.pr.name : '');
+    const caps = async () => {
+      if (!prSel.value) { mount(info, h('span.warn-t', 'No hay ninguna impresora de folios/fotos en este ordenador.')); return; }
+      mount(info, h('span.muted', 'Leyendo lo que puede hacer la impresora…'));
+      try {
+        const c = await D.desktop.printerCaps(prSel.value);
+        mount(info, h('div', '🖨️ Según su controlador: ', h('b', c.mejor || 'resolución no indicada'), c.color ? ' · en color' : ' · solo blanco y negro', (c.papeles || []).some(x => /a4/i.test(x)) ? ' · admite A4' : h('span.warn-t', ' · no dice que admita A4')),
+          h('div.tiny.muted', 'El programa usa la mejor resolución que ofrece el controlador. El TIPO DE PAPEL (fotográfico, brillo/mate) y la calidad «Foto/Máxima» se eligen una vez en las preferencias de la impresora: Windows no deja cambiarlos desde aquí.'),
+          btn('Abrir preferencias de la impresora (papel fotográfico)', () => D.desktop.printerPrefs(prSel.value).catch(e => toast(e.message, 'bad')), { cls: 'sm ghost' }));
+      } catch (e) { mount(info, h('span.warn-t', 'No se pudo leer la impresora: ' + e.message)); }
+    };
+    prSel.onchange = caps; caps();
+  } else mount(info, h('p.small.muted', 'En el móvil se crea un PDF A4 a tamaño real: imprímelo al 100 % (sin «Ajustar a la página») en papel fotográfico.'));
+  mount(el, h('div.form', prSel ? field('Impresora', prSel) : null, field('Hojas', hojas), field('Calidad', calidad)), info,
+    h('div.row', { style: { marginTop: '8px' } }, btn('🖨️ IMPRIMIR TARJETAS', async ev => {
+      const b = ev.target.closest('button'); b.disabled = true;
+      try { const d = getCard(); const r = await E.printCardSheets(d, { hojas: hojas.value, dpi: Number(calidad.value), printer: prSel && prSel.value }); mount(out, h('p.small.ok-t', r.how === 'printer' ? '✓ Enviado a ' + r.printer : '✓ PDF listo')); }
+      catch (e) { toast('No se pudo imprimir: ' + e.message, 'bad', 8000); } b.disabled = false;
+    }, { cls: 'primary' })), out);
 }
 // Mini panel de la impresora de etiquetas de ESTE ordenador
 async function labelPrinterBox(el) {

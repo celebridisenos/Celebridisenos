@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>¡Gracias!</title>
+<!-- v11.8 · Página pública de agradecimiento (la abre el QR de la tarjeta). No lee ni guarda ningún dato:
+     solo muestra lo que viene en el propio enlace (nombre de la tienda, mensaje y las redes que hayas configurado). -->
+<style>
+  :root { --acc: #e0457b; --ink: #2b2230; --soft: #fff6f9; --muted: #7a6f80; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: var(--ink); background: radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--acc) 14%, #fff) 0%, #fff 60%); display: flex; align-items: center; justify-content: center; padding: 28px 18px 40px; }
+  main { width: 100%; max-width: 440px; text-align: center; }
+  .logo { width: 108px; height: 108px; object-fit: contain; border-radius: 28px; background: #fff; box-shadow: 0 10px 30px rgba(43,34,48,.12); padding: 12px; margin-bottom: 22px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 34px; line-height: 1.15; margin: 0 0 6px; }
+  .shop { color: var(--acc); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 12px; margin-bottom: 18px; }
+  .line { width: 44px; height: 3px; border-radius: 3px; background: var(--acc); margin: 18px auto; }
+  p.msg { font-size: 18px; line-height: 1.55; margin: 0 0 8px; }
+  p.quote { font-style: italic; color: var(--muted); font-size: 15px; line-height: 1.5; min-height: 46px; transition: opacity .5s; }
+  .links { display: grid; gap: 10px; margin-top: 26px; }
+  .links a { display: flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; color: var(--ink); background: #fff; border: 1px solid color-mix(in srgb, var(--acc) 30%, #eee); padding: 14px 16px; border-radius: 16px; font-weight: 600; font-size: 15px; box-shadow: 0 2px 10px rgba(43,34,48,.05); }
+  .links a.main { background: var(--acc); color: #fff; border-color: var(--acc); }
+  .links a:active { transform: scale(.99); }
+  footer { margin-top: 30px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="icons/logo-full.png" alt="" onerror="this.src='icons/icon-192.png'">
+  <h1>¡Gracias por tu compra!</h1>
+  <div class="shop" id="shop"></div>
+  <p class="msg" id="msg">Tu apoyo hace posible que sigamos creando.</p>
+  <div class="line"></div>
+  <p class="quote" id="quote"></p>
+  <nav class="links" id="links"></nav>
+  <footer id="foot"></footer>
+</main>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var clean = function (v, rx, max) { v = String(v || '').trim().slice(0, max || 200); return rx.test(v) ? v : ''; };
+  var name = clean(q.get('n'), /^[^<>]{1,80}$/, 80), msg = clean(q.get('m'), /^[^<>]{1,200}$/);
+  var ig = clean(q.get('ig'), /^[\w.]{1,40}$/), tt = clean(q.get('tt'), /^[\w.]{1,40}$/), web = clean(q.get('w'), /^https:\/\/[^\s"'<>]+$/i);
+  var wa = clean(q.get('wa'), /^\+?\d{6,15}$/), em = clean(q.get('e'), /^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$/), col = clean(q.get('c'), /^[0-9a-f]{6}$/i);
+  if (col) document.documentElement.style.setProperty('--acc', '#' + col);
+  if (name) { document.getElementById('shop').textContent = name; document.title = '¡Gracias! · ' + name; document.getElementById('foot').textContent = '© ' + name; }
+  if (msg) document.getElementById('msg').textContent = msg;
+  var quotes = ['Cada pieza se prepara con cariño, capa a capa.', 'Lo hecho con detalle dura más.', 'Detrás de cada pedido hay una idea que se hace realidad.', 'Gracias por elegir algo único.', 'Las pequeñas cosas también cuentan una historia.'];
+  var i = Math.floor(Math.random() * quotes.length), qe = document.getElementById('quote');
+  var show = function () { qe.style.opacity = 0; setTimeout(function () { qe.textContent = '«' + quotes[i % quotes.length] + '»'; qe.style.opacity = 1; i++; }, 450); };
+  show(); setInterval(show, 6000);
+  var L = document.getElementById('links');
+  var add = function (href, txt, main) { var a = document.createElement('a'); a.href = href; a.rel = 'noopener noreferrer'; a.target = '_blank'; a.textContent = txt; if (main) a.className = 'main'; L.appendChild(a); };
+  if (web) add(web, '🛍️ Visita la tienda', true);
+  if (ig) add('https://www.instagram.com/' + encodeURIComponent(ig) + '/', '📸 Instagram · @' + ig);
+  if (tt) add('https://www.tiktok.com/@' + encodeURIComponent(tt), '🎵 TikTok · @' + tt);
+  if (wa) add('https://wa.me/' + wa.replace(/^\+/, ''), '💬 Escríbenos por WhatsApp');
+  if (em) add('mailto:' + em, '✉️ ' + em);
+})();
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@ import { menu, h, mount, clear, icon, btn, modal, drawer, toast, eur, fdate, fdt
 import { S, can, mutate, api, timing, stateColor, byId, upsertLocal, removeLocal, emit, clientStats } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { filesSection, filesOf } from '../files.js';
+import * as EV from '../envio.js';
 
 const CL = window.CL;
 // v11: los filtros van por FASE (no por nombre de estado) y lo terminado hace +30 días se archiva solo
@@ -182,9 +183,10 @@ export function orderDrawer(id, onClose) {
         h('div.drawer-b.col', { style: { gap: '14px' } },
           h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k)))),
           o.incidencia && t.abierto ? h('div.issue-bar', icon('alert', 's'), h('span.grow', h('b', 'Incidencia: '), o.incidencia), editable ? btn('Resuelta', () => save(o, { incidencia: '' }, 'Incidencia resuelta · nº ' + o.numero), { cls: 'sm', icon: 'check' }) : null) : null,
+          t.abierto || t.enviado ? EV.labelRow(o, draw) : null,
           editable ? h('div.row.wrap',
             nx && !(ph(o) === 'listo' && nx && S.cfg.pedidos.estados.find(s => s.k === nx && s.shipped)) ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
-            !t.enviado && !t.cancelado ? btn('Enviar pedido', () => shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,
+            !t.enviado && !t.cancelado ? btn(ph(o) === 'listo' ? 'Preparado para enviar' : 'Enviar pedido', () => ['listo', 'empaquetar'].includes(ph(o)) ? EV.sendCheck(o) : shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,
             fromStockBtn(o),
             ['postpro', 'empaquetar', 'listo'].includes(ph(o)) ? btn('📦 Embalaje', () => import('./embalaje.js').then(E => E.packPanel(o.id)), { cls: ph(o) === 'empaquetar' ? 'primary' : '' }) : null,
             btn('Cambiar estado', () => stateDialog(o), { icon: 'refresh' }),
@@ -194,7 +196,7 @@ export function orderDrawer(id, onClose) {
           body,
           h('div.row.wrap', { style: { marginTop: '10px', borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             editable ? btn('Editar', () => orderForm(o), { icon: 'edit' }) : null,
-            btn('Etiqueta', () => labelDialog(o), { icon: 'printer' }),
+            btn('Etiqueta propia', () => labelDialog(o), { icon: 'printer', title: 'Etiqueta de dirección hecha por el programa (no la oficial de la plataforma)' }),
             btn('Mensaje', () => messageDialog(o), { icon: 'msg' }),
             can('facturas.emitir') ? btn(o.factura ? 'Factura ' + o.factura : 'Factura', () => import('./facturas.js').then(m => m.invoiceForm(o)), { icon: 'file' }) : null,
             h('span.grow'),
@@ -342,7 +344,7 @@ export async function changeState(o, estado, extra) {
   if (st.done && !o.fechaEntrega) ch.fechaEntrega = S.hoy;
   return save(o, ch, 'Estado de nº ' + o.numero + ' → ' + estado);
 }
-function stateDialog(o) {
+export function stateDialog(o) {
   const groups = { entrada: 'Entrada', produccion: 'Producción', preparacion: 'Preparación', envio: 'Envío', fin: 'Final', incidencia: 'Incidencia' };
   const m = modal('Cambiar estado · nº ' + o.numero, h('div.col', Object.keys(groups).map(g => {
     const list = S.cfg.pedidos.estados.filter(s => s.g === g);
@@ -359,7 +361,7 @@ export function shipDialog(o, estado) {
     btn('Cancelar', close),
     btn('Marcar como enviado', async () => { close(); const ex = { envio: envio.value, seguimiento: seg.value.trim(), fechaEnvio: fecha.value }; if (coste.value !== '') ex.costeEnvio = Number(coste.value); await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
 }
-function issueDialog(o) {
+export function issueDialog(o) {
   const t = area({ value: o.incidencia || '', placeholder: 'Qué ha pasado: pieza rota, cliente no responde, paquete perdido…' });
   modal('Incidencia · nº ' + o.numero, h('div.col', field('Descripción', t), h('p.tiny.muted', 'El pedido sigue en su paso (' + o.estado + ') con una marca roja hasta que la marques como resuelta. Se avisa al equipo.')), close => [btn('Cancelar', close), btn('Guardar incidencia', () => { if (!t.value.trim()) return toast('Describe la incidencia', 'warn'); close(); save(o, { incidencia: t.value.trim() }, 'Incidencia en nº ' + o.numero); }, { cls: 'danger solid' })], { size: 'narrow' });
 }
@@ -517,11 +519,15 @@ export function orderForm(o, duplicate) {
   [f.producto, f.cantidad, f.precio].forEach(x => x.addEventListener('input', updAssist));
   updLimit(); updClient();
   const msg = h('p.bad-t');
+  const labelFile = h('input', { type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp' });
   const body = h('div.col', dlC, dlP,
     h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full', assist),
       field('Canal / tienda', f.canal), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
     h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Color', f.color), h('div'), field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
     h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Método de envío', f.envio), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada))),
+    h('details.more', { open: isNew }, h('summary', 'Etiqueta de envío'), h('div.in', isNew
+      ? h('div.col', { style: { gap: '6px' } }, labelFile, h('p.tiny.muted', 'Opcional: la etiqueta oficial que te da Vinted, InPost, Correos… (PDF o foto). Si aún no la tienes, la adjuntas después desde el pedido o al empaquetar. Nunca se inventa.'))
+      : EV.labelRow(o, () => { }))),
     costs ? h('details.more', h('summary', 'Costes reales del pedido (envío, comisión, caja…)'), h('div.in', costs.el)) : null,
     msg);
   const m = modal(isNew ? 'Nuevo pedido' : 'Editar pedido nº ' + o.numero, body, close => [btn('Cancelar', close), btn(isNew ? 'Crear pedido' : 'Guardar cambios', async (ev) => {
@@ -542,6 +548,9 @@ export function orderForm(o, duplicate) {
         close();
         toast(r && r.queued ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : 'Pedido nº ' + r.numero + ' creado', r && r.queued ? 'warn' : 'ok');
         if (r && r.id) setTimeout(() => profitWarn(byId('pedidos', id)), 1200);
+        const lf = labelFile.files && labelFile.files[0];
+        if (lf && r && r.id && !r.queued) EV.attachFile(byId('pedidos', id) || r, lf, { transportista: datos.envio || '' }).then(() => toast('🏷️ Etiqueta de envío adjuntada', 'ok')).catch(e => toast('El pedido se ha creado, pero la etiqueta no se pudo adjuntar: ' + e.message + '. Adjúntala desde el pedido.', 'warn', 9000));
+        else if (lf) toast('Sin conexión: adjunta la etiqueta desde el pedido cuando vuelva la conexión.', 'warn', 8000);
         go('pedidos/' + id);
       } else {
         const ch = {}; Object.keys(datos).forEach(k => { const a = datos[k], b0 = o[k]; if (typeof a === 'object' ? JSON.stringify(a || []) !== JSON.stringify(b0 || []) : String(a ?? '') !== String(b0 ?? '')) ch[k] = a; });

@@ -3,7 +3,7 @@ import { h, mount, icon, btn, toast, fdt, fdate, pill, sel, sw, modal, field, in
 import { S, can, api, mutate, kv, upsertLocal, removeLocal, emit, pull } from '../store.js';
 import { go, handleError } from '../app.js';
 import { desktop } from '../desktop.js';
-import { ask, toolLabel, NO_DATA } from '../ai/engine.js';
+import { ask, toolLabel, NO_DATA, respStyle, setRespStyle } from '../ai/engine.js';
 import { objetivos, objetivoTexto, brief } from '../ai/celebrity.js';
 import { localStatus } from '../ai/models.js';
 import { baseDocs, search, ragStatus, ensureIndex, startEmbedder } from '../ai/rag.js';
@@ -96,7 +96,9 @@ export function render(el, params) {
     sugg = h('div.suggest');
     const opts = h('div.row.wrap.small', { style: { marginBottom: '8px' } },
       h('label.check', sw(st.voz, v => { st.voz = v; localStorage.setItem('cd.voz', v ? '1' : '0'); if (!v && window.speechSynthesis) speechSynthesis.cancel(); }), 'Leer respuestas en voz alta'),
-      btn('Nueva conversación', () => { st.msgs = []; kv.set(key, []); drawLog(); }, { cls: 'ghost sm', icon: 'refresh' }));
+      btn('Nueva conversación', () => { st.msgs = []; kv.set(key, []); drawLog(); }, { cls: 'ghost sm', icon: 'refresh' }),
+      // v11.8: mensaje corto o ampliado (también en las preguntas rápidas)
+      h('div.seg.sm.estilo', { title: 'Cómo de largas quieres las respuestas' }, [['corto', 'Mensaje corto'], ['ampliado', 'Mensaje ampliado']].map(([k, t]) => h('button' + (respStyle() === k ? '.on' : ''), { onclick: ev => { setRespStyle(k); ev.target.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === ev.target)); drawLog(); } }, t))));
     // v11.5: «Ahora mismo» (avisos reales) y PREGUNTAS RÁPIDAS debajo de la conversación (sin IA, con datos reales)
     const now = nowNotices();
     const quick = h('div.rapidas', h('div.lbl', { style: { margin: '10px 0 6px' } }, '⚡ PREGUNTAS RÁPIDAS · responden al momento con tus datos'),
@@ -400,6 +402,7 @@ export function rapidCard(R, onChange) {
     h('div.row.wrap', h('b.grow', R.titulo), h('span', { title: 'Calidad del dato' }, pill(e[0] + ' ' + e[1], e[2]))),
     h('div', { style: { fontSize: '20px', fontWeight: 700, margin: '6px 0' } }, R.valor),
     pick,
+    R.filas && R.filas.length && respStyle() === 'corto' ? h('details', h('summary.small', 'Ver el detalle (' + R.filas.length + ')'), h('div.list', R.filas.map(f => h('div.item', { style: { cursor: 'default' } }, h('span', (EST[f.estado] || EST.info)[0]), h('span.grow.small', f.t, f.nota ? h('span.tiny.muted', ' · ' + f.nota) : null), h('b.small', f.v))))) :
     R.filas && R.filas.length ? h('div.list', R.filas.map(f => h('div.item', { style: { cursor: 'default' } }, h('span', (EST[f.estado] || EST.info)[0]), h('span.grow.small', f.t, f.nota ? h('span.tiny.muted', ' · ' + f.nota) : null), h('b.small', f.v)))) : null,
     R.avisos && R.avisos.length ? h('div', R.avisos.map(a => h('p.tiny.warn-t', '⚠️ ' + a))) : null,
     R.id === 'raro' && R.lista.length ? h('div.list', R.lista.map(x => h('a.item', { href: x.enlace ? '#/' + x.enlace : null }, h('span', NIV[x.nivel] || '•'), h('span.grow.small', x.t, x.d ? h('div.tiny.muted', x.d) : null)))) : null,
