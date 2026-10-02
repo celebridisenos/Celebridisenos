@@ -64,7 +64,7 @@ function productDrawer(id, onClose) {
       const p = byId('productos', id);
       if (!p) return mount(d, h('div.drawer-h', h('h2.grow', 'Producto'), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })), h('div.drawer-b', empty('alert', 'Este producto ya no existe')));
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
-      const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], ['historial', 'Historial']].filter(Boolean);
+      const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], can('tienda.gestionar') || (p.web && p.web.publicado) ? ['web', '🛍️ Tienda web'] : null, ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
       mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '14px' } }, h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
@@ -78,7 +78,7 @@ function productDrawer(id, onClose) {
             can('productos.borrar') ? btn('Borrar', () => delProduct(p, closeAll), { cls: 'danger sm', icon: 'trash' }) : null)));
       PTABS[tab](body, p, orders);
     };
-    res.update = draw; draw();
+    res.update = () => { if (tab !== 'web') draw(); }; draw(); // v12: la ficha web tiene un formulario: no se rehace al sincronizar
   });
   return res;
 }
@@ -156,6 +156,8 @@ const PTABS = {
       can('productos.costes') ? driftCard(p, orders) : null,
       orders.length ? h('div.list.boxed', { style: { marginTop: '12px' } }, orders.slice().reverse().map(o => h('div.item', { onclick: () => go('pedidos/' + o.id) }, h('b', 'nº ' + o.numero), h('span.grow.ellipsis', o.cliente), pill(o.estado, '', stateColor(o.estado)), h('span.small', eur(CL.orderTotal(o)))))) : h('p.muted', 'Sin pedidos todavía.'));
   },
+  // v12: lo que se publica en la tienda web (precio, oferta con control de margen, fotos, variantes)
+  web(el, p) { mount(el, h('p.muted', 'Cargando…')); import('./tienda.js').then(m => m.productoWeb(el, p)).catch(e => mount(el, h('p.bad-t', e.message))); },
   historial(el, p) {
     mount(el, h('p.muted', 'Cargando…'));
     api('auditoria.lista', { entidad: 'productos', entidadId: p.id }).then(r => mount(el, r.filas.length ? h('div.timeline', r.filas.map(a => h('div.tl', h('span.b'), h('div', h('div.small', h('b', a.usuario), ' ', accionTxt(a.accion)), h('div.tiny.muted', new Date(a.fecha).toLocaleString('es-ES')), a.detalle ? h('div.tiny.muted', resumenDetalle(a.detalle)) : null)))) : h('p.muted.small', 'Sin historial.'))).catch(e => mount(el, h('p.bad-t', e.message)));

@@ -26,7 +26,6 @@ function precios(p) {
 
 // Tipo de producto para elegir frases que encajen (no hablar de impresión 3D en una camiseta)
 export function tipo(p) {
-  if (S.ws === 'noorko') return 'textil'; // THE NOORKO es ropa
   const s = low([p.categoria, p.subcategoria, p.nombre, p.material].join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (/ropa|tee\b|t-?shirt|camiseta|sudadera|hoodie|gorra|moda|algodon|textil|pantalon|chaqueta|noorko|streetwear|prenda/.test(s)) return 'textil';
   if (/pla\b|petg|resina|3d|stl|impres/.test(s)) return '3d';

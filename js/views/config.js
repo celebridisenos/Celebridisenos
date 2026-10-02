@@ -22,7 +22,7 @@ const SECTIONS = [
   { k: 'roles', t: 'Roles y permisos', i: 'shield', p: 'usuarios.admin' },
   { k: 'solicitudes', t: 'Solicitudes de acceso', i: 'key', p: 'usuarios.admin' },
   { k: 'actividad', t: 'Horarios y conexiones', i: 'history', p: 'actividad.ver' },
-  { k: 'espacios', t: 'Espacios (THE NOORKO)', i: 'store', p: 'config.editar' },
+  { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12: sustituye a «Espacios (THE NOORKO)»
   { g: 'Negocio' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'config.editar' },
   { k: 'clientes', t: 'Clientes', i: 'star', p: 'config.editar' },
@@ -126,22 +126,16 @@ const SEC = {
       btn('Guardar', async () => { await L.saveLabelCfg(c); toast('Impresoras y etiquetas guardadas en este ' + (desktop.on ? 'ordenador' : 'dispositivo'), 'ok'); }, { cls: 'primary' }));
     function SEC_RELOAD() { go('config/perfil'); setTimeout(() => go('config/etiquetas'), 30); }
   },
-  // v10.5: espacios de trabajo independientes
-  espacios(b) {
-    const E = (S.cfg && S.cfg.espacio) || { lista: [] };
-    const box = h('div.col');
-    b.append(card(null, h('p', 'Cada espacio tiene sus ', h('b', 'propios'), ' productos, pedidos, clientes, tareas, redes, archivos, papelera, objetivos, SKU y precios, en su ', h('b', 'propio libro de Google'), '. El chat, las noticias y los usuarios son del equipo y se comparten.'),
-      h('p.small.muted', 'Quién entra en cada espacio se decide en Roles y permisos ("Trabajar en THE NOORKO"). Las administradoras entran en todos. Si un rol no tiene ningún espacio marcado, trabaja en el Negocio principal. Esto se comprueba en el servidor: sin permiso no se puede leer ni cambiar nada de ese espacio.')), box);
-    const draw = lista => mount(box, lista.map(w => card(null, h('div.row', h('span.ws-mark.' + (w.tema || 'principal')), h('b.grow', w.nombre), w.id === S.ws ? pill('Estás aquí', 'brand') : null,
-      w.listo ? pill('Preparado', 'ok') : pill('Sin preparar', 'warn')),
-      w.descripcion ? h('div.small.muted', w.descripcion) : null,
-      h('div.row.wrap', w.listo && w.id !== S.ws ? btn('Entrar', () => import('../app.js').then(m => m.changeWs(w.id)), { cls: 'sm primary' }) : null,
-        w.id !== 'principal' ? btn(w.listo ? 'Comprobar y completar' : 'Preparar', async ev => { const bt = ev.target.closest('button'); bt.disabled = true; try { const r = await api('espacios.preparar', { id: w.id }, { timeout: 120000 }); toast(r.creado ? 'Espacio creado con su propio libro de Google' : 'Espacio comprobado: todo en orden', 'ok'); await pull(true); draw(r.espacios); } catch (e) { toast(e.message, 'bad'); } bt.disabled = false; }, { cls: 'sm' }) : null))));
-    draw(E.lista || []);
+  // v12: Tienda web (sustituye a THE NOORKO). Lo de THE NOORKO no se borra: aquí se dice dónde está.
+  tienda(b) {
+    const pbox = h('div.col', { style: { gap: 'var(--gap)' } }), rbox = h('div.col'); b.append(pbox, rbox);
+    import('./tienda.js').then(m => m.tiendaConfig(pbox)).catch(e => pbox.appendChild(h('p.bad-t', e.message)));
+    if (can('config.editar')) api('espacios.retirados', {}, { quiet: true }).then(l => { l.forEach(w => rbox.appendChild(card('🗄️ ' + w.nombre + ' (retirado)', h('p.small', 'Ya no se usa como espacio de trabajo: lo sustituye la Tienda web. ', h('b', 'Sus datos no se han borrado'), '.'), w.libro ? h('a.small', { href: w.libro, target: '_blank', rel: 'noopener' }, 'Abrir su libro de Google (solo lectura recomendada) ↗') : h('p.small.muted', 'Nunca llegó a crearse su libro: no había datos.')))); }).catch(() => { });
   },
+
   // v11: MOTOR DE REGLAS — "Cuando pasa esto → avisar por…" (campana · Telegram · ventana flotante)
   automatizaciones(b) {
-    const R = [['pedido_nuevo', '🛒 Entra un pedido nuevo'], ['urgente', '⏰ Un pedido urgente, vence hoy o se ha vencido'], ['incidencia', '⚠️ Se marca una incidencia en un pedido'], ['pedido', '📦 Te asignan un pedido o cambia uno tuyo'],
+    const R = [['pedido_nuevo', '🛒 Entra un pedido nuevo'], ['pedido_web', '🛍️ Entra un pedido pagado en la tienda web'], ['urgente', '⏰ Un pedido urgente, vence hoy o se ha vencido'], ['incidencia', '⚠️ Se marca una incidencia en un pedido'], ['pedido', '📦 Te asignan un pedido o cambia uno tuyo'],
       ['impresion_terminada', '🖨️ Una impresora debería haber terminado'], ['filamento_bajo', '🧵 Queda poco filamento / hay que comprar'], ['stock', '📦 Un producto baja del stock mínimo'], ['tarea', '✅ Te asignan una tarea o vence'],
       ['mencion', '📣 Alguien te menciona en el chat (@nombre)'], ['mensaje_chat', '💬 Llega un mensaje al chat del equipo'], ['resumen', '☀️ Resumen de la mañana']];
     const c = JSON.parse(JSON.stringify(S.cfg.automatizaciones || {}));
@@ -401,7 +395,7 @@ const SEC = {
       btn('Guardar', () => { const v = Object.assign({}, c, { desdeSheet: fromSheet }); L.forEach(x => { const n = Number(f[x[0]].value); v[x[0]] = x[2] === '%' ? n / 100 : n; }); saveCfg('precios', v); }, { cls: 'primary' }));
     // v10: formato del SKU automático
     const sk = S.cfg.sku || {};
-    const fmt = inp({ value: sk.formato || '{CAT}-{NUM4}', placeholder: '{MARCA}-{CAT}-{NUM3}' }), marca = inp({ value: sk.marca || '', placeholder: 'Ej.: NOORKO' });
+    const fmt = inp({ value: sk.formato || '{CAT}-{NUM4}', placeholder: '{MARCA}-{CAT}-{NUM3}' }), marca = inp({ value: sk.marca || '', placeholder: 'Ej.: CELEBRI' });
     const ej = h('b'), upd = () => { ej.textContent = (fmt.value || '{CAT}-{NUM4}').replace(/\{MARCA\}/g, (marca.value || 'MARCA').toUpperCase()).replace(/\{CAT\}/g, 'TSH').replace(/\{AÑO\}/g, String(new Date().getFullYear())).replace(/\{NUM3\}/g, '001').replace(/\{NUM4\}/g, '0001'); };
     [fmt, marca].forEach(x => x.addEventListener('input', upd)); upd();
     b.append(card('Código SKU de los productos nuevos', h('div.form', field('Formato', fmt, 'Piezas: {MARCA} {CAT} (3 letras de la categoría) {AÑO} {NUM3} {NUM4}'), field('Marca', marca)),

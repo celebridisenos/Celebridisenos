@@ -47,19 +47,6 @@ function greet() {
   return (hr < 6 ? 'Buenas noches' : hr < 14 ? 'Buenos días' : hr < 21 ? 'Buenas tardes' : 'Buenas noches') + ', ' + S.me.nombre.split(' ')[0];
 }
 
-// v10.5: portada propia de THE NOORKO (estética editorial; solo datos de su espacio)
-function noorkoHero() {
-  const P = S.t.productos, st = e => P.filter(p => String(p.estado || '').toLowerCase() === e).length;
-  const abiertos = S.t.pedidos.filter(o => { try { return CL.orderTiming(o, S.cfg.pedidos, S.hoy).abierto; } catch (e) { return false; } }).length;
-  const sem = S.t.redes.filter(r => r.fecha && r.fecha >= S.hoy && r.fecha <= CL.addDays(S.hoy, 7)).length;
-  const k = (n, t, path) => h('button.nk-kpi', { onclick: () => go(path) }, h('b', String(n)), h('span', t));
-  return h('section.nk-hero',
-    h('div.nk-top', h('span.nk-tag', 'ESPACIO INDEPENDIENTE'), h('span.nk-date', S.hoy.split('-').reverse().join('.'))),
-    h('h2.nk-word', 'THE NOORKO'),
-    h('p.nk-sub', 'Streetwear · drops · catálogo · redes'),
-    h('div.nk-kpis', k(st('idea'), 'Ideas', 'productos'), k(st('publicado'), 'Publicados', 'catalogo'), k(st('archivado'), 'Archivados', 'productos'), k(abiertos, 'Pedidos abiertos', 'pedidos'), k(sem, 'Posts 7 días', 'redes')));
-}
-
 let frasesLoaded = false, fraseOff = 0;
 function draw(root) {
   const d = dash();
@@ -70,7 +57,6 @@ function draw(root) {
   if (gameOn) setTimeout(checkLevelUp, 1200);
   if (!frasesLoaded) { frasesLoaded = true; loadFrases().then(() => draw(root)); }
   mount(root,
-    S.ws === 'noorko' ? noorkoHero() : null,
     h('div.page-head', h('div', h('h1', greet()), h('div.muted', hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1))), h('div.right.row',
       can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),

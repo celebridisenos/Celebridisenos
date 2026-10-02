@@ -20,6 +20,7 @@ const VIEWS = {
   costes: () => import('./views/costes.js'),
   embalaje: () => import('./views/embalaje.js'),
   escanear: () => import('./views/escanear.js'),
+  tienda: () => import('./views/tienda.js'), // v12: Tienda web (sustituye a THE NOORKO)
   camaras: () => import('./views/camaras.js'), // v11.7: cámaras de las Bambu Lab (en el PC) // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
   taller: () => import('./views/taller.js'),
@@ -50,7 +51,8 @@ export const NAV = [
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio
-  { k: 'camaras', t: 'Cámaras', i: 'camera', p: 'taller.ver', d: true }, // v11.7: P1P y A1 mini en directo (programa del PC)
+  { k: 'camaras', t: 'Cámaras', i: 'camera', p: 'taller.ver', d: true },
+  { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC)
   { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
@@ -131,7 +133,7 @@ function accountMenu(anchor) {
   setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
 }
 
-// ---------- v10.5: espacios de trabajo (Negocio principal / THE NOORKO) ----------
+// ---------- v10.5: espacios de trabajo (motor genérico; v12: THE NOORKO retirado → solo queda el Negocio principal) ----------
 export async function changeWs(id) {
   const w = wsInfo().lista.find(x => x.id === id);
   if (!w) return;
@@ -218,9 +220,8 @@ function refreshShell() {
   mount(me, avatar(S.me), h('div.grow', h('div.bold.ellipsis', S.me.nombre), h('div.tiny.muted', roleName(S.me.rol))), icon('settings', 's'));
   // v10: quién está conectado, arriba y siempre a la vista
   mount(shell.meBtn, h('span.av-wrap', avatar(S.me, 's'), shell.meDot), h('span.me-txt', h('b.ellipsis', S.me.nombre.split(' ')[0]), h('small', S.online ? 'Conectado' : 'Sin conexión'))); }
-  const noorko = S.ws === 'noorko';
-  const brand = shell.sidebar.querySelector('.brand b'); if (brand && S.cfg) brand.textContent = noorko ? 'THE NOORKO' : S.cfg.empresa.nombre;
-  const bsm = shell.sidebar.querySelector('.brand small'); if (bsm) bsm.textContent = noorko ? 'Streetwear · espacio propio' : 'Gestión del negocio';
+  const brand = shell.sidebar.querySelector('.brand b'); if (brand && S.cfg) brand.textContent = S.cfg.empresa.nombre;
+  const bsm = shell.sidebar.querySelector('.brand small'); if (bsm) bsm.textContent = 'Gestión del negocio';
   const wb = shell.sidebar.querySelector('.ws-box'); if (wb) { const k = S.ws + ':' + JSON.stringify(wsInfo().lista.map(w => w.id + w.listo)); if (wb.dataset.k !== k) { wb.dataset.k = k; mount(wb, wsSwitch()); } }
   document.documentElement.dataset.ws = S.ws;
   const lg = shell.sidebar.querySelector('.brand-logo'); if (lg && S.cfg) { const src = S.cfg.empresa.logo || 'icons/icon-192.png'; if (lg.getAttribute('src') !== src) { lg.setAttribute('src', src); const fav = document.querySelector('link[rel="icon"]'); if (fav) fav.href = S.cfg.empresa.logo || 'icons/favicon.png'; } }

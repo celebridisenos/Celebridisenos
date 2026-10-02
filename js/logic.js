@@ -71,7 +71,8 @@ var CL = (function () {
     else { r.nivel = 'ok'; r.texto = 'Quedan ' + rest + ' días'; }
     return r;
   }
-  function orderTotal(o) { return o.total !== '' && o.total !== null && o.total !== undefined && n(o.total) > 0 ? n(o.total) : n(o.cantidad || 1) * n(o.precio); }
+  // v12: + el envío que pagó el cliente (pedidos de la tienda web); es ingreso del pedido
+  function orderTotal(o) { return (o.total !== '' && o.total !== null && o.total !== undefined && n(o.total) > 0 ? n(o.total) : n(o.cantidad || 1) * n(o.precio)) + n(o.envioCobrado); }
   function isUrgent(o, t) { return t.abierto && (o.prioridad === 'Urgente' || t.nivel === 'late' || t.nivel === 'today'); }
 
   // ---------- Clientes: estadísticas y etiquetas ----------
@@ -336,6 +337,8 @@ var CL = (function () {
   function estComision(canal, total, pp) {
     var c = norm(canal); pp = pp || {};
     if (c.indexOf('vinted') >= 0) return total * n(pp.vinted);
+    // v12: tienda web → comisión ESTIMADA de Stripe (tarjeta europea estándar 1,5 % + 0,25 €; ajustable en Precios)
+    if (c.indexOf('tienda web') >= 0) return total * (pp.webPct !== undefined && pp.webPct !== '' ? n(pp.webPct) : 0.015) + (pp.webFijo !== undefined && pp.webFijo !== '' ? n(pp.webFijo) : 0.25);
     if (c.indexOf('etsy') >= 0) return total * (n(pp.etsyVenta) + n(pp.etsyPago) + n(pp.etsyReg)) + n(pp.etsyFijo) + n(pp.etsyAnuncioUSD) * n(pp.usdEur);
     return 0;
   }
@@ -971,12 +974,12 @@ var CL = (function () {
   var RAPIDAS = [['ganado_hoy', '¿Cuánto he ganado hoy?'], ['coste_pedido', '¿Cuánto me ha costado este pedido?'], ['cajas', '¿Cuántas cajas me quedan?'], ['empaquetar', '¿Qué pedidos tengo que empaquetar?'],
     ['packaging', '¿Cuánto he gastado en packaging?'], ['perdidas', '¿Cuánto he perdido por impresiones?'], ['paises', '¿De qué países compran más?'], ['beneficio', '¿Cuál es mi beneficio?'],
     ['pendientes', '¿Qué pedidos están pendientes?'], ['preparar', '¿Qué productos tengo que preparar?'], ['dinero', '¿Dónde se me está yendo el dinero este mes?'], ['cambio', '¿Por qué ha cambiado mi beneficio?'],
-    ['raro', '¿Hay algo raro?'], ['empresa', '¿Cómo va mi empresa este año?'], ['pierden', '¿Qué productos están perdiendo dinero?']];
+    ['raro', '¿Hay algo raro?'], ['empresa', '¿Cómo va mi empresa este año?'], ['pierden', '¿Qué productos están perdiendo dinero?'], ['tienda', '¿Qué debería promocionar en la tienda web?']];
   var RAPIDA_RX = [['ganado_hoy', /(cuanto|que) (he|hemos) (ganado|vendido|facturado) hoy/], ['coste_pedido', /cuanto (me|nos) ha costado (este|el) pedido/], ['cajas', /(cuantas|que) cajas (me |nos )?quedan/],
     ['empaquetar', /(que )?pedidos (tengo|tenemos|hay) que empaquetar|que (tengo|hay) que empaquetar/], ['packaging', /gastado en (packaging|embalaje)/], ['perdidas', /perdido (por|en) (las )?impresion|perdidas (de|por) impresion/],
     ['paises', /(de )?(que|cuales) paises|de donde (me )?compran/], ['beneficio', /^(cual es )?(mi|el|nuestro) beneficio( de este mes)?$/], ['pendientes', /(que )?pedidos (estan |tengo )?pendientes/],
     ['preparar', /(que )?productos (tengo|hay) que preparar/], ['dinero', /(se me|se nos) (esta|estan) yendo el dinero|en que se (me|nos) va el dinero/], ['cambio', /por que ha (cambiado|bajado|subido) (mi|el) beneficio/],
-    ['raro', /hay algo raro/], ['empresa', /como va (mi|la|nuestra) empresa/], ['pierden', /(que )?productos? (estan |esta )?(perdiendo|pierden?) dinero|productos? que no (son|es) rentables?/]];
+    ['raro', /hay algo raro/], ['empresa', /como va (mi|la|nuestra) empresa/], ['pierden', /(que )?productos? (estan |esta )?(perdiendo|pierden?) dinero|productos? que no (son|es) rentables?/], ['tienda', /(que|como) (deberia|puedo|podria) (promocionar|ofertar|destacar)|ideas? (de|para) (campana|promocion|ofertas?)|promocionar en la (tienda|web)/]];
   function rapidMatch(q) { var t = norm(q).replace(/[¿?¡!.,;:]/g, '').trim(); for (var i = 0; i < RAPIDA_RX.length; i++) if (RAPIDA_RX[i][1].test(t)) return RAPIDA_RX[i][0]; return ''; }
   function ymOf(d) { return s(d).substring(0, 7); }
   function prevYm(hoy) { var d = parse(hoy.substring(0, 8) + '01'); d.setDate(0); return dateStr(d).substring(0, 7); }
@@ -1129,6 +1132,15 @@ var CL = (function () {
       R.lista = an.items.map(function (x) { return { t: x.texto, d: x.detalle || '', enlace: x.enlace, nivel: x.nivel }; });
       R.filas = an.revisado.map(function (x) { return { t: x[0], v: x[1], estado: 'confirmado' }; });
       R.estado = an.problemas ? 'pendiente' : an.revisar ? 'estimado' : 'confirmado'; R.origen = 'Revisión automática de pedidos, stock, cajas, materiales, impresiones y pérdidas. Nada se cambia solo: tú revisas y decides.';
+    } else if (id === 'tienda') {
+      if (!ver) { noCostes(); R.valor = 'Necesitas permiso de costes'; return R; }
+      var wo = webOpportunities(data, cfg, hoy);
+      R.valor = wo.items.length ? wo.items.length + ' idea(s) con tus datos' : wo.datosSuficientes ? 'Nada urgente que cambiar' : 'DATOS INSUFICIENTES';
+      R.lista = wo.items.map(function (x) { return { t: x.texto, d: 'Origen: ' + x.origen, enlace: x.enlace, nivel: x.nivel }; });
+      if (wo.aviso) R.avisos.push(wo.aviso);
+      R.estado = wo.datosSuficientes ? (wo.items.some(function (x) { return x.nivel === 'bad'; }) ? 'pendiente' : 'confirmado') : 'estimado';
+      R.origen = 'Ventas de los últimos 90 días, coste real de cada producto, comisión del pago y tu margen mínimo. No se inventan ventas, clientes ni conversiones.';
+      R.enlace = 'config/tienda';
     } else if (id === 'pierden') {
       if (!ver) { noCostes(); R.valor = 'Necesitas permiso de costes'; return R; }
       var dr = productDrift(data, cfg), mal = dr.filter(function (x) { return x.estado === 'pierde' || x.estado === 'empeora'; }), sinD = dr.filter(function (x) { return x.estado === 'sin_datos'; });
@@ -1266,6 +1278,98 @@ var CL = (function () {
     return out.sort(function (a, b) { return ord[a.estado] - ord[b.estado] || b.pedidos - a.pedidos; });
   }
 
+  // ================= v12 · Tienda web: margen REAL de un precio u oferta y oportunidades de venta =================
+  // Coste por unidad = fabricación (receta / Bambu Studio) + embalaje estándar + comisión estimada del pago
+  // (Stripe, tarjeta europea estándar: 1,5 % + 0,25 €). El envío lo paga el cliente aparte (salvo envío gratis).
+  // Si falta el coste de fabricación → DATOS INSUFICIENTES (no se da por bueno ningún margen).
+  var STRIPE_PCT = 0.015, STRIPE_FIJO = 0.25;
+  // El margen mínimo de la tienda lo pone la tienda (Tienda web → Datos). Sin configurar = solo se avisa de PÉRDIDAS.
+  function minMargen(cfg) { var t = ((cfg || {}).tienda || {}).margenMinimo; return t === null || t === undefined || t === '' ? null : n(t); }
+  function webMargin(p, precio, data, cfg, opts) {
+    opts = opts || {}; precio = n(precio);
+    var com = r2(precio * STRIPE_PCT + STRIPE_FIJO), minM = minMargen(cfg); opts.extra = n(opts.extra);
+    var o = { id: '_web', producto: p.nombre, productoId: p.id, cantidad: 1, precio: precio, canal: 'Web', costeEnvio: n(opts.envioCoste), comision: com };
+    var oc = orderCosts(o, data || {}, cfg || {});
+    var R = { precio: r2(precio), comision: com, minimo: minM, avisos: [] };
+    if (!oc.conCoste) { R.estado = 'sin_datos'; R.texto = 'DATOS DE COSTE INCOMPLETOS: este producto no tiene coste de fabricación registrado (receta de materiales o Bambu Studio). No se puede comprobar el margen (un coste desconocido NO se toma como 0 €).'; return R; }
+    R.fabricacion = r2(oc.fabricacion.total); R.embalaje = r2(oc.embalaje.coste); R.envio = r2(n(opts.envioCoste)); R.otros = r2(opts.extra); R.coste = r2(oc.coste + opts.extra); R.beneficio = r2(oc.beneficio - opts.extra); R.margen = precio > 0 ? R.beneficio / precio : null;
+    if (!oc.embalaje.completo) R.avisos.push('El embalaje tiene precios pendientes: el coste real puede ser algo mayor.');
+    if (oc.fabricacion.parcial) R.avisos.push('A la receta le faltan precios de algún material.');
+    // precio mínimo que mantiene el margen mínimo (para proponer descuentos sin pérdidas)
+    var fijo = R.coste - com, mm = minM === null ? 0 : minM; R.precioMinimo = 1 - STRIPE_PCT - mm > 0 ? r2((fijo + STRIPE_FIJO) / (1 - STRIPE_PCT - mm)) : null;
+    R.estado = R.beneficio < 0 ? 'perdida' : minM !== null && R.margen < minM ? 'bajo' : 'ok';
+    R.texto = R.estado === 'perdida' ? '🔴 Con este precio PIERDES ' + eurTxt(-R.beneficio) + ' por unidad.' : R.estado === 'bajo' ? '⚠️ Margen por debajo del límite configurado: ganas ' + eurTxt(R.beneficio) + ' por unidad (' + Math.round(R.margen * 100) + ' %, tu mínimo es ' + Math.round(minM * 100) + ' %).' : '🟢 Ganas ' + eurTxt(R.beneficio) + ' por unidad (' + Math.round(R.margen * 100) + ' %)' + (minM === null ? ' · sin margen mínimo configurado' : '') + '.';
+    return R;
+  }
+  // Oportunidades para la tienda (marketing con datos reales). Nada se inventa: cada punto dice de dónde sale.
+  function webOpportunities(data, cfg, hoy) {
+    data = data || {}; cfg = cfg || {}; hoy = hoy || today();
+    var out = [], prods = data.productos || [], cp = cfg.pedidos || {};
+    var desde = addDays(hoy, -90), uds = {}, ult = {};
+    liveOrders(data, cfg, function (o) { return day(o.fecha) >= desde; }).forEach(function (o) { var p = productOf(o, data); if (!p) return; uds[p.id] = (uds[p.id] || 0) + (n(o.cantidad) || 1); });
+    liveOrders(data, cfg).forEach(function (o) { var p = productOf(o, data); if (p && (!ult[p.id] || day(o.fecha) > ult[p.id])) ult[p.id] = day(o.fecha); });
+    var conCoste = liveOrders(data, cfg).filter(function (o) { return orderProfit(o, data, cfg).conCoste; }).length;
+    var web = function (p) { return p.web && typeof p.web === 'object' ? p.web : {}; };
+    var add = function (nivel, texto, origen, enlace) { out.push({ nivel: nivel, texto: texto, origen: origen, enlace: enlace || 'productos' }); };
+    prods.forEach(function (p) {
+      var w = web(p), pub = !!w.publicado;
+      if (pub && !(w.fotos || []).length) add('warn', '«' + p.nombre + '» está en la tienda SIN fotos.', 'Ficha web del producto', 'productos/' + p.id);
+      if (pub) { var mp = webMargin(p, n(w.precio) || n(p.precio), data, cfg); if (mp.estado === 'perdida' || mp.estado === 'bajo') add(mp.estado === 'perdida' ? 'bad' : 'warn', '«' + p.nombre + '» en la web (' + eurTxt(n(w.precio) || n(p.precio)) + '): ' + mp.texto.replace(/^[^ ]+ /, ''), 'Coste de fabricación + embalaje + comisión del pago', 'productos/' + p.id); }
+      if (uds[p.id] >= 2 && !pub) add('info', '«' + p.nombre + '» se ha vendido ' + uds[p.id] + ' veces en 90 días y no está en la tienda web: publícalo.', 'Pedidos de los últimos 90 días', 'productos/' + p.id);
+      if (uds[p.id] >= 3 && pub && !w.destacado) add('info', '«' + p.nombre + '» es de lo más vendido (' + uds[p.id] + ' uds. en 90 días): márcalo como destacado.', 'Pedidos de los últimos 90 días', 'productos/' + p.id);
+      if (pub && (!ult[p.id] || ult[p.id] < addDays(hoy, -60))) {
+        var m2 = webMargin(p, n(w.precio) || n(p.precio), data, cfg);
+        if (m2.estado === 'ok' && m2.precioMinimo && m2.precioMinimo < m2.precio) {
+          var pct = Math.floor((1 - m2.precioMinimo / m2.precio) * 100);
+          if (pct >= 5) add('info', '«' + p.nombre + '» no se vende desde ' + (ult[p.id] ? ult[p.id] : 'nunca') + '. Candidato para una campaña: hasta un ' + pct + ' % (mínimo ' + eurTxt(m2.precioMinimo) + ') ' + (minMargen(cfg) === null ? 'sin perder dinero (no has configurado margen mínimo)' : 'sin bajar de tu margen mínimo') + '. La decisión es tuya.', 'Coste real' + (minMargen(cfg) === null ? '' : ' + margen mínimo de la tienda'), 'productos/' + p.id);
+        }
+      }
+    });
+    var lvl = { bad: 0, warn: 1, info: 2 }; out.sort(function (a, b) { return lvl[a.nivel] - lvl[b.nivel]; });
+    return { items: out, datosSuficientes: conCoste >= 5, pedidosConCoste: conCoste, aviso: conCoste >= 5 ? '' : 'DATOS INSUFICIENTES: solo hay ' + conCoste + ' pedido(s) con coste registrado. Las recomendaciones de ventas mejorarán con más pedidos.' };
+  }
+
+  // ================= v12 · Campañas de la tienda: estado y análisis de margen de cada promoción =================
+  // (mismas reglas que la tienda: inactiva / programada / activa / finalizada; sin valor = PENDIENTE = sin descuento)
+  function campaignState(c, now) {
+    now = now || Date.now();
+    var t = function (v) { var x = Date.parse(v); return isFinite(x) ? x : null; }, H = 3600e3, D = 24 * H, iso = function (x) { return new Date(x).toISOString(); };
+    if (!c || c.estado !== 'lista') return { estado: 'inactiva' };
+    var ini = t(c.inicio); if (ini === null) return { estado: 'inactiva' };
+    if (c.tipo === 'periodica') {
+      var per = Math.round(n(c.cadaDias) * D), dur = Math.round(n(c.duracionHoras) * H), fin = t(c.repetirHasta);
+      if (!(per > 0) || !(dur > 0) || dur > per) return { estado: 'inactiva' };
+      if (now < ini) return { estado: 'programada', proxima: iso(ini) };
+      var k = Math.floor((now - ini) / per), st = ini + k * per, e = st + dur;
+      if (fin !== null && st >= fin) return { estado: 'finalizada' };
+      if (now < e) return { estado: 'activa', desde: iso(st), hasta: iso(fin !== null ? Math.min(e, fin) : e) };
+      var ns = st + per; if (fin !== null && ns >= fin) return { estado: 'finalizada' };
+      return { estado: 'programada', proxima: iso(ns) };
+    }
+    var f2 = t(c.fin); if (f2 === null || f2 <= ini) return { estado: 'inactiva' };
+    if (now < ini) return { estado: 'programada', proxima: iso(ini) };
+    if (now < f2) return { estado: 'activa', desde: iso(ini), hasta: iso(f2) };
+    return { estado: 'finalizada' };
+  }
+  // ¿Cuánto dejaría cada producto con esta promoción? (peor caso por unidad). Nunca cambia nada: solo avisa.
+  function promoAnalysis(pr, camp, data, cfg) {
+    var inS = function (id, inc, exc) { return (!inc || !inc.length || inc.indexOf(id) >= 0) && !(exc && exc.indexOf(id) >= 0); };
+    var prods = (data.productos || []).filter(function (p) { return p.web && p.web.publicado && inS(p.id, pr.incluidos, pr.excluidos) && (!camp || inS(p.id, camp.incluidos, camp.excluidos)); });
+    var R = { pendiente: !(n(pr.valor) > 0), filas: [], perdida: 0, bajo: 0, sinDatos: 0, ok: 0, minimo: minMargen(cfg) };
+    if (R.pendiente) { R.texto = 'Descuento PENDIENTE de configurar: mientras no pongas el valor, no hay descuento.'; return R; }
+    prods.forEach(function (p) {
+      var precio = n(p.web.precio) || n(p.precio), desc = 0;
+      if (pr.tipo === 'porcentaje' || pr.tipo === 'cantidad_porcentaje') desc = precio * Math.min(90, n(pr.valor)) / 100;
+      else if (pr.tipo === 'importe') desc = Math.min(precio, n(pr.valor) / 100);
+      else desc = Math.min(precio, n(pr.valor) / 100 / Math.max(2, n(pr.minimo) || 2)); // importe por pedido repartido en el mínimo de unidades (peor caso)
+      var m = webMargin(p, r2(precio - desc), data, cfg);
+      R.filas.push({ id: p.id, nombre: p.nombre, precio: r2(precio), conDescuento: r2(precio - desc), estado: m.estado, beneficio: m.beneficio === undefined ? null : m.beneficio, margen: m.margen === undefined ? null : m.margen, texto: m.texto });
+      R[m.estado === 'sin_datos' ? 'sinDatos' : m.estado]++;
+    });
+    R.texto = !prods.length ? 'Ningún producto publicado entra en esta promoción.' : R.perdida ? '🔴 Con esta promoción ' + R.perdida + ' producto(s) se venderían con PÉRDIDAS.' : R.bajo ? '⚠️ Esta promoción reduce el margen estimado por debajo del límite configurado en ' + R.bajo + ' producto(s).' : R.sinDatos ? '🟠 DATOS DE COSTE INCOMPLETOS en ' + R.sinDatos + ' producto(s): no se puede comprobar su margen.' : '🟢 Todos los productos de la promoción mantienen margen' + (R.minimo === null ? ' (sin margen mínimo configurado: solo se comprueba que no haya pérdidas).' : ' por encima del mínimo.');
+    return R;
+  }
+
   // v10 · Objetivos de Celebrity: progreso calculado SOLO con datos reales
   var OBJ_TIPOS = { publicar: 'Publicaciones en redes', pedidos: 'Pedidos', ventas: 'Ventas (€)', tareas: 'Tareas completadas', productos: 'Productos nuevos' };
   function objectiveProgress(o, data, cfg, hoy) {
@@ -1281,7 +1385,7 @@ var CL = (function () {
     var meta = n(o.meta) || 0;
     return { valor: v, meta: meta, pct: meta ? Math.min(1, v / meta) : 0, hecho: meta > 0 && v >= meta, desde: from, hasta: hoy };
   }
-  return { RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F,
+  return { RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
     finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
