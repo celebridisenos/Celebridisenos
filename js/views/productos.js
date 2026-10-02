@@ -4,7 +4,7 @@ import { S, can, mutate, api, byId, upsertLocal, removeLocal, emit, timing, stat
 import { go, handleError, requestAccess } from '../app.js';
 import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf } from '../files.js';
 import { desktop } from '../desktop.js';
-import { parse3D, viewer } from '../stl.js';
+import { parse3D, viewer, unzip } from '../stl.js';
 import { accionTxt, resumenDetalle } from './pedidos.js';
 import { generate, asText, docxBlob, docName, PLATAFORMAS } from '../docventa.js';
 import { download, uploadFile } from '../files.js';
@@ -87,7 +87,7 @@ const PTABS = {
     const foto = p.fotoId ? byId('archivos', p.fotoId) : null;
     mount(el, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', style: { width: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '12px', background: 'var(--surface-2)', cursor: 'pointer' }, onclick: () => openFile(foto) }) : null,
       h('div.facts', { style: { marginTop: '12px' } }, fact('Precio', p.precio ? eur(p.precio) : na('')), fact('Categoría', pretty(p.categoria) || na('')), fact('Subcategoría', pretty(p.subcategoria) || na('')), fact('Tipo', p.tipo || na('')),
-        fact('SKU', p.sku || p.id), fact('Tallas', na(p.tallas)), fact('Color', na(p.color)), fact('Material', na(p.material)), fact('Tamaño', na(p.tamano)), fact('Peso', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
+        fact('SKU', p.sku || p.id), fact('Tallas', na(p.tallas)), fact('Color', na(p.color)), fact('Material', na(p.material)), fact('Tamaño', na(p.tamano)), fact('Peso del producto (la pieza)', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
       p.descripcion ? h('div', { style: { marginTop: '12px' } }, h('div.lbl', 'Descripción'), h('p', { style: { whiteSpace: 'pre-wrap' } }, p.descripcion)) : null,
       h('dl.kv', { style: { marginTop: '12px' } }, h('dt', 'Origen'), h('dd', [p.fuente, p.enlace].filter(Boolean).join(' · ') || h('span.na', 'No disponible')), h('dt', 'Licencia'), h('dd', na(p.licencia)), h('dt', 'Carpeta'), h('dd', p.ruta ? h('span.row', h('span.ellipsis', p.ruta), desktop.on ? btn('Abrir', () => desktop.open(p.ruta).catch(e => toast(e.message, 'bad')), { cls: 'sm', icon: 'folder' }) : null) : h('span.na', 'Sin carpeta')), h('dt', 'Creado por'), h('dd', na(p.creadoPor))),
       stockCard(p));
@@ -96,7 +96,7 @@ const PTABS = {
     // v11.3: primero el coste REAL por receta (con su desglose); debajo, la calculadora del Excel de siempre
     const box = h('div.col', { style: { gap: '14px' } }, h('p.muted.small', 'Cargando…'));
     mount(el, box);
-    import('./costes.js').then(C => mount(box, C.productCostCard(p), h('details', h('summary.small', 'Calculadora del Excel (hoja Productos)'), priceAssistant(p))));
+    import('./costes.js').then(C => mount(box, bambuCard(p), C.productCostCard(p), h('details', h('summary.small', 'Calculadora del Excel (hoja Productos)'), priceAssistant(p))));
   },
   // v10: textos listos para Vinted, Wallapop, Etsy, Instagram y TikTok + documento Word
   venta(el, p) {
@@ -193,7 +193,9 @@ function pricingParams() { return Object.assign({ gramosBobina: 1000 }, S.cfg.pr
 function gastosMap() { const g = {}; S.t.gastos.forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; }); return g; }
 export function priceAssistant(p, costsIn, onPick) {
   const calc = p ? S.t.calculadora.find(c => c.nombre === p.nombre) : null;
-  const c = Object.assign({ gramos: (calc && calc.gramos) || (p && p.pesoG) || '', horas: (calc && calc.horas) || (p && p.horas) || '', horasMO: (calc && calc.horasMO) || '', precioBobina: (calc && calc.precioBobina) || '', pintado: (calc && calc.pintado) || 'No', costePintado: (calc && calc.costePintado) || '', gasto1: (calc && calc.gasto1) || '', gasto2: (calc && calc.gasto2) || '' }, costsIn || {});
+  // v11.4: los gramos de filamento NO son el peso de la pieza: Bambu Studio si lo hay; si no, el peso solo como ESTIMACIÓN (y se dice)
+  const gEst = !(calc && calc.gramos) ? (p && Number(p.bambuGramos) > 0 ? { v: p.bambuGramos, t: 'Gramos de Bambu Studio' } : p && p.pesoG ? { v: p.pesoG, t: 'ESTIMADO con el peso de la pieza (no incluye soportes ni purga)' } : null) : null;
+  const c = Object.assign({ gramos: (calc && calc.gramos) || (gEst && gEst.v) || '', horas: (calc && calc.horas) || (p && p.horas) || '', horasMO: (calc && calc.horasMO) || '', precioBobina: (calc && calc.precioBobina) || '', pintado: (calc && calc.pintado) || 'No', costePintado: (calc && calc.costePintado) || '', gasto1: (calc && calc.gasto1) || '', gasto2: (calc && calc.gasto2) || '' }, costsIn || {});
   const f = {
     gramos: inp({ type: 'number', min: 0, step: 1, value: c.gramos, placeholder: 'g' }), horas: inp({ type: 'number', min: 0, step: 0.25, value: c.horas, placeholder: 'h' }),
     horasMO: inp({ type: 'number', min: 0, step: 0.25, value: c.horasMO, placeholder: 'h' }), precioBobina: inp({ type: 'number', min: 0, step: 0.5, value: c.precioBobina, placeholder: 'Por defecto: ' + (S.cfg.precios ? S.cfg.precios.costeKg : 20) + ' €/kg' }),
@@ -219,7 +221,7 @@ export function priceAssistant(p, costsIn, onPick) {
   };
   Object.values(f).forEach(x => x.addEventListener('input', calcNow));
   const wrap = h('div.col',
-    h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' } }, field('Filamento (gramos)', f.gramos), field('Horas de impresión', f.horas), field('Horas de mano de obra', f.horasMO), field('Precio bobina 1 kg (€)', f.precioBobina), field('¿Pintado?', f.pintado), field('Coste del pintado (€)', f.costePintado), field('Gasto extra 1', f.gasto1), field('Gasto extra 2', f.gasto2)),
+    h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' } }, field('Filamento (gramos)', f.gramos, gEst ? gEst.t : null), field('Horas de impresión', f.horas), field('Horas de mano de obra', f.horasMO, 'Solo para el precio orientativo: en los pedidos se cobra lo que indiques al cerrar el paquete'), field('Precio bobina 1 kg (€)', f.precioBobina), field('¿Pintado?', f.pintado), field('Coste del pintado (€)', f.costePintado), field('Gasto extra 1', f.gasto1), field('Gasto extra 2', f.gasto2)),
     out,
     p && can('productos.editar') && !onPick ? h('div.row', btn('Guardar costes', async () => { const { v } = calcNow(); await saveProduct(p, {}, v); }, { cls: 'sm' }), btn('Usar precio de Wallapop', async () => { const { r, v } = calcNow(); await saveProduct(p, { precio: r.recomendado.wallapop }, v); }, { cls: 'primary sm' })) : null);
   wrap.getCosts = () => { const v = {}; Object.keys(f).forEach(k => { v[k] = f[k].value; }); return v; };
@@ -231,7 +233,7 @@ export function priceAssistant(p, costsIn, onPick) {
 async function changeState(p, estado) {
   await saveProduct(p, { estado });
   if (estado === 'Publicado' && can('archivos.subir') && !filesOf('productos', p.id).some(a => /^Venta - /.test(a.nombre || ''))) {
-    try { const d = await generate(p); await saveDoc(p, d); toast('✨ Celebrity ha preparado el documento de venta (Textos de venta y Archivos)', 'ok', 6000); api('ia.registrar', { tipo: 'documento', resumen: 'Documento de venta de ' + p.nombre + ' (' + (p.sku || p.id) + ')', herramientas: ['documento'], acciones: [] }).catch(() => { }); }
+    try { const d = await generate(p); await saveDoc(p, d); toast('✨ Celeby Nova ha preparado el documento de venta (Textos de venta y Archivos)', 'ok', 6000); api('ia.registrar', { tipo: 'documento', resumen: 'Documento de venta de ' + p.nombre + ' (' + (p.sku || p.id) + ')', herramientas: ['documento'], acciones: [] }).catch(() => { }); }
     catch (e) { toast('No se pudo generar el documento: ' + e.message, 'warn'); }
   }
 }
@@ -349,7 +351,8 @@ export function productWizard(p) {
     tipo: sel(['3D', 'Reventa', 'Otro'], p.tipo || '3D'),
     categoria: inp({ value: p.categoria || '', list: 'dl-pcat', placeholder: 'Ej.: HOGAR' }),
     subcategoria: inp({ value: p.subcategoria || '', list: 'dl-psub', placeholder: 'Ej.: Baño' }),
-    color: inp({ value: p.color || '' }), tamano: inp({ value: p.tamano || '', placeholder: 'Ej.: 12 × 8 cm' }), tallas: inp({ value: p.tallas || '', placeholder: 'Ej.: S, M, L, XL (si tiene)' }),
+    color: inp({ value: p.color || '' }), tamano: inp({ value: p.tamano || '', placeholder: 'Ej.: 12 × 8 × 5 cm' }),
+    pesoG: inp({ type: 'number', min: 0, step: 1, value: p.pesoG ?? '', placeholder: 'g' }), // v11.4: peso de la PIEZA (sin caja ni embalaje) tallas: inp({ value: p.tallas || '', placeholder: 'Ej.: S, M, L, XL (si tiene)' }),
     material: sel(['', 'PLA', 'PETG', 'TPU', 'ABS', 'Resina', 'Madera', 'Otro'], p.material || 'PLA'),
     plataforma: sel(['', 'Wallapop', 'Vinted', 'Etsy', 'Instagram', 'Tienda física', 'Otro'], p.plataforma || ''),
     fuente: sel(['', 'Diseño propio', 'Descargado (gratis)', 'Comprado', 'Encargo del cliente'], p.fuente || ''),
@@ -377,7 +380,7 @@ export function productWizard(p) {
     const bar = h('div.wiz-steps', titles.map((t, i) => h('div.st' + (i === step ? '.on' : i < step ? '.done' : ''))));
     if (step === 0) mount(body, bar, h('h3', titles[0]), h('datalist', { id: 'dl-pcat' }, cats.map(c => h('option', { value: c }))), h('datalist', { id: 'dl-psub' }, subs.map(c => h('option', { value: c }))),
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
-        field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full')),
+        field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano, 'Largo × ancho × alto: sirve para elegir la caja'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full')),
       can('stock.mover') || can('productos.editar') ? skBox : null,
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),
@@ -413,6 +416,7 @@ export function productWizard(p) {
     const b = ev.target.closest('button'); b.disabled = true; b.textContent = 'Guardando…';
     const datos = {}; Object.keys(f).forEach(k => { datos[k] = typeof f[k].value === 'string' ? f[k].value.trim() : f[k].value; });
     if (datos.precio === '') delete datos.precio; else datos.precio = Number(datos.precio);
+    if (datos.pesoG !== '') datos.pesoG = Number(datos.pesoG);
     const costes = pa && can('productos.costes') ? pa.getCosts() : null;
     // v11: unidades, mínimo y ubicación (solo si se han tocado o el producto es nuevo con datos)
     let stock = null;
@@ -470,4 +474,46 @@ export function productWizard(p) {
     return z.uploadAll('productos', id);
   }
   draw();
+}
+
+// ================= v11.4 · Datos de Bambu Studio (archivo .3mf laminado) =================
+// El coste de filamento que da Bambu Studio MANDA: «Coste de filamento: X € · Fuente: Bambu Studio».
+// Si no lo hay: «Coste estimado de filamento» (cálculo propio). Bambu da el filamento GASTADO (con soportes
+// y purga): NO es el peso de la pieza, por eso no se usa como peso del producto.
+function bambuCard(p) {
+  const d = p.bambuDatos && typeof p.bambuDatos === 'object' ? p.bambuDatos : null, ver = can('productos.costes'), edit = can('productos.editar');
+  const has = Number(p.bambuGramos) > 0;
+  const file = h('input', { type: 'file', accept: '.3mf', style: { display: 'none' } });
+  file.onchange = () => file.files[0] && readBambu(p, file.files[0]).finally(() => { file.value = ''; });
+  return h('div.card.flat', h('div.row.wrap', h('b.grow', '🧵 Datos de Bambu Studio'), edit ? btn(has ? 'Actualizar con otro .3mf' : 'Leer un .3mf laminado', () => file.click(), { cls: 'sm', icon: 'upload' }) : null, file),
+    has ? h('div', { style: { marginTop: '6px' } },
+      ver ? h('div', Number(p.bambuCoste) > 0 ? h('span', 'Coste de filamento: ', h('b', eur(p.bambuCoste)), ' por pieza · ', h('b', 'Fuente: Bambu Studio')) : h('span.warn-t', 'Bambu Studio no tenía precio para ese filamento: se usa el «Coste estimado de filamento» (cálculo propio).')) : null,
+      h('div.small.muted', 'Filamento: ' + String(p.bambuGramos).replace('.', ',') + ' g por pieza · impresora: ' + String(p.bambuHoras).replace('.', ',') + ' h por pieza' + (d ? ' · ' + d.archivo + ' (placa ' + d.placa + ', ' + d.piezas + ' pieza' + (d.piezas > 1 ? 's' : '') + ') · ' + fdate(String(d.fecha).slice(0, 10)) : '')),
+      h('p.tiny.muted', 'Son los gramos que GASTA la impresión (con soportes y purga), no el peso de la pieza.'),
+      edit ? btn('Quitar estos datos', async () => { if (!await confirmDlg('Quitar datos de Bambu', 'Volverá a usarse el cálculo propio del filamento.', 'Quitar')) return; try { const r = await api('productos.bambu', { id: p.id, borrar: true }); if (r.producto) { upsertLocal('productos', r.producto); emit(); } } catch (e) { handleError(e); } }, { cls: 'sm ghost' }) : null)
+      : h('p.small.muted', 'Sin datos de Bambu Studio: el coste de filamento es ESTIMADO (cálculo propio). Lee el .3mf que guarda Bambu Studio al laminar («Exportar archivo de placa laminada») para usar sus gramos, tiempo y coste.'));
+}
+async function readBambu(p, f) {
+  try {
+    const z = await unzip(await f.arrayBuffer(), n => /Metadata\/(slice_info|project_settings)\.config$/i.test(n));
+    const dec = x => x ? new TextDecoder().decode(x) : '';
+    const key = k => Object.keys(z).find(n => n.toLowerCase().endsWith(k));
+    const xml = dec(z[key('slice_info.config')]), proj = dec(z[key('project_settings.config')]);
+    if (!xml) return toast('Este .3mf no está laminado: en Bambu Studio pulsa «Laminar» y guarda o exporta la placa laminada.', 'warn', 7000);
+    const b = CL.bambuSlice(xml, proj || null);
+    if (!b.placas.length || !(b.placas[0].gramos > 0)) return toast('El archivo no trae los gramos de filamento.', 'warn');
+    const pl = sel(b.placas.map(x => ({ v: String(x.placa), t: 'Placa ' + x.placa + ' · ' + String(x.gramos).replace('.', ',') + ' g · ' + (Math.round(x.segundos / 360) / 10).toString().replace('.', ',') + ' h' + (x.coste !== null ? ' · ' + eur(x.coste) : '') })), String(b.placas[0].placa));
+    const piezas = inp({ type: 'number', min: 1, step: 1, value: 1, style: { width: '90px' } }), out = h('div');
+    const upd = () => { const x = b.placas.find(q => String(q.placa) === pl.value) || b.placas[0], n = Math.max(1, Number(piezas.value) || 1);
+      mount(out, h('div.card.flat', h('div', 'Por pieza: ', h('b', String(Math.round(x.gramos / n * 10) / 10).replace('.', ',') + ' g'), ' · ', (Math.round(x.segundos / n / 36) / 100).toString().replace('.', ',') + ' h'),
+        x.coste !== null ? h('div', 'Coste de filamento: ', h('b', eur(Math.round(x.coste / n * 100) / 100)), ' por pieza · Fuente: Bambu Studio') : h('div.warn-t.small', 'Bambu Studio no tiene precio para este filamento (pon el precio del filamento en Bambu Studio y vuelve a laminar): se usará el coste ESTIMADO propio.'),
+        h('div.tiny.muted', x.filamentos.map(fl => (fl.tipo || 'Filamento') + ' ' + (fl.color || '') + ' ' + String(fl.gramos).replace('.', ',') + ' g').join(' · ')))); };
+    pl.onchange = upd; piezas.oninput = upd; upd();
+    modal('Datos de Bambu Studio · ' + f.name, h('div.col', b.placas.length > 1 ? field('Placa', pl) : null, field('¿Cuántas piezas salen en esa placa?', piezas, 'Se divide para tener el dato de UNA pieza'), out),
+      close => [btn('Cancelar', close), btn('Guardar en el producto', async () => {
+        const x = b.placas.find(q => String(q.placa) === pl.value) || b.placas[0];
+        try { const r = await api('productos.bambu', { id: p.id, gramos: x.gramos, segundos: x.segundos, coste: x.coste, piezas: Math.max(1, Number(piezas.value) || 1), archivo: f.name, placa: x.placa, precios: b.precios || [], filamentos: x.filamentos });
+          if (r.producto) { upsertLocal('productos', r.producto); emit(); } toast('Datos de Bambu Studio guardados', 'ok'); close(); } catch (e) { handleError(e); }
+      }, { cls: 'primary' })], { size: 'narrow' });
+  } catch (e) { toast('No se pudo leer el .3mf: ' + e.message, 'bad'); }
 }

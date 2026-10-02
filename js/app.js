@@ -17,6 +17,8 @@ const VIEWS = {
   catalogo: () => import('./views/catalogo.js'),
   gastos: () => import('./views/gastos.js'),
   costes: () => import('./views/costes.js'),
+  embalaje: () => import('./views/embalaje.js'),
+  escanear: () => import('./views/escanear.js'), // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
   taller: () => import('./views/taller.js'),
   stock: () => import('./views/stock.js'),
@@ -27,7 +29,7 @@ const VIEWS = {
   redes: () => import('./views/redes.js'),
   archivos: () => import('./views/archivos.js'),
   ia: () => import('./views/ia.js'),
-  nova: () => import('./views/celebrynova.js'),
+  nova: () => Promise.resolve({ render: () => { location.hash = '#/ia/operar'; return {}; } }), // v11.5: CelebryNova vive dentro de Celeby Nova
   chat: () => import('./views/chat.js'),
   estado: () => import('./views/estado.js'),
   informes: () => import('./views/informes.js'),
@@ -38,13 +40,14 @@ export const NAV = [
   { k: 'inicio', t: 'Inicio', i: 'home' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
+  { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje
+  { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
-  { k: 'gastos', t: 'Gastos', i: 'euro', p: 'productos.costes' },
-  { k: 'taller', t: 'Taller 3D', i: 'cube', p: 'taller.ver' },
+  { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio
   { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
@@ -54,8 +57,7 @@ export const NAV = [
   { k: 'noticias', t: 'Noticias', i: 'news', p: 'noticias.ver' },
   { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
   { k: 'archivos', t: 'Archivos', i: 'folder', p: 'archivos.ver' },
-  { k: 'ia', t: 'Celebrity', i: 'sparkles', p: 'ia.usar' },
-  { k: 'nova', t: 'CelebryNova', i: 'play', p: 'config.ver', d: true }, // v11.1: operador autónomo (solo en el PC)
+  { k: 'ia', t: 'Celeby Nova', i: 'sparkles', p: 'ia.usar' }, // v11.5: Celebrity + CelebryNova en un solo asistente
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
   { sep: true },
   { k: 'config', t: 'Configuración', i: 'settings' },
@@ -74,6 +76,7 @@ async function route() {
   if (!S.token || !S.me) return;
   const { name, params } = parseHash();
   // v11: QR universal → #/q/<tipo>/<id> abre directamente la ficha
+  if (name === 'q' && params[0] === 'ceb') return go('escanear/' + encodeURIComponent(params[1] || '')); // v11.6: QR del paquete
   if (name === 'q') { const T = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes', factura: 'facturas', stock: 'stock', caja: 'stock', presupuesto: 'presupuestos' }; const t = T[params[0]]; return go(t ? t + '/' + encodeURIComponent(params[1] || '') : 'inicio'); }
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
@@ -157,9 +160,11 @@ function buildShell() {
   const chatB = can('chat.usar') ? h('button.btn.ghost.icon.icon-btn.chat-btn', { title: 'Chat del equipo', 'aria-label': 'Chat', onclick: () => go('chat') }, icon('msg')) : h('span');
   const meDot = h('span.st-dot.on');
   const meBtn = h('button.me-chip', { title: 'Tu cuenta', 'aria-label': 'Tu cuenta', onclick: e => accountMenu(e.currentTarget) });
+  const quick = h('nav.quickbar', { 'aria-label': 'Acceso rápido' }); // v11.5: lo que más se usa, a un clic desde cualquier pantalla
   const topbar = h('header.topbar',
     h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú', 'aria-label': 'Abrir menú' }, icon('menu')),
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
+    quick,
     h('div.right.row', syncEl, chatB, bell, meBtn));
   const banner = h('div');
   const content = h('main.content', { id: 'main' });
@@ -169,10 +174,10 @@ function buildShell() {
   mount(app, root);
   sidebar.addEventListener('click', e => { if (e.target.closest('a') && !document.body.classList.contains('nav-pinned')) closeNav(); });
   try { if (localStorage.getItem('cd.navFijo') === '1') document.body.classList.add('nav-pinned'); } catch (e) { }
-  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar, meBtn, meDot };
+  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar, meBtn, meDot, quick };
   refreshShell();
 }
-function markNav(name) { if (!shell) return; shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
+function markNav(name) { if (!shell) return; shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); if (shell.quick) shell.quick.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
 
 // v11.1: decisiones pendientes de CelebryNova en el menú (solo en el PC y para quien lo administra)
 let novaTimer = null;
@@ -189,7 +194,7 @@ function startNovaWatch() {
 function refreshShell() {
   if (!shell) return;
   const d = S.cfg ? dash() : null;
-  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, nova: S.novaPend || 0 } : {};
+  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, ia: S.novaPend || 0 } : {};
   // v11: solo se redibuja el menú si ha cambiado algo (antes se rehacía en cada sincronización y parpadeaba)
   const navSig = JSON.stringify([counts, S.perms, S.ws]);
   if (shell.navSig !== navSig) { shell.navSig = navSig;
@@ -198,6 +203,11 @@ function refreshShell() {
   const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
   if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
+  // v11.5: barra de acceso rápido (Cámaras aparecerá cuando esté integrada; nunca botones vacíos)
+  const emq = S.cfg ? (S.t.pedidos || []).filter(o => CL.phaseOf(S.cfg.pedidos, o.estado) === 'empaquetar').length : 0;
+  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => can(x[3]));
+  const qSig = JSON.stringify([QB.map(x => x[0]), emq]);
+  if (shell.quick && shell.qSig !== qSig) { shell.qSig = qSig; mount(shell.quick, QB.map(x => h('a', { href: '#/' + x[0], dataset: { k: x[0] }, title: x[1] }, icon(x[2], 's'), h('span.t', x[1]), x[4] ? h('span.count', String(x[4])) : null))); }
   markNav(parseHash().name);
   const me = shell.sidebar.querySelector('.me');
   const meSig = S.me ? JSON.stringify([S.me.nombre, S.me.rol, S.me.avatarId, S.online]) : '';

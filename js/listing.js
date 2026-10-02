@@ -150,7 +150,7 @@ var LST = (function () {
   function shortDesc(F, cat, tipo) {
     var v = F.v, bits = [];
     var what = cap(v.nombre);
-    var how = { disenado_fabricado: 'Diseño propio fabricado por nosotros', fabricado: 'Fabricado por nosotros', hecho_mano: 'Hecho a mano por nosotros', personalizado: 'Personalizado por nosotros', disenado_socio: 'Diseño propio', segunda_mano: 'Artículo de segunda mano', vintage: 'Artículo vintage', reacondicionado: 'Artículo reacondicionado' }[tipo];
+    var how = { disenado_fabricado: 'Diseño original', fabricado: 'Fabricado', hecho_mano: 'Hecho a mano', personalizado: 'Personalizado', disenado_socio: 'Diseño original', segunda_mano: 'Artículo de segunda mano', vintage: 'Artículo vintage', reacondicionado: 'Artículo reacondicionado' }[tipo];
     bits.push(what + '.');
     var det = [v.material ? 'en ' + v.material : '', v.color ? 'color ' + v.color.toLowerCase() : ''].filter(Boolean).join(', ');
     if (how || det) bits.push((how || 'Fabricado') + (det ? ' ' + det : '') + '.');
@@ -171,8 +171,10 @@ var LST = (function () {
     if (tech.length) sec.push(['Datos técnicos', tech.join('\n')]);
     if (has(v.condicion) || ['segunda_mano', 'vintage', 'reacondicionado', 'coleccionable'].indexOf(tipo) >= 0) sec.push(['Estado', has(v.condicion) ? v.condicion : 'PENDIENTE: indica el estado del artículo']);
     if (has(v.accesorios) || has(v.contenido)) sec.push(['Qué incluye', [v.contenido, v.accesorios].filter(has).join('\n')]);
-    var made = { disenado_fabricado: 'Diseñado y fabricado por nosotros' + (has(v.metodo) ? ' (' + v.metodo + ')' : ''), fabricado: 'Fabricado por nosotros' + (has(v.metodo) ? ' (' + v.metodo + ')' : ''), hecho_mano: 'Hecho a mano por nosotros', personalizado: 'Personalizado por nosotros', disenado_socio: 'Diseñado por nosotros y fabricado por un socio de producción' }[tipo];
-    if (made || has(v.origen)) sec.push(['Fabricación y origen', [made, has(v.origen) ? 'Origen: ' + v.origen : ''].filter(Boolean).join('\n')]);
+    // v11.3.1: el texto habla del PRODUCTO (cómo está hecho), nunca de quién lo hizo («fabricado por nosotros», «he creado»…)
+    var metodo = has(v.metodo) ? 'Fabricación: ' + v.metodo : '';
+    var made = { disenado_fabricado: ['Diseño original', metodo].filter(Boolean).join('\n'), fabricado: metodo, hecho_mano: 'Hecho a mano', personalizado: 'Personalizado', disenado_socio: 'Diseño original, fabricado con un socio de producción' }[tipo];
+    if (made || has(v.origen)) sec.push(['Fabricación', [made, has(v.origen) ? 'Origen: ' + v.origen : ''].filter(Boolean).join('\n')]);
     if (has(v.personalizacion)) sec.push(['Personalización', v.personalizacion]);
     if (envio && (envio.preparacion || envio.notas)) sec.push(['Envío', [envio.preparacion ? 'Se prepara en ' + envio.preparacion + ' día(s) laborables.' : '', envio.notas || ''].filter(Boolean).join('\n')]);
     if (extraLines && extraLines.length) sec.push(['Importante', extraLines.join('\n')]);
@@ -201,6 +203,13 @@ var LST = (function () {
       if (allowed) return;
       var facts = norm(JSON.stringify(F.v));
       out = out.replace(c.re, function (m) { if (facts.indexOf(norm(m)) >= 0) return m; quit.push({ texto: m, porque: c.why }); return ''; });
+    });
+    // v11.3.1: frases sobre QUIÉN lo hizo («he creado este…», «fabricado por nosotros»): se quita la frase entera.
+    // Si la propia ficha lo dice con esas palabras, se respeta.
+    var factsAll = norm(JSON.stringify(F.v));
+    out = out.replace(/[^.!?\n]*\b(?:(?:he|hemos)\s+(?:cread[oa]|fabricad[oa]|diseñad[oa]|disenad[oa]|hech[oa]|impres[oa])|(?:cread|fabricad|diseñad|disenad|hech|impres|personalizad)[oa]s?\s+(?:por\s+(?:nosotr[oa]s|m[ií])|(?:yo|nosotr[oa]s)\s+mism[oa]s?))\b[^.!?\n]*[.!?]?/gi, function (m) {
+      if (factsAll.indexOf(norm(m).trim()) >= 0) return m;
+      quit.push({ texto: m.trim(), porque: 'habla de quién lo hizo en vez de describir el producto' }); return '';
     });
     out = out.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/,\s*,/g, ',').replace(/\(\s*\)/g, '').replace(/-\s*$/, '').trim();
     return { texto: out, quitado: quit };

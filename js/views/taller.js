@@ -69,17 +69,19 @@ export function applyJob(r) {
 export function render(el, params) {
   if (!can('taller.ver')) { mount(el, h('div.card', h('h3', '🔒 Taller'), h('p.muted', 'Necesitas el permiso "Ver impresoras, cola de impresión y filamento".'))); return {}; }
   const st = { tab: (params && params[0]) || 'impresoras' };
-  if (!['impresoras', 'filamento', 'compras', 'historial'].includes(st.tab)) st.tab = 'impresoras';
+  if (!['impresoras', 'filamento', 'compras', 'historial', 'papel'].includes(st.tab)) st.tab = 'impresoras';
   const edit = can('taller.editar');
   const tabs = h('div.tabs'), body = h('div');
-  el.append(h('div.page-head', h('div', h('h1', '🖨️ Taller 3D'), h('div.muted.small', 'Qué imprime cada impresora, qué va después y cuánto filamento os queda.')),
+  el.append(h('div.page-head', h('div', h('h1', '🖨️ Impresión'), h('div.muted.small', 'Impresoras 3D (qué imprime cada una y qué va después), filamento, y las impresoras de etiquetas y de papel.')),
     edit ? h('div.row.wrap', btn('Nueva impresión', () => jobForm(), { cls: 'primary', icon: 'plus' }), btn('Añadir bobina', () => spoolForm(), { icon: 'plus' })) : null), tabs, body);
   function drawTabs() {
     const pend = (S.t.compras || []).filter(c => c.estado === 'Pendiente').length;
-    const T = [['impresoras', 'Impresoras'], ['filamento', 'Filamento'], ['compras', 'Lista de la compra' + (pend ? ' (' + pend + ')' : '')], ['historial', 'Historial']];
+    const T = [['impresoras', 'Impresoras 3D'], ['papel', 'Etiquetas e impresoras de papel'], ['filamento', 'Filamento'], ['compras', 'Lista de la compra' + (pend ? ' (' + pend + ')' : '')], ['historial', 'Historial']];
     mount(tabs, T.map(x => h('button' + (st.tab === x[0] ? '.on' : ''), { onclick: () => { st.tab = x[0]; history.replaceState(null, '', '#/taller/' + x[0]); draw(); } }, x[1])));
   }
-  function draw() { drawTabs(); ({ impresoras: drawPrinters, filamento: drawSpools, compras: drawShop, historial: drawHistory })[st.tab](); }
+  // v11.5: la impresión, en un solo sitio (3D + etiquetas/papel). «Hoy» sigue siendo el acceso rápido del día.
+  function drawPaper() { mount(body, h('p.small.muted', 'Impresoras de etiquetas y de folios de este ordenador: estado, tamaños y calibración.')); import('./config.js').then(C => C.printCenter(body, () => { if (st.tab === 'papel') drawPaper(); })); }
+  function draw() { drawTabs(); ({ impresoras: drawPrinters, papel: drawPaper, filamento: drawSpools, compras: drawShop, historial: drawHistory })[st.tab](); }
 
   // ---------- Impresoras ----------
   function drawPrinters() {
@@ -91,6 +93,7 @@ export function render(el, params) {
       pendingOrders.length && edit ? h('div.card', { style: { marginBottom: '14px' } }, h('div.row', h('b', '📋 Pedidos por imprimir (' + pendingOrders.length + ')'), h('span.tiny.muted', 'Aún no están en ninguna cola')),
         h('div.list', { style: { marginTop: '8px' } }, pendingOrders.slice(0, 6).map(({ o, t }) => h('div.item', h('div.grow', h('div.small', h('b', 'nº ' + o.numero), ' · ' + (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto + (o.color ? ' · ' + o.color : '')), h('div.tiny.muted', o.cliente + (t.limite ? ' · límite ' + fdate(t.limite) : ''))),
           btn('Mandar a imprimir', () => jobForm(null, o), { cls: 'sm primary', icon: 'plus' }))))) : null,
+      rateBlock(edit),
       h('div.printers', list.map(printerCard)),
       edit ? h('div.row', { style: { marginTop: '12px' } }, btn('Añadir impresora', () => printerForm(), { cls: 'ghost sm', icon: 'plus' })) : null);
   }
@@ -323,22 +326,56 @@ export function finishDialog(j, estado) {
   const prod = j.productoId ? byId('productos', j.productoId) : null, pname = prod ? prod.nombre : o ? o.producto : '';
   const units = inp({ type: 'number', min: 0, step: 1, value: n(j.cantidad) || 1, style: { width: '90px' } });
   const stockRow = ok && pname ? h('div.row.wrap.small', '📦 Entran al stock', units, h('span', 'ud. de ' + pname + (o ? ' (apartadas para el pedido nº ' + o.numero + ')' : ''))) : null;
+  // v11.4: «¿Cómo salió?» y, si sale mal, la pérdida (pendiente de recuperar; nunca se suma sola a un pedido)
+  const al = j.alerta || {};
+  let val = ok ? '' : 'mal';
+  const motivo = sel(CL.FALLO_MOTIVOS.map(x => ({ v: x, t: x })), /filamento/i.test(al.texto || '') ? 'Falta de filamento' : ok ? 'Pieza fea o con defectos' : CL.FALLO_MOTIVOS[0]);
+  const prog = inp({ type: 'number', min: 0, max: 100, step: 1, value: al.progreso ?? '', placeholder: '%', style: { width: '90px' } });
+  const reg = h('input', { type: 'checkbox', checked: true }), quitar = h('input', { type: 'checkbox', checked: true });
+  const badBox = h('div');
+  const drawBad = () => mount(badBox, val === 'mal' ? h('div.card.flat', h('div.form', field('Motivo', motivo), !ok ? field('Llegó al (%)', prog, al.progreso !== undefined && al.progreso !== '' ? 'Lo dijo la impresora' : 'Aproximado') : null),
+    h('label.check.small', reg, 'Apuntar la pérdida (coste estimado, pendiente de recuperar)'), ok ? h('label.check.small', quitar, 'La pieza no vale: no la metas en el stock') : null) : null);
+  const rateSeg = ok ? h('div', h('div.lbl', '¿Cómo salió?'), h('div.seg', [['muy_bien', 'Muy bien'], ['bien', 'Bien'], ['mal', 'Mal']].map(([v, t]) => h('button' + (val === v ? '.on' : ''), { type: 'button', onclick: e => { val = v; [...e.target.parentNode.children].forEach(b => b.classList.toggle('on', b === e.target)); drawBad(); } }, t)))) : null;
+  drawBad();
   modal(ok ? '✅ Impresión terminada' : '❌ La impresión falló', h('div.col',
     h('p', h('b', j.titulo)),
     h('div.form', field(ok ? 'Gramos usados' : 'Gramos gastados en el intento', grams, ok ? 'Los del laminador; corrígelo si hiciste cambios.' : 'Aproximado: lo que llegó a imprimir.'), field('De qué bobina', bob)),
+    rateSeg, badBox,
     stockRow,
     ok && o && !others.length && PRE_FAB[phase(o)] ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "' + (CL.stateOfPhase(S.cfg.pedidos, 'postpro') || 'Postprocesado') + '"') : null,
     ok && o && others.length ? h('p.tiny.muted', 'Al pedido nº ' + o.numero + ' aún le quedan ' + others.length + ' impresión(es).') : null,
     !ok ? h('label.check.small', again, 'Volver a ponerla la primera de la cola') : null),
     close => [btn('Cancelar', close), btn(ok ? 'Guardar' : 'Guardar fallo', async () => {
       close();
-      const r = await call('trabajos.estado', { id: j.id, estado, gramos: grams.value === '' ? 0 : Number(grams.value), bobinaId: bob.value, marcarPedido: mark.checked, reencolar: !ok && again.checked, stock: stockRow ? Math.max(0, Math.round(n(units.value))) : undefined }, ok ? 'Impresión terminada' + (bob.value && Number(grams.value) ? ' · descontados ' + g(grams.value) : '') : 'Fallo guardado');
+      const r = await call('trabajos.estado', { id: j.id, estado, gramos: grams.value === '' ? 0 : Number(grams.value), bobinaId: bob.value, marcarPedido: mark.checked, reencolar: !ok && again.checked, stock: stockRow ? Math.max(0, Math.round(n(units.value))) : undefined,
+        valoracion: val || undefined, motivo: val === 'mal' ? motivo.value : undefined, progreso: !ok && prog.value !== '' ? Number(prog.value) : undefined, registrarPerdida: val === 'mal' ? reg.checked : undefined, quitarStock: ok && val === 'mal' ? quitar.checked : undefined }, ok ? 'Impresión terminada' + (bob.value && Number(grams.value) ? ' · descontados ' + g(grams.value) : '') : 'Fallo guardado');
       if (!r) return;
       applyJob(r);
+      if (r.fallo) { toast('Pérdida apuntada (' + (can('productos.costes') ? eur(r.fallo.coste) + ', ' : '') + 'pendiente de recuperar)', 'warn'); import('../store.js').then(m => m.pull()); }
       if (r.pedido && phase(r.pedido) === 'postpro') toast('📦 Pedido nº ' + r.pedido.numero + ' → ' + r.pedido.estado, 'ok');
       if (r.stock && !r.pedido) toast('📦 ' + r.stock.producto + ': ' + r.stock.fisico + ' en la estantería', 'ok');
       if (r.stock) import('../store.js').then(m => m.pull());
     }, { cls: ok ? 'primary' : 'danger solid', icon: 'check' })], { size: 'narrow' });
+}
+
+// ---------- v11.4: avisos de la Bambu y «¿Cómo salió?» de lo terminado ----------
+export function rateBlock(edit) {
+  const since = Date.now() - 14 * 86400000;
+  const toRate = (S.t.trabajos || []).filter(j => j.estado === 'Terminado' && !j.valoracion && j.fin && new Date(j.fin).getTime() > since).sort((a, b) => String(b.fin).localeCompare(String(a.fin))).slice(0, 8);
+  const alerts = (S.t.trabajos || []).filter(j => j.alerta && j.alerta.texto && OPEN[j.estado]);
+  if (!toRate.length && !alerts.length) return null;
+  return h('div.card', { style: { marginBottom: '14px', borderColor: 'var(--warn)' } },
+    alerts.map(j => h('div.item', { style: { cursor: 'default' } }, h('span', '⚠️'), h('div.grow', h('div.small.bold', (j.alerta.impresora || 'Impresora') + ': ' + j.alerta.texto + (j.alerta.progreso !== '' && j.alerta.progreso !== undefined ? ' al ' + j.alerta.progreso + ' %' : '')), h('div.tiny.muted', '«' + j.titulo + '» · ¿Cómo ha salido?')),
+      edit ? btn('Ha fallado', () => finishDialog(j, 'Fallido'), { cls: 'sm danger' }) : null, edit ? btn('Sigue bien', async () => applyJob(await call('trabajos.alerta', { id: j.id, limpiar: true })), { cls: 'sm ghost' }) : null)),
+    toRate.length ? h('div', { style: { marginTop: alerts.length ? '8px' : 0 } }, h('b.small', '¿Cómo salieron estas impresiones?'),
+      toRate.map(j => h('div.item', { style: { cursor: 'default' } }, h('div.grow.small', j.titulo, h('span.tiny.muted', ' · ' + new Date(j.fin).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))),
+        edit ? h('div.seg.sm', [['muy_bien', 'Muy bien'], ['bien', 'Bien'], ['mal', 'Mal']].map(([v, t]) => h('button', { onclick: () => v === 'mal' ? badDialog(j) : (async () => applyJob(await call('trabajos.valorar', { id: j.id, valoracion: v }, 'Valorada')))() }, t))) : null))) : null);
+}
+function badDialog(j) {
+  const motivo = sel(CL.FALLO_MOTIVOS.map(x => ({ v: x, t: x })), 'Pieza fea o con defectos'), quitar = h('input', { type: 'checkbox', checked: true }), again = h('input', { type: 'checkbox', checked: false });
+  modal('La impresión salió mal', h('div.col', h('p', h('b', j.titulo)), field('Motivo', motivo), h('label.check.small', quitar, 'La pieza no vale: sácala del stock'), h('label.check.small', again, 'Volver a ponerla en la cola'),
+    h('p.tiny.muted', 'Se apunta la pérdida con su coste estimado. Queda PENDIENTE de recuperar: al preparar un pedido se te preguntará si quieres incluirla.')),
+    close => [btn('Cancelar', close), btn('Guardar', async () => { close(); const r = await call('trabajos.valorar', { id: j.id, valoracion: 'mal', motivo: motivo.value, quitarStock: quitar.checked, reencolar: again.checked }, 'Pérdida apuntada'); applyJob(r); import('../store.js').then(m => m.pull()); }, { cls: 'danger solid' })], { size: 'narrow' });
 }
 
 export function printerForm(p) {

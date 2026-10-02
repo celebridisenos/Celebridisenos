@@ -5,7 +5,7 @@
 import { S, can, dash, unreadCount, timing } from '../store.js';
 
 const CL = window.CL;
-export const NAME = 'Celebrity';
+export const NAME = 'Celeby Nova';
 
 // Objetivos con su progreso (solo datos reales)
 export function objetivos() {

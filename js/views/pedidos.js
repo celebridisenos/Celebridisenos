@@ -14,7 +14,8 @@ const PRESETS = [
   { k: 'reservas', t: 'Reservas', f: o => ph(o) === 'reserva' },
   { k: 'fabricar', t: 'Por imprimir', f: o => ph(o) === 'confirmado' },
   { k: 'fabricando', t: 'Imprimiendo', f: o => ph(o) === 'impresion' },
-  { k: 'empaquetar', t: 'Postprocesado', f: o => ph(o) === 'postpro' },
+  { k: 'postpro', t: 'Postprocesado', f: o => ph(o) === 'postpro' },
+  { k: 'empaquetar', t: 'Empaquetar', f: o => ph(o) === 'empaquetar' },
   { k: 'enviar', t: 'Por enviar', f: o => ph(o) === 'listo' },
   { k: 'enviados', t: 'Enviados', cls: 'ok', f: o => ph(o) === 'enviado' },
   { k: 'incidencias', t: 'Incidencias', cls: 'warn', f: (o, t) => t.incidencia },
@@ -146,7 +147,7 @@ function nextState(o) {
 export function freePieces(o) {
   const k = CL.norm(o.producto); let fab = 0, out = 0, held = 0;
   (S.t.fabricacion || []).forEach(r => { if (CL.norm(r.producto) === k) fab += Number(r.unidades) || 0; });
-  S.t.pedidos.forEach(x => { if (x.id === o.id || CL.norm(x.producto) !== k) return; const p = ph(x), q = Number(x.cantidad) || 1; if (p === 'enviado' || p === 'entregado') out += q; else if (p === 'postpro' || p === 'listo') held += q; });
+  S.t.pedidos.forEach(x => { if (x.id === o.id || CL.norm(x.producto) !== k) return; const p = ph(x), q = Number(x.cantidad) || 1; if (p === 'enviado' || p === 'entregado') out += q; else if (p === 'postpro' || p === 'empaquetar' || p === 'listo') held += q; });
   return fab - out - held;
 }
 function fromStockBtn(o) {
@@ -176,7 +177,7 @@ export function orderDrawer(id, onClose) {
       if (!tabs.some(x => x[0] === tab)) tab = 'resumen';
       const body = h('div');
       mount(d,
-        h('div.drawer-h', h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null)),
+        h('div.drawer-h', h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
           btn('', closeAll, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
         h('div.drawer-b.col', { style: { gap: '14px' } },
           h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k)))),
@@ -185,6 +186,7 @@ export function orderDrawer(id, onClose) {
             nx && !(ph(o) === 'listo' && nx && S.cfg.pedidos.estados.find(s => s.k === nx && s.shipped)) ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
             !t.enviado && !t.cancelado ? btn('Enviar pedido', () => shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,
             fromStockBtn(o),
+            ['postpro', 'empaquetar', 'listo'].includes(ph(o)) ? btn('📦 Embalaje', () => import('./embalaje.js').then(E => E.packPanel(o.id)), { cls: ph(o) === 'empaquetar' ? 'primary' : '' }) : null,
             btn('Cambiar estado', () => stateDialog(o), { icon: 'refresh' }),
             !o.incidencia && t.abierto ? btn('Incidencia', () => issueDialog(o), { icon: 'alert', cls: 'danger' }) : null)
             : h('p.small.muted', 'Solo lectura: no tienes permiso para cambiar pedidos.'),
@@ -225,6 +227,16 @@ const TABS = {
       cs ? h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row', h('b', 'Sobre ' + c.nombre), h('span.tiny.muted', cs.pedidos + ' pedidos · ' + eur(cs.gasto))), h('div.tags', { style: { marginTop: '6px' } }, cs.etiquetas.map(e => pill(e.i + ' ' + e.t, 'brand')))) : null);
   },
   beneficio(el, o) {
+    // v11.4: pedidos con el embalaje nuevo → centro de costes (fabricación ≠ embalaje ≠ mano de obra ≠ pérdidas)
+    if (o.embalaje && o.embalaje.modelo) {
+      import('./embalaje.js').then(E => {
+        const c = CL.orderCosts(o, E.packData(), S.cfg);
+        mount(el, E.costCenter(c), h('div.row.wrap', btn('📦 Abrir en Embalaje', () => E.packPanel(o.id), { cls: 'sm' }), can('pedidos.editar') ? btn('Envío, comisión y extraordinarios', () => costsDialog(o), { icon: 'euro', cls: 'sm' }) : null,
+          can('pedidos.editar') ? btn('Trabajo adicional', () => E.laborDialog(o, true), { cls: 'sm ghost' }) : null),
+          h('p.tiny.muted', 'Lo ESTIMADO sale de tus consumos de packaging y de Configuración → Precios. Los extraordinarios (un componente especial, un accesorio…) se apuntan a mano.'));
+      });
+      return;
+    }
     const p = CL.orderProfit(o, S.t, S.cfg);
     const minM = Number((S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15);
     const est = x => x ? h('span.est', ' (estimado)') : null;
@@ -306,7 +318,7 @@ function trackingUrl(envio, num) {
 }
 
 async function save(o, changes, label) {
-  const orig = {}; Object.keys(changes).forEach(k => { orig[k] = o[k] === undefined ? '' : o[k]; });
+  const orig = {}; Object.keys(changes).forEach(k => { if (k !== 'trabajoExtra' && k !== 'embalaje') orig[k] = o[k] === undefined ? '' : o[k]; });
   try {
     const r = await mutate('pedidos.guardar', { id: o.id, datos: changes, orig }, { label: label || 'Pedido nº ' + o.numero, tables: ['pedidos'], optimistic: t => { const x = t.pedidos.find(p => p.id === o.id); if (x) Object.assign(x, changes, { actualizado: new Date().toISOString(), actualizadoPor: S.me.nombre }); } });
     if (r && r.id) { upsertLocal('pedidos', r); emit(); }
@@ -314,7 +326,16 @@ async function save(o, changes, label) {
     return true;
   } catch (e) { handleError(e, 'pedidos'); return false; }
 }
-export function changeState(o, estado, extra) {
+// v11.4: al CERRAR el paquete (pasar a «Listo para envío» o más allá desde antes) se pregunta el trabajo adicional
+const PACK_BEFORE = { reserva: 1, confirmado: 1, impresion: 1, postpro: 1, empaquetar: 1 };
+export async function changeState(o, estado, extra) {
+  const to = CL.phaseOf(S.cfg.pedidos, estado);
+  if (PACK_BEFORE[ph(o)] && ['listo', 'enviado', 'entregado'].includes(to) && !(o.embalaje && o.embalaje.hecho) && !(extra && extra.trabajoExtra) && (S.cfg.embalaje || {}).preguntarTrabajo !== false && can('pedidos.editar')) {
+    const E = await import('./embalaje.js');
+    const tr = await E.askLabor(o);
+    if (!tr) return false; // cancelado: no se cambia nada
+    extra = Object.assign({}, extra || {}, { trabajoExtra: tr });
+  }
   const ch = Object.assign({ estado }, extra || {});
   const st = S.cfg.pedidos.estados.find(s => s.k === estado) || {};
   if (st.shipped && !o.fechaEnvio && !ch.fechaEnvio) ch.fechaEnvio = S.hoy;
@@ -347,20 +368,8 @@ async function delOrder(o, done) {
   try { await mutate('pedidos.borrar', { id: o.id }, { onlineOnly: true, label: 'Borrar nº ' + o.numero }); removeLocal('pedidos', o.id); emit(); toast('Pedido en la papelera', 'ok'); done(); }
   catch (e) { handleError(e, 'pedidos'); }
 }
-function messageDialog(o, kind) {
-  const emp = S.cfg.empresa.nombre;
-  const name = String(o.cliente || '').split(/\s|@/)[0];
-  const T = {
-    enviado: `¡Hola ${name}! 😊 Tu pedido de ${o.producto} ya está en camino.` + (o.seguimiento ? `\nNº de seguimiento: ${o.seguimiento}` + (o.envio ? ` (${o.envio})` : '') : '') + `\n¡Gracias por confiar en ${emp}!`,
-    fabricacion: `¡Hola ${name}! Ya estamos fabricando tu ${o.producto}. Te aviso en cuanto salga. ✨`,
-    retraso: `¡Hola ${name}! Te escribo para avisarte de que tu ${o.producto} va a tardar un poco más de lo previsto. Siento las molestias, te mantengo informada/o. 🙏`,
-    gracias: `¡Hola ${name}! Muchas gracias por tu compra 💜 Si te ha gustado, nos ayudaría muchísimo una valoración. ¡Hasta pronto!`
-  };
-  const s = sel([{ v: 'enviado', t: 'Pedido enviado' }, { v: 'fabricacion', t: 'En fabricación' }, { v: 'retraso', t: 'Aviso de retraso' }, { v: 'gracias', t: 'Gracias / pedir valoración' }], kind || 'enviado');
-  const t = area({ value: T[s.value], style: { minHeight: '140px' } });
-  s.addEventListener('change', () => { t.value = T[s.value]; });
-  modal('Mensaje para ' + o.cliente, h('div.col', field('Plantilla', s), field('Texto (puedes cambiarlo)', t), h('p.tiny.muted', 'Cópialo y pégalo en Vinted, Wallapop, WhatsApp…')), close => [btn('Cerrar', close), btn('Copiar', () => { copyText(t.value); close(); }, { cls: 'primary', icon: 'copy' })]);
-}
+// v11.6: los mensajes al cliente salen de las plantillas editables (Embalaje → Tarjeta y mensajes)
+function messageDialog(o, kind) { import('../envio.js').then(E => E.messageDialog(o, kind)); }
 
 // ---------- v10.8: costes reales, etiqueta de envío ----------
 function costsEditor(o) {

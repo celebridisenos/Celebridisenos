@@ -38,9 +38,10 @@ export function render(el, params) {
   const body = h('div');
   const tabs = h('div.tabs');
   el.append(h('div.page-head', h('div', h('h1', '🧮 Materiales y costes'), h('div.muted.small', 'Apunta cada material una vez. El programa calcula el coste de cada embalaje y de cada producto, y por qué cuesta lo que cuesta.'))), tabs, body);
-  const T = { materiales: 'Materiales', embalajes: 'Embalajes', productos: 'Coste de productos', historial: 'Historial de precios' };
+  const T = { materiales: 'Materiales', embalajes: 'Embalajes', productos: 'Coste de productos', historial: 'Historial de precios', gastos: 'Gastos extra' };
   const draw = () => {
     mount(tabs, Object.keys(T).map(k => h('button' + (tab === k ? '.on' : ''), { onclick: () => { tab = k; history.replaceState(null, '', '#/costes/' + k); draw(); } }, T[k])));
+    if (tab === 'gastos') { mount(body); import('./gastos.js').then(G => { if (tab === 'gastos') G.render(body); }); return; } // v11.5: los gastos extra, dentro de Costes
     ({ materiales: drawMats, embalajes: drawEmbs, productos: drawProds, historial: drawHist })[tab](body);
   };
   draw();
@@ -95,7 +96,11 @@ export function matForm(m) {
     precio: inp({ type: 'number', min: 0, step: 0.01, value: m.precio ?? '', placeholder: 'Ej.: 3,70' }), cantidad: inp({ type: 'number', min: 0, step: 'any', value: m.cantidad ?? '', placeholder: 'Déjalo vacío si no lo sabes' }),
     ancho: inp({ type: 'number', min: 0, step: 'any', value: m.ancho ?? '' }), largo: inp({ type: 'number', min: 0, step: 'any', value: m.largo ?? '' }), alto: inp({ type: 'number', min: 0, step: 'any', value: m.alto ?? '' }),
     estadoPrecio: sel(CONF_OPTS, m.estadoPrecio || (m.precio === '' || m.precio === undefined ? 'pendiente' : 'confirmado')), estadoCantidad: sel(CONF_OPTS, m.estadoCantidad || (m.cantidad === '' || m.cantidad === undefined ? 'pendiente' : 'confirmado')),
-    fuente: inp({ value: m.fuente || '', placeholder: 'Tienda, factura, web…' }), fechaCompra: inp({ type: 'date', value: m.fechaCompra || '' }), notas: area({ value: m.notas || '' })
+    fuente: inp({ value: m.fuente || '', placeholder: 'Tienda, factura, web…' }), fechaCompra: inp({ type: 'date', value: m.fechaCompra || '' }), notas: area({ value: m.notas || '' }),
+    // v11.4: peso de lo que trae (para el peso del embalaje) y stock (cajas)
+    pesoG: inp({ type: 'number', min: 0, step: 'any', value: m.pesoG ?? '', placeholder: 'g' }),
+    stock: inp({ type: 'number', min: 0, step: 1, value: m.stock ?? '', placeholder: m.tipo === 'caja' ? 'Ej.: 13' : 'Si no lo cuentas, vacío' }),
+    stockMin: inp({ type: 'number', min: 0, step: 1, value: m.stockMin ?? '', placeholder: 'Ej.: 3' })
   };
   if (ro) Object.values(f).forEach(x => { x.disabled = true; });
   const cantLabel = h('span'), preview = h('div.card.flat', { style: { margin: '10px 0' } }), msg = h('p.bad-t');
@@ -117,6 +122,8 @@ export function matForm(m) {
     h('div.form', field('Tipo', f.tipo), field('Nombre *', f.nombre, null, 'full'), field('Categoría', f.categoria), field('Marca', f.marca), field('Proveedor', f.proveedor), field('Referencia', f.referencia),
       field('Unidad en que lo cuentas', f.unidad, 'g para filamento · m para rollos · ud para piezas'), field('Precio de compra (€)', f.precio, 'Lo que pagaste, IVA incluido'), h('div.field', h('label', cantLabel), f.cantidad, h('span.hint', 'Si no lo sabes, déjalo vacío: queda PENDIENTE (nunca se inventa).')),
       field('Ancho (cm)', f.ancho, 'Rollos: para calcular €/m²'), field('Largo (cm)', f.largo), field('Alto (cm)', f.alto, 'Cajas: si no lo sabes, déjalo vacío'),
+      field('Peso de lo que trae (g)', f.pesoG, 'Báscula: una caja vacía, la bobina de burbuja… Sirve para el peso del embalaje'),
+      field('Unidades en stock', f.stock, 'Cajas: se descuentan solas al cerrar cada paquete'), field('Avisar si quedan', f.stockMin, 'Aviso de stock bajo'),
       field('¿Cómo de seguro es el precio?', f.estadoPrecio), field('¿Cómo de segura es la cantidad?', f.estadoCantidad), field('Origen del precio', f.fuente), field('Fecha de compra', f.fechaCompra), field('Notas', f.notas, null, 'full')),
     preview, msg,
     usedIn.length ? h('p.small.muted', 'Lo usan: ' + usedIn.slice(0, 8).join(', ') + (usedIn.length > 8 ? '…' : '') + '. Si cambias el precio se recalculan; los pedidos ya hechos guardan su coste.') : null,
@@ -168,7 +175,10 @@ function linesEditor(lineas, allowEmb, onChange) {
       q.oninput = () => { l.cantidad = q.value === '' ? '' : Number(q.value); drawSum(); onChange(lineas); };
       u.onchange = () => { l.unidad = u.value; drawSum(); onChange(lineas); };
       if (nota) nota.oninput = () => { l.notas = nota.value; onChange(lineas); };
-      return h('div.cost-line' + (nota ? '.otro' : ''), s, q, u, nota,
+      // v11.4: consumo ESTIMADO (metros de cinta, hojas de kraft…): se calcula pero se marca como estimado
+      const est = h('input', { type: 'checkbox', checked: !!l.estimado, title: 'Consumo estimado' });
+      est.onchange = () => { l.estimado = est.checked; drawSum(); onChange(lineas); };
+      return h('div.cost-line' + (nota ? '.otro' : ''), s, q, h('div.row', { style: { gap: '4px' } }, u, h('label.check.tiny', { title: 'Marca si la cantidad es una estimación' }, est, '≈')), nota,
         h('span.small', { 'data-l': i }, r.coste === null || r.coste === undefined ? h('span.warn-t', r.aviso || '—') : h('span', h('b', eur(r.coste)), ' ', h('span.tiny.muted', r.detalle || ''))),
         btn('', () => { lineas.splice(i, 1); draw(); onChange(lineas); }, { cls: 'ghost icon sm', icon: 'x', title: 'Quitar' }));
     }), btn('Añadir línea', () => { lineas.push({ materialId: '', cantidad: 1, unidad: '' }); draw(); }, { cls: 'sm ghost', icon: 'plus' }));
@@ -201,9 +211,11 @@ function drawEmbs(el) {
     editor() ? h('div.row', { style: { margin: '10px 0' } }, btn('NUEVO EMBALAJE (plantilla)', () => embForm({ lineas: [] }), { cls: 'primary', icon: 'plus' })) : null,
     embs.length ? h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))' } }, embs.map(e => {
       const c = CL.linesCost(e.lineas || [], data(), pp());
-      return h('div.card', { onclick: () => embForm(e), style: { cursor: 'pointer' } }, h('div.row', h('b.grow', e.nombre), confPill(c.vacio ? 'pendiente' : c.estado)),
+      return h('div.card', { onclick: () => embForm(e), style: { cursor: 'pointer' } }, h('div.row', h('b.grow', (/^s/i.test(String(e.predeterminado || '')) ? '⭐ ' : '') + e.nombre), confPill(c.vacio ? 'pendiente' : c.estado)),
+        /^s/i.test(String(e.predeterminado || '')) ? h('div.tiny.muted', 'ESTÁNDAR: se usa en cada pedido') : null,
         h('div', { style: { fontSize: '22px', fontWeight: 700, margin: '6px 0' } }, c.total === null ? h('span.warn-t', 'PENDIENTE') : eur(c.total)),
-        h('div.small', c.lineas.map(l => h('div', '• ' + l.nombre + ': ' + (l.coste === null ? 'PENDIENTE' : eur(l.coste))))),
+        h('div.small', c.lineas.map(l => h('div', '• ' + l.nombre + ': ' + (l.coste === null ? 'PENDIENTE' : eur(l.coste)) + (l.estimado ? ' (consumo estimado)' : '')))),
+        h('div.tiny.muted', 'Peso: ' + (CL.n(e.pesoMedido) > 0 ? e.pesoMedido + ' g (pesado)' : c.peso === null ? 'PENDIENTE' : c.peso + ' g (calculado)')),
         e.notas ? h('div.tiny.muted', e.notas) : null);
     })) : empty('box', 'Sin embalajes', 'Crea el primero: por ejemplo «Caja 30×20 estándar» con la caja, 80 cm de papel kraft, 50 cm de burbuja, 20 cm de cinta y 1 etiqueta.', null));
 }
@@ -213,11 +225,14 @@ function embForm(e) {
   const lineas = JSON.parse(JSON.stringify(e.lineas || []));
   if (isNew && !lineas.length) lineas.push({ materialId: '', cantidad: 1, unidad: '' });
   const nombre = inp({ value: e.nombre || '', placeholder: 'Ej.: Caja 30×20 estándar' }), notas = area({ value: e.notas || '' }), msg = h('p.bad-t');
-  modal(isNew ? 'Nuevo embalaje' : e.nombre, h('div', h('div.form', field('Nombre *', nombre, null, 'full'), field('Notas', notas, null, 'full')), h('h4', { style: { margin: '10px 0 4px' } }, 'Qué lleva'), linesEditor(lineas, false, () => { }), msg),
+  const std = h('input', { type: 'checkbox', checked: /^s/i.test(String(e.predeterminado || '')) }), peso = inp({ type: 'number', min: 0, step: 1, value: e.pesoMedido ?? '', placeholder: 'g' });
+  modal(isNew ? 'Nuevo embalaje' : e.nombre, h('div', h('div.form', field('Nombre *', nombre, null, 'full'), field('Notas', notas, null, 'full'), field('Peso pesado en báscula (g)', peso, 'Opcional: el embalaje vacío (caja + papel + burbuja + cinta)')),
+      h('label.check', std, '⭐ Embalaje estándar: se usa en cada pedido (solo puede haber uno)'), h('h4', { style: { margin: '10px 0 4px' } }, 'Qué lleva'), linesEditor(lineas, false, () => { }), msg),
     close => [!isNew ? btn('Borrar', async () => { if (!await confirmDlg('Borrar embalaje', '¿Borrar «' + e.nombre + '»? (va a la papelera)', 'Borrar', true)) return; try { await call('embalajes.borrar', { id: e.id }, 'Borrado'); close(); } catch (x) { msg.textContent = x.message; } }, { cls: 'ghost danger' }) : null,
       h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
         const ls = lineas.filter(l => l.materialId && CL.n(l.cantidad) > 0);
-        try { await call('embalajes.guardar', isNew ? { datos: { nombre: nombre.value, notas: notas.value, lineas: ls } } : { id: e.id, datos: { nombre: nombre.value, notas: notas.value, lineas: ls } }, 'Embalaje guardado'); close(); } catch (x) { msg.textContent = x.message; }
+        const datos = { nombre: nombre.value, notas: notas.value, lineas: ls, predeterminado: std.checked ? 'Sí' : 'No', pesoMedido: peso.value === '' ? '' : Number(peso.value) };
+        try { await call('embalajes.guardar', isNew ? { datos } : { id: e.id, datos }, 'Embalaje guardado'); close(); } catch (x) { msg.textContent = x.message; }
       }, { cls: 'primary' })], { size: 'wide' });
 }
 

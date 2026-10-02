@@ -99,7 +99,7 @@ export const wantsWeb = q => /(internet|en la web|busca(r)? en (google|la red)|o
 async function webLookup(question, out, onStatus) {
   out.web = [];
   if (!desktop.on) { out.webNota = 'La búsqueda en Internet solo está disponible en el programa del PC.'; return; }
-  if (!can('ia.internet')) { out.webNota = 'Buscar en Internet requiere el permiso «Celebrity puede buscar en Internet».'; return; }
+  if (!can('ia.internet')) { out.webNota = 'Buscar en Internet requiere el permiso «Celeby Nova puede buscar en Internet».'; return; }
   onStatus && onStatus('Buscando en Internet…');
   try {
     const qq = String(question).replace(/(busca(r)? en (internet|google|la web)|en internet|por favor)/gi, '').trim() + ' España';
@@ -124,7 +124,7 @@ function systemPrompt(ctx) {
   const emp = (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa';
   const u = ctx.usuario || { nombre: S.me && S.me.nombre, rol: '' };
   const hoy = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  return ['Eres CELEBRITY, la coordinadora interna de ' + emp + ' (negocio español de impresión 3D y venta online: Vinted, Wallapop, Etsy, Instagram, TikTok, WhatsApp). No eres un chatbot genérico: conoces pedidos, tareas, productos, stock y objetivos, y dices qué hacer.',
+  return ['Eres CELEBY NOVA, la gestora interna de ' + emp + ' (negocio español de impresión 3D y venta online: Vinted, Wallapop, Etsy, Instagram, TikTok, WhatsApp). No eres un chatbot genérico: conoces pedidos, tareas, productos, stock y objetivos, y dices qué hacer.',
     'Hablas con ' + (u.nombre || 'una persona del equipo') + (u.rol ? ' (' + u.rol + ')' : '') + '. Hoy es ' + hoy + '.',
     S.ws === 'noorko' ? 'ESPACIO ACTUAL: THE NOORKO, la marca de ropa streetwear (espacio independiente). Todos los datos del CONTEXTO son SOLO de THE NOORKO: habla de prendas, tallas, drops y colecciones, no de impresión 3D.' : 'ESPACIO ACTUAL: Negocio principal.',
     'REGLAS OBLIGATORIAS:',
@@ -137,7 +137,8 @@ function systemPrompt(ctx) {
     '7. Si una herramienta dice "Sin permiso", explica que esa información requiere autorización de una administradora.',
     '8. ESTILO: español de España, natural y directo. Respuestas CORTAS: 1-3 frases o viñetas breves. Nada de introducciones ("Claro", "Aquí tienes", "Actualmente…"), no repitas la pregunta, no expliques lo obvio. Ejemplo bueno: "Hoy faltan 3 productos. Publica 2 y revisa los mensajes." Solo te extiendes si te piden un texto largo (descripción, mensaje, email).',
     '9. Importes con coma decimal y €.',
-    '10. Datos de INTERNET [W…]: úsalos solo si aparecen en el texto, cita la web y da un rango (p. ej. "Envío estimado España: 4–7 €") y de qué depende (peso, medidas, destino, transportista). Si no aparece el dato, dilo; nunca inventes precios.'].join('\n');
+    '10. Datos de INTERNET [W…]: úsalos solo si aparecen en el texto, cita la web y da un rango (p. ej. "Envío estimado España: 4–7 €") y de qué depende (peso, medidas, destino, transportista). Si no aparece el dato, dilo; nunca inventes precios.',
+    '11. DESCRIPCIONES DE PRODUCTO: céntrate en el producto (qué es, características, materiales, uso, detalles, ventajas y acabado). No hables de quién lo hizo: nada de «he creado», «he fabricado», «he diseñado» ni «fabricado por nosotros».'].join('\n');
 }
 
 // v10.6.1: limpia el "pensamiento en voz alta" de los modelos qwen3. Algunas versiones (qwen3:4b 2507)
@@ -366,7 +367,7 @@ async function serveJob(job) {
 async function writeLocal(prompt, st, onToken, signal) {
   let text = '';
   await desktop.iaChat({ model: st.modelo, stream: true, think: false, keep_alive: '30m', options: { temperature: 0.6, num_ctx: 8192 },
-    messages: [{ role: 'system', content: 'Eres redactor/a de ' + ((S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa') + ', un pequeño negocio español de impresión 3D. Escribes en español de España, cercano y claro. Usa SOLO los datos que te den; no inventes cifras, precios ni características. Devuelve solo el texto pedido.\n/no_think' }, { role: 'user', content: prompt }] },
+    messages: [{ role: 'system', content: 'Eres redactor/a de ' + ((S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa') + ', un pequeño negocio español de impresión 3D. Escribes en español de España, cercano y claro. Usa SOLO los datos que te den; no inventes cifras, precios ni características. Si describes un producto, céntrate en el producto (características, materiales, uso, detalles, acabado), no en quién lo hizo: nada de «he creado/fabricado/diseñado este producto». Devuelve solo el texto pedido.\n/no_think' }, { role: 'user', content: prompt }] },
     ch => { const c = ch.message && ch.message.content; if (c) { text += c; onToken && onToken(cleanThink(text)); } }, signal);
   return cleanThink(text, true);
 }

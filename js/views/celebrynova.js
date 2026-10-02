@@ -6,7 +6,7 @@ import { h, mount, btn, toast, icon, confirmDlg } from '../ui.js';
 import { desktop } from '../desktop.js';
 
 export function render(el) {
-  const head = h('div.page-head', h('div', h('h1', 'CelebryNova'), h('div.muted.small', 'Tu operador autónomo: aprende cómo haces las cosas, las repite con tu permiso y se para si algo no lo entiende.')));
+  const head = h('div.page-head', h('div', h('h2', '🤖 Operar en el PC'), h('div.muted.small', 'El operador de Celeby Nova: aprende cómo haces las cosas, las repite con tu permiso y se para si algo no lo entiende.')));
   const body = h('div');
   el.append(head, body);
   if (!desktop.on) {
@@ -46,7 +46,7 @@ export function render(el) {
     }
     let url;
     try { url = (await desktop.novaUrl()).url; } catch (e) { mount(body, h('div.card', h('p.muted', 'CelebryNova está arrancando…'))); timer = setTimeout(refresh, 1500); return; }
-    head.replaceChildren(h('div', h('h1', 'CelebryNova'), h('div.muted.small', 'v' + (st.version || '') + ' · en segundo plano aunque cierres esta ventana · tus datos en ' + st.carpeta)),
+    head.replaceChildren(h('div', h('h2', '🤖 Operar en el PC'), h('div.muted.small', 'v' + (st.version || '') + ' · en segundo plano aunque cierres esta ventana · tus datos en ' + st.carpeta)),
       h('div.row', st.paquete ? btn('Actualizar', async () => { if (!await confirmDlg('Actualizar CelebryNova', 'CelebryNova se parará un momento para actualizarse y pasará sus pruebas. Tus procedimientos y su memoria no se tocan.', 'Actualizar')) return; try { await desktop.novaInstalar(); refresh(); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'ghost sm', icon: 'refresh' }) : null));
     mount(body, h('iframe.nova-frame', { src: url, title: 'Centro de control de CelebryNova', allow: 'clipboard-write' }));
   }
@@ -68,10 +68,10 @@ const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLow
 export async function publishWithNova(p, modal, go) {
   if (!desktop.on) return toast('CelebryNova solo funciona en el programa del PC', 'bad');
   let procs;
-  try { procs = (await desktop.novaApi('procedimientos')).filter(x => x.estado === 'aprobado'); } catch (e) { return toast('CelebryNova no está en marcha: ábrelo en el menú CelebryNova. (' + e.message + ')', 'bad'); }
+  try { procs = (await desktop.novaApi('procedimientos')).filter(x => x.estado === 'aprobado'); } catch (e) { return toast('CelebryNova no está en marcha: ábrelo en Celeby Nova → Operar en el PC. (' + e.message + ')', 'bad'); }
   if (!procs.length) {
     return modal('Publicar con CelebryNova', h('div.col', h('p', 'CelebryNova todavía no sabe publicar en ninguna web.'), h('p.small.muted', 'Enséñaselo una vez: CelebryNova → Primeros pasos → «Mírame cómo lo hago».')),
-      close => [btn('Cerrar', close), btn('Ir a CelebryNova', () => { close(); go('nova'); }, { cls: 'primary' })], { size: 'narrow' });
+      close => [btn('Cerrar', close), btn('Ir a CelebryNova', () => { close(); go('ia/operar'); }, { cls: 'primary' })], { size: 'narrow' });
   }
   const { generate } = await import('../docventa.js');
   let textos = {};
@@ -96,5 +96,5 @@ export async function publishWithNova(p, modal, go) {
           } catch (e) { toast(e.message, 'bad'); }
         }, { cls: 'sm primary' }));
     }))),
-  close => [btn('Cerrar', close), btn('Ver en CelebryNova', () => { close(); go('nova'); }, { cls: 'ghost' })], { size: 'narrow' });
+  close => [btn('Cerrar', close), btn('Ver en CelebryNova', () => { close(); go('ia/operar'); }, { cls: 'ghost' })], { size: 'narrow' });
 }

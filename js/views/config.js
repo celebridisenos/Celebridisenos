@@ -95,12 +95,14 @@ function rollbackBox(r) {
 }
 function card(title, ...kids) { return h('div.card.col', title ? h('h3', title) : null, ...kids); }
 
+// v11.5: el mismo Centro de impresión se abre desde Impresión (taller) → «Etiquetas e impresoras de papel»
+export const printCenter = (b, reload) => SEC.etiquetas(b, reload);
 const SEC = {
   // v11: impresoras detectadas en este PC, impresora por plantilla, tamaños y calibración
-  async etiquetas(b) {
+  async etiquetas(b, reload) {
     const L = await import('../labels.js');
     const CI = await import('./centro_impresion.js');
-    const c = await CI.render(b, L, () => SEC_RELOAD());
+    const c = await CI.render(b, L, () => (reload ? reload() : SEC_RELOAD()));
     const list = L.realPrinters(await L.printers());
     const rows = Object.keys(L.TEMPLATES).map(k => {
       const t = L.TEMPLATES[k], s = L.sizeOf(k, c), auto = L.pickPrinter(k, list, Object.assign({}, c, { impresora: {} }));
@@ -372,7 +374,7 @@ const SEC = {
     if (!S.cfg.precios) return b.append(lockBox('productos.costes', 'precios'));
     const c = JSON.parse(JSON.stringify(S.cfg.precios));
     let fromSheet = !!c.desdeSheet;
-    const L = [['iva', 'IVA', '%'], ['margen', 'Margen objetivo', '%'], ['margenMin', 'Margen mínimo (regateo)', '%'], ['segundaMano', 'Descuento 2ª mano', '%'], ['manoObraHora', 'Mano de obra (€/h)', '€'], ['luzHora', 'Luz por hora de impresora (€/h)', '€'], ['costeKg', 'Filamento por defecto (€/kg)', '€'], ['vinted', 'Comisión Vinted', '%'], ['etsyVenta', 'Etsy: comisión venta', '%'], ['etsyPago', 'Etsy: procesamiento pago', '%'], ['etsyFijo', 'Etsy: fijo por pago (€)', '€'], ['etsyReg', 'Etsy: coste regulatorio', '%'], ['etsyAnuncioUSD', 'Etsy: anuncio ($)', '$'], ['usdEur', 'Cambio USD → EUR', ''], ['embalaje', 'Embalaje por unidad (€)', '€'], ['envio', 'Envío que pagáis vosotros (€)', '€']];
+    const L = [['iva', 'IVA', '%'], ['margen', 'Margen objetivo', '%'], ['margenMin', 'Margen mínimo (regateo)', '%'], ['segundaMano', 'Descuento 2ª mano', '%'], ['manoObraHora', 'Mano de obra (€/h) · solo si indicas trabajo adicional', '€'], ['luzHora', 'Luz por hora de impresora (€/h)', '€'], ['costeKg', 'Filamento por defecto (€/kg)', '€'], ['vinted', 'Comisión Vinted', '%'], ['etsyVenta', 'Etsy: comisión venta', '%'], ['etsyPago', 'Etsy: procesamiento pago', '%'], ['etsyFijo', 'Etsy: fijo por pago (€)', '€'], ['etsyReg', 'Etsy: coste regulatorio', '%'], ['etsyAnuncioUSD', 'Etsy: anuncio ($)', '$'], ['usdEur', 'Cambio USD → EUR', ''], ['embalaje', 'Embalaje por unidad (€)', '€'], ['envio', 'Envío que pagáis vosotros (€)', '€']];
     const f = {};
     L.forEach(x => { f[x[0]] = inp({ type: 'number', step: 'any', value: x[2] === '%' ? +(c[x[0]] * 100).toFixed(3) : c[x[0]] }); });
     b.append(card(null, h('label.check', sw(fromSheet, v => { fromSheet = v; }), 'Usar los valores de la hoja "Configuracion" del Google Sheet (recomendado: así el Excel y la app calculan igual)'),

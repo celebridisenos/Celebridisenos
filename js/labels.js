@@ -16,7 +16,11 @@ export const TEMPLATES = {
   envio: { t: 'Envío', w: 100, h: 150, d: '10 × 15 cm · para el paquete' },
   producto: { t: 'Producto', w: 50, h: 30, d: 'nombre, SKU, precio y QR' },
   almacen: { t: 'Almacén / caja', w: 100, h: 50, d: 'ubicación grande y QR del stock' },
-  qr: { t: 'QR', w: 40, h: 40, d: 'QR universal: abre la ficha al escanearlo' }
+  qr: { t: 'QR', w: 40, h: 40, d: 'QR universal: abre la ficha al escanearlo' },
+  // v11.6 · EMPAQUETAR
+  oficial: { t: 'Etiqueta de envío oficial', w: 100, h: 150, d: 'la de Vinted, Correos, InPost…: la adjuntas y sale tal cual (nunca se inventa)' },
+  paquete: { t: 'Código del paquete', w: 50, h: 50, d: 'QR + código interno CEB + nº de pedido: se escanea al empaquetar' },
+  gracias: { t: 'Tarjeta de agradecimiento', w: 50, h: 50, d: 'tu mensaje de gracias con tu logo' }
 };
 const A4 = { w: 210, h: 297 };
 
@@ -54,7 +58,12 @@ export function pickPrinter(tpl, list, c) {
   const byName = n => n && real.find(p => p.name === n);
   const lab = byName(v.etiquetas) || on.find(p => p.label && p.label4x6) || on.find(p => p.label);
   const sheet = byName(v.folios) || on.find(p => p.default && !p.label) || on.find(p => !p.label);
-  if (tpl === 'envio') return lab || sheet || null;
+  if (tpl === 'envio' || tpl === 'oficial') return lab || sheet || null;
+  // v11.6: código del paquete y tarjeta de gracias (50 × 50): mejor una de etiquetas con ese papel; si no, la de etiquetas
+  if (tpl === 'paquete' || tpl === 'gracias') {
+    const sq = on.find(p => p.label && (p.papers || []).some(x => Math.abs(x.wmm - 50) <= 4 && Math.abs(x.hmm - 50) <= 4));
+    return sq || lab || sheet || null;
+  }
   return sheet || lab || null;
 }
 const dpiOf = p => (p && p.label ? 203 : 300);
@@ -98,6 +107,28 @@ function qr(g, data, x, y, size) {
   g.fillStyle = '#fff'; g.fillRect(x, y, size, size); g.fillStyle = '#000';
   M.forEach((row, r) => row.forEach((v, c) => { if (v) g.fillRect(Math.floor(x + (c + 1) * cell), Math.floor(y + (r + 1) * cell), Math.ceil(cell), Math.ceil(cell)); }));
 }
+function fit(g, s, maxW) { s = String(s || ''); while (s.length > 1 && g.measureText(s).width > maxW) s = s.slice(0, -2) + '…'; return s; }
+// Tarjeta de gracias: título, texto y firma centrados; devuelve dónde acaba (mm). dry = solo medir.
+function centered(g, F, k, d, y, cw, W, sz, dry) {
+  const parts = [[d.titulo, 11, 800], [d.texto, 8, 400], [d.firma, 7.5, 600]].filter(p => p[0]);
+  g.textAlign = 'center';
+  parts.forEach(([t, pt, wt], i) => {
+    g.font = F(pt * sz, wt);
+    const lh = pt * sz * 0.3528 * 1.18;
+    wrap(g, t, cw * k).forEach(l => { if (!dry) g.fillText(l, (W / 2) * k, y * k); y += lh; });
+    if (i < parts.length - 1) y += 1.2 * sz;
+  });
+  g.textAlign = 'left';
+  return y;
+}
+// Logo de la empresa (cargado una vez) para la tarjeta de gracias
+let logoP = null;
+export function loadLogo() {
+  if (logoP) return logoP;
+  logoP = new Promise(res => { const src = emisor().logo; if (!src) return res(null); const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+  return logoP;
+}
+export function resetLogo() { logoP = null; }
 function line(g, x1, y1, x2, y2, w) { g.lineWidth = w; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
 
 export function draw(tpl, d, dpi, size) {
@@ -149,6 +180,32 @@ export function draw(tpl, d, dpi, size) {
     y = T(d.ubicacion || '—', m + 1, y, tw, 20, 800, 2) + 1;
     y = T(d.nombre || '', m + 1, y, tw, 9, 700, 2) + 0.5;
     if (d.sku) T(d.sku, m + 1, y, tw, 7, 400, 1);
+  } else if (tpl === 'oficial') {
+    // la etiqueta oficial ya viene dibujada (de su PDF o imagen): se coloca entera, sin deformarla
+    const src = d.canvas;
+    if (src) { const sc = Math.min(c.width / src.width, c.height / src.height), w = src.width * sc, hh = src.height * sc; g.drawImage(src, (c.width - w) / 2, (c.height - hh) / 2, w, hh); }
+    else T('Falta la etiqueta oficial', m, m, W - 2 * m, 12, 700, 2);
+  } else if (tpl === 'paquete') {
+    const cap = 12, qs = Math.min(W - 2 * m, H - cap - m);
+    qr(g, d.qr, ((W - qs) / 2) * k, (m - 1.5) * k, qs * k);
+    g.textAlign = 'center';
+    g.font = F(W < 45 ? 7.5 : 9, 800); g.fillText(d.codigo || '', (W / 2) * k, (H - cap + 0.5) * k);
+    g.font = F(W < 45 ? 6 : 7, 500); g.fillText(fit(g, ['Nº ' + (d.numero || ''), d.cliente || ''].filter(Boolean).join(' · '), (W - 2 * m) * k), (W / 2) * k, (H - cap + 5) * k);
+    g.textAlign = 'left';
+  } else if (tpl === 'gracias') {
+    let y = m - 0.5;
+    const cw = W - 2 * m;
+    if (d.logoImg && d.logoImg.width) {
+      const lh = Math.min(H * 0.26, 14), lw = Math.min(cw, d.logoImg.width / d.logoImg.height * lh);
+      const lh2 = lw / (d.logoImg.width / d.logoImg.height);
+      g.drawImage(d.logoImg, ((W - lw) / 2) * k, y * k, lw * k, lh2 * k); y += lh2 + 1.5;
+    }
+    const qs = d.qr ? 10 : 0, bottom = H - m - (qs ? qs + 0.5 : 0);
+    // el texto se ajusta solo al hueco (de grande a pequeño) para que nunca se corte
+    let sz = 1;
+    for (; sz > 0.55; sz -= 0.05) { if (centered(g, F, k, d, y, cw, W, sz, true) <= bottom) break; }
+    centered(g, F, k, d, y, cw, W, sz, false);
+    if (qs) qr(g, d.qr, ((W - qs) / 2) * k, (H - m - qs) * k, qs * k);
   } else { // qr
     const cap = d.titulo ? 7 : 0, qs = Math.min(W, H - cap) - 2 * m + 1;
     qr(g, d.qr, ((W - qs) / 2) * k, (m - 1) * k, qs * k);
@@ -219,30 +276,37 @@ function sheets(canvases, s, dpi) {
 // ---------- Imprimir (una o varias) ----------
 // items: [{ tpl, data }] — misma plantilla. Devuelve true si se envió.
 export async function printLabels(tpl, datas, opts = {}) {
-  const c = await labelCfg(), list = await printers(), s = sizeOf(tpl, c);
-  const pr = opts.printer ? list.find(p => p.name === opts.printer) : pickPrinter(tpl, list, c);
   const copies = Math.max(1, Math.min(50, Number(opts.copies) || 1));
-  const dpi = dpiOf(pr);
-  const canv = []; datas.forEach(d => { for (let i = 0; i < copies; i++) canv.push(draw(tpl, d, dpi, s)); });
-  const reg = how => { datas.forEach(d => { if (d.ref) api('etiquetas.registrar', { plantilla: tpl, entidad: d.ref.entidad, entidadId: d.ref.id, titulo: d.titulo || '', impresora: how, copias: copies }, { quiet: true }).catch(() => { }); }); };
-  if (desktop.on && pr) {
-    const adj = (c.ajuste && c.ajuste[pr.name]) || {};
-    const sheet = isSheet(pr, s);
-    const pages = sheet ? sheets(canv, s, dpi).map(cv => ({ cv, w: A4.w, h: A4.h })) : canv.map(cv => ({ cv, w: s.w, h: s.h }));
+  const r = await sendLabel(tpl, (dpi, s) => { const canv = []; datas.forEach(d => { for (let i = 0; i < copies; i++) canv.push(draw(tpl, d, dpi, s)); }); return canv; }, opts);
+  datas.forEach(d => { if (d.ref) api('etiquetas.registrar', { plantilla: tpl, entidad: d.ref.entidad, entidadId: d.ref.id, titulo: d.titulo || '', impresora: r.how === 'pdf' ? 'PDF' : r.printer, copias: copies }, { quiet: true }).catch(() => { }); });
+  return true;
+}
+// v11.6: impresora que se usará para una plantilla (con su resolución y si es de folios)
+export async function targetFor(tpl, printerName) {
+  const c = await labelCfg(), list = await printers(), s = sizeOf(tpl, c);
+  const pr = printerName ? list.find(p => p.name === printerName) : pickPrinter(tpl, list, c);
+  return { c, pr: desktop.on ? pr || null : null, dpi: dpiOf(desktop.on ? pr : null), size: s, sheet: isSheet(pr, s), list };
+}
+// Envía a la impresora (PC) o crea el PDF de tamaño exacto (móvil). build(dpi, size) → [canvas]. Lanza el error si falla.
+export async function sendLabel(tpl, build, opts = {}) {
+  const t = await targetFor(tpl, opts.printer), s = t.size, dpi = t.dpi;
+  const canv = await build(dpi, s);
+  if (desktop.on && t.pr) {
+    const pr = t.pr, adj = (t.c.ajuste && t.c.ajuste[pr.name]) || {};
+    if (pr.offline) throw new Error('La impresora «' + pr.name + '» está desconectada o apagada.');
+    const pages = t.sheet ? sheets(canv, s, dpi).map(cv => ({ cv, w: A4.w, h: A4.h })) : canv.map(cv => ({ cv, w: s.w, h: s.h }));
     for (const p of pages) await desktop.print({ printer: pr.name, png: p.cv.toDataURL('image/png'), wmm: p.w, hmm: p.h, copies: 1, offx: Number(adj.x) || 0, offy: Number(adj.y) || 0 });
-    reg(pr.name);
-    toast('🖨️ ' + canv.length + (canv.length === 1 ? ' etiqueta enviada' : ' etiquetas enviadas') + ' a ' + pr.name + (sheet ? ' (a tamaño real en folio A4)' : ''), 'ok', 5000);
-    return true;
+    if (!opts.silent) toast('🖨️ ' + canv.length + (canv.length === 1 ? ' etiqueta enviada' : ' etiquetas enviadas') + ' a ' + pr.name + (t.sheet ? ' (a tamaño real en folio A4)' : ''), 'ok', 5000);
+    return { how: 'printer', printer: pr.name, sheet: t.sheet, count: canv.length };
   }
   // Sin el programa del PC: PDF con el tamaño exacto de la etiqueta
   const blob = pdfFromCanvases(canv.map(cv => ({ canvas: cv, wmm: s.w, hmm: s.h })));
   const url = URL.createObjectURL(blob);
   const w = window.open(url, '_blank');
-  if (!w) { const a = h('a', { href: url, download: 'etiquetas_' + tpl + '.pdf' }); document.body.appendChild(a); a.click(); a.remove(); }
+  if (!w) { const a = h('a', { href: url, download: (opts.fileName || 'etiquetas_' + tpl) + '.pdf' }); document.body.appendChild(a); a.click(); a.remove(); }
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-  reg('PDF');
-  toast('📄 PDF de ' + s.w + ' × ' + s.h + ' mm listo. Al imprimir elige "Tamaño real" o "100 %".', 'ok', 7000);
-  return true;
+  if (!opts.silent) toast('📄 PDF de ' + s.w + ' × ' + s.h + ' mm listo. Al imprimir elige "Tamaño real" o "100 %".', 'ok', 7000);
+  return { how: 'pdf', printer: 'PDF', count: canv.length };
 }
 
 // ---------- Diálogo único: vista previa a tamaño real + IMPRIMIR ETIQUETA ----------

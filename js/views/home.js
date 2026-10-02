@@ -10,7 +10,7 @@ const CL = window.CL;
 
 const MODS = [
   { k: 'kpis', t: 'Cifras del negocio (ventas, beneficio, pedidos, taller)' },
-  { k: 'celebrity', t: 'Celebrity: resumen del día y objetivos' },
+  { k: 'celebrity', t: 'Celeby Nova: resumen del día y objetivos' },
   { k: 'motivacion', t: 'Motivación del día' },
   { k: 'alertas', t: 'Alertas inteligentes' },
   { k: 'inteligencia', t: 'Centro de inteligencia (ventas, beneficios, tendencias)', p: 'informes.ver' },

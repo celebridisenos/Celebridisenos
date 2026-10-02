@@ -9,6 +9,7 @@ import { localStatus } from '../ai/models.js';
 import { baseDocs, search, ragStatus, ensureIndex, startEmbedder } from '../ai/rag.js';
 import { extractText, DOC_TYPES } from '../ai/extract.js';
 import { uploadFile } from '../files.js';
+const CL = window.CL;
 
 // ---------- Texto con formato sencillo (seguro: sin HTML del modelo) ----------
 export function richText(text, onRef) {
@@ -51,8 +52,9 @@ const SUGG = [
 ];
 
 export function render(el, params) {
-  const st = { tab: params && params[0] === 'biblioteca' ? 'biblioteca' : params && params[0] === 'memoria' ? 'memoria' : params && params[0] === 'actividad' ? 'actividad' : params && params[0] === 'objetivos' ? 'objetivos' : 'chat', msgs: [], busy: false, ctrl: null, voz: localStorage.getItem('cd.voz') === '1' };
-  const head = h('div.page-head', h('div', h('h1.celeb-title', '✨ Celebrity'), h('div.muted.small', 'Tu coordinadora: sabe qué hay pendiente, controla los objetivos y responde con vuestros datos. Privada: funciona en vuestros ordenadores.')), h('div.right.row', btn('Responder a un cliente', () => import('./respuestas.js').then(m => m.replyAssistant()), { icon: 'msg', cls: 'primary' })));
+  const st = { tab: params && params[0] === 'biblioteca' ? 'biblioteca' : params && params[0] === 'memoria' ? 'memoria' : params && params[0] === 'actividad' ? 'actividad' : params && params[0] === 'objetivos' ? 'objetivos' : params && params[0] === 'revisar' ? 'revisar' : params && params[0] === 'operar' ? 'operar' : 'chat', msgs: [], busy: false, ctrl: null, voz: localStorage.getItem('cd.voz') === '1' };
+  const head = h('div.page-head', h('div', h('h1.celeb-title', '✨ Celeby Nova'), h('div.muted.small', 'Tu gestora: responde con los datos reales del programa, dice de dónde sale cada cifra y avisa si algo no cuadra. Si no lo sabe, lo dice. Privada: funciona en vuestros ordenadores.')), h('div.right.row', btn('Responder a un cliente', () => import('./respuestas.js').then(m => m.replyAssistant()), { icon: 'msg', cls: 'primary' })));
+  if (st.tab === 'operar' && !(desktop.on && can('config.ver'))) st.tab = 'chat';
   const status = h('div.ia-status');
   const tabs = h('div.tabs');
   const body = h('div');
@@ -61,7 +63,9 @@ export function render(el, params) {
   // v11: al abrir Celebrity el modelo local se precarga en segundo plano (la primera respuesta sale antes)
   if (desktop.on) import('../ai/engine.js').then(m => m.warmUp()).catch(() => { });
   function drawTabs() {
-    mount(tabs, [['chat', 'Conversación'], ['objetivos', 'Objetivos'], ['biblioteca', 'Biblioteca'], ['memoria', 'Memoria'], ['actividad', 'Actividad']].map(t => h('button' + (st.tab === t[0] ? '.on' : ''), { onclick: () => { st.tab = t[0]; history.replaceState(null, '', '#/ia' + (t[0] === 'chat' ? '' : '/' + t[0])); drawTabs(); show(); } }, t[1])));
+    const T = [['chat', 'Conversación'], ['revisar', '🔎 Abogado del dato'], ['objetivos', 'Objetivos'], ['biblioteca', 'Biblioteca'], ['memoria', 'Memoria y aprendizaje'], ['actividad', 'Actividad']];
+    if (desktop.on && can('config.ver')) T.push(['operar', '🤖 Operar en el PC']); // v11.5: el antiguo CelebryNova, dentro de Celeby Nova
+    mount(tabs, T.map(t => h('button' + (st.tab === t[0] ? '.on' : ''), { onclick: () => { st.tab = t[0]; history.replaceState(null, '', '#/ia' + (t[0] === 'chat' ? '' : '/' + t[0])); drawTabs(); show(); } }, t[1])));
   }
   async function drawStatus() {
     const s = await localStatus().catch(() => ({}));
@@ -71,6 +75,9 @@ export function render(el, params) {
         h('span', pill('Modo básico', 'warn'), ' ', h('span.small.muted', (s.motivo || 'Sin modelo de IA disponible ahora') + ' Busca y calcula, pero no redacta.'), ' ', can('config.ver') && desktop.on ? h('a', { href: '#/config/ia' }, 'Configurar IA local') : null));
   }
   function show() {
+    if (st.novaCtl && st.novaCtl.destroy) { st.novaCtl.destroy(); st.novaCtl = null; }
+    if (st.tab === 'revisar') return revisar(body);
+    if (st.tab === 'operar') { mount(body); import('./celebrynova.js').then(m => { if (st.tab === 'operar') st.novaCtl = m.render(body, { embebido: true }); }); return; }
     if (st.tab === 'chat') chat(); else if (st.tab === 'objetivos') objetivosView(body); else if (st.tab === 'biblioteca') biblioteca(body); else if (st.tab === 'memoria') memoria(body); else actividad(body);
   }
 
@@ -90,24 +97,30 @@ export function render(el, params) {
     const opts = h('div.row.wrap.small', { style: { marginBottom: '8px' } },
       h('label.check', sw(st.voz, v => { st.voz = v; localStorage.setItem('cd.voz', v ? '1' : '0'); if (!v && window.speechSynthesis) speechSynthesis.cancel(); }), 'Leer respuestas en voz alta'),
       btn('Nueva conversación', () => { st.msgs = []; kv.set(key, []); drawLog(); }, { cls: 'ghost sm', icon: 'refresh' }));
-    mount(body, opts, h('div.chat', log, sugg, h('div.chat-in', micB, ta, stopB, sendB)));
+    // v11.5: «Ahora mismo» (avisos reales) y PREGUNTAS RÁPIDAS debajo de la conversación (sin IA, con datos reales)
+    const now = nowNotices();
+    const quick = h('div.rapidas', h('div.lbl', { style: { margin: '10px 0 6px' } }, '⚡ PREGUNTAS RÁPIDAS · responden al momento con tus datos'),
+      h('div.chips', CL.RAPIDAS.map(([id, t]) => h('button.chip', { onclick: () => runRapid(id, t) }, t))));
+    mount(body, opts, now.length ? h('div.card.flat', { style: { marginBottom: '10px' } }, h('div.lbl', { style: { marginBottom: '4px' } }, '🔔 AHORA MISMO'), h('div.col', { style: { gap: '4px' } }, now.map(x => h('a.small', { href: '#/' + x.enlace }, x.t)))) : null,
+      h('div.chat', log, sugg, h('div.chat-in', micB, ta, stopB, sendB)), quick);
     kv.get(key).then(v => { st.msgs = (v || []).slice(-40); drawLog(); });
     setTimeout(() => ta.focus(), 50);
   }
   function drawLog() {
     mount(sugg, st.msgs.length ? null : SUGG.filter(s => !s[1] || can(s[1])).map(s => h('button', { onclick: () => send(s[0]) }, s[0])));
-    if (!st.msgs.length) mount(log, h('div.empty', icon('sparkles'), h('h3', 'Hola, soy Celebrity'), h('p', 'Pregúntame qué hay hoy, cómo van los objetivos, precios y márgenes, pedidos, clientes o cómo responder a un cliente. Si no tengo un dato, te lo digo.')));
+    if (!st.msgs.length) mount(log, h('div.empty', icon('sparkles'), h('h3', 'Hola, soy Celeby Nova'), h('p', 'Pregúntame qué hay hoy, cómo van los objetivos, precios y márgenes, pedidos, clientes o cómo responder a un cliente. Si no tengo un dato, te lo digo.')));
     else mount(log, st.msgs.map(bubble));
     log.scrollTop = log.scrollHeight;
   }
   function bubble(m) {
     if (m.role === 'user') return h('div.msg.me', m.content);
+    if (m.card) return h('div.msg.ai.rapid', rapidCard(m.card, r => { m.card = r; save(); drawLog(); }));
     if (m.pending && !m.content) return h('div.msg.ai', h('span.row', h('span.sync.busy', { style: { padding: 0 } }, h('span.dot'), m.status || 'Un momento…')));
     const refOpen = ref => { const f = (m.fuentes || []).find(x => x.ref === ref); if (f && f.docId) openDoc(f.docId); else if (f) toast(f.titulo, 'info'); };
     return h('div.msg.ai' + (m.error ? '.err' : ''), m.error ? h('span.bad-t', m.content) : richText(m.content, refOpen),
       m.pending ? h('div.tiny.muted', m.status || '…') : null,
       !m.pending && m.fuentes && m.fuentes.length ? h('div.sources', h('span.tiny.muted', 'Fuentes: '), m.fuentes.map(f => h('button.src.' + f.tipo, { title: f.titulo, onclick: () => f.docId ? openDoc(f.docId) : f.url ? desktop.openUrl(f.url) : null }, (f.ref ? f.ref + ' · ' : '') + f.titulo + (f.error ? ' ⚠️' : '')))) : null,
-      !m.pending && m.modo ? h('div.tiny.muted.mode', m.modo === 'celebrity' ? '✨ Celebrity · al instante' : m.modo === 'local' ? '🧠 IA local · ' + m.modelo + (m.cache ? ' · ya lo sabía' : '') : m.modo === 'equipo' ? '🖥️ Respondido por ' + (m.servidor || 'el PC servidor') + (m.modelo ? ' · ' + m.modelo : '') : '⚙️ Modo básico (sin redacción)' + (m.motivoBasico ? ' — ' + m.motivoBasico : ''), m.ms ? ' · ' + (m.ms / 1000).toFixed(1).replace('.', ',') + ' s' : '') : null,
+      !m.pending && m.modo ? h('div.tiny.muted.mode', m.modo === 'celebrity' ? '✨ Celeby Nova · al instante' : m.modo === 'local' ? '🧠 IA local · ' + m.modelo + (m.cache ? ' · ya lo sabía' : '') : m.modo === 'equipo' ? '🖥️ Respondido por ' + (m.servidor || 'el PC servidor') + (m.modelo ? ' · ' + m.modelo : '') : '⚙️ Modo básico (sin redacción)' + (m.motivoBasico ? ' — ' + m.motivoBasico : ''), m.ms ? ' · ' + (m.ms / 1000).toFixed(1).replace('.', ',') + ' s' : '') : null,
       (m.acciones || []).map(a => proposal(a)));
   }
   function proposal(a) {
@@ -135,9 +148,17 @@ export function render(el, params) {
     } catch (e) { handleError(e); }
   }
   const save = () => kv.set(key, st.msgs.filter(m => !m.pending).slice(-40));
+  // v11.5: pregunta rápida → respuesta calculada con los datos (sin IA y sin inventar)
+  function runRapid(id, texto, opts) {
+    const R = CL.rapid(id, S.t, S.cfg, Object.assign({ hoy: S.hoy, verCostes: can('productos.costes') }, opts || {}));
+    st.msgs.push({ role: 'user', content: texto || R.titulo }, { role: 'assistant', card: R, content: R.titulo + ': ' + R.valor });
+    save(); drawLog();
+  }
   async function send(text) {
     const q = (text || ta.value).trim();
     if (!q || st.busy) return;
+    const rid = CL.rapidMatch(q);
+    if (rid) { ta.value = ''; runRapid(rid, q); return; }
     ta.value = ''; ta.style.height = 'auto';
     const history = st.msgs.filter(m => !m.pending && !m.error).slice(-8).map(m => ({ role: m.role, content: m.content }));
     st.msgs.push({ role: 'user', content: q });
@@ -169,7 +190,9 @@ export function render(el, params) {
 
   drawTabs(); show();
   const stT = setInterval(() => { if (!document.body.contains(status)) return clearInterval(stT); if (!st.busy) drawStatus(); }, 15000);
-  return { update: () => { if (st.tab === 'biblioteca' || st.tab === 'memoria') { /* se refresca al volver */ } } };
+  return { update: () => { if (st.tab === 'biblioteca' || st.tab === 'memoria') { /* se refresca al volver */ } },
+    params: p => { let t = (p && p[0]) || 'chat'; if (!['chat', 'revisar', 'operar', 'objetivos', 'biblioteca', 'memoria', 'actividad'].includes(t)) t = 'chat'; if (t === 'operar' && !(desktop.on && can('config.ver'))) t = 'chat'; if (t !== st.tab) { st.tab = t; drawTabs(); show(); } },
+    destroy: () => { if (st.novaCtl && st.novaCtl.destroy) st.novaCtl.destroy(); } };
 }
 
 // ======================= Ver un documento =======================
@@ -304,7 +327,14 @@ export function memoria(body) {
   const amb = sel([{ v: 'usuario', t: 'Solo para mí (mis preferencias)' }].concat(can('memoria.empresa') ? [{ v: 'empresa', t: 'Para toda la empresa' }] : []).concat([{ v: 'privada', t: 'Privada: solo para las personas que elija' }]), 'usuario');
   const who = h('div.row.wrap.hidden', (S.t.usuarios || []).filter(u => u.id !== S.me.id && u.activo !== false).map(u => h('label.check', h('input', { type: 'checkbox', value: u.id }), u.nombre)));
   amb.addEventListener('change', () => who.classList.toggle('hidden', amb.value !== 'privada'));
-  mount(body, h('div.card.col', h('h3', '🧠 Memoria de la IA'),
+  // v11.5: qué ha aprendido, de dónde, cuándo y con qué confianza (sin porcentajes inventados)
+  const mem = S.t.memoria || [], last = mem.slice().sort((a, b) => String(b.creado).localeCompare(String(a.creado)))[0];
+  const learned = h('div.card.flat', { style: { marginBottom: '12px' } }, h('b', '📚 Qué ha aprendido Celeby Nova'),
+    h('div.facts', { style: { marginTop: '6px' } }, h('div.fact', h('div.l', 'Conocimientos guardados'), h('div.v', String(mem.length))),
+      h('div.fact', h('div.l', 'De la empresa'), h('div.v', String(mem.filter(m => m.ambito === 'empresa').length))), h('div.fact', h('div.l', 'Preferencias'), h('div.v', String(mem.filter(m => m.ambito === 'usuario').length))),
+      h('div.fact', h('div.l', 'Último'), h('div.v.small', last ? fdt(last.creado) + ' · ' + (last.autor || '') : '—'))),
+    h('p.tiny.muted', 'Cada recuerdo dice QUÉ aprendió, DE QUIÉN salió y CUÁNDO. Confianza: confirmado por una persona (la IA nunca guarda nada sin que lo confirmes). Los procedimientos del operador del PC tienen su confianza por evidencias en «Operar en el PC».'));
+  mount(body, learned, h('div.card.col', h('h3', '🧠 Memoria de la IA'),
     h('p.small.muted', 'La conversación actual se recuerda sola. Aquí guardas lo que la IA debe tener siempre en cuenta. Cada recuerdo respeta los permisos: tus preferencias solo las usa tu IA; los privados, solo quien elijas.'),
     field('Qué debe recordar', txt), field('Para quién', amb), who,
     btn('Guardar recuerdo', async () => {
@@ -357,4 +387,56 @@ function objetivosView(body) {
       btn('Crear objetivo', async () => { try { S.cfg = await api('objetivos.guardar', { objetivo: { tipo: tipo.value, meta: Number(meta.value), periodo: per.value, titulo: tit.value.trim() } }); emit(); toast('Objetivo creado', 'ok'); draw(); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'primary' }));
   }
   draw();
+}
+
+// ================= v11.5 · Celeby Nova: tarjetas de respuesta con datos reales =================
+const EST = { confirmado: ['🟢', 'CONFIRMADO', 'ok'], manual: ['🟡', 'INTRODUCIDO A MANO', 'warn'], estimado: ['🟠', 'ESTIMADO', 'warn'], pendiente: ['🔴', 'PENDIENTE DE VERIFICAR', 'bad'], info: ['ℹ️', 'INFORMACIÓN', ''] };
+const NIV = { bad: '🔴', warn: '🟠', info: '🟡' };
+export function rapidCard(R, onChange) {
+  const e = EST[R.estado] || EST.info, CL = window.CL;
+  const pick = R.necesita === 'pedido' ? h('div.row.wrap', { style: { marginTop: '6px' } }, h('select.inp', { onchange: ev => { if (ev.target.value) onChange && onChange(CL.rapid('coste_pedido', S.t, S.cfg, { hoy: S.hoy, pedidoId: ev.target.value, verCostes: can('productos.costes') })); } },
+    h('option', { value: '' }, 'Elige un pedido…'), (R.lista || []).map(x => h('option', { value: x.id }, x.t)))) : null;
+  return h('div.rapid-card',
+    h('div.row.wrap', h('b.grow', R.titulo), h('span', { title: 'Calidad del dato' }, pill(e[0] + ' ' + e[1], e[2]))),
+    h('div', { style: { fontSize: '20px', fontWeight: 700, margin: '6px 0' } }, R.valor),
+    pick,
+    R.filas && R.filas.length ? h('div.list', R.filas.map(f => h('div.item', { style: { cursor: 'default' } }, h('span', (EST[f.estado] || EST.info)[0]), h('span.grow.small', f.t, f.nota ? h('span.tiny.muted', ' · ' + f.nota) : null), h('b.small', f.v)))) : null,
+    R.avisos && R.avisos.length ? h('div', R.avisos.map(a => h('p.tiny.warn-t', '⚠️ ' + a))) : null,
+    R.id === 'raro' && R.lista.length ? h('div.list', R.lista.map(x => h('a.item', { href: x.enlace ? '#/' + x.enlace : null }, h('span', NIV[x.nivel] || '•'), h('span.grow.small', x.t, x.d ? h('div.tiny.muted', x.d) : null)))) : null,
+    R.origen || (R.id !== 'raro' && R.lista && R.lista.length && !pick) ? h('details', h('summary.small', '¿De dónde sale esta cifra?'), R.origen ? h('p.tiny.muted', R.origen) : null,
+      R.id !== 'raro' && !pick ? h('div.list', (R.lista || []).slice(0, 40).map(x => h(x.enlace ? 'a.item' : 'div.item', { href: x.enlace ? '#/' + x.enlace : null }, x.estado ? h('span', (EST[x.estado] || EST.info)[0]) : null, h('span.grow.small', x.t), x.d ? h('span.tiny', x.d) : null))) : null) : null,
+    R.enlace ? h('a.small', { href: '#/' + R.enlace }, 'Abrir →') : null);
+}
+// «Ahora mismo»: avisos reales del día (sin inventar)
+function nowNotices() {
+  const CL = window.CL, out = [], cp = S.cfg.pedidos;
+  const emq = (S.t.pedidos || []).filter(o => CL.phaseOf(cp, o.estado) === 'empaquetar').length;
+  if (emq) out.push({ t: '📦 Tienes ' + emq + ' pedido(s) pendientes de empaquetar', enlace: 'embalaje' });
+  (S.t.trabajos || []).filter(j => j.estado === 'Imprimiendo').forEach(j => { const p = (S.t.impresoras || []).find(x => x.id === j.impresoraId); out.push({ t: '🖨️ La ' + (p ? p.nombre : 'impresora') + ' está imprimiendo «' + j.titulo + '»', enlace: 'taller' }); });
+  const hace = Date.now() - 2 * 3600000;
+  (S.t.trabajos || []).filter(j => j.estado === 'Terminado' && j.fin && new Date(j.fin).getTime() > hace).forEach(j => { const p = (S.t.impresoras || []).find(x => x.id === j.impresoraId); out.push({ t: '✅ La ' + (p ? p.nombre : 'impresora') + ' ha terminado «' + j.titulo + '»', enlace: 'taller' }); });
+  const av = Number((S.cfg.embalaje || {}).avisoCajas || 0);
+  (S.t.materiales || []).filter(m => m.tipo === 'caja' && m.stock !== '' && m.stock !== undefined && CL.norm(m.activo) !== 'no').forEach(m => { const min = m.stockMin !== '' && m.stockMin !== undefined ? Number(m.stockMin) : av; if (Number(m.stock) <= min) out.push({ t: '📦 Quedan ' + m.stock + ' ' + m.nombre, enlace: 'embalaje/cajas' }); });
+  const nv = (S.t.trabajos || []).filter(j => j.estado === 'Terminado' && !j.valoracion && j.fin && new Date(j.fin).getTime() > Date.now() - 14 * 86400000).length;
+  if (nv) out.push({ t: '❓ Tienes ' + nv + ' impresión(es) pendiente(s) de revisar («¿Cómo salió?»)', enlace: 'taller' });
+  const al = (S.t.trabajos || []).filter(j => j.alerta && j.alerta.texto && (j.estado === 'Imprimiendo' || j.estado === 'En cola'));
+  al.forEach(j => out.push({ t: '⚠️ ' + (j.alerta.impresora || 'Impresora') + ': ' + j.alerta.texto, enlace: 'taller' }));
+  return out.slice(0, 8);
+}
+// 🔎 Abogado del dato: la verdad según los datos registrados (lo bueno, lo malo, lo que falta y lo que no cuadra)
+function revisar(body) {
+  const CL = window.CL, R = CL.rapid('raro', S.t, S.cfg, { hoy: S.hoy, verCostes: can('productos.costes') });
+  const ped = (S.t.pedidos || []).filter(o => !CL.stateOf(S.cfg.pedidos, o.estado).cancelled), mats = (S.t.materiales || []).filter(m => CL.norm(m.activo) !== 'no');
+  const costOf = CL.costIndex(S.t, S.cfg.precios || {}), prof = ped.map(o => CL.orderProfit(o, S.t, S.cfg, costOf));
+  const cnt = st => mats.filter(m => CL.matCost(m).estado === st).length;
+  const q = [['🟢 Pedidos con envío y comisión reales', prof.filter(p => !p.envioEstimado && !p.comisionEstimada).length], ['🟠 Pedidos con envío o comisión ESTIMADOS', prof.filter(p => p.envioEstimado || p.comisionEstimada).length],
+    ['🔴 Pedidos SIN coste de fabricación', prof.filter(p => !p.conCoste).length], ['🟢 Materiales con precio CONFIRMADO', cnt('confirmado')], ['🟠 Materiales ESTIMADOS u ORIENTATIVOS', cnt('estimado') + cnt('orientativo')],
+    ['🔴 Materiales PENDIENTES', cnt('pendiente') + cnt('revisar')], ['🟠 Pérdidas con coste ESTIMADO', (S.t.fallos || []).length]];
+  mount(body,
+    h('div.card.flat', { style: { marginBottom: '12px' } }, h('b', '«Quiero que me digas la verdad según los datos registrados.»'),
+      h('p.small.muted', 'Celeby Nova revisa primero; tú confirmas. Muestra lo que está a favor y en contra, lo que falta y lo que no cuadra. Nunca oculta ingresos, nunca inventa gastos y nunca cambia un importe por su cuenta.')),
+    h('div.row', { style: { marginBottom: '10px' } }, btn('Volver a revisar', () => revisar(body), { icon: 'refresh', cls: 'sm' })),
+    h('div.card', rapidCard(R)),
+    h('div.card', { style: { marginTop: '12px' } }, h('h3', 'Calidad de los datos'), h('div.list', q.map(([t, v]) => h('div.item', { style: { cursor: 'default' } }, h('span.grow.small', t), h('b', String(v))))),
+      h('p.tiny.muted', '🟢 CONFIRMADO · 🟡 INTRODUCIDO A MANO · 🟠 ESTIMADO · 🔴 PENDIENTE DE VERIFICAR. Una estimación nunca se presenta como dato real.')));
 }

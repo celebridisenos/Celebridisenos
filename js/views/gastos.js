@@ -15,7 +15,7 @@ export function render(el) {
   q.addEventListener('input', () => { st.q = q.value; draw(); });
   const list = h('div');
   el.append(
-    h('div.page-head', h('div', h('h1', '💶 Gastos'), h('div.muted.small', 'Lo que se suma al coste de cada producto: caja, relleno, cinta, etiqueta, pintura… Es la hoja "Gastos" del Excel.')),
+    h('div.page-head', h('div', h('h1', '💶 Gastos extraordinarios'), h('div.muted.small', 'Lo que se suma al coste de un producto y no es embalaje: tornillos, electrónica, pintura… Es la hoja "Gastos" del Excel. El embalaje (caja, kraft, burbuja, cinta) se calcula solo en Embalaje.')),
       can('productos.editar') ? btn('Nuevo gasto', () => gastoForm(), { cls: 'primary', icon: 'plus' }) : null),
     h('div.row', { style: { marginBottom: '12px' } }, q), list);
   function draw() {
@@ -34,7 +34,7 @@ export function render(el) {
           h('tbody', cats[c].sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es')).map(g => {
             const u = usos(g);
             return h('tr', { onclick: () => can('productos.editar') ? gastoForm(g) : null, style: { cursor: can('productos.editar') ? 'pointer' : 'default' } },
-              h('td.bold', g.nombre), h('td', { style: { textAlign: 'right' } }, eur(Number(g.coste) || 0)),
+              h('td.bold', g.nombre, CL.isPackGasto(g) ? h('div.tiny.warn-t', '📦 Integrado en Embalaje: en los pedidos nuevos ya no se suma (se calcula solo con tus materiales)') : null), h('td', { style: { textAlign: 'right' } }, eur(Number(g.coste) || 0)),
               h('td.hide-m.small.muted', u.length ? u.length + ' producto' + (u.length > 1 ? 's' : '') : '—'), h('td.hide-m.small.muted', g.notas || ''));
           })))))),
       all.length ? h('p.small.muted', all.length + ' gasto(s) · suma de todos: ' + eur(total) + '. Para usarlos: Productos → producto → Costes y precio → "Gasto extra 1/2".') : h('p.muted', 'Nada coincide con la búsqueda.'));

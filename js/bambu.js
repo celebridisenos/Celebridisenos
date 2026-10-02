@@ -96,7 +96,9 @@ async function tick1() {
         applyJob(res); emit();
         notify('✅ ' + name + ': impresión terminada', '«' + running.titulo + '»' + (res && res.pedido ? ' · pedido nº ' + res.pedido.numero + ' → ' + res.pedido.estado : ''), '', res && res.pedido ? 'pedidos/' + res.pedido.id : 'taller');
       } else if (what === 'avisar_error') {
-        notify((b.estado === 'sin_filamento' ? '🧵 ' : '⚠️ ') + name + ': ' + (b.estadoTexto || 'error'), (b.errorTexto || '') + (b.trabajo ? ' · «' + b.trabajo + '»' : ''), 'bad', 'taller');
+        notify((b.estado === 'sin_filamento' ? '🧵 ' : '⚠️ ') + name + ': ' + (b.estadoTexto || 'error'), (b.errorTexto || '') + (b.trabajo ? ' · «' + b.trabajo + '»' : '') + (running ? ' · ¿Cómo ha salido? Respóndelo en el Taller.' : ''), 'bad', 'taller');
+        // v11.4 (idea 5): el aviso queda en la impresión para preguntar «¿Cómo salió?» con el % y el motivo ya puestos
+        if (running) { const res = await api('trabajos.alerta', { id: running.id, texto: (b.estadoTexto || 'Error') + (b.errorTexto ? ': ' + b.errorTexto : ''), progreso: Number(b.pct) || 0, estado: b.estado, impresora: name }); applyJob(res); emit(); }
       }
     } catch (e) { console.warn('Bambu', e); }
   }
