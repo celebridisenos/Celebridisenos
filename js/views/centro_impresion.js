@@ -5,6 +5,7 @@
 import { h, mount, btn, toast, pill, icon, field, inp, sel, modal, confirmDlg } from '../ui.js';
 import { S, can } from '../store.js';
 import { desktop } from '../desktop.js';
+import { btCard } from './bt_impresora.js';
 
 const card = (title, ...kids) => h('div.card.col', title ? h('h3', title) : null, ...kids);
 const estadoPill = p => pill(p.estado || 'Lista', p.offline ? 'bad' : p.problema ? 'warn' : /Imprimiendo|cola/.test(p.estado || '') ? 'brand' : 'ok');
@@ -28,7 +29,8 @@ export async function render(b, L, reload) {
   const c = JSON.parse(JSON.stringify(await L.labelCfg()));
   c.vinculo = c.vinculo || {};
   if (!desktop.on) {
-    b.append(card('Centro de impresión', h('p.small.muted', 'Abre CelebriDiseños desde el programa del PC para ver las impresoras, su estado y las Bambu Lab. En el móvil las etiquetas salen como PDF con el tamaño exacto.')));
+    b.append(card('Centro de impresión', h('p.small.muted', 'Abre CelebriDiseños desde el programa del PC para ver las impresoras, su estado y las Bambu Lab. En el móvil las etiquetas salen como PDF con el tamaño exacto (o directas por Bluetooth, si lo configuras abajo).')));
+    b.append(btCard(c, async msg => { await L.saveLabelCfg(c); await L.printers(true); toast(msg || 'Guardado en este móvil', 'ok'); reload(); }));
     return c;
   }
   const save = async msg => { await L.saveLabelCfg(c); toast(msg || 'Guardado en este ordenador', 'ok'); reload(); };
@@ -56,6 +58,8 @@ export async function render(b, L, reload) {
     })) : h('p.small.warn-t', 'Windows no tiene instalada ninguna impresora física en este ordenador. Pulsa «Buscar impresoras» para ver qué hay en la red y por USB.'),
     h('div.row.wrap', btn('Volver a leer', () => reload(), { cls: 'sm ghost', icon: 'refresh' }),
       btn('Añadir una impresora en Windows', () => desktop.openUrl('ms-settings:printers').catch(e => toast(e.message, 'bad')), { cls: 'sm ghost', icon: 'plus' }))));
+
+  b.append(btCard(c, save));
 
   // ---------- 2. Buscar por todos los métodos ----------
   const found = h('div');

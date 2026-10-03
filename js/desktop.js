@@ -44,6 +44,9 @@ export const desktop = {
   bambu: () => call('bambu'),
   bambuAccion: body => call('bambu', { method: 'POST', body: JSON.stringify(body) }),
   print: job => call('print', { method: 'POST', body: JSON.stringify(job) }),
+  // v13.2: impresión directa por Bluetooth/puerto COM (bytes ya preparados) y lista de puertos que ve Windows
+  puertos: () => call('puertos'),
+  rawPrint: (port, bytes) => { let b = ''; for (let i = 0; i < bytes.length; i += 0x8000) b += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return call('raw', { method: 'POST', body: JSON.stringify({ port, data: btoa(b) }) }); },
   // v11.8: lo que puede hacer una impresora según su controlador y abrir sus preferencias de Windows
   printerCaps: name => call('printers/capacidades?' + q({ name })),
   printerPrefs: name => call('printers/capacidades', { method: 'POST', body: JSON.stringify({ printer: name }) }),

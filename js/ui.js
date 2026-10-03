@@ -87,6 +87,7 @@ const P = {
   pin: 'M12 17v5M9 3h6l-1 7 4 3v2H6v-2l4-3z',
   archive: 'M21 8v13H3V8M1 3h22v5H1zM10 12h4',
   history: 'M3 3v5h5M3.05 13A9 9 0 106 5.3L3 8M12 7v5l4 2',
+  bluetooth: 'M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11',
   printer: 'M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z',
   store: 'M3 9l1-5h16l1 5M3 9h18v2a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0V9zM5 13v8h14v-8',
   qr: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM18 18h3v3h-3zM14 20h2M20 14v2',

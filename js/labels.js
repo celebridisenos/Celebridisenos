@@ -9,6 +9,7 @@ import { h, mount, btn, modal, toast, field, sel, inp, eur, fdate } from './ui.j
 import { S, api } from './store.js';
 import { desktop } from './desktop.js';
 import { qrPlan, qrPlanFixed } from './qr.js';
+import * as RP from './rawprint.js';
 import { appUrl, emisor } from './print.js';
 
 const CL = window.CL;
@@ -46,11 +47,25 @@ export async function saveLabelCfg(c) {
   if (desktop.on) await desktop.setConfig('etiquetas', s); else { try { localStorage.setItem('cd.etiquetas', s); } catch (e) { } }
 }
 export async function printers(force) {
-  if (!desktop.on) return [];
   if (printersCache && !force) return printersCache;
-  try { printersCache = (await desktop.printers()).impresoras || []; } catch (e) { printersCache = []; }
+  let list = [];
+  if (desktop.on) { try { list = (await desktop.printers()).impresoras || []; } catch (e) { list = []; } }
+  // v13.2: impresora por Bluetooth directa (la configurada en «Impresión → Impresora Bluetooth»): aparece como una más
+  const c = await labelCfg(), bt = c.bt;
+  if (bt && bt.lang) {
+    const base = { label: true, label4x6: true, conexion: 'Bluetooth directo', estado: 'Lista', papers: [{ name: '100x150mm', wmm: 100, hmm: 150 }, { name: '50x50mm', wmm: 50, hmm: 50 }], bt: true };
+    if (desktop.on && bt.port) {
+      let falta = false;
+      try { const r = await desktop.puertos(); falta = !(r.puertos || []).some(x => x.port === bt.port); } catch (e) { }
+      list.push(Object.assign(base, { name: btPrinterName(bt), raw: { port: bt.port, lang: bt.lang }, offline: falta, problema: falta ? 'Windows ya no tiene el puerto ' + bt.port + ' (¿impresora sin emparejar?)' : '' }));
+    } else if (!desktop.on && bt.web && RP.webBtOk()) {
+      list.push(Object.assign(base, { name: btPrinterName(bt), webbt: true, raw: { lang: bt.lang }, offline: false, problema: '' }));
+    }
+  }
+  printersCache = list;
   return printersCache;
 }
+export const btPrinterName = bt => 'Bluetooth · ' + ((bt && bt.nombre) || (bt && bt.port) || 'impresora') + ' (directa)';
 // v11.2: impresoras reales (sin colas duplicadas del mismo aparato ni impresoras virtuales tipo PDF)
 export const realPrinters = list => (list || []).filter(p => !p.duplicadaDe && p.conexion !== 'Virtual');
 export function sizeOf(tpl, c) { const t = TEMPLATES[tpl]; const s = (c && c.tam && c.tam[tpl]) || {}; return { w: Number(s.w) || t.w, h: Number(s.h) || t.h }; }
@@ -332,12 +347,24 @@ export async function printLabels(tpl, datas, opts = {}) {
 export async function targetFor(tpl, printerName) {
   const c = await labelCfg(), list = await printers(), s = sizeOf(tpl, c);
   const pr = printerName ? list.find(p => p.name === printerName) : pickPrinter(tpl, list, c);
-  return { c, pr: desktop.on ? pr || null : null, dpi: dpiOf(desktop.on ? pr : null), size: s, sheet: isSheet(pr, s), list };
+  const usable = pr && (desktop.on || pr.webbt) ? pr : null;
+  return { c, pr: usable, dpi: dpiOf(usable), size: s, sheet: isSheet(pr, s), list };
 }
 // Envía a la impresora (PC) o crea el PDF de tamaño exacto (móvil). build(dpi, size) → [canvas]. Lanza el error si falla.
 export async function sendLabel(tpl, build, opts = {}) {
   const t = await targetFor(tpl, opts.printer), s = t.size, dpi = t.dpi;
   const canv = await build(dpi, s);
+  if (t.pr && t.pr.raw) {
+    // v13.2: directo por Bluetooth (sin controlador de Windows). PC → puerto COM; móvil Android → Web Bluetooth
+    const pr = t.pr;
+    if (pr.offline) throw new Error(pr.problema || 'La impresora «' + pr.name + '» está desconectada o apagada.');
+    for (const cv of canv) {
+      const bytes = RP.encode(pr.raw.lang, cv, { wmm: s.w, hmm: s.h, copies: 1 });
+      if (pr.webbt) await RP.btSend(bytes); else await desktop.rawPrint(pr.raw.port, bytes);
+    }
+    if (!opts.silent) toast('🖨️ ' + canv.length + (canv.length === 1 ? ' etiqueta enviada' : ' etiquetas enviadas') + ' por Bluetooth a ' + pr.name, 'ok', 5000);
+    return { how: 'printer', printer: pr.name, sheet: false, count: canv.length };
+  }
   if (desktop.on && t.pr) {
     const pr = t.pr, adj = (t.c.ajuste && t.c.ajuste[pr.name]) || {};
     if (pr.offline) throw new Error('La impresora «' + pr.name + '» está desconectada o apagada.');
