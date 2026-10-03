@@ -15,6 +15,7 @@ const VIEWS = {
   tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller
   pedidos: () => import('./views/pedidos.js'),
   clientes: () => import('./views/clientes.js'),
+  descanso: () => import('./views/descanso.js'), // v13.3: juego para los ratos de descanso
   estanteria: () => import('./views/estanteria.js'), // v13: la tienda web como un mundo virtual (sustituye al Universo)
   productos: () => import('./views/productos.js'),
   catalogo: () => import('./views/catalogo.js'),
@@ -50,6 +51,7 @@ export const NAV = [
   { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
   { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13
+  { k: 'descanso', t: 'Descanso 🎮', i: 'play' }, // v13.3: juego para el rato de descanso
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
@@ -318,6 +320,7 @@ export function accionesPaleta() {
     nav('Nuevo cliente', 'plus', 'clientes/nuevo', 'clientes.editar', 'crear añadir'),
     nav('Ir a Inicio', 'home', 'inicio', '', 'panel resumen'),
     nav('Estantería: mi tienda web como un mundo virtual', 'store', 'estanteria', 'productos.ver', 'tienda virtual estanterias productos mundo escaparate 3d'),
+    nav('Descanso: jugar un rato (Fusiona bobinas)', 'play', 'descanso', '', 'juego 2048 jugar descanso entretenimiento'),
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
     fn('Modo taller (botones grandes)', 'play', () => { try { localStorage.setItem('cd.operario', '1'); } catch (e) { } document.body.classList.add('operario'); go('hoy'); }, 'pedidos.ver', 'operario tablet'),
     nav('Pantalla TV del taller', 'play', 'tv', 'pedidos.ver', 'televisión monitor panel pared'),

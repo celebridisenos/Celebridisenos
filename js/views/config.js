@@ -75,11 +75,12 @@ export function render(el, params) {
 // v10.8: resumen de la mañana (Telegram y avisos)
 function resumenCard(c) {
   const hora = sel(Array.from({ length: 17 }, (_, i) => ({ v: i + 6, t: (i + 6) + ':00' })), c.horaResumen ?? 9);
-  let on = c.resumenDiario !== false;
+  let on = c.resumenDiario !== false, foto = c.fotoListo !== false;
   const out = h('div.inv-msg', { style: { display: 'none' } });
   return card('☀️ Resumen de la mañana', h('p.small.muted', 'Cada día, a la hora que elijas, cada persona recibe (en la app y en Telegram si lo tiene conectado) lo importante: pedidos que vencen, qué imprime cada impresora, filamento bajo, tareas y presupuestos pendientes. Solo ve lo que su rol le permite.'),
     h('label.check', sw(on, v => { on = v; }), 'Enviar el resumen de la mañana'), field('Hora', hora),
-    h('div.row.wrap', btn('Guardar', () => saveCfg('notificaciones', Object.assign(JSON.parse(JSON.stringify(S.cfg.notificaciones)), { resumenDiario: on, horaResumen: Number(hora.value) })), { cls: 'primary' }),
+    h('label.check', sw(foto, v => { foto = v; }), '📸 Al terminar una pieza, mandar una foto de la cámara por Telegram (con el mensaje para el cliente ya escrito)'),
+    h('div.row.wrap', btn('Guardar', () => saveCfg('notificaciones', Object.assign(JSON.parse(JSON.stringify(S.cfg.notificaciones)), { resumenDiario: on, horaResumen: Number(hora.value), fotoListo: foto })), { cls: 'primary' }),
       btn('Probar ahora (a mí)', async () => { try { const r = await api('resumen.probar', {}); out.style.display = ''; out.textContent = r.texto || '(vacío)'; toast('Enviado a tus avisos' + (S.me.telegramId ? ' y a Telegram' : ''), 'ok'); } catch (e) { handleError(e); } }, { icon: 'send' })), out);
 }
 

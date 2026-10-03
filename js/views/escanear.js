@@ -140,7 +140,16 @@ function drawHist(el) {
 
 // ---------- Confirmación inmediata: borde verde + pitido corto (bien) · borde rojo + doble tono grave (mal) ----------
 let actx = null;
+// v13.3: borde de TODA la pantalla: verde = QR leído bien, rojo = no vale (se ve aunque mires la cámara y no el resultado)
+function edge(ok) {
+  try {
+    document.querySelectorAll('.scan-edge').forEach(x => x.remove());
+    const d = document.createElement('div'); d.className = 'scan-edge ' + (ok ? 'ok' : 'bad'); d.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(d); setTimeout(() => d.remove(), 1100);
+  } catch (e) { }
+}
 function beep(ok) {
+  edge(ok);
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     const tones = ok ? [[1046, 0, 0.09], [1568, 0.1, 0.12]] : [[220, 0, 0.18], [196, 0.22, 0.22]];

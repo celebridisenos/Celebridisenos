@@ -79,13 +79,13 @@ export function render(el, params) {
       const mine = m.autorId === S.me.id;
       const prev = source[i - 1];
       const grouped = prev && prev.autorId === m.autorId && dayLabel(prev.creado) === d && (new Date(m.creado) - new Date(prev.creado)) < 300000;
-      const st = m.pendiente ? 'p' : m.error ? 'e' + m.error : 'ok';
+      const st = m.error ? 'e' + m.error : 'ok';   // v13.3: «enviado» al instante (se guarda en segundo plano); solo si falla de verdad sale el aviso
       want.push(['m_' + m.id, [grouped, st, m.texto, m.creado, q].join('|'), () => {
         const u = user(m.autorId) || { nombre: m.autor };
         return h('div.cmsg' + (mine ? '.me' : '') + (grouped ? '.grp' : ''), { dataset: { m: m.id } },
           !mine && !grouped ? avatar(u, 's') : h('span.av-sp'),
           h('div.cb', !mine && !grouped ? h('div.tiny.bold', m.autor) : null, h('div.ct', highlight(m.texto)),
-            h('div.tiny.muted.time', m.pendiente ? hm(m.creado) + ' 🕓' : m.error ? h('a', { href: 'javascript:void 0', onclick: () => retry(m) }, '⚠️ ' + m.error) : hm(m.creado) + (mine ? ' ✓' : ''))),
+            h('div.tiny.muted.time', m.pendiente ? hm(m.creado) + (mine ? ' ✓' : '') : m.error ? h('a', { href: 'javascript:void 0', onclick: () => retry(m) }, '⚠️ ' + m.error) : hm(m.creado) + (mine ? ' ✓' : ''))),
           canDel && !m.pendiente && !m.error ? h('button.cdel', { title: 'Borrar mensaje (va a la papelera)', onclick: () => delMsg(m) }, '🗑') : null);
       }]);
     });

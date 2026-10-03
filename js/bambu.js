@@ -7,6 +7,7 @@
 //  · si hay ERROR, PAUSA por error o FALTA DE FILAMENTO → aviso flotante y del sistema.
 // Solo una ventana del PC hace los cambios (las demás solo miran), para no repetir nada.
 import { S, can, api, upsertLocal, emit, byId } from './store.js';
+import { fotoPiezaLista } from './fotolisto.js';
 import { desktop } from './desktop.js';
 
 export const BAMBU = { list: [], at: 0 };
@@ -94,6 +95,7 @@ async function tick1() {
       } else if (what === 'terminar' && pr) {
         const res = await api('trabajos.estado', { id: running.id, estado: 'Terminado', gramos: Number(running.gramos) || 0, bobinaId: running.bobinaId || '', marcarPedido: true, stock: running.productoId || running.pedidoId ? Math.max(0, Number(running.cantidad) || 1) : undefined });
         applyJob(res); emit();
+        fotoPiezaLista(b, running, res && res.pedido, name).then(f => { if (f && f.enviados) notify('📸 Foto enviada por Telegram', 'Pieza de «' + running.titulo + '» (' + f.enviados + ' persona/s)', '', ''); }).catch(() => { });   // v13.3: sin esperar (la foto tarda unos segundos)
         notify('✅ ' + name + ': impresión terminada', '«' + running.titulo + '»' + (res && res.pedido ? ' · pedido nº ' + res.pedido.numero + ' → ' + res.pedido.estado : ''), '', res && res.pedido ? 'pedidos/' + res.pedido.id : 'taller');
       } else if (what === 'avisar_error') {
         notify((b.estado === 'sin_filamento' ? '🧵 ' : '⚠️ ') + name + ': ' + (b.estadoTexto || 'error'), (b.errorTexto || '') + (b.trabajo ? ' · «' + b.trabajo + '»' : '') + (running ? ' · ¿Cómo ha salido? Respóndelo en el Taller.' : ''), 'bad', 'taller');
