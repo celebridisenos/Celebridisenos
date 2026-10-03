@@ -64,7 +64,11 @@ async function detector() {
 async function startCam(video, box, msg, b, onCode) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'Este navegador no deja usar la cámara. Escribe el código o usa la cámara del móvil.'; return; }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    // v13.2: si la cámara no admite lo que pedimos (resolución/modo), se reintenta con lo más simple antes de dar error
+    const tries = [{ facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, { width: { ideal: 1280 }, height: { ideal: 720 } }, true];
+    let last = null;
+    for (const v of tries) { try { stream = await navigator.mediaDevices.getUserMedia({ video: v, audio: false }); break; } catch (e) { last = e; if (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError' || e.name === 'NotReadableError') break; } }
+    if (!stream) throw last || new Error('sin cámara');
     video.srcObject = stream; await video.play().catch(() => { });
     // v12.10: enfoque continuo si la cámara lo ofrece (con el enfoque fijo, un QR pequeño sale borroso)
     try { const tr = stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { }
@@ -81,7 +85,14 @@ async function startCam(video, box, msg, b, onCode) {
       c.getContext('2d', { willReadFrequently: true }).drawImage(video, sx, sy, sw, sh, 0, 0, c.width, c.height);
       try { const v = await detect(c); if (v) { const k = E.codeFrom(v) || v; if (k !== lastHit.code || Date.now() - lastHit.at > 4000) { lastHit = { code: k, at: Date.now() }; try { navigator.vibrate && navigator.vibrate(60); } catch (e) { } onCode(v); } } } catch (e) { }
     }, 220);
-  } catch (e) { msg.textContent = e.name === 'NotAllowedError' ? 'Sin permiso para la cámara. Permítelo en el navegador o escribe el código.' : 'No se pudo abrir la cámara: ' + e.message; stopCam(box, b); }
+  } catch (e) { msg.textContent = camError(e); stopCam(box, b); }
+}
+export function camError(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Sin permiso para la cámara. En Windows: Configuración → Privacidad y seguridad → Cámara → activa «Permitir que las aplicaciones de escritorio accedan a la cámara». En el navegador, permítela en el candado de la barra de direcciones. Mientras tanto puedes escribir el código.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'No se encuentra ninguna cámara conectada. Conecta una (o escribe el código / usa un lector USB).';
+  if (n === 'NotReadableError' || n === 'AbortError') return 'La cámara está en uso por otro programa (Teams, Zoom, la app Cámara, otra pestaña…). Ciérralo y vuelve a pulsar «Abrir la cámara».';
+  return 'No se pudo abrir la cámara (' + (n || 'error') + (e && e.message ? ': ' + e.message : '') + '). Escribe el código mientras tanto.';
 }
 function stopCam(box, b) {
   clearInterval(timer); timer = null;
@@ -90,10 +101,25 @@ function stopCam(box, b) {
   if (b) { const s = b.querySelector('span'); if (s) s.textContent = 'Abrir la cámara'; }
 }
 
+// «https://…/#/pedidos/o_123/?enviar=1» → «#/pedidos/o_123/?enviar=1» (solo rutas de la propia app; nada de otras webs)
+export function appLinkFrom(text) {
+  const t = String(text || '').trim(), i = t.indexOf('#/');
+  if (i < 0 || !/^(https?:\/\/\S*|#\/.*)$/i.test(t) || /\s/.test(t)) return '';
+  const route = t.slice(i + 2);
+  if (!/^[a-z]{1,20}(\/|$)/i.test(route)) return '';
+  if (/^q\/ceb\//i.test(route)) return '';   // el código del paquete lo resuelve «lookup» sin salir de esta pantalla
+  return '#/' + route;
+}
+
 // ---------- Buscar el pedido ----------
 async function lookup(text, result, hist) {
   text = String(text || '').trim();
   if (!text) return;
+  // v13.2: los QR de las etiquetas son ENLACES de la app (envío → #/pedidos/<id>/?enviar=1, producto, almacén, mesa, prueba…).
+  // La cámara normal del móvil los abre; la de aquí tenía que entenderlos igual (antes solo entendía el código CEB-… y daba error).
+  const link = appLinkFrom(text);
+  if (/^#\/q\/mesa\/escanear/i.test(link)) { toast('Ya estás en «Escanear paquete».', 'ok'); return; }
+  if (link) { beep(true); stopCam(null, null); location.hash = link; return; }
   const code = E.codeFrom(text);
   let o = code ? E.findByCode(code) : (S.t.pedidos || []).find(x => String(x.numero) === text.replace(/^n[ºo]?\s*/i, ''));
   let extra = null;

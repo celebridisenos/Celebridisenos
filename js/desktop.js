@@ -49,6 +49,8 @@ export const desktop = {
   printerPrefs: name => call('printers/capacidades', { method: 'POST', body: JSON.stringify({ printer: name }) }),
   // v11.7: cámaras de las Bambu Lab P1/A1 (vídeo de la propia impresora por la red local; el código nunca llega aquí)
   camaras: () => call('camara'),
+  // v13.1 · vídeo DIRECTO: la dirección que el <img> abre una vez; el programa del PC manda cada imagen en cuanto llega de la impresora
+  camaraStream: serial => '/local/camara/stream?' + q({ serial, key: H.key, t: Date.now() }),
   camaraFoto: async serial => {
     const r = await fetch('/local/camara?' + q({ serial }), { headers: { 'X-Host-Key': H.key }, cache: 'no-store' });
     if (r.status === 200) return { blob: await r.blob(), edadMs: Number(r.headers.get('X-Edad-Ms')) || 0, estado: r.headers.get('X-Estado') || 'en_directo' };
