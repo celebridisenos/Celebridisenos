@@ -8,10 +8,13 @@ import { go } from '../app.js';
 import { bambuFor } from '../bambu.js';
 import { anillo, resumenMes } from '../premium.js';
 import { botonVoz } from '../voz.js';
+import { vivaPara, liberar, liberarTodas } from '../piezaviva.js';
+import { prefs, guardarPrefs } from '../nuevopedido.js';
 
 const CL = window.CL;
 const n = v => Number(v) || 0;
 const ph = o => CL.phaseOf(S.cfg.pedidos, o.estado);
+const REDUCIDO = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 
 export function render(el) {
   document.body.classList.add('tv-on');
@@ -23,8 +26,10 @@ export function render(el) {
   const salir = btn('Salir', () => go('hoy'), { cls: 'ghost sm', icon: 'x' });
   const full = btn('Pantalla completa', () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); } catch (e) { toast('No se pudo', 'warn'); } }, { cls: 'ghost sm' });
   const vozB = botonVoz();
+  const celeB = btn('🎉', () => { const v = !prefs().on; guardarPrefs({ on: v }); pintaCele(); }, { cls: 'ghost' });
+  const pintaCele = () => { celeB.querySelector('span').textContent = prefs().on ? '🎉 Celebrar pedidos: sí' : '🎉 Celebrar pedidos: no'; }; pintaCele();
   const empresa = (S.cfg.empresa && S.cfg.empresa.nombre) || 'Taller';
-  mount(root, h('header.tv-top', h('div', reloj, fecha), h('div.tv-marca', h('b', empresa), h('span', 'Taller en directo')), h('div.tv-ctl', vozB, full, salir)), cuerpo);
+  mount(root, h('header.tv-top', h('div', reloj, fecha), h('div.tv-marca', h('b', empresa), h('span', 'Taller en directo')), h('div.tv-ctl', vozB, celeB, full, salir)), cuerpo);
 
   const tickReloj = () => {
     const d = new Date();
@@ -53,6 +58,11 @@ export function render(el) {
       } else if (T.liveFin(p.id)) { titulo = 'Imprimiendo (lanzado desde la impresora)'; sub = 'Termina ' + T.whenTxt(T.liveFin(p.id)); cls = 'imprime'; pc = live && live.pct ? n(live.pct) / 100 : 0; }
       else if (p.estado === 'Mantenimiento') { titulo = '🔧 En mantenimiento'; cls = 'mant'; }
       else { titulo = q.length ? 'Libre · siguiente: ' + q[0].titulo : '💤 Libre'; }
+      // v12.8: si hay un modelo 3D guardado del producto que se imprime, la pieza crece capa a capa (si no, el anillo de siempre)
+      const imprimiendo = cls === 'imprime' || cls === 'tarde';
+      let viva = null;
+      if (imprimiendo) { try { viva = vivaPara(p.id, cur || { titulo: live && live.trabajo }, live, REDUCIDO); } catch (e) { viva = null; } } else liberar(p.id);
+      if (viva && !viva.fallo) return h('div.tv-imp.conviva.' + cls, viva.el, h('div.tv-imp-t', h('b', p.nombre), h('div.tv-imp-n.ellipsis2', titulo), sub ? h('div.tv-imp-s', sub) : null, h('span.tv-pc', Math.round(pc * 100) + ' %'), q.length ? h('span.tv-cola', q.length + ' en cola') : null));
       return h('div.tv-imp.' + cls, anillo(pc, 118, cur || cls === 'imprime' ? Math.round(pc * 100) + '%' : '·', ''), h('div.tv-imp-t', h('b', p.nombre), h('div.tv-imp-n.ellipsis2', titulo), sub ? h('div.tv-imp-s', sub) : null, q.length ? h('span.tv-cola', q.length + ' en cola') : null));
     };
     const R = can('informes.ver') ? resumenMes() : null;
@@ -76,6 +86,6 @@ export function render(el) {
   pedirWake(); const vis = () => { if (!document.hidden) pedirWake(); }; document.addEventListener('visibilitychange', vis);
   return {
     update: draw,
-    destroy: () => { alive = false; clearInterval(t1); clearInterval(t2); document.removeEventListener('visibilitychange', vis); try { wake && wake.release(); } catch (e) { } document.body.classList.remove('tv-on'); if (document.fullscreenElement) { try { document.exitFullscreen(); } catch (e) { } } }
+    destroy: () => { alive = false; clearInterval(t1); clearInterval(t2); document.removeEventListener('visibilitychange', vis); try { wake && wake.release(); } catch (e) { } liberarTodas(); document.body.classList.remove('tv-on'); if (document.fullscreenElement) { try { document.exitFullscreen(); } catch (e) { } } }
   };
 }

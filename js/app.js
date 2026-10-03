@@ -329,6 +329,8 @@ export function accionesPaleta() {
     nav('Ir a Configuración', 'settings', 'config', '', 'ajustes opciones'),
     nav('Ir a Estado del sistema', 'shield', 'estado', 'config.ver', 'diagnóstico copia seguridad'),
     fn('Tarjeta de resultados para redes', 'camera', () => import('./tarjeta.js').then(m => m.abrirTarjeta()), 'pedidos.ver', 'instagram imagen compartir resumen'),
+    fn('Celebrar pedidos nuevos: cartel y confeti (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().on; m.guardarPrefs({ on: v }); toast(v ? '🎉 Celebración de pedidos nuevos activada' : 'Celebración de pedidos nuevos apagada'); }), 'pedidos.ver', 'pedido nuevo confeti cartel celebrar'),
+    fn('Sonido al entrar un pedido nuevo (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().sonido; m.guardarPrefs({ sonido: v }); if (v) m.sonar(); toast(v ? '🔔 Sonido de pedido nuevo activado' : 'Sonido de pedido nuevo apagado'); }), 'pedidos.ver', 'pedido nuevo sonido campana'),
     fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),
     fn('Tema oscuro / claro', 'sparkles', () => { const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
     fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),
@@ -480,7 +482,7 @@ export async function start() {
   window.__appStarted = true;
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
-  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); });
+  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); setTimeout(warmUp, 6000); }
 }

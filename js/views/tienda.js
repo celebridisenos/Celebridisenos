@@ -5,6 +5,8 @@ import { h, mount, btn, modal, toast, pill, empty, field, inp, sel, area, sw, co
 import { S, can, api, pull, emit } from '../store.js';
 import { go, handleError } from '../app.js';
 import { filesOf, fetchFile, previewUrl } from '../files.js';
+import { prepararModelo, leerCDM } from '../modelo3d.js';
+import { viewer } from '../stl.js';
 
 const CL = window.CL;
 const card = (title, ...kids) => h('div.card.col', title ? h('h3', title) : null, ...kids);
@@ -304,6 +306,36 @@ export function productoWeb(el, p) {
   const fotosBox = h('div');
   const drawF = () => mount(fotosBox, fotos.length ? h('div.web-fotos', fotos.map(a => { const i = elegidas.indexOf(a.id); return h('button.web-foto' + (i >= 0 ? '.on' : ''), { type: 'button', title: a.nombre, onclick: () => { i >= 0 ? elegidas.splice(i, 1) : elegidas.push(a.id); drawF(); } }, (() => { const im = h('img', { alt: a.nombre, src: a.miniatura || '' }); previewUrl(a).then(u => { if (u) im.src = u; }).catch(() => { }); return im; })(), i >= 0 ? h('span.n', i === 0 ? '★ 1' : String(i + 1)) : null); })) : h('p.warn-t.small', 'Este producto no tiene fotos. Súbelas en la pestaña de fotos: la tienda solo usa TUS fotos.'));
   drawF();
+  // v12.8 · vista 3D en la web: eliges el STL real del producto y se prepara una versión ligera (nada inventado)
+  const STL_OK = ['stl', '3mf', 'obj'], extN = x => String(x || '').split('.').pop().toLowerCase();
+  const modelos = filesOf('productos', p.id).filter(a => a.tipo === 'stl' && STL_OK.includes(extN(a.nombre)) && !(Number(a.tamano) > 60 * 1048576));
+  let sel3d = w.modelo && modelos.some(a => a.id === w.modelo.archivoId) ? w.modelo.archivoId : '', listo = null, vista3d = null;
+  const box3d = h('div.col');
+  const preparar3d = async () => {
+    const a = modelos.find(x => x.id === sel3d); if (!a) return null;
+    const pr = await prepararModelo(await (await fetchFile(a)).arrayBuffer(), a.nombre);
+    listo = { archivoId: a.id, nombre: a.nombre, prep: pr }; return listo;
+  };
+  const draw3d = () => {
+    if (vista3d) { try { vista3d.destroy(); } catch (e) { } vista3d = null; }
+    const estado = w.modelo ? h('p.small', '🧊 Ahora en la tienda: ', h('b', w.modelo.nombre || 'modelo'), ' · ' + (w.modelo.tris || '?').toLocaleString('es-ES') + ' triángulos · ' + (w.modelo.kb || '?') + ' KB') : h('p.tiny.muted', 'Ahora la ficha no tiene vista 3D (solo fotos).');
+    const selEl = sel([{ v: '', t: 'Sin vista 3D en la web' }].concat(modelos.map(a => ({ v: a.id, t: a.nombre }))), sel3d);
+    selEl.addEventListener('change', () => { sel3d = selEl.value; listo = null; draw3d(); });
+    const out = h('div.col');
+    if (sel3d) {
+      out.append(btn(listo ? 'Preparar de nuevo' : 'Preparar y previsualizar', async ev => {
+        const b = ev.target.closest('button'); b.disabled = true; toast('Preparando el modelo ligero…');
+        try {
+          const r = await preparar3d(); if (!r) return; const pr = r.prep;
+          const c = h('canvas.stl-view'); mount(out, h('p.small', '✅ Listo: ', h('b', pr.tris.toLocaleString('es-ES') + ' triángulos'), pr.original > pr.tris ? ' (de ' + Math.round(pr.original).toLocaleString('es-ES') + ' del original: se simplifica el detalle fino)' : '', ' · ', pr.kb + ' KB · ' + pr.dims.map(x => x.toFixed(1)).join(' × ') + ' mm'), c, h('p.tiny.muted', 'Así lo verá el cliente: una vista orientativa de la forma. Color y acabado reales, en tus fotos. Se publica al pulsar «Publicar / Actualizar en la tienda».'));
+          vista3d = viewer(c, leerCDM(pr.bytes).pos);
+        } catch (e) { handleError(e); } finally { b.disabled = false; }
+      }, { cls: 'sm', icon: 'cube' }));
+      if (!listo && w.modelo && w.modelo.archivoId === sel3d) out.append(h('p.tiny.muted', 'Este modelo ya está publicado. Solo hace falta prepararlo de nuevo si has cambiado el archivo STL.'));
+    }
+    mount(box3d, estado, modelos.length ? field('Modelo 3D que verá el cliente', selEl) : h('p.tiny.muted', 'Para ofrecer vista 3D sube el STL (o 3MF) del producto en la pestaña «Fotos, vídeos y STL».'), out);
+  };
+  draw3d();
   // margen en vivo
   const mBox = h('div.web-margen');
   let mt = null;
@@ -329,8 +361,15 @@ export function productoWeb(el, p) {
       toast('Preparando las fotos para la web…');
       const ph = [];
       for (const id of elegidas.slice(0, 10)) { const a = fotos.find(x => x.id === id); ph.push(await webPhoto(await fetchFile(a))); }
-      const r = await api('tienda.publicar', { productoId: p.id, web: datos(), fotos: ph, archivos: elegidas.slice(0, 10), confirmarMargen: !!confirmar }, { timeout: 180000 });
-      toast('Publicado en la tienda: ' + (r.web.url || ''), 'ok', 7000); pull();
+      // vista 3D: sin elegir = se quita la que hubiera; la misma de antes y sin cambios = se conserva; si no, se prepara y se envía
+      let modelo, modeloInfo;
+      if (!sel3d) { if (w.modelo) modelo = null; }
+      else if (!(w.modelo && w.modelo.archivoId === sel3d) || listo) {
+        if (!listo || listo.archivoId !== sel3d) { toast('Preparando el modelo 3D…'); await preparar3d(); }
+        modelo = { datos: listo.prep.datos }; modeloInfo = { archivoId: listo.archivoId, nombre: listo.nombre, tris: listo.prep.tris, kb: listo.prep.kb };
+      }
+      const r = await api('tienda.publicar', Object.assign({ productoId: p.id, web: datos(), fotos: ph, archivos: elegidas.slice(0, 10), confirmarMargen: !!confirmar }, modelo !== undefined ? { modelo, modeloInfo } : {}), { timeout: 180000 });
+      toast('Publicado en la tienda: ' + (r.web.url || ''), 'ok', 7000); (r.avisos || []).forEach(a => toast(a, 'warn', 12000)); pull();
     } catch (e) {
       if (e.code === 'MARGEN') { if (await confirmDlg('Revisa el margen', e.message, 'Publicar igualmente', e.extra && e.extra.margen && e.extra.margen.estado === 'perdida')) return publicar(null, true); }
       else handleError(e);
@@ -342,6 +381,7 @@ export function productoWeb(el, p) {
       h('div.row.wrap', h('label.check', sw(destacado, v => { destacado = v; }), '⭐ Destacado'), h('label.check', sw(novedad, v => { novedad = v; }), '✨ Novedad'), h('label.check', sw(personalizable, v => { personalizable = v; }), '🎨 Personalizable'))),
     h('div.card.col', h('h3', 'Disponibilidad y envío'), modoSel, stockRow, h('div.form', field('Días de fabricación (bajo pedido)', f.plazo), field('Peso con embalaje (g)', f.peso, 'Para calcular el envío. Incluye caja y relleno.'))),
     h('div.card.col', h('h3', 'Fotos (' + elegidas.length + ' elegidas)'), h('p.tiny.muted', 'Pulsa para elegir y ordenar. Se reducen a 1200 px antes de subirlas (la original no cambia).'), fotosBox),
+    h('div.card.col', h('h3', '🧊 Vista 3D en la web (opcional)'), h('p.tiny.muted', 'El cliente podrá girar el producto antes de pedirlo. Se usa tu STL real, aligerado para que cargue rápido en el móvil.'), box3d),
     h('div.row.wrap', btn(w.publicado ? 'Actualizar en la tienda' : 'Publicar en la tienda', publicar, { cls: 'primary', icon: 'send' }),
       w.publicado ? btn('Retirar de la tienda', async () => { if (!await confirmDlg('Retirar de la tienda', 'Deja de verse y venderse en la web. En el programa no cambia nada.', 'Retirar', true)) return; try { await api('tienda.retirar', { productoId: p.id }); toast('Retirado de la tienda', 'ok'); pull(); } catch (e) { handleError(e); } }, { cls: 'ghost danger' }) : null));
 }
