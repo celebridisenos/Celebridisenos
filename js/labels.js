@@ -8,7 +8,7 @@
 import { h, mount, btn, modal, toast, field, sel, inp, eur, fdate } from './ui.js';
 import { S, api } from './store.js';
 import { desktop } from './desktop.js';
-import { qrMatrix } from './qr.js';
+import { qrPlan, qrPlanFixed } from './qr.js';
 import { appUrl, emisor } from './print.js';
 
 const CL = window.CL;
@@ -21,6 +21,8 @@ export const TEMPLATES = {
   // v11.6 · EMPAQUETAR
   oficial: { t: 'Etiqueta de envío oficial', w: 100, h: 150, d: 'la de Vinted, Correos, InPost…: la adjuntas y sale tal cual (nunca se inventa)' },
   paquete: { t: 'Código del paquete', w: 50, h: 50, d: 'QR + código interno CEB + nº de pedido: se escanea al empaquetar' },
+  qrtest: { t: 'Prueba de QR (6 tamaños)', w: 100, h: 150, d: 'el mismo QR en 6 tamaños: sirve para ver cuál lee mejor tu móvil con tu impresora' },
+  regalo: { t: 'Tarjeta de regalo con QR', w: 85, h: 55, d: 'QR único: abre la página «Tu regalo» de la tienda (con tu dedicatoria)' },
   gracias: { t: 'Tarjeta de agradecimiento (50 × 50, modo antiguo)', w: 50, h: 50, d: 'en la impresora de etiquetas, una por pedido' },
   // v11.8: tarjetas UNIVERSALES en hoja A4 para la impresora de papel fotográfico (varias por hoja, con corte)
   tarjetas: { t: 'Tarjetas de agradecimiento (hoja A4)', w: 210, h: 297, d: 'varias tarjetas por hoja, para papel fotográfico' }
@@ -115,9 +117,10 @@ function text(g, F, s, x, y, maxW, pt, weight, maxLines) {
 }
 function qr(g, data, x, y, size) {
   if (!data) return;
-  const M = qrMatrix(data), N = M.length + 2, cell = size / N;
-  g.fillStyle = '#fff'; g.fillRect(x, y, size, size); g.fillStyle = '#000';
-  M.forEach((row, r) => row.forEach((v, c) => { if (v) g.fillRect(Math.floor(x + (c + 1) * cell), Math.floor(y + (r + 1) * cell), Math.ceil(cell), Math.ceil(cell)); }));
+  // v12.10: «size» es la caja que ocupa el QR CON su zona blanca. Módulos de píxeles enteros, centrado y en blanco/negro puros.
+  const k = g.__k || 8, P = qrPlan(data, Math.floor(size), Math.round(1.0 * k)), ox = Math.round(x + (size - P.side) / 2), oy = Math.round(y + (size - P.side) / 2);
+  g.fillStyle = '#fff'; g.fillRect(Math.floor(x), Math.floor(y), Math.ceil(size), Math.ceil(size)); g.fillStyle = '#000';
+  P.M.forEach((row, r) => row.forEach((v, c) => { if (v) g.fillRect(ox + (c + P.q) * P.mod, oy + (r + P.q) * P.mod, P.mod, P.mod); }));
 }
 function fit(g, s, maxW) { s = String(s || ''); while (s.length > 1 && g.measureText(s).width > maxW) s = s.slice(0, -2) + '…'; return s; }
 // Tarjeta de gracias: título, texto y firma centrados; devuelve dónde acaba (mm). dry = solo medir.
@@ -166,7 +169,7 @@ export function draw(tpl, d, dpi, size) {
     y = T(d.para.direccion || 'Dirección: ____________________________\n____________________________________', m + 1, y, W - 2 * m - 2, 14, 500, 6) + 1.5;
     if (d.para.telefono) y = T('Tel. ' + d.para.telefono, m + 1, y, W - 2 * m - 2, 12, 700, 1);
     // pie: QR + contenido + transportista
-    const qs = 32, qy = H - m - qs - 1.5;
+    const qs = 40, qy = H - m - qs - 1.5; // v12.10: QR de 40 mm (antes 32): se lee a más distancia con la cámara del PC
     line(g, 1.5 * k, (qy - 2.5) * k, (W - 1.5) * k, (qy - 2.5) * k, 0.4 * k);
     qr(g, d.qr, (m + 0.5) * k, qy * k, qs * k);
     let y2 = qy;
@@ -174,9 +177,9 @@ export function draw(tpl, d, dpi, size) {
     if (d.envio) y2 = T(d.envio + (d.seguimiento ? ' · ' + d.seguimiento : ''), m + qs + 3, y2, W - qs - 2 * m - 4, 8.5, 500, 2) + 1;
     if (d.qr) T('Escanea al entregarlo: se marca como enviado.', m + qs + 3, Math.max(y2, qy + qs - 7), W - qs - 2 * m - 4, 6.5, 400, 2);
   } else if (tpl === 'producto') {
-    const qs = Math.min(H - 2 * m, W * 0.42);
-    qr(g, d.qr, (W - m - qs) * k, ((H - qs) / 2) * k, qs * k);
-    const tw = W - qs - 2 * m - 1.5;
+    const qs = Math.min(H - 3, W * 0.48); // v12.10: QR más grande (incluye su zona blanca)
+    qr(g, d.qr, (W - 1 - qs) * k, ((H - qs) / 2) * k, qs * k);
+    const tw = W - qs - 2 * m - 1;
     let y = m - 0.5;
     y = T(d.nombre || '', m, y, tw, H < 35 ? 8.5 : 10, 800, 2) + 0.5;
     if (d.sku) y = T(d.sku, m, y, tw, 6.5, 500, 1) + 0.5;
@@ -212,15 +215,45 @@ export function draw(tpl, d, dpi, size) {
       const lh2 = lw / (d.logoImg.width / d.logoImg.height);
       g.drawImage(d.logoImg, ((W - lw) / 2) * k, y * k, lw * k, lh2 * k); y += lh2 + 1.5;
     }
-    const qs = d.qr ? 10 : 0, bottom = H - m - (qs ? qs + 0.5 : 0);
+    const qs = d.qr ? 18 : 0, bottom = H - m - (qs ? qs + 0.5 : 0);
     // el texto se ajusta solo al hueco (de grande a pequeño) para que nunca se corte
     let sz = 1;
     for (; sz > 0.55; sz -= 0.05) { if (centered(g, F, k, d, y, cw, W, sz, true) <= bottom) break; }
     centered(g, F, k, d, y, cw, W, sz, false);
-    if (qs) qr(g, d.qr, ((W - qs) / 2) * k, (H - m - qs) * k, qs * k);
+    if (qs) qr(g, d.qr, ((W - qs) / 2) * k, (H - qs - 1) * k, qs * k);
+  } else if (tpl === 'regalo') { // v12.9 · tarjeta de regalo: texto a la izquierda y QR único a la derecha
+    const acc = d.color || '#e0457b', qs = Math.min(H - 2 * m - 4, W * 0.42), qx = W - m - qs, qy = (H - qs) / 2 - 1.5, tw = qx - 2 * m, cx = m + tw / 2;
+    const FS = (pt, w) => w + ' ' + Math.round(pt * 0.3528 * k) + 'px Georgia, "Times New Roman", serif';
+    g.strokeStyle = acc; g.lineWidth = 0.5 * k; g.strokeRect(1.2 * k, 1.2 * k, (W - 2.4) * k, (H - 2.4) * k);
+    if (d.qr) { qr(g, d.qr, qx * k, qy * k, qs * k); g.textAlign = 'center'; g.fillStyle = '#7a6f80'; g.font = F(5, 600); g.fillText('Ábrelo aquí', (qx + qs / 2) * k, (qy + qs + 0.8) * k); }
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    const L1 = (g.font = FS(15, 700), wrap(g, '¡Tienes un regalo!', tw * k));
+    const L2 = (g.font = F(7.6, 400), wrap(g, 'Escanea el código con la cámara de tu móvil y ábrelo.', tw * k));
+    const lh = pt => pt * 0.3528 * 1.25, tot = L1.length * lh(15) + 3 + L2.length * lh(7.6) + (d.firma ? 3 + lh(7) : 0);
+    let y = Math.max(m, (H - tot) / 2);
+    g.fillStyle = '#2b2230'; g.font = FS(15, 700); L1.forEach(l => { g.fillText(l, cx * k, y * k); y += lh(15); });
+    y += 1.5; g.strokeStyle = acc; g.lineWidth = 0.35 * k; g.beginPath(); g.moveTo((cx - 9) * k, y * k); g.lineTo((cx + 9) * k, y * k); g.stroke(); y += 1.5;
+    g.fillStyle = '#54495c'; g.font = F(7.6, 400); L2.forEach(l => { g.fillText(l, cx * k, y * k); y += lh(7.6); });
+    if (d.firma) { y += 3; g.fillStyle = acc; g.font = F(7, 700); g.fillText(fit(g, String(d.firma).toUpperCase(), tw * k), cx * k, y * k); }
+    g.textAlign = 'left';
+  } else if (tpl === 'qrtest') { // v12.10 · el mismo QR con puntos de 3 a 10 píxeles: se imprime, se prueba con el móvil y se ve cuál funciona
+    g.font = F(10, 800); g.fillText('PRUEBA DE QR · ' + (W) + '×' + (H) + ' mm', m * k, m * k);
+    g.font = F(6.5, 400); g.fillText('Escanea cada uno con la cámara del móvil: te dirá cuál has leído.', m * k, (m + 5) * k); g.fillText('Apunta el MÁS PEQUEÑO que se lea bien (y que se abra).', m * k, (m + 8.5) * k);
+    let yy = 18; const rows = [[3, 4, 5], [6, 8], [10]];
+    rows.forEach(row => {
+      let xx = m, rowH = 0;
+      row.forEach(md => {
+        const P = qrPlanFixed(d.qr(md), md), side = P.side / k;
+        g.fillStyle = '#fff'; g.fillRect(xx * k, yy * k, P.side, P.side); g.fillStyle = '#000';
+        P.M.forEach((r2, r) => r2.forEach((v, c) => { if (v) g.fillRect(Math.round(xx * k) + (c + P.q) * md, Math.round(yy * k) + (r + P.q) * md, md, md); }));
+        g.font = F(7, 700); g.fillText(md + ' px · ' + (md / k).toFixed(2) + ' mm', xx * k, (yy + side + 0.6) * k);
+        xx += side + 4; rowH = Math.max(rowH, side);
+      });
+      yy += rowH + 6.5;
+    });
   } else { // qr
-    const cap = d.titulo ? (H >= 90 ? 13 : 7) : 0, qs = Math.min(W, H - cap) - 2 * m + 1;
-    qr(g, d.qr, ((W - qs) / 2) * k, (m - 1) * k, qs * k);
+    const cap = d.titulo ? (H >= 90 ? 13 : 7) : 0, qs = Math.min(W, H - cap) - 2;
+    qr(g, d.qr, ((W - qs) / 2) * k, 1 * k, qs * k);
     if (d.titulo) { g.textAlign = 'center'; g.font = F(H < 45 ? 7 : H >= 90 ? 18 : 9, 700); const l = wrap(g, d.titulo, (W - 2 * m) * k)[0]; g.fillText(l, (W / 2) * k, (H - cap + (H >= 90 ? 3 : 0.5)) * k); g.textAlign = 'left'; }
   }
   return c;
@@ -238,6 +271,8 @@ export function dataFor(tpl, x) {
   }
   if (tpl === 'producto') { const p = x.p; return { nombre: p.nombre, sku: p.sku || p.id, precio: p.precio, extra: [p.material, p.color, p.tamano].filter(Boolean).join(' · '), qr: qrLink('producto', p.id), titulo: p.nombre, ref: { entidad: 'productos', id: p.id } }; }
   if (tpl === 'almacen') { const p = x.p || {}; return { ubicacion: x.ubicacion, nombre: x.nombre, sku: p.sku || p.id || '', qr: qrLink('stock', x.nombre), titulo: x.nombre, ref: { entidad: 'stock', id: x.nombre } }; }
+  if (tpl === 'qrtest') return { qr: md => qrLink('prueba', md), titulo: 'Prueba de QR', ref: { entidad: 'prueba', id: 'qr' } };
+  if (tpl === 'regalo') { const em = emisor(); return { qr: x.url, color: x.color || '', firma: em.comercial || em.nombre || '', titulo: 'Regalo · pedido nº ' + (x.numero || ''), ref: { entidad: 'pedidos', id: x.id } }; }
   return { qr: qrLink(x.tipo, x.id), titulo: x.titulo || '', ref: { entidad: x.tipo, id: x.id } };
 }
 
@@ -375,6 +410,7 @@ export function cardLayout(size, n) {
 }
 function rgba(hex, a) { const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i); const v = m ? parseInt(m[1], 16) : 0xe0457b; return 'rgba(' + (v >> 16) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')'; }
 function drawOneCard(g, k, x, y, w, hgt, d) {
+  g.__k = k;
   const acc = d.color || '#e0457b', P = 4; // margen interior (mm)
   g.save(); g.translate(x * k, y * k);
   g.fillStyle = '#fff'; g.fillRect(0, 0, w * k, hgt * k);

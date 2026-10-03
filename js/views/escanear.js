@@ -64,17 +64,23 @@ async function detector() {
 async function startCam(video, box, msg, b, onCode) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = 'Este navegador no deja usar la cámara. Escribe el código o usa la cámara del móvil.'; return; }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     video.srcObject = stream; await video.play().catch(() => { });
+    // v12.10: enfoque continuo si la cámara lo ofrece (con el enfoque fijo, un QR pequeño sale borroso)
+    try { const tr = stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.focusMode && cap.focusMode.includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { }
     box.style.display = ''; b.querySelector('span') ? b.querySelector('span').textContent = 'Cerrar la cámara' : (b.textContent = 'Cerrar la cámara');
     msg.textContent = 'Buscando un QR…';
-    const detect = await detector(), c = document.createElement('canvas');
+    const detect = await detector(), c = document.createElement('canvas'); let tick = 0;
     timer = setInterval(async () => {
       if (!video.videoWidth) return;
-      const sc = Math.min(1, 720 / video.videoWidth); c.width = Math.round(video.videoWidth * sc); c.height = Math.round(video.videoHeight * sc);
-      c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+      // v12.10: se lee a la resolución de la cámara (antes se reducía a 720 px y un QR pequeño dejaba de verse) y, un fotograma de cada dos, ampliando el centro (zoom digital)
+      tick++;
+      const zoom = tick % 2 === 0, sc = Math.min(1, 1600 / video.videoWidth), vw = video.videoWidth, vh = video.videoHeight;
+      const sw = zoom ? vw / 2 : vw, sh = zoom ? vh / 2 : vh, sx = zoom ? vw / 4 : 0, sy = zoom ? vh / 4 : 0;
+      c.width = Math.round(sw * sc * (zoom ? 1.6 : 1)); c.height = Math.round(sh * sc * (zoom ? 1.6 : 1));
+      c.getContext('2d', { willReadFrequently: true }).drawImage(video, sx, sy, sw, sh, 0, 0, c.width, c.height);
       try { const v = await detect(c); if (v) { const k = E.codeFrom(v) || v; if (k !== lastHit.code || Date.now() - lastHit.at > 4000) { lastHit = { code: k, at: Date.now() }; try { navigator.vibrate && navigator.vibrate(60); } catch (e) { } onCode(v); } } } catch (e) { }
-    }, 300);
+    }, 220);
   } catch (e) { msg.textContent = e.name === 'NotAllowedError' ? 'Sin permiso para la cámara. Permítelo en el navegador o escribe el código.' : 'No se pudo abrir la cámara: ' + e.message; stopCam(box, b); }
 }
 function stopCam(box, b) {

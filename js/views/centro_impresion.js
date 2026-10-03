@@ -51,7 +51,8 @@ export async function render(b, L, reload) {
         h('div.row.wrap',
           r !== 'etiquetas' ? btn('Es mi impresora de etiquetas', () => { c.vinculo.etiquetas = p.name; save('«' + p.name + '» será la de etiquetas'); }, { cls: 'sm ghost' }) : null,
           r !== 'folios' ? btn('Es mi impresora de folios', () => { c.vinculo.folios = p.name; save('«' + p.name + '» será la de folios'); }, { cls: 'sm ghost' }) : null,
-          btn('Hoja de prueba', async () => { await L.saveLabelCfg(c); L.printLabels('qr', [{ qr: 'CelebriDisenos-calibracion', titulo: 'Debe medir 40 × 40 mm' }], { printer: p.name }); }, { cls: 'sm', icon: 'printer' })));
+          btn('Hoja de prueba', async () => { await L.saveLabelCfg(c); L.printLabels('qr', [{ qr: 'CelebriDisenos-calibracion', titulo: 'Debe medir 40 × 40 mm' }], { printer: p.name }); }, { cls: 'sm', icon: 'printer' }),
+          btn('Prueba de QR', async () => { await L.saveLabelCfg(c); L.labelDialog('qrtest', [L.dataFor('qrtest', {})], { printer: p.name }).catch(e => toast(e.message, 'bad')); }, { cls: 'sm ghost', icon: 'qr' })));
     })) : h('p.small.warn-t', 'Windows no tiene instalada ninguna impresora física en este ordenador. Pulsa «Buscar impresoras» para ver qué hay en la red y por USB.'),
     h('div.row.wrap', btn('Volver a leer', () => reload(), { cls: 'sm ghost', icon: 'refresh' }),
       btn('Añadir una impresora en Windows', () => desktop.openUrl('ms-settings:printers').catch(e => toast(e.message, 'bad')), { cls: 'sm ghost', icon: 'plus' }))));

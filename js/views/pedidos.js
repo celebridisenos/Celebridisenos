@@ -204,6 +204,7 @@ export function orderDrawer(id, onClose) {
               can('ia.usar') ? { t: 'Responder con IA', icon: 'sparkles', on: () => import('./respuestas.js').then(m => m.replyAssistant({ pedido: o })) } : null,
               can('taller.editar') && t.abierto && !t.enviado ? { t: 'Imprimir en 3D', icon: 'cube', on: () => import('./taller.js').then(m => m.jobForm(null, o)) } : null,
               can('pedidos.crear') ? { t: 'Duplicar', icon: 'copy', on: () => orderForm(Object.assign({}, o, { id: '', numero: '', fecha: '', estado: '', seguimiento: '', fechaEnvio: '', fechaEntrega: '', incidencia: '' }), true) } : null,
+              can('pedidos.editar') ? { t: o.regalo && o.regalo.token ? 'Regalo con QR ✓' : 'Regalo con QR', icon: 'gift', on: () => import('../regalo.js').then(m => m.giftDialog(o)) } : null,
               { t: 'Etiqueta QR del pedido', icon: 'printer', on: () => import('../labels.js').then(L => L.labelDialog('qr', [L.dataFor('qr', { tipo: 'pedido', id: o.id, titulo: 'Pedido nº ' + o.numero })])) },
               can('pedidos.borrar') ? { t: 'Borrar', icon: 'trash', danger: true, on: () => delOrder(o, closeAll) } : { t: 'Borrar (pedir permiso)', icon: 'lock', on: () => requestAccess('pedidos.borrar', 'pedidos', 'Borrar pedido nº ' + o.numero) }
             ]))));

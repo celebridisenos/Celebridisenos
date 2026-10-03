@@ -15,7 +15,7 @@ const VIEWS = {
   tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller
   pedidos: () => import('./views/pedidos.js'),
   clientes: () => import('./views/clientes.js'),
-  universo: () => import('./views/universo.js'), // v12.7: galaxia 3D de clientes
+  estanteria: () => import('./views/estanteria.js'), // v13: la tienda web como un mundo virtual (sustituye al Universo)
   productos: () => import('./views/productos.js'),
   catalogo: () => import('./views/catalogo.js'),
   gastos: () => import('./views/gastos.js'),
@@ -49,7 +49,7 @@ export const NAV = [
   { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje
   { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
-  { k: 'universo', t: 'Universo ✨', i: 'sparkles', p: 'clientes.ver' }, // v12.7
+  { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
@@ -85,8 +85,10 @@ async function route() {
   if (!S.token || !S.me) return;
   const { name, params } = parseHash();
   // v11: QR universal → #/q/<tipo>/<id> abre directamente la ficha
+  if (name === 'universo') return go('estanteria'); // v13: el Universo (galaxia) se sustituyó por la Estantería; los enlaces antiguos siguen funcionando
   if (name === 'q' && params[0] === 'ceb') return go('escanear/' + encodeURIComponent(params[1] || '')); // v11.6: QR del paquete
   if (name === 'q' && params[0] === 'mesa') return go({ escanear: 'escanear/camara', empaquetar: 'embalaje', hoy: 'hoy' }[params[1]] || 'inicio'); // v12.2: QR de la mesa de trabajo
+  if (name === 'q' && params[0] === 'prueba') { toast('✅ Este QR se ha leído bien: puntos de ' + (params[1] || '?') + ' px. Anota el más pequeño que te funcione.', 'ok', 9000); return go('inicio'); } // v12.10: hoja «Prueba de QR»
   if (name === 'q') { const T = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes', factura: 'facturas', stock: 'stock', caja: 'stock', presupuesto: 'presupuestos' }; const t = T[params[0]]; return go(t ? t + '/' + encodeURIComponent(params[1] || '') : 'inicio'); }
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
@@ -315,7 +317,7 @@ export function accionesPaleta() {
     nav('Nueva tarea', 'plus', 'tareas/nueva', 'tareas.crear', 'crear añadir'),
     nav('Nuevo cliente', 'plus', 'clientes/nuevo', 'clientes.editar', 'crear añadir'),
     nav('Ir a Inicio', 'home', 'inicio', '', 'panel resumen'),
-    nav('Universo: mis clientes como estrellas', 'sparkles', 'universo', 'clientes.ver', 'galaxia 3d gráfico wow estrellas clientes'),
+    nav('Estantería: mi tienda web como un mundo virtual', 'store', 'estanteria', 'productos.ver', 'tienda virtual estanterias productos mundo escaparate 3d'),
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
     fn('Modo taller (botones grandes)', 'play', () => { try { localStorage.setItem('cd.operario', '1'); } catch (e) { } document.body.classList.add('operario'); go('hoy'); }, 'pedidos.ver', 'operario tablet'),
     nav('Pantalla TV del taller', 'play', 'tv', 'pedidos.ver', 'televisión monitor panel pared'),
