@@ -890,6 +890,7 @@ label.switch.dis { opacity: .4; }
 .cam-msg.bad { color: #ffd2d2; }
 .cam-live { position: absolute; top: 8px; left: 8px; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #86efac; background: rgba(0, 0, 0, .6); padding: 2px 7px; border-radius: 99px; }
 .cam-foot { min-width: 0; }
+.cam-meta { min-height: 1.1em; padding: 0 2px 2px; }
 @media (max-width: 760px) { .cam-grid.big { grid-template-columns: 1fr; } }
 .cam-tile.big .cam-foot { display: none; }
 
