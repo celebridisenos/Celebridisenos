@@ -32,7 +32,7 @@ export function render(el, params) {
   let tab = params[0] || 'pedidos';
   const body = h('div'), tabs = h('div.tabs');
   el.append(h('div.page-head', h('div', h('h1', '📦 Embalaje'), h('div.muted.small', 'Prepara cada paquete desde aquí: caja, packaging, peso, etiquetas, trabajo adicional y costes. El packaging se calcula solo.')),
-    h('div.row', btn('Escanear paquete', () => go('escanear'), { icon: 'qr' }))), tabs, body);
+    h('div.row', btn('Escanear paquete', () => go('escanear'), { icon: 'qr' }), btn('QR para mi mesa', () => import('./escanear.js').then(m => m.mesaDialog()), { icon: 'printer', cls: 'ghost' }))), tabs, body);
   const T = { pedidos: 'Para empaquetar', cajas: 'Cajas', config: 'Packaging (consumos y precios)', tarjeta: 'Tarjeta y mensajes', perdidas: 'Pérdidas de impresión' };
   const draw = () => {
     mount(tabs, Object.keys(T).map(k => h('button' + (tab === k ? '.on' : ''), { onclick: () => { tab = k; history.replaceState(null, '', '#/embalaje/' + k); draw(); } }, T[k] + (k === 'perdidas' && fallosPend().length ? ' (' + fallosPend().length + ')' : ''))));
@@ -350,6 +350,7 @@ function drawCard(el) {
   [ti, tx, fi, nIn, color].concat(Object.values(pg)).forEach(x => x.addEventListener('input', redraw)); [lg, qr, fo, tam, corte, modo].forEach(x => x.addEventListener('change', redraw));
   const ck = (k, t) => { const c = h('input', { type: 'checkbox', checked: !!im[k] }); c.onchange = () => { im[k] = c.checked; }; return h('label.check', c, t); };
   const auto = h('input', { type: 'checkbox', checked: !!c0.autoAlEscanear });
+  const autoImp = h('input', { type: 'checkbox', checked: c0.autoImprimir !== false });
   const mbox = h('div.col', { style: { gap: '10px' } });
   const drawMsgs = () => mount(mbox, msgs.map((m, i) => {
     const t = inp({ value: m.t, maxlength: 60 }), x = area({ rows: 3, maxlength: 1000 }); x.value = m.texto;
@@ -357,7 +358,7 @@ function drawCard(el) {
     return h('div.card.flat', h('div.row', t, editCfg ? btn('', () => { msgs.splice(i, 1); drawMsgs(); }, { cls: 'sm ghost icon', icon: 'trash', title: 'Quitar' }) : null), x);
   }), editCfg ? btn('Añadir mensaje', () => { msgs.push({ k: 'm' + Date.now().toString(36), t: 'Mensaje nuevo', texto: '¡Hola {cliente}! ' }); drawMsgs(); }, { cls: 'sm', icon: 'plus' }) : null);
   drawMsgs();
-  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, autoAlEscanear: auto.checked, mensajes: msgs } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
+  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, autoAlEscanear: auto.checked, autoImprimir: autoImp.checked, mensajes: msgs } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
   mount(el,
     h('div.card', h('h3', '💌 Tarjetas de agradecimiento'),
       h('p.small.muted', 'Tarjeta UNIVERSAL: sin el nombre del cliente, sirve para todos los pedidos. Así se imprimen varias juntas en una hoja A4 de papel fotográfico y se recortan.'),
@@ -374,6 +375,7 @@ function drawCard(el) {
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Imprimir hojas de tarjetas'), h('div', { id: 'card-print' })),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '📦 Qué va con cada paquete'),
       ck('paquete', 'Código del paquete 50 × 50 (QR + CEB-…) para escanearlo'), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
+      h('label.check', autoImp, 'Imprimir solo lo que falte cuando un pedido llegue a «Empaquetar» (programa del PC; si falla, avisa)'),
       h('label.check', auto, 'Al escanear un pedido en «Empaquetar», imprimir solo lo que falte'),
       h('p.tiny.muted', 'La etiqueta oficial (Vinted, Correos, InPost…) se imprime siempre que esté adjunta. Nada se imprime dos veces: para otra copia está «Reimprimir», que queda apuntado.')),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '💬 Mensajes para el cliente'), h('p.small.muted', 'Para copiar y pegar en Vinted, Wallapop, WhatsApp… Se rellenan con los datos del pedido; el programa no los envía solo.'), mbox),

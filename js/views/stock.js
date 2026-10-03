@@ -18,7 +18,7 @@ const EST = { ok: ['OK', 'ok'], bajo: ['Bajo mínimo', 'warn'], agotado: ['Agota
 const TIPO_I = { 'Impresión': '🖨️', 'Fabricado (pedido)': '🛠️', 'Entrada': '➕', 'Salida': '➖', 'Recuento': '🔢', 'Rotura': '💥', 'Devolución': '↩️', 'Muestra': '🎁', 'Stock inicial': '📦', 'Envío': '🚚' };
 
 export function levels() {
-  return CL.stockLevels({ productos: S.t.productos, stock: S.t.stock, fabricacion: S.t.fabricacion || [], pedidos: S.t.pedidos }, S.cfg.pedidos);
+  return CL.stockLevels({ productos: S.t.productos, stock: S.t.stock, fabricacion: S.t.fabricacion || [], pedidos: S.t.pedidos, trabajos: S.t.trabajos || [] }, S.cfg.pedidos);
 }
 const thumb = p => { const f = p && (p.fotoId ? byId('archivos', p.fotoId) : filesOf('productos', p.id).find(a => a.miniatura)); return f && f.miniatura ? h('img', { src: f.miniatura, alt: '', loading: 'lazy' }) : icon('cube', 's'); };
 const lastMove = x => (S.t.fabricacion || []).filter(r => CL.norm(r.producto) === x.clave).reduce((m, r) => (r.creado || r.fecha || '') > m ? (r.creado || r.fecha) : m, '');
@@ -70,7 +70,7 @@ export function render(el, params) {
       return h('div.stock-row' + (x.bajo ? '.low' : ''), { onclick: () => open(x.producto) },
         h('div.st-thumb', thumb(p)),
         h('div.grow', h('div.bold.ellipsis', x.producto), h('div.tiny.muted.ellipsis', [x.ubicacion ? '📍 ' + x.ubicacion : null, x.minimo ? 'mín. ' + x.minimo : null, x.controlado ? (lastMove(x) ? 'mov. ' + ago(lastMove(x)) : '') : 'Sin control'].filter(Boolean).join(' · '))),
-        h('div.st-nums', h('span', { title: 'En la estantería' }, h('b', String(x.fisico)), h('small', 'estantería')), h('span', { title: 'Apartadas para pedidos abiertos' }, h('b', String(x.reservado)), h('small', 'apartadas')),
+        h('div.st-nums', h('span', { title: 'En la estantería' }, h('b', String(x.fisico)), h('small', 'estantería')), h('span', { title: 'Apartadas para pedidos abiertos' }, h('b', String(x.reservado)), h('small', 'apartadas')), x.enFabricacion ? h('span', { title: 'En cola o imprimiéndose' }, h('b', String(x.enFabricacion)), h('small', 'en fabr.')) : null,
           h('span.disp.' + e[1], { title: 'Disponibles para vender' }, h('b', String(x.disponible)), h('small', 'disponibles'))),
         x.controlado ? h('div.st-step', step(-1), step(1)) : (editable ? btn('Activar', ev => { ev.stopPropagation(); open(x.producto); }, { cls: 'sm' }) : null));
     })), rows.length > 300 ? h('p.small.muted', 'Mostrando 300 de ' + rows.length + '. Usa el buscador.') : null);
@@ -131,8 +131,8 @@ export function stockDrawer(name, onClose) {
       count.onkeydown = ev => { if (ev.key === 'Enter') recount(); };
       mount(d, h('div.drawer-h', h('div.st-thumb.l', thumb(p)), h('div.grow', h('h2.ellipsis', x.producto), h('div.row', { style: { marginTop: '4px' } }, pill(e[0], e[1]), x.ubicacion ? h('span.tiny.muted', '📍 ' + x.ubicacion) : null)), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '16px' } },
-          h('div.st-big', h('div', h('b', String(x.fisico)), h('span', 'En la estantería')), h('div', h('b', String(x.reservado)), h('span', 'Apartadas')), h('div.' + e[1], h('b', String(x.disponible)), h('span', 'Disponibles'))),
-          x.disponible < 0 ? h('p.small.bad-t', '🛠️ Faltan ' + (-x.disponible) + ' para servir los pedidos abiertos: hay que imprimirlas.') : null,
+          h('div.st-big', h('div', h('b', String(x.fisico)), h('span', 'En la estantería')), h('div', h('b', String(x.reservado)), h('span', 'Apartadas')), x.enFabricacion ? h('div', h('b', String(x.enFabricacion)), h('span', 'En fabricación')) : null, h('div.' + e[1], h('b', String(x.disponible)), h('span', 'Disponibles'))),
+          x.disponible < 0 ? h('p.small.bad-t', '🛠️ Faltan ' + (-x.disponible) + ' para servir los pedidos abiertos' + (x.enFabricacion ? ' · ' + x.enFabricacion + ' ya en cola o imprimiéndose' : '') + (x.porFabricar ? ': faltan por poner a imprimir ' + x.porFabricar + '.' : ': ya están en marcha.')) : null,
           editable ? h('div.card.flat', h('div.row.wrap', h('b.grow', 'Movimiento rápido'), btn('−1', () => move(x.producto, -1), { cls: 'sm', disabled: x.fisico <= 0 }), btn('+1', () => move(x.producto, 1), { cls: 'sm' }), btn('+5', () => move(x.producto, 5), { cls: 'sm' }),
             btn('Rotura', () => move(x.producto, -1, 'Rotura'), { cls: 'sm ghost', disabled: x.fisico <= 0 })),
             h('div.row.wrap', { style: { marginTop: '10px' } }, h('span.small', 'Recuento: en la estantería hay'), count, btn('Guardar recuento', recount, { cls: 'sm primary' })),

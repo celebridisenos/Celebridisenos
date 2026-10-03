@@ -1,6 +1,6 @@
 // ================= Primera conexión, configuración inicial y entrada =================
 import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials, area, modal } from '../ui.js';
-import { S, api, setServer, afterLogin, pull, login, passHash, checkNewPassword, parseInvite, joinWithInvite } from '../store.js';
+import { S, api, setServer, afterLogin, pull, login, passHashes, checkNewPassword, parseInvite, joinWithInvite } from '../store.js';
 import { rolePicker, ROLE_INFO } from '../roles.js';
 import { iaSetupStep } from '../ai/models.js';
 import { desktop } from '../desktop.js';
@@ -44,6 +44,9 @@ export function renderLogin(app, done, st) {
   const u = inp({ placeholder: 'Tu usuario', value: last, autocomplete: 'username', autocapitalize: 'off' });
   const p = inp({ type: 'password', placeholder: 'Tu contraseña', autocomplete: 'current-password' });
   const msg = errBox();
+  // «No soy yo» / cambiar de usuario: antes borraba el texto pero el campo seguía oculto y no se podía escribir otro usuario
+  const userField = field('Usuario', u, null, last ? 'hidden' : '');
+  const whoRow = h('div.row', avatar({ nombre: last }), h('div.grow', h('div.bold', last), h('button.btn.ghost.sm', { onclick: () => { u.value = ''; userField.classList.remove('hidden'); userField.style.display = ''; whoRow.style.display = 'none'; try { localStorage.removeItem('cd.lastUser'); } catch (e) { } u.focus(); } }, 'No soy yo (cambiar de usuario)')));
   const b = btn('Entrar', async () => {
     msg.textContent = '';
     if (!u.value || !p.value) { msg.textContent = 'Escribe tu usuario y tu contraseña.'; return; }
@@ -56,8 +59,8 @@ export function renderLogin(app, done, st) {
   [u, p].forEach(x => x.addEventListener('keydown', e => { if (e.key === 'Enter') b.click(); }));
   mount(app, page(h('div.card.auth-card.col', { style: { padding: '28px' } }, logo(),
     h('h2', 'Hola de nuevo 👋'), h('p.muted', st && st.empresa ? 'Entra en ' + st.empresa : 'Entra con tu usuario'),
-    last ? h('div.row', avatar({ nombre: last }), h('div.grow', h('div.bold', last), h('button.btn.ghost.sm', { onclick: () => { u.value = ''; u.focus(); } }, 'No soy yo'))) : null,
-    field('Usuario', u, null, last ? 'hidden' : ''), field('Contraseña', p), msg, b,
+    last ? whoRow : null,
+    userField, field('Contraseña', p), msg, b,
     desktop.portable ? h('p.small', { style: { background: 'var(--surface-2)', padding: '8px 10px', borderRadius: '10px' } }, '🔌 Modo USB: tendrás que escribir la contraseña cada vez y, al cerrar el programa, no queda nada guardado en este ordenador.') : null,
     h('button.btn.ghost.sm', { onclick: () => forgotPassword(u.value.trim()) }, '¿Has olvidado tu contraseña?'),
     h('div.row.wrap', h('button.btn.ghost.sm', { onclick: () => renderInvite(app, done) }, '🎟️ Tengo una invitación'), h('span.grow'), h('button.btn.ghost.sm', { onclick: async () => { await setServer(''); done(); } }, 'Cambiar de servidor')))));
@@ -85,7 +88,7 @@ function forgotPassword(pre) {
           msg.textContent = '✅ ' + r.mensaje; fase = 2; step2.style.display = ''; b.textContent = 'Cambiar contraseña';
         } else {
           const er = checkNewPassword(p1.value, p2.value); if (er) { msg.className = 'small bad-t'; msg.textContent = er; b.disabled = false; return; }
-          await api('auth.recuperar.usar', { usuario: u.value.trim(), codigo: code.value.trim(), ph: await passHash(p1.value), dispositivo: S.device }, { token: '' });
+          await api('auth.recuperar.usar', { usuario: u.value.trim(), codigo: code.value.trim(), ...(await passHashes(p1.value)), dispositivo: S.device }, { token: '' });
           close(); toast('Contraseña cambiada. Ya puedes entrar con la nueva.', 'ok', 6000);
         }
       } catch (e) { msg.className = 'small bad-t'; msg.textContent = e.message; }
@@ -202,7 +205,7 @@ export function renderSetup(app, done) {
         if (!/docs\.google\.com\/spreadsheets\/d\//.test(st.negocioUrl)) { msg.textContent = 'Pega el enlace completo del Google Sheet.'; return; }
         msg.textContent = ''; go2.disabled = true; go2.textContent = 'Preparando… (puede tardar un minuto)';
         try {
-          const adm = { nombre: st.admin.nombre, usuario: st.admin.usuario, color: st.admin.color, ph: await passHash(st.admin.password) };
+          const adm = { nombre: st.admin.nombre, usuario: st.admin.usuario, color: st.admin.color, ...(await passHashes(st.admin.password)) };
           const r = await api('setup.init', { codigo: st.codigo, empresa: st.empresa, admin: adm, negocioUrl: st.negocioUrl }, { token: '', timeout: 300000 });
           st.cambios = r.cambiosSheet || [];
           await afterLogin(r, st.admin.password);
@@ -227,7 +230,7 @@ export function renderSetup(app, done) {
         try {
           const perr = checkNewPassword(f.password.value);
           if (perr) { msg.textContent = perr; return; }
-          const r = await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ph: await passHash(f.password.value) });
+          const r = await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ...(await passHashes(f.password.value)) });
           st.users.push(Object.assign(r, {})); drawList(); Object.values(f).forEach(x => { if (x.tagName === 'INPUT') x.value = ''; });
           toast('Usuario ' + r.nombre + ' creado', 'ok');
         } catch (e) { msg.textContent = e.message; }

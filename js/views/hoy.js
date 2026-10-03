@@ -7,6 +7,8 @@ import { bambuFor } from '../bambu.js';
 import { bambuLine } from './centro_impresion.js';
 import { S, can, byId, timing, stateColor, mutate, upsertLocal, emit } from '../store.js';
 import { go, handleError } from '../app.js';
+import { problemasEtiquetas, textoProblema, reintentar } from '../autoimpresion.js';
+import { botonVoz } from '../voz.js';
 
 const CL = window.CL;
 const n = v => Number(v) || 0;
@@ -42,9 +44,11 @@ export function render(el) {
     const toPrep = ordersT.filter(x => ph(x.o) === 'postpro' || ph(x.o) === 'empaquetar').sort(byLimit); // v11.4: + «Empaquetar»
     const toShip = ordersT.filter(x => ph(x.o) === 'listo').sort(byLimit);
     const issues = ordersT.filter(x => x.o.incidencia);
+    const labelProbs = problemasEtiquetas(); // v12.1: «Etiqueta no impresa — motivo» (nunca se finge que se imprimió)
     const edit = can('pedidos.editar'), tall = can('taller.editar');
 
     mount(head, h('div.grow', h('h1', isOp() ? '🛠️ Taller · hoy' : 'Hoy'), h('p.small.muted', { style: { margin: '2px 0 0' } }, new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + toPrint.length + ' por imprimir · ' + toPrep.length + ' por preparar · ' + toShip.length + ' por enviar')),
+      botonVoz(), btn('Pantalla TV', () => go('tv'), { cls: 'ghost', icon: 'play', title: 'Pantalla para la tele o tablet del taller' }),
       btn(isOp() ? 'Salir del modo taller' : 'Modo taller', () => { setOp(!isOp()); draw(); }, { icon: isOp() ? 'x' : 'play', cls: isOp() ? '' : 'primary' }));
 
     // ---- Impresoras, filamento reservado e incidencias ----
@@ -71,7 +75,18 @@ export function render(el) {
     jobs.filter(j => j.estado === 'En cola' || j.estado === 'Imprimiendo').forEach(j => { const k = (j.material || 'PLA') + ' ' + (j.color || 'sin color'); need[k] = (need[k] || 0) + n(j.gramos); });
     const have = {}; (S.t.bobinas || []).filter(b => b.estado !== 'Agotada').forEach(b => { const k = (b.material || 'PLA') + ' ' + (b.color || 'sin color'); have[k] = (have[k] || 0) + n(b.restante); });
     const fil = Object.keys(need).filter(k => need[k] > 0).map(k => { const short = need[k] > (have[k] || 0); return h('span.fil' + (short ? '.bad' : ''), { title: 'Reservado por la cola / disponible' }, h('i', { style: { background: (S.t.bobinas || []).find(b => (b.material || 'PLA') + ' ' + b.color === k && b.colorHex)?.colorHex || '#ccc' } }), k + ': ' + Math.round(need[k]) + ' / ' + Math.round(have[k] || 0) + ' g'); });
-    mount(top, T.rateBlock ? T.rateBlock(tall) : null, prs.length ? h('div.hoy-prs', prCards) : null, // v11.4: avisos de la Bambu y «¿Cómo salió?»
+    // v12.5: pedidos de la web «por WhatsApp» sin confirmar que están a punto de caducar (o ya caducaron)
+    const reservas = can('pedidos.ver') ? CL.reservasPorCaducar(S.t.pedidos, S.cfg.pedidos, Date.now()) : [];
+    const reservasBox = reservas.length ? h('div.card.flat.hoy-reservas', { role: 'status', style: { borderLeft: '4px solid var(--warn, #e9a400)' } },
+      h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '⏳ ' + reservas.length + ' pedido' + (reservas.length > 1 ? 's' : '') + ' de la web sin confirmar'), h('span.tiny.muted', 'La tienda los libera a las 48 horas.')),
+      reservas.slice(0, 6).map(r => h('div.row.wrap', { style: { gap: '8px', alignItems: 'center', marginTop: '4px' } },
+        h('span.grow.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + r.primero.id) }, h('b', 'nº ' + r.primero.numero), ' · ' + (r.primero.cliente || '') + ' · ' + CL.s(r.metodo) + ' · ',
+          r.vencida ? h('span.bad-t', 'ya caducó') : h('span', 'caduca en ' + Math.max(1, Math.round(r.horas)) + ' h')),
+        can('pedidos.editar') ? btn('Recordar por WhatsApp', () => import('../envio.js').then(E => E.messageDialog(r.primero, 'wa_recordatorio')), { cls: 'sm primary', icon: 'msg' }) : null))) : null;
+    mount(top, reservasBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
+        h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🏷️ ' + labelProbs.length + ' etiqueta' + (labelProbs.length > 1 ? 's' : '') + ' sin imprimir'), edit ? btn('Reintentar', () => reintentar().then(draw), { cls: 'sm', icon: 'printer' }) : null),
+        labelProbs.slice(0, 6).map(p => h('div.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + p.o.id) }, h('b', 'nº ' + p.o.numero), ' · ' + (p.o.cliente || '') + ' — ' + textoProblema(p)))) : null,
+      T.rateBlock ? T.rateBlock(tall) : null, prs.length ? h('div.hoy-prs', prCards) : null, // v11.4: avisos de la Bambu y «¿Cómo salió?»
       fil.length || issues.length ? h('div.row.wrap', { style: { gap: '8px' } },
         fil.length ? [h('span.small.bold', '🧵 Filamento reservado:'), fil] : null,
         issues.length ? h('button.chip.bad', { onclick: () => go('pedidos/?f=incidencias') }, '⚠️ ' + issues.length + ' incidencia' + (issues.length > 1 ? 's' : '')) : null) : null);

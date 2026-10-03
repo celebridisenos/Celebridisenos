@@ -6,6 +6,25 @@ import { h, mount, btn, toast, empty, pill, inp, fdt } from '../ui.js';
 import { S, can, api, byId, upsertLocal, emit, on } from '../store.js';
 import { go, handleError } from '../app.js';
 import * as E from '../envio.js';
+import { qrSvg } from '../qr.js';
+import * as L from '../labels.js';
+import { modal } from '../ui.js';
+
+// ---------- v12.2 · QR para la mesa de trabajo ----------
+// Se imprime UNA vez (etiqueta 10 × 10 cm o folio) y se pega en la mesa: con la cámara del móvil abre al instante
+// «Escanear paquete» (con la cámara ya encendida), «Empaquetar» u «Hoy». Sin dirección pública de la app no hay QR (se dice).
+export function mesaDialog() {
+  const items = L.MESA.map(a => ({ a, d: L.mesaData(a) }));
+  const sinUrl = !items[0].d.qr;
+  const body = h('div.col', { style: { gap: '12px' } },
+    h('p.small.muted', 'Imprime estos QR y pégalos en tu mesa. Con la cámara normal del móvil se abre la app en esa pantalla (hace falta haber entrado una vez en el móvil).'),
+    sinUrl ? h('p.small.warn-t', 'Falta la dirección pública de la app (la de GitHub Pages). Ponla en Configuración → Aplicación y vuelve aquí: sin ella el QR no puede abrir nada.') : null,
+    h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: '10px' } }, items.map(({ a, d }) => h('div.card.flat', { style: { textAlign: 'center' } },
+      d.qr ? h('div', { style: { width: '150px', margin: '0 auto' }, html: qrSvg(d.qr, 4) }) : h('div.muted', 'Sin QR'),
+      h('b', a.t), h('div.tiny.muted', a.d),
+      d.qr ? btn('Imprimir este', () => L.labelDialog('mesa', [d]), { cls: 'sm', icon: 'printer' }) : null))));
+  return modal('📍 QR para mi mesa de trabajo', body, close => [btn('Cerrar', close), sinUrl ? null : btn('Imprimir los 3', () => { close(); L.labelDialog('mesa', items.map(x => x.d)); }, { cls: 'primary', icon: 'printer' })], { size: 'wide' });
+}
 
 const CL = window.CL;
 const cfg = () => S.cfg || {};
@@ -22,11 +41,12 @@ export function render(el, params) {
   const camBtn = btn('Abrir la cámara', () => (stream ? stopCam(camBox, camBtn) : startCam(video, camBox, camMsg, camBtn, c => lookup(c, result, hist))), { cls: 'primary', icon: 'camera' });
   code.onkeydown = e => { if (e.key === 'Enter') { lookup(code.value, result, hist); code.select(); } };
   el.append(head,
-    h('div.card', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, camBtn, code, btn('Buscar', () => lookup(code.value, result, hist), { icon: 'search' })), camMsg, camBox,
+    h('div.card', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, camBtn, code, btn('Buscar', () => lookup(code.value, result, hist), { icon: 'search' }), btn('QR para mi mesa', () => mesaDialog(), { icon: 'printer', cls: 'ghost' })), camMsg, camBox,
       h('p.tiny.muted', 'También funciona escaneando el QR con la cámara normal del móvil: abre esta pantalla directamente.')),
     result, hist);
   setTimeout(() => code.focus(), 50);
   let cur = params[0] ? decodeURIComponent(params[0]) : '';
+  if (cur === 'camara') { cur = ''; setTimeout(() => camBtn.click(), 200); } // v12.2: viene del QR de la mesa → abre la cámara solo
   if (cur) lookup(cur, result, hist);
   const off = on(() => { if (result.dataset.id) showOrder(byId('pedidos', result.dataset.id), null, result, false); });
   return {

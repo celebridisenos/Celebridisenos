@@ -34,15 +34,18 @@ function panel(root, tab0) {
 }
 
 // Guarda la configuración y, si la tienda está conectada, la publica (con avisos de lo que falta)
-async function guardar(valor, publicar = true) {
-  const r = await api('tienda.guardar', { valor });
-  S.cfg.tienda = r.tienda; emit();
+async function guardar(valor, publicar = true, confirmar = false) {
+  if (!confirmar) { const r = await api('tienda.guardar', { valor }); S.cfg.tienda = r.tienda; emit(); }
   if (!publicar) { toast('Guardado', 'ok'); return; }
   try {
-    const p = await api('tienda.configPublicar', {}, { timeout: 60000 });
+    const p = await api('tienda.configPublicar', { confirmar }, { timeout: 60000 });
     toast('Guardado y publicado en la tienda', 'ok');
     if (p.avisos && p.avisos.length) modal('Publicado, pero revisa esto', h('ul', p.avisos.map(a => h('li', a))), c => [btn('Entendido', c, { cls: 'primary' })]);
-  } catch (e) { toast('Guardado en el programa. No se pudo publicar en la tienda: ' + e.message, 'warn', 9000); }
+  } catch (e) {
+    // el descuento web daría pérdidas o bajaría del margen mínimo: la decisión es de la dueña
+    if (e.code === 'MARGEN') { if (await confirmDlg('Revisa el margen del descuento web', e.message, 'Publicar así (lo decido yo)', true)) return guardar(valor, publicar, true); toast('Guardado en el programa, pero NO publicado: el descuento web no se aplica en la tienda.', 'warn', 9000); return; }
+    toast('Guardado en el programa. No se pudo publicar en la tienda: ' + e.message, 'warn', 9000);
+  }
 }
 
 const SECS = {
@@ -68,10 +71,10 @@ const SECS = {
     }
     const a = r.api || {};
     mount(st, h('div.row.wrap', r.conectada ? pill('🟢 Conectada', 'ok') : pill('🔴 Sin conexión', 'bad'), r.pedidosOk === false ? pill('Clave de pedidos no válida', 'bad') : null,
-      a.pago ? (a.pago.activo ? pill(a.pago.prueba ? 'Pago en MODO PRUEBA' : 'Pago online activo', a.pago.prueba ? 'warn' : 'ok') : pill('Pago online sin activar (se ofrece WhatsApp)', 'warn')) : null),
+      a.pago ? (a.pago.activo ? pill(a.pago.prueba ? 'Pago en MODO PRUEBA' : 'Pago online activo', a.pago.prueba ? 'warn' : 'ok') : pill('Pedidos por WhatsApp: pagan por Bizum o en efectivo', 'ok')) : null),
       h('p.small', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, r.url)),
       r.error ? h('p.bad-t.small', r.error) : null, r.errorPedidos ? h('p.bad-t.small', r.errorPedidos) : null,
-      r.conectada ? h('div.facts', h('div.fact', h('div.l', 'Publicados en la web'), h('div.v', String(a.productos))), h('div.fact', h('div.l', 'Pedidos pagados por traer'), h('div.v', String(a.pedidosPendientes))),
+      r.conectada ? h('div.facts', h('div.fact', h('div.l', 'Publicados en la web'), h('div.v', String(a.productos))), h('div.fact', h('div.l', 'Pedidos de la web por traer'), h('div.v', String(a.pedidosPendientes))),
         h('div.fact', h('div.l', 'Última importación'), h('div.v', r.ultimaImportacion ? ago(r.ultimaImportacion) : 'Nunca')),
         h('div.fact', h('div.l', 'Seguridad (24 h)'), h('div.v', (a.seguridad24h || []).length ? a.seguridad24h.map(x => x.tipo + ': ' + x.n).join(' · ') : 'Sin incidencias'))) : null,
       r.ultimoError ? h('p.small.warn-t', 'Último aviso de la importación automática: ' + r.ultimoError) : null,
@@ -79,7 +82,11 @@ const SECS = {
         const bt = ev.target.closest('button'); bt.disabled = true;
         try { const x = await api('tienda.traerPedidos', {}, { timeout: 120000 }); toast(x.creados ? x.pedidosWeb + ' pedido(s) web traídos (' + x.creados + ' línea(s))' : 'No hay pedidos web nuevos', x.creados ? 'ok' : '', 6000); if (x.avisos && x.avisos.length) toast('⚠️ ' + x.avisos.join(' · '), 'warn', 10000); pull(); }
         catch (e) { handleError(e); } bt.disabled = false;
-      }, { cls: 'primary sm' }), btn('Abrir la tienda', () => window.open(r.url, '_blank', 'noopener'), { cls: 'sm' }), h('span.tiny.muted', 'Los pedidos pagados también llegan solos cada 15 minutos.')));
+      }, { cls: 'primary sm' }), btn('📦 Publicar seguimiento a clientes', async ev => {
+        const bt = ev.target.closest('button'); bt.disabled = true;
+        try { const x = await api('tienda.seguimientoEnviar', {}, { timeout: 120000 }); toast(x.enviados ? 'Seguimiento publicado: ' + x.enviados + ' pedido(s)' : 'No hay pedidos web que publicar', x.enviados ? 'ok' : '', 6000); }
+        catch (e) { handleError(e); } bt.disabled = false;
+      }, { cls: 'sm', title: 'Tus clientes ven en ' + (r.url || '') + '/seguimiento en qué punto está su pedido. Se publica solo al cambiar el estado.' }), btn('Abrir la tienda', () => window.open(r.url, '_blank', 'noopener'), { cls: 'sm' }), h('span.tiny.muted', 'Los pedidos pagados llegan solos cada 15 minutos. Tus clientes ven su pedido en /seguimiento (se actualiza al cambiar el estado).')));
   },
 
   conexion(b, redraw) {
@@ -101,12 +108,19 @@ const SECS = {
       ig: inp({ value: t.instagram || '', placeholder: 'usuario (sin @)' }), tt: inp({ value: t.tiktok || '', placeholder: 'usuario (sin @)' }), mm: inp({ type: 'number', min: 0, max: 89, step: '1', value: t.margenMinimo === null || t.margenMinimo === undefined ? '' : Math.round(t.margenMinimo * 100), placeholder: 'sin límite' }),
       peso: inp({ type: 'number', min: 0, value: t.pesoEmbalajeG ?? 150 }) };
     let auto = t.auto !== false;
+    const dw = t.descuentoWeb || { activo: true, pct: 4, combinable: false };
+    let dwOn = dw.activo !== false, dwComb = dw.combinable === true;
+    const dwPct = inp({ type: 'number', min: 0, max: 30, step: '0.5', value: dw.pct ?? 4, 'aria-label': 'Descuento web (%)' });
     b.append(card('Tienda', h('div.form', field('Frase de la portada', f.lema), field('Color de la tienda', f.color), field('Instagram', f.ig), field('TikTok', f.tt))),
       card('💬 WhatsApp Business', h('div.form', field('Número (con prefijo)', f.wa, 'Sin número no aparece el botón: nunca hay botones vacíos.'), field('Mensaje inicial', f.waMsg))),
+      card('🛒 Descuento por comprar en la web', h('div.form',
+        h('label.check', sw(dwOn, v => { dwOn = v; }), 'Activo: quien compra en la web paga menos que por WhatsApp/Wallapop'),
+        field('Descuento (%)', dwPct, 'Lo calcula el servidor de la tienda (nadie puede cambiarlo desde el navegador). Antes de publicar se comprueba tu margen con costes reales; si falta el coste de un producto se marca «Coste pendiente».'),
+        h('label.check', sw(dwComb, v => { dwComb = v; }), 'Sumarlo a campañas y descuentos por cantidad (apagado = se aplica solo el mejor, nunca los dos)'))),
       card('📉 Margen mínimo de la tienda', field('Margen mínimo (%)', f.mm, 'Lo decides tú. Si una promoción o un precio lo baja, se avisa (no se cambia nada solo). Vacío = solo se avisa de PÉRDIDAS.')),
       card('Pedidos', field('Peso de caja y relleno que se suma a cada producto (g)', f.peso, 'Para calcular el envío por peso.'), h('label.check', sw(auto, v => { auto = v; }), 'Traer solos los pedidos pagados (cada 15 minutos)')),
       btn('Guardar y publicar', async () => {
-        try { await guardar(Object.assign(T(), { lema: f.lema.value, color: f.color.value, instagram: f.ig.value, tiktok: f.tt.value, whatsapp: { numero: f.wa.value, mensaje: f.waMsg.value }, margenMinimo: f.mm.value === '' ? null : n(f.mm.value) / 100, pesoEmbalajeG: n(f.peso.value), auto })); }
+        try { await guardar(Object.assign(T(), { lema: f.lema.value, color: f.color.value, instagram: f.ig.value, tiktok: f.tt.value, whatsapp: { numero: f.wa.value, mensaje: f.waMsg.value }, margenMinimo: f.mm.value === '' ? null : n(f.mm.value) / 100, pesoEmbalajeG: n(f.peso.value), auto, descuentoWeb: { activo: dwOn, pct: n(dwPct.value), combinable: dwComb } })); }
         catch (e) { handleError(e); }
       }, { cls: 'primary' }));
   },
@@ -272,6 +286,7 @@ export function productoWeb(el, p) {
   const st = (() => { try { return CL.stockLevels({ productos: S.t.productos, stock: S.t.stock, fabricacion: S.t.fabricacion || [], pedidos: S.t.pedidos }, S.cfg.pedidos).of(p.nombre); } catch (e) { return null; } })();
   const f = {
     precio: inp({ type: 'number', min: 0, step: '0.01', value: w.precio ?? p.precio ?? '' }),
+    negMin: inp({ type: 'number', min: 0, step: '0.01', value: w.negMin ?? '', placeholder: 'Vacío = precio fijo' }),
     cat: inp({ value: w.categoria ?? p.categoria ?? '' }), desc: area({ rows: 5, value: w.descripcion ?? p.descripcion ?? '' }),
     colores: inp({ value: ((w.variantes || []).find(v => /^color$/i.test(v.nombre)) || { valores: [] }).valores.join(', ') || (String(p.color || '').includes(',') ? p.color : ''), placeholder: 'Blanco, Negro, Rosa (vacío = sin elegir color)' }),
     peso: inp({ type: 'number', min: 0, value: w.pesoG || (n(p.pesoG) ? n(p.pesoG) + n(t.pesoEmbalajeG ?? 150) : '') }),
@@ -295,16 +310,16 @@ export function productoWeb(el, p) {
   const margen = () => { clearTimeout(mt); mt = setTimeout(async () => {
     if (!can('productos.costes')) { mount(mBox, h('p.tiny.muted', 'El margen lo comprueba el servidor al publicar.')); return; }
     try {
-      const r = await api('tienda.margen', { productoId: p.id, precio: n(f.precio.value) }, { quiet: true });
+      const r = await api('tienda.margen', { productoId: p.id, precio: n(f.precio.value), minimo: n(f.negMin.value) > 0 ? n(f.negMin.value) : undefined }, { quiet: true });
       const line = (t, m) => m ? h('div.web-m.' + m.estado, h('b', t + ' ' + eur(m.precio)), h('div.small', m.texto), m.coste !== undefined ? h('div.tiny.muted', 'Coste: fabricación ' + eur(m.fabricacion) + ' + embalaje ' + eur(m.embalaje) + ' + comisión del pago ' + eur(m.comision) + ' = ' + eur(m.coste)) : null,
         m.precioMinimo ? h('div.tiny.muted', (m.minimo === null ? 'Precio mínimo sin perder dinero: ' : 'Precio mínimo para mantener tu margen del ' + Math.round(m.minimo * 100) + ' %: ') + eur(m.precioMinimo)) : null, (m.avisos || []).map(a => h('div.tiny.warn-t', a))) : null;
-      mount(mBox, line('Precio en la web', r.normal));
+      mount(mBox, line('Precio en la web', r.normal), r.minimo ? line('Si negocian y llegan al mínimo', r.minimo) : null);
     } catch (e) { mount(mBox, h('p.tiny.bad-t', e.message)); }
   }, 350); };
-  f.precio.addEventListener('input', margen); margen();
+  f.precio.addEventListener('input', margen); f.negMin.addEventListener('input', margen); margen();
   const modoSel = h('div.seg.sm', [['pedido', 'Bajo pedido'], ['contado', 'Stock contado']].map(([k, tx]) => h('button' + (modo === k ? '.on' : ''), { type: 'button', onclick: ev => { modo = k; ev.target.parentNode.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === ev.target)); stockRow.hidden = modo !== 'contado'; } }, tx)));
   const stockRow = field('Unidades a la venta en la web', f.stock, st ? 'Disponible ahora en el programa: ' + st.disponible : ''); stockRow.hidden = modo !== 'contado';
-  const datos = () => ({ precio: n(f.precio.value), personalizable, categoria: f.cat.value, descripcion: f.desc.value,
+  const datos = () => ({ precio: n(f.precio.value), negMin: f.negMin.value === '' ? null : n(f.negMin.value), personalizable, categoria: f.cat.value, descripcion: f.desc.value,
     caracteristicas: car.filter(x => x[0] && x[1]), variantes: f.colores.value.trim() ? [{ nombre: 'Color', valores: f.colores.value.split(',').map(x => x.trim()).filter(Boolean) }] : [],
     stockModo: modo, stock: n(f.stock.value), pesoG: n(f.peso.value), plazoDias: n(f.plazo.value), destacado, novedad });
   const publicar = async (ev, confirmar) => {
@@ -322,7 +337,7 @@ export function productoWeb(el, p) {
     } finally { if (bt) bt.disabled = false; }
   };
   mount(el, head,
-    h('div.card.col', h('h3', 'Precio'), h('div.form', field('Precio en la web (€, IVA incl.)', f.precio)), mBox, h('p.tiny.muted', 'Los descuentos no se ponen aquí: se crean con una campaña o promoción REAL en Tienda web → ✨ Campañas (y se quitan solas al terminar).')),
+    h('div.card.col', h('h3', 'Precio'), h('div.form', field('Precio en la web (€, IVA incl.)', f.precio), field('Precio mínimo para negociar (€)', f.negMin, 'El asistente de la tienda nunca bajará de aquí. Solo lo sabe el servidor de la tienda; el cliente no lo ve. Vacío = precio fijo.')), mBox, h('p.tiny.muted', 'Los descuentos no se ponen aquí: se crean con una campaña o promoción REAL en Tienda web → ✨ Campañas (y se quitan solas al terminar).')),
     h('div.card.col', h('h3', 'Ficha en la web'), h('div.form', field('Categoría', f.cat), field('Colores a elegir', f.colores)), field('Descripción', f.desc), h('b.small', 'Características'), carBox,
       h('div.row.wrap', h('label.check', sw(destacado, v => { destacado = v; }), '⭐ Destacado'), h('label.check', sw(novedad, v => { novedad = v; }), '✨ Novedad'), h('label.check', sw(personalizable, v => { personalizable = v; }), '🎨 Personalizable'))),
     h('div.card.col', h('h3', 'Disponibilidad y envío'), modoSel, stockRow, h('div.form', field('Días de fabricación (bajo pedido)', f.plazo), field('Peso con embalaje (g)', f.peso, 'Para calcular el envío. Incluye caja y relleno.'))),

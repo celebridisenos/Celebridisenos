@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '12.0.0';
+export const APP_VERSION = '12.7.0';
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones'];
 
 export const S = {
@@ -151,6 +151,14 @@ export async function passHash(pass) {
   const b = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('CelebriDisenos|pw|v1'), iterations: 150000 }, k, 256);
   return Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
 }
+// v12.2: huella FUERTE (600.000 vueltas, recomendación actual de OWASP). Se envía junto a la anterior:
+// el servidor actualiza la cuenta al formato fuerte la primera vez que entras con la app nueva.
+export async function passHash3(pass) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(pass)), 'PBKDF2', false, ['deriveBits']);
+  const b = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('CelebriDisenos|pw|v3'), iterations: 600000 }, k, 256);
+  return Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
+}
+export async function passHashes(pass) { const [ph, ph3] = await Promise.all([passHash(pass), passHash3(pass)]); return { ph, ph3 }; }
 export function checkNewPassword(p, p2) {
   p = String(p || '');
   if (p.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
@@ -159,20 +167,20 @@ export function checkNewPassword(p, p2) {
   return '';
 }
 export async function login(usuario, password) {
-  const ph = await passHash(password);
+  const { ph, ph3 } = await passHashes(password);
   let r;
-  try { r = await api('auth.login', { usuario, ph, dispositivo: S.device }, { token: '' }); }
+  try { r = await api('auth.login', { usuario, ph, ph3, dispositivo: S.device }, { token: '' }); }
   catch (e) {
     // Usuario de la versión anterior: se envía una única vez para convertirla al formato rápido
     if (e.code !== 'UPGRADE') throw e;
-    r = await api('auth.login', { usuario, ph, password, dispositivo: S.device }, { token: '' });
+    r = await api('auth.login', { usuario, ph, ph3, password, dispositivo: S.device }, { token: '' });
   }
   await afterLogin(r, password);
   return r;
 }
 // ---------- Invitaciones: crear la cuenta con el código y entrar directamente ----------
 export async function joinWithInvite(codigo, usuario, nombre, password) {
-  const r = await api('invitaciones.canjear', { codigo, usuario, nombre, ph: await passHash(password), dispositivo: S.device }, { token: '' });
+  const r = await api('invitaciones.canjear', { codigo, usuario, nombre, ...(await passHashes(password)), dispositivo: S.device }, { token: '' });
   await afterLogin(r, password);
   return r;
 }
@@ -207,7 +215,7 @@ async function pbkdf(pass, salt) {
 }
 async function setLocalUnlock(pass) { const salt = uid('s'); await kv.set('unlock', { salt, h: await pbkdf(pass, salt), u: S.me && S.me.id }); }
 export async function unlock(pass) {
-  try { await api('auth.desbloquear', { ph: await passHash(pass) }); await setLocalUnlock(pass); return true; }
+  try { await api('auth.desbloquear', await passHashes(pass)); await setLocalUnlock(pass); return true; }
   catch (e) {
     if (e.code !== 'NET') throw e;
     const u = await kv.get('unlock');

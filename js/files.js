@@ -3,6 +3,9 @@ import { h, mount, icon, btn, bytes, toast, modal, uid, fdt, confirmDlg } from '
 import { S, api, can, upsertLocal, removeLocal, emit, kv } from './store.js';
 import { parse3D, viewer, thumb3D } from './stl.js';
 import { desktop } from './desktop.js';
+import { editPhoto } from './fotoeditor.js';
+const esFoto = f => /^image\/(jpeg|png|webp)/.test(f.type) || /\.(jpe?g|png|webp)$/i.test(f.name || ''); // (HEIC/GIF se suben tal cual: el navegador no los edita)
+const retocarOn = () => { try { return localStorage.getItem('cd.retocar') === '1'; } catch (e) { return false; } };
 
 export const RULES = {
   foto: { ext: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'], max: 25 * 1048576, accept: 'image/*,.heic,.heif', t: 'Foto', s: 'Foto', i: 'camera', hint: 'JPG, PNG, WEBP o HEIC · máx. 25 MB' },
@@ -200,6 +203,15 @@ export async function openFile(a) {
   const m = modal(a.nombre, box, close => [
     a.rutaLocal && desktop.on ? btn('Abrir carpeta', () => desktop.open(a.rutaLocal.replace(/[\\/][^\\/]+$/, '')).catch(e => toast(e.message, 'bad')), { icon: 'folder' }) : null,
     btn('Descargar', async () => { try { download(await fetchFile(a), a.nombre); } catch (e) { toast(e.message, 'bad'); } }, { icon: 'download' }),
+    k === 'foto' && can('archivos.subir') && a.entidad && a.entidadId ? btn('Retocar copia', async () => {
+      try {
+        const blob = await fetchFile(a), ed = await editPhoto(new File([blob], a.nombre, { type: blob.type || a.mime || 'image/jpeg' }), { titulo: 'Retocar copia · ' + a.nombre, aceptar: 'Guardar como copia nueva' });
+        if (!ed) return;
+        const [th, hu] = await Promise.all([makeThumb(ed, 'foto'), sha256(ed)]);
+        const r = await uploadFile(ed, { entidad: a.entidad, entidadId: a.entidadId, huella: hu, miniatura: th });
+        upsertLocal('archivos', r); emit(); toast('Copia retocada guardada (la original sigue igual)', 'ok');
+      } catch (e) { toast(e.message, 'bad'); }
+    }, { icon: 'edit' }) : null,
     (a.subidoPor === (S.me && S.me.nombre) || can('archivos.borrar')) ? btn('Borrar', async () => {
       if (!await confirmDlg('Borrar archivo', 'Se moverá a la papelera (recuperable). ¿Seguro?', 'Borrar', true)) return;
       try { await api('archivos.borrar', { id: a.id }); removeLocal('archivos', a.id); emit(); close(); toast('Archivo en la papelera', 'ok'); } catch (e) { toast(e.message, 'bad'); }
@@ -248,13 +260,16 @@ export function dropZone(tipo, opts = {}) {
   const zone = h('div.drop-zone', { tabindex: 0, role: 'button', onclick: () => inputFile.click(), onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') inputFile.click(); } }, 'Arrastra aquí o pulsa para elegir');
   const el = h('div.drop', h('div.drop-h', h('span.ic', icon(R.i)), h('div.grow', h('b', opts.title || R.t), h('small', R.hint))),
     zone, h('div.drop-actions', btn('Elegir archivo', () => inputFile.click(), { icon: 'upload', cls: 'sm' }), inputCam ? btn(tipo === 'foto' ? 'Hacer foto' : 'Grabar vídeo', () => inputCam.click(), { icon: tipo === 'foto' ? 'camera' : 'video', cls: 'sm' }) : null),
+    tipo === 'foto' ? h('label.check.small', { style: { marginTop: '6px' } }, h('input', { type: 'checkbox', checked: retocarOn(), onchange: e => { try { localStorage.setItem('cd.retocar', e.target.checked ? '1' : '0'); } catch (x) { } } }), '✏️ Retocar cada foto antes de subirla (recortar, girar, luz)') : null,
     list, inputFile, inputCam);
   ['dragenter', 'dragover'].forEach(ev => el.addEventListener(ev, e => { e.preventDefault(); el.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(ev => el.addEventListener(ev, e => { e.preventDefault(); if (ev === 'dragleave' && el.contains(e.relatedTarget)) return; el.classList.remove('over'); }));
   el.addEventListener('drop', e => addFiles(e.dataTransfer.files));
 
   async function addFiles(fl) {
-    for (const f of Array.from(fl || [])) {
+    for (let f of Array.from(fl || [])) {
+      // v12.2: si lo has activado, cada foto pasa antes por el editor (la original no se toca; «Subir tal cual» la deja como está)
+      if (tipo === 'foto' && retocarOn() && esFoto(f) && !validate(f, tipo)) { const ed = await editPhoto(f, { titulo: 'Retocar foto · ' + f.name, omitir: 'Subir tal cual', aceptar: 'Usar la foto retocada' }); if (ed) f = ed; }
       const it = { id: uid('f'), file: f, err: validate(f, tipo), state: 'pendiente', progress: 0, thumb: '', huella: '' };
       if (!it.err && items.some(x => x.file.name === f.name && x.file.size === f.size && !x.err)) it.err = 'Ya has añadido este archivo.';
       if (!it.err && opts.existing) { const dupe = opts.existing().find(a => a.nombre === f.name && Number(a.tamano) === f.size); if (dupe) it.err = 'Este archivo ya está adjuntado.'; }
@@ -289,6 +304,15 @@ export function dropZone(tipo, opts = {}) {
     opts.onchange && opts.onchange(items);
     return it.result;
   }
+  // Retocar una foto de la lista: si aún no se ha subido, se sustituye; si ya está subida, la editada se sube como COPIA NUEVA
+  async function retouch(it) {
+    const ed = await editPhoto(it.file, { titulo: 'Retocar foto · ' + it.file.name, aceptar: it.state === 'subido' ? 'Guardar como copia nueva' : 'Usar la foto retocada' });
+    if (!ed) return;
+    if (it.state === 'subido') { const n = { id: uid('f'), file: ed, err: '', state: 'preparando', progress: 0, thumb: '', huella: '' }; items.push(n); draw(); try { [n.thumb, n.huella] = await Promise.all([makeThumb(ed, tipo), sha256(ed)]); } catch (e) { } n.state = 'listo'; draw(); if (opts.entidadId) upload(n, opts.entidad, opts.entidadId); opts.onchange && opts.onchange(items); return; }
+    it.file = ed; it.state = 'preparando'; draw();
+    try { [it.thumb, it.huella] = await Promise.all([makeThumb(ed, tipo), sha256(ed)]); } catch (e) { }
+    it.state = 'listo'; draw(); opts.onchange && opts.onchange(items);
+  }
   function drawBar(it) { const b = list.querySelector('[data-id="' + it.id + '"] .bar i'); if (b) b.style.width = Math.round(it.progress * 100) + '%'; }
   function draw() {
     mount(list, items.map(it => {
@@ -300,6 +324,7 @@ export function dropZone(tipo, opts = {}) {
           h('div.mt', [extOf(it.file.name).toUpperCase(), bytes(it.file.size), it.dims ? it.dims.map(x => x.toFixed(0)).join('×') + ' mm' : ''].filter(Boolean).join(' · ') + ' · ' + stTxt),
           it.state === 'subiendo' ? h('div.bar', h('i', { style: { width: Math.round(it.progress * 100) + '%' } })) : null),
         h('div.row', { style: { gap: '4px' } },
+          tipo === 'foto' && esFoto(it.file) && !it.err && (it.state === 'listo' || it.state === 'subido') ? btn('', () => retouch(it), { cls: 'ghost icon sm', icon: 'edit', title: it.state === 'subido' ? 'Retocar (se sube como copia nueva)' : 'Retocar antes de subir' }) : null,
           it.state === 'error' && !validate(it.file, tipo) ? btn('', () => { it.err = ''; it.state = 'listo'; opts.entidadId ? upload(it, opts.entidad, opts.entidadId) : draw(); }, { cls: 'ghost icon sm', icon: 'refresh', title: 'Reintentar' }) : null,
           it.state !== 'subiendo' && it.state !== 'subido' ? btn('', () => { items.splice(items.indexOf(it), 1); draw(); opts.onchange && opts.onchange(items); }, { cls: 'ghost icon sm', icon: 'x', title: 'Quitar' }) : null));
     }));

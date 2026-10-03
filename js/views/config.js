@@ -1,6 +1,6 @@
 // ================= Configuración: todo lo ajustable, sin tocar código =================
 import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText } from '../ui.js';
-import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHash, checkNewPassword, user } from '../store.js';
+import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHashes, checkNewPassword, user } from '../store.js';
 import { rolePicker } from '../roles.js';
 import { iaPanel } from '../ai/models.js';
 import { biblioteca as bibliotecaView, memoria as memoriaView } from './ia.js';
@@ -40,6 +40,7 @@ const SECTIONS = [
   { g: 'Conexiones' },
   { k: 'automatizaciones', t: 'Automatizaciones (reglas de avisos)', i: 'sparkles', p: 'config.editar' },
   { k: 'avisos', t: 'Telegram y avisos', i: 'bell', p: 'config.editar' },
+  { k: 'plataformas', t: 'Avisos de Wallapop y plataformas', i: 'bell', p: 'config.editar' }, // v12.2
   { k: 'redes', t: 'Redes (TikTok, Instagram…)', i: 'calendar' },
   { k: 'github', t: 'GitHub y actualizaciones', i: 'download' },
   { g: 'Sistema' },
@@ -135,9 +136,9 @@ const SEC = {
 
   // v11: MOTOR DE REGLAS — "Cuando pasa esto → avisar por…" (campana · Telegram · ventana flotante)
   automatizaciones(b) {
-    const R = [['pedido_nuevo', '🛒 Entra un pedido nuevo'], ['pedido_web', '🛍️ Entra un pedido pagado en la tienda web'], ['urgente', '⏰ Un pedido urgente, vence hoy o se ha vencido'], ['incidencia', '⚠️ Se marca una incidencia en un pedido'], ['pedido', '📦 Te asignan un pedido o cambia uno tuyo'],
+    const R = [['pedido_nuevo', '🛒 Entra un pedido nuevo'], ['pedido_web', '🛍️ Entra un pedido pagado en la tienda web'], ['reserva_wa', '⏳ Un pedido de la web por WhatsApp está a punto de caducar sin confirmar'], ['urgente', '⏰ Un pedido urgente, vence hoy o se ha vencido'], ['incidencia', '⚠️ Se marca una incidencia en un pedido'], ['pedido', '📦 Te asignan un pedido o cambia uno tuyo'],
       ['impresion_terminada', '🖨️ Una impresora debería haber terminado'], ['filamento_bajo', '🧵 Queda poco filamento / hay que comprar'], ['stock', '📦 Un producto baja del stock mínimo'], ['tarea', '✅ Te asignan una tarea o vence'],
-      ['mencion', '📣 Alguien te menciona en el chat (@nombre)'], ['mensaje_chat', '💬 Llega un mensaje al chat del equipo'], ['resumen', '☀️ Resumen de la mañana']];
+      ['plataforma', '🟢 Llega un aviso de Wallapop, Vinted… (por email)'], ['mencion', '📣 Alguien te menciona en el chat (@nombre)'], ['mensaje_chat', '💬 Llega un mensaje al chat del equipo'], ['resumen', '☀️ Resumen de la mañana']];
     const c = JSON.parse(JSON.stringify(S.cfg.automatizaciones || {}));
     const tg = !!S.cfg.secretos.telegram;
     const rows = R.map(([k, t]) => {
@@ -178,7 +179,7 @@ const SEC = {
       card('Apariencia', tema, h('p.small.muted', 'Cada persona elige su tema; se aplica en todos sus dispositivos.')),
       card(null, foto.el),
       card('Cambiar contraseña', h('div.form', field('Contraseña actual', p1), h('div'), field('Nueva contraseña', p2, 'Mínimo 6 caracteres'), field('Repite la nueva', p3)),
-        btn('Cambiar contraseña', async () => { const er = checkNewPassword(p2.value, p3.value); if (er) return toast(er, 'bad'); try { await api('usuarios.editar', { id: u.id, ph: await passHash(p2.value), phActual: await passHash(p1.value), passwordActual: p1.value }); p1.value = p2.value = p3.value = ''; toast('Contraseña cambiada', 'ok'); } catch (e) { toast(e.message, 'bad'); } })),
+        btn('Cambiar contraseña', async () => { const er = checkNewPassword(p2.value, p3.value); if (er) return toast(er, 'bad'); try { const act = await passHashes(p1.value); await api('usuarios.editar', Object.assign({ id: u.id }, await passHashes(p2.value), { phActual: act.ph, ph3Actual: act.ph3, passwordActual: p1.value })); p1.value = p2.value = p3.value = ''; toast('Contraseña cambiada', 'ok'); } catch (e) { toast(e.message, 'bad'); } })),
       card('Avisos en el móvil (Telegram)', S.cfg.secretos.telegram ? (u.telegram ? h('div.row', h('span.ok-t', '✅ Conectado'), btn('Desconectar', async () => { await api('telegram.desconectar', {}); u.telegram = false; emit(); toast('Telegram desconectado'); }, { cls: 'sm' })) : btn('Conectar mi Telegram', connectTelegram, { cls: 'primary' })) : h('p.small.muted', 'Una administradora tiene que configurar primero el bot de Telegram.')),
       card('Sesiones abiertas', sessions),
       btn('Cerrar sesión en este dispositivo', async () => { await logout(); start(); }, { icon: 'logout', cls: 'danger' }));
@@ -308,8 +309,8 @@ const SEC = {
         close => [!isNew && u.id !== S.me.id ? btn('Eliminar usuario', () => { close(); delUser(u); }, { cls: 'ghost danger', icon: 'trash' }) : null, !isNew ? btn('Código de recuperación', () => { close(); giveCode(u.id); }, { cls: 'ghost', icon: 'key' }) : null, !isNew ? btn('Cerrar sus sesiones', async () => { await api('usuarios.cerrarSesiones', { userId: u.id }); toast('Sesiones cerradas', 'ok'); }, { cls: 'ghost' }) : null, h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
           try {
             if (f.password.value || isNew) { const er = checkNewPassword(f.password.value); if (er) return toast(er, 'bad'); }
-            if (isNew) await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ph: await passHash(f.password.value) });
-            else { const d = { id: u.id, nombre: f.nombre.value.trim(), rol: f.rol.value, activo }; if (f.password.value) d.ph = await passHash(f.password.value); await api('usuarios.editar', d); }
+            if (isNew) await api('usuarios.crear', { nombre: f.nombre.value.trim(), usuario: f.usuario.value.trim(), rol: f.rol.value, ...(await passHashes(f.password.value)) });
+            else { const d = { id: u.id, nombre: f.nombre.value.trim(), rol: f.rol.value, activo }; if (f.password.value) Object.assign(d, await passHashes(f.password.value)); await api('usuarios.editar', d); }
             close(); toast('Usuario guardado', 'ok'); drawU(); pull();
           } catch (e) { toast(e.message, 'bad'); }
         }, { cls: 'primary' })], { size: 'wide' });
@@ -495,6 +496,46 @@ const SEC = {
       card('Qué avisos llegan a Telegram', tog('telegram', 'Enviar avisos a Telegram'), tog('pedidosUrgentes', 'Pedidos vencidos o a punto de vencer'), tog('tareas', 'Tareas asignadas y vencidas'), tog('seguridad', 'Alertas de seguridad y solicitudes de acceso'), tog('taller', 'Taller: impresora terminada y filamento bajo'), tog('stock', 'Stock por debajo del mínimo'), h('p.small.muted', 'Dentro de la app (campana) aparecen siempre todos.'),
         btn('Guardar', () => saveCfg('notificaciones', c), { cls: 'primary' })),
       resumenCard(c));
+  },
+  // v12.2: Wallapop, Vinted… no tienen API para vendedores, pero SIEMPRE mandan un email de aviso. Aquí se leen (solo lectura) y saltan al programa.
+  async plataformas(b) {
+    let st;
+    try { st = await api('plataformas.estado', {}); } catch (e) { b.append(h('p.bad-t', e.message)); return; }
+    const c = JSON.parse(JSON.stringify(st.config));
+    const info = h('div.small');
+    const pinta = (s) => {
+      info.replaceChildren();
+      info.append(h('div', s.config.activo ? (s.disparador ? '🟢 Activo: se revisa el correo cada 5 minutos.' : '🟡 Activo, pero falta el reloj automático: pulsa Guardar otra vez.') : '⚪ Apagado.'),
+        s.ultima ? h('div.muted', 'Última revisión correcta: ' + fdt(s.ultima) + ' (' + ago(s.ultima) + ')') : h('div.muted', 'Aún no se ha revisado nada.'),
+        s.error ? h('div.bad-t', { role: 'alert' }, '⚠️ ' + s.error) : null);
+    };
+    pinta(st);
+    const reglas = h('div.list.boxed');
+    const dibuja = () => {
+      reglas.replaceChildren(...c.reglas.map((r, i) => {
+        const nom = inp({ value: r.nombre, 'aria-label': 'Nombre de la plataforma', style: { maxWidth: '140px' } }), dom = inp({ value: r.remitente, 'aria-label': 'Dominio del remitente de ' + r.nombre, placeholder: 'wallapop.com' });
+        nom.oninput = () => { r.nombre = nom.value; }; dom.oninput = () => { r.remitente = dom.value; };
+        return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap', gap: '8px' } }, h('label.switch', { title: 'Revisar esta plataforma' }, h('input', { type: 'checkbox', checked: !!r.activa, 'aria-label': 'Revisar ' + r.nombre, onchange: e => { r.activa = e.target.checked; } }), h('span')), nom, h('span.small.muted', 'emails de'), dom,
+          btn('Quitar', () => { c.reglas.splice(i, 1); dibuja(); }, { cls: 'sm ghost' }));
+      }));
+    };
+    dibuja();
+    const act = h('label.check', sw(!!c.activo, v => { c.activo = v; }), 'Leer los emails de aviso y convertirlos en notificaciones');
+    const dias = sel([1, 2, 3, 7, 14].map(n => ({ v: n, t: 'Últimos ' + n + (n === 1 ? ' día' : ' días') })), String(c.dias)); dias.onchange = () => { c.dias = Number(dias.value); };
+    b.append(
+      card('Avisos de Wallapop, Vinted, Etsy, eBay…', h('p.small.muted', 'Estas plataformas no dejan que otros programas lean sus mensajes, pero siempre te mandan un email («tienes un mensaje», «han reservado tu artículo»). El programa lee esos emails de tu Gmail y te avisa al instante en la campana, en una ventanita y en Telegram.'),
+        act, h('div.form', field('Buscar en el correo', dias)), h('h4', 'Plataformas'), reglas,
+        h('div.row.wrap', btn('+ Otra plataforma', () => { c.reglas.push({ id: 'p' + (c.reglas.length + 1), nombre: 'Otra', remitente: '', emoji: '🔔', activa: true }); dibuja(); }, { cls: 'sm ghost' }),
+          btn('Guardar', async () => { try { const r = await api('plataformas.guardar', { valor: c }); Object.assign(c, r.config); dibuja(); await pull(); pinta(Object.assign({}, st, { config: r.config, disparador: r.disparador, error: r.error })); st.config = r.config; st.disparador = r.disparador; toast('Guardado', 'ok'); } catch (e) { handleError(e); } }, { cls: 'primary' }),
+          btn('Revisar ahora', async ev => { const bt = ev.target.closest('button'); bt.disabled = true; try { const r = await api('plataformas.revisar', {}); const s2 = await api('plataformas.estado', {}); st = s2; pinta(s2); toast(r.error ? 'No se pudo revisar' : (r.nuevos ? r.nuevos + ' aviso(s) nuevo(s)' : 'Nada nuevo en el correo'), r.error ? 'bad' : 'ok'); await pull(); } catch (e) { handleError(e); } bt.disabled = false; }, { icon: 'refresh' })), info),
+      card('Cómo activarlo (una sola vez)',
+        h('ol.small', { style: { paddingLeft: '18px', lineHeight: 1.7 } },
+          h('li', 'En Wallapop/Vinted, deja activados los avisos por email (Ajustes > Notificaciones) con el correo de Gmail que usa este programa.'),
+          h('li', 'Entra en Apps Script (el proyecto del servidor), abre «Configuración del proyecto», marca «Mostrar el archivo appsscript.json» y sustituye su contenido por el archivo ', h('b', 'appsscript_con_correo.json'), ' de la carpeta del servidor. Después pega el nuevo Servidor.gs.'),
+          h('li', 'Elige la función ', h('b', 'autorizarCorreo'), ', pulsa Ejecutar y acepta el permiso de Google (solo lectura de Gmail).'),
+          h('li', 'Vuelve aquí, activa el interruptor y pulsa Guardar. Pulsa «Revisar ahora» para comprobar que no da error.')),
+        h('p.small.muted', 'Seguridad: solo lectura (no envía, no borra, no marca). Solo se leen emails cuyo remitente es de ese dominio y que no fallan la comprobación DKIM/SPF; en el aviso los enlaces del email se ocultan para que nadie te cuele un enlace falso. Los avisos de antes de activarlo no se repiten. Nunca crea pedidos solo: avisa y decides tú. Si tu Gmail es otro, reenvía allí los avisos (Gmail > Ajustes > Reenvío) con el filtro «de: wallapop.com».'),
+        h('p.small.muted', 'Límite honesto: Google revisa los disparadores como mucho cada pocos minutos, así que el aviso llega con 5 minutos de retraso como máximo, no al segundo.')));
   },
   async redes(b) {
     const c = JSON.parse(JSON.stringify(S.cfg.redes));

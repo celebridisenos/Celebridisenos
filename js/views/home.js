@@ -6,6 +6,7 @@ import { BAMBU } from '../bambu.js';
 import { homeCameras } from '../camaras.js';
 import { gameCard, checkLevelUp, loadFrases, fraseDelDia, game } from '../game.js';
 import { brief, objetivoTexto } from '../ai/celebrity.js';
+import { metaCard } from '../premium.js';
 
 const CL = window.CL;
 
@@ -16,6 +17,7 @@ const MODS = [
   { k: 'motivacion', t: 'Motivación del día' },
   { k: 'alertas', t: 'Alertas inteligentes' },
   { k: 'inteligencia', t: 'Centro de inteligencia (ventas, beneficios, tendencias)', p: 'informes.ver' },
+  { k: 'meta', t: 'Meta del mes, récords y celebraciones', p: 'informes.ver' },
   { k: 'juego', t: 'Tu nivel, insignias y ranking' },
   { k: 'produccion', t: 'Producción', p: 'pedidos.ver' },
   { k: 'taller', t: 'Impresoras y filamento', p: 'taller.ver' },
@@ -136,6 +138,8 @@ function attention(d) {
 }
 
 const MOD_FNS = {
+  // v12.3: anillo de la meta del mes, proyección y récords reales + tarjeta para redes + pantalla TV
+  meta() { return metaCard(go, () => import('../tarjeta.js').then(m => m.abrirTarjeta())); },
   // v10.8: qué hace cada impresora ahora y filamento bajo
   taller() {
     const imps = (S.t.impresoras || []).filter(p => p.activa !== false);

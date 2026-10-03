@@ -34,11 +34,16 @@ export async function ensureCode(o) {
 export function findByCode(code) { code = codeFrom(code); return code ? (S.t.pedidos || []).find(o => o.codigo === code) || null : null; }
 
 // ---------- Plantillas con {marcadores} ----------
-export const MARCAS = [['cliente', 'nombre del cliente'], ['producto', 'producto'], ['pedido', 'nº de pedido'], ['codigo', 'código del paquete'], ['cantidad', 'unidades'], ['tienda', 'tu tienda'], ['transportista', 'transportista'], ['seguimiento', 'nº de seguimiento']];
+export const MARCAS = [['cliente', 'nombre del cliente'], ['producto', 'producto'], ['pedido', 'nº de pedido'], ['codigo', 'código del paquete'], ['cantidad', 'unidades'], ['tienda', 'tu tienda'], ['transportista', 'transportista'], ['seguimiento', 'nº de seguimiento'], ['total', 'importe total'], ['pago', 'forma de pago'], ['hasta', 'hasta cuándo se guarda']];
 export function ctxOf(o) {
   const em = emisor();
-  return { cliente: String(o.cliente || '').trim(), producto: String(o.producto || '').trim(), pedido: String(o.numero || ''), codigo: o.codigo || '', cantidad: String(o.cantidad || 1),
-    tienda: em.comercial || em.nombre || (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || '', transportista: o.envio || '', seguimiento: o.seguimiento || '' };
+  // v12.5: un pedido de la web con varias líneas es UN paquete: el total y los productos son los de todo el pedido
+  const g = CL.webGroup(o, S.t.pedidos).filter(x => CL.phaseOf(S.cfg.pedidos, x.estado) !== 'cancelado'), grupo = g.length ? g : [o];
+  const pw = CL.pagoWeb(o), hasta = pw.porWa ? CL.reservaHasta(grupo[0]) : null;
+  const eur2 = v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',') + ' €';
+  return { cliente: String(o.cliente || '').trim(), producto: grupo.length > 1 ? grupo.map(x => (Number(x.cantidad) > 1 ? x.cantidad + ' × ' : '') + x.producto).join(', ') : String(o.producto || '').trim(), pedido: String(o.numero || ''), codigo: o.codigo || '', cantidad: String(o.cantidad || 1),
+    tienda: em.comercial || em.nombre || (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || '', transportista: o.envio || '', seguimiento: o.seguimiento || '',
+    total: eur2(grupo.reduce((a, x) => a + CL.orderTotal(x), 0)), pago: pw.metodo, hasta: hasta ? hasta.toLocaleString('es-ES', { weekday: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '' };
 }
 // Rellena los marcadores. Lo que falta NO se inventa: queda marcado y se devuelve en «faltan».
 export function fill(text, ctx) {
@@ -339,16 +344,35 @@ export function attachDialog(o, after) {
   }, { cls: 'primary', icon: 'upload' })], { size: 'wide' });
 }
 
-// ---------- Mensaje para el cliente (idea 6): elegir, revisar y copiar ----------
+// ---------- Mensaje para el cliente (idea 6): elegir, revisar y copiar — v12.5: o abrir directo en WhatsApp ----------
+// Plantillas para los pedidos de la web que se cobran por WhatsApp (Bizum / efectivo). Se añaden a las tuyas si no existen.
+export const WA_PLANTILLAS = [
+  { k: 'wa_confirmar', t: '💬 Web: confirmar pedido y pago', texto: '¡Hola {cliente}! Soy de {tienda}. Hemos recibido tu pedido nº {pedido}: {producto}, total {total}. ¿Lo confirmamos? Pagarías por {pago}. Dime si la dirección de entrega es correcta y te paso los datos. 😊' },
+  { k: 'wa_cobrado', t: '💬 Web: pago recibido', texto: '¡Hola {cliente}! Pago recibido ✅ ({total}). Ya preparamos tu pedido nº {pedido}. Te aviso en cuanto salga. ¡Gracias por confiar en {tienda}!' },
+  { k: 'wa_recordatorio', t: '💬 Web: recordatorio, se acaba la reserva', texto: '¡Hola {cliente}! Tu pedido nº {pedido} ({producto}, {total}) sigue apartado, pero solo lo guardamos hasta el {hasta}. ¿Lo confirmamos por {pago}? Si ya no lo quieres, dímelo y lo liberamos. 🙏' }
+];
+export const plantillasMsg = () => { const ms = ecfg().mensajes || [], have = new Set(ms.map(m => m.k)); return ms.concat(WA_PLANTILLAS.filter(m => !have.has(m.k))); };
+export function tipoPorDefecto(o) {
+  const ph = CL.phaseOf(S.cfg.pedidos, o.estado), pw = CL.pagoWeb(o);
+  if (pw.porWa && ph === 'reserva') return 'wa_confirmar';
+  if (pw.porWa && ph === 'confirmado') return 'wa_cobrado';
+  return { enviado: 'enviado', entregado: 'gracias', listo: 'empaquetado', empaquetar: 'empaquetado' }[ph] || 'preparando';
+}
+export function telefonoDe(o) { const c = byId('clientes', o.clienteId) || (S.t.clientes || []).find(x => CL.norm(x.nombre) === CL.norm(o.cliente)); return (c && c.telefono) || ''; }
 export function messageDialog(o, kind) {
-  const ms = (ecfg().mensajes || []).length ? ecfg().mensajes : [];
-  const ph = CL.phaseOf(S.cfg.pedidos, o.estado);
-  const def = (ms.find(m => m.k === (kind || { enviado: 'enviado', entregado: 'gracias', listo: 'empaquetado', empaquetar: 'empaquetado' }[ph] || 'preparando')) || ms[0] || {}).k;
-  const pick = sel(ms.map(m => ({ v: m.k, t: m.t })), def), ta = area({ rows: 6 }), warn = h('p.small');
+  const ms = plantillasMsg();
+  const def = (ms.find(m => m.k === (kind || tipoPorDefecto(o))) || ms[0] || {}).k;
+  const pick = sel(ms.map(m => ({ v: m.k, t: m.t })), def), ta = area({ rows: 6 }), warn = h('p.small'), tel = telefonoDe(o), phone = CL.waPhone(tel);
   const upd = () => { const m = ms.find(x => x.k === pick.value) || {}; const r = fill(m.texto, ctxOf(o)); ta.value = r.texto; mount(warn, r.faltan.length ? h('span.warn-t', '⚠️ Falta: ' + r.faltan.map(k => (MARCAS.find(x => x[0] === k) || [k, k])[1]).join(', ') + '. Complétalo antes de enviarlo (no se inventa).') : h('span.ok-t', '✓ Todo relleno con los datos del pedido.')); };
   pick.onchange = upd; upd();
-  modal('💬 Mensaje para ' + (o.cliente || 'el cliente') + ' · nº ' + o.numero, h('div.col', field('Plantilla', pick), ta, warn, h('p.tiny.muted', 'Se copia para pegarlo en Vinted, Wallapop, WhatsApp… El programa no lo envía solo. Las plantillas se cambian en Embalaje → Tarjeta y mensajes.')),
-    close => [btn('Cerrar', close), btn('Copiar', () => { copyText(ta.value); }, { cls: 'primary', icon: 'copy' })], { size: 'narrow' });
+  const abrir = async () => {
+    const url = CL.waLink(tel, ta.value);
+    if (!url) return toast('Este cliente no tiene un teléfono válido. Añádelo en su ficha o copia el mensaje.', 'warn', 6000);
+    const { desktop } = await import('./desktop.js'); desktop.openUrl(url);
+  };
+  modal('💬 Mensaje para ' + (o.cliente || 'el cliente') + ' · nº ' + o.numero, h('div.col', field('Plantilla', pick), ta, warn,
+    h('p.tiny.muted', phone ? 'WhatsApp se abre con el mensaje escrito para +' + phone + '. Tú lo revisas y pulsas enviar: el programa no lo envía solo.' : '⚠️ Este cliente no tiene teléfono en su ficha, así que solo puedes copiar el mensaje. Las plantillas se cambian en Embalaje → Tarjeta y mensajes.')),
+    close => [btn('Cerrar', close), btn('Copiar', () => { copyText(ta.value); }, { icon: 'copy' }), btn('Abrir en WhatsApp', abrir, { cls: 'primary', icon: 'msg' })], { size: 'narrow' });
 }
 
 // ---------- v11.7 · La etiqueta de envío vive en el PEDIDO (crear, ver, sustituir) ----------

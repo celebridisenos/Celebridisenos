@@ -499,7 +499,7 @@ var CL = (function () {
     function get(name) {
       var k = norm(name);
       if (!k) return null;
-      if (!by[k]) { by[k] = { producto: s(name).trim(), clave: k, fabricado: 0, enviado: 0, reservado: 0, pedidosAbiertos: 0, movimientos: 0, minimo: 0, ubicacion: '', notas: '', fila: false, productoId: '' }; list.push(by[k]); }
+      if (!by[k]) { by[k] = { producto: s(name).trim(), clave: k, fabricado: 0, enviado: 0, reservado: 0, enFabricacion: 0, pedidosAbiertos: 0, movimientos: 0, minimo: 0, ubicacion: '', notas: '', fila: false, productoId: '' }; list.push(by[k]); }
       return by[k];
     }
     (data.productos || []).forEach(function (p) { var x = get(p.nombre); if (x) { x.productoId = p.id; x.producto = s(p.nombre).trim(); } });
@@ -512,10 +512,20 @@ var CL = (function () {
       var q = n(o.cantidad) || 1;
       if (st.shipped) x.enviado += q; else { x.reservado += q; x.pedidosAbiertos++; }
     });
+    // En fabricación: piezas de impresiones EN COLA o IMPRIMIENDO (aún no están en la estantería; al terminar pasan a «fabricado»)
+    var pById = {}, oById = {};
+    (data.productos || []).forEach(function (p) { pById[p.id] = p; });
+    (data.pedidos || []).forEach(function (o) { oById[o.id] = o; });
+    (data.trabajos || []).forEach(function (j) {
+      if (j.estado !== 'En cola' && j.estado !== 'Imprimiendo') return;
+      var p = j.productoId ? pById[j.productoId] : null, o = j.pedidoId ? oById[j.pedidoId] : null;
+      var x = get(p ? p.nombre : o ? o.producto : ''); if (x) x.enFabricacion += Math.max(0, Math.round(n(j.cantidad) || 1));
+    });
     list.forEach(function (x) {
       x.fisico = x.fabricado - x.enviado;
       x.disponible = x.fisico - x.reservado;
       x.controlado = x.fila || x.movimientos > 0;
+      x.porFabricar = Math.max(0, -x.disponible - x.enFabricacion); // lo que falta y aún NO está en marcha
       x.estado = !x.controlado ? 'sin' : x.disponible < 0 ? 'faltan' : x.disponible === 0 ? 'agotado' : (x.minimo > 0 && x.disponible <= x.minimo) ? 'bajo' : 'ok';
       x.bajo = x.controlado && (x.disponible < 0 || (x.minimo > 0 && x.disponible <= x.minimo) || (x.disponible === 0 && x.minimo > 0));
     });
@@ -1301,6 +1311,16 @@ var CL = (function () {
     R.texto = R.estado === 'perdida' ? '🔴 Con este precio PIERDES ' + eurTxt(-R.beneficio) + ' por unidad.' : R.estado === 'bajo' ? '⚠️ Margen por debajo del límite configurado: ganas ' + eurTxt(R.beneficio) + ' por unidad (' + Math.round(R.margen * 100) + ' %, tu mínimo es ' + Math.round(minM * 100) + ' %).' : '🟢 Ganas ' + eurTxt(R.beneficio) + ' por unidad (' + Math.round(R.margen * 100) + ' %)' + (minM === null ? ' · sin margen mínimo configurado' : '') + '.';
     return R;
   }
+  // Margen de CADA producto publicado con el descuento web aplicado al precio (para no vender con pérdidas por sorpresa)
+  function webDiscountAnalysis(pct, data, cfg) {
+    pct = n(pct); var out = [];
+    ((data || {}).productos || []).forEach(function (p) {
+      var w = p.web && typeof p.web === 'object' ? p.web : {}; if (!w.publicado) return;
+      var base = n(w.precio) || n(p.precio), pw = r2(base * (1 - pct / 100)), m = webMargin(p, pw, data, cfg);
+      out.push({ productoId: p.id, nombre: p.nombre, precio: r2(base), precioWeb: pw, estado: m.estado, margen: m.margen === undefined ? null : m.margen, beneficio: m.beneficio === undefined ? null : m.beneficio, texto: m.estado === 'sin_datos' ? 'sin coste registrado (Coste pendiente).' : m.texto.replace(/^[^ ]+ /, '') });
+    });
+    return out;
+  }
   // Oportunidades para la tienda (marketing con datos reales). Nada se inventa: cada punto dice de dónde sale.
   function webOpportunities(data, cfg, hoy) {
     data = data || {}; cfg = cfg || {}; hoy = hoy || today();
@@ -1385,12 +1405,61 @@ var CL = (function () {
     var meta = n(o.meta) || 0;
     return { valor: v, meta: meta, pct: meta ? Math.min(1, v / meta) : 0, hecho: meta > 0 && v >= meta, desde: from, hasta: hoy };
   }
-  return { RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
+  // ================= v12.5 · Pedidos «por WhatsApp»: teléfono, enlace y reservas por caducar =================
+  // Teléfono → solo dígitos con prefijo de país (España +34 si es un móvil/fijo de 9 cifras). '' si no parece un teléfono.
+  function waPhone(tel) {
+    var t = s(tel).replace(/[^\d+]/g, '');
+    if (!t) return '';
+    if (t.charAt(0) === '+') t = t.substring(1); else if (t.indexOf('00') === 0) t = t.substring(2); else if (/^[6789]\d{8}$/.test(t)) t = '34' + t;
+    t = t.replace(/\D/g, '');
+    return t.length >= 9 && t.length <= 15 ? t : '';
+  }
+  function waLink(tel, texto) { var p = waPhone(tel); return p ? 'https://wa.me/' + p + '?text=' + encodeURIComponent(s(texto)) : ''; }
+  // ¿Es un pedido de la web que se paga por WhatsApp (Bizum/efectivo)? La forma de pago la deja escrita la importación en las notas.
+  function pagoWeb(o) {
+    var m = s(o && o.notas).match(/POR WHATSAPP: cobro pendiente \((Bizum|efectivo)\)/i);
+    return o && o.refWeb && m ? { porWa: true, metodo: m[1].toLowerCase() === 'efectivo' ? 'efectivo' : 'Bizum' } : { porWa: false, metodo: '' };
+  }
+  // Todas las líneas del mismo pedido web (un paquete); si no es de la web, solo el propio pedido.
+  function webGroup(o, pedidos) {
+    if (!o || !o.refWeb) return o ? [o] : [];
+    var g = (pedidos || []).filter(function (x) { return x.refWeb === o.refWeb; });
+    return g.length ? g : [o];
+  }
+  var RESERVA_H = 48, AVISO_H = 36, OLVIDO_DIAS = 14;
+  // Hora a la que la tienda libera lo apartado (48 h desde que se recibió el pedido). '' si no se sabe cuándo se recibió.
+  function reservaHasta(o, horas) {
+    var web = s(o && o.notas).match(/🕒 web (\d{4}-\d{2}-\d{2}T[\d:.]+Z?)/);   // hora real en que el cliente hizo el pedido en la web
+    var ms = Date.parse(web ? web[1] : s(o && o.creado)); if (!isFinite(ms)) return null;
+    return new Date(ms + (horas || RESERVA_H) * 3600000);
+  }
+  // Pedidos «por WhatsApp» que siguen sin confirmar (fase «reserva») y están a punto de caducar o ya caducaron.
+  // Un pedido web con varias líneas cuenta una sola vez. Orden: primero los más urgentes.
+  function reservasPorCaducar(pedidos, cfgPedidos, ahoraMs, opts) {
+    opts = opts || {}; ahoraMs = ahoraMs || Date.now();
+    var reserva = opts.reservaH || RESERVA_H, aviso = opts.avisoH || AVISO_H, vistos = {}, out = [];
+    (pedidos || []).forEach(function (o) {
+      if (!o.refWeb || vistos[o.refWeb] || !pagoWeb(o).porWa) return;
+      var g = webGroup(o, pedidos);
+      var vivas = g.filter(function (x) { return phaseOf(cfgPedidos, x.estado) !== 'cancelado'; });
+      if (!vivas.length || !vivas.every(function (x) { return phaseOf(cfgPedidos, x.estado) === 'reserva'; })) return;
+      vistos[o.refWeb] = true;
+      var hasta = reservaHasta(g[0], reserva); if (!hasta) return;
+      var restante = (hasta.getTime() - ahoraMs) / 3600000;
+      if (restante > reserva - aviso) return;                 // aún queda tiempo
+      if (restante < -24 * OLVIDO_DIAS) return;               // muy antigua: no se insiste
+      out.push({ refWeb: o.refWeb, pedidos: vivas, primero: vivas[0], horas: restante, vencida: restante <= 0, hasta: hasta, total: vivas.reduce(function (a, x) { return a + orderTotal(x); }, 0), metodo: pagoWeb(o).metodo });
+    });
+    out.sort(function (a, b) { return a.horas - b.horas; });
+    return out;
+  }
+  return { RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
     finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
-    clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches };
+    clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,
+    waPhone: waPhone, waLink: waLink, pagoWeb: pagoWeb, webGroup: webGroup, reservaHasta: reservaHasta, reservasPorCaducar: reservasPorCaducar };
 })();
 if (typeof module !== 'undefined') module.exports = CL;

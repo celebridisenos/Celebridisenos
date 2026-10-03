@@ -12,8 +12,10 @@ const CL = window.CL;
 const VIEWS = {
   inicio: () => import('./views/home.js'),
   hoy: () => import('./views/hoy.js'),
+  tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller
   pedidos: () => import('./views/pedidos.js'),
   clientes: () => import('./views/clientes.js'),
+  universo: () => import('./views/universo.js'), // v12.7: galaxia 3D de clientes
   productos: () => import('./views/productos.js'),
   catalogo: () => import('./views/catalogo.js'),
   gastos: () => import('./views/gastos.js'),
@@ -42,10 +44,12 @@ const VIEWS = {
 export const NAV = [
   { k: 'inicio', t: 'Inicio', i: 'home' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
+  { k: 'tv', t: 'Pantalla TV del taller', i: 'play', p: 'pedidos.ver' }, // v12.3
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
   { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje
   { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
+  { k: 'universo', t: 'Universo ✨', i: 'sparkles', p: 'clientes.ver' }, // v12.7
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
@@ -82,6 +86,7 @@ async function route() {
   const { name, params } = parseHash();
   // v11: QR universal → #/q/<tipo>/<id> abre directamente la ficha
   if (name === 'q' && params[0] === 'ceb') return go('escanear/' + encodeURIComponent(params[1] || '')); // v11.6: QR del paquete
+  if (name === 'q' && params[0] === 'mesa') return go({ escanear: 'escanear/camara', empaquetar: 'embalaje', hoy: 'hoy' }[params[1]] || 'inicio'); // v12.2: QR de la mesa de trabajo
   if (name === 'q') { const T = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes', factura: 'facturas', stock: 'stock', caja: 'stock', presupuesto: 'presupuestos' }; const t = T[params[0]]; return go(t ? t + '/' + encodeURIComponent(params[1] || '') : 'inicio'); }
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
@@ -300,9 +305,40 @@ onQueueFailure((x, err) => {
   else toast('No se pudo guardar "' + x.label + '" (hecho sin conexión): ' + err.msg, 'bad', 10000);
 });
 
+// v12.3: Ctrl+K también EJECUTA acciones (solo las que tu rol permite). Escribe «>» para ver solo acciones.
+export function accionesPaleta() {
+  const nav = (t, ic, path, perm, kw) => ({ t, ic, path, perm, kw: kw || '' });
+  const fn = (t, ic, run, perm, kw, sub) => ({ t, ic, fn: run, perm, kw: kw || '', sub });
+  const lista = [
+    nav('Nuevo pedido', 'plus', 'pedidos/nuevo', 'pedidos.crear', 'crear añadir venta'),
+    nav('Nuevo producto', 'plus', 'productos/nuevo', 'productos.editar', 'crear añadir'),
+    nav('Nueva tarea', 'plus', 'tareas/nueva', 'tareas.crear', 'crear añadir'),
+    nav('Nuevo cliente', 'plus', 'clientes/nuevo', 'clientes.editar', 'crear añadir'),
+    nav('Ir a Inicio', 'home', 'inicio', '', 'panel resumen'),
+    nav('Universo: mis clientes como estrellas', 'sparkles', 'universo', 'clientes.ver', 'galaxia 3d gráfico wow estrellas clientes'),
+    nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
+    fn('Modo taller (botones grandes)', 'play', () => { try { localStorage.setItem('cd.operario', '1'); } catch (e) { } document.body.classList.add('operario'); go('hoy'); }, 'pedidos.ver', 'operario tablet'),
+    nav('Pantalla TV del taller', 'play', 'tv', 'pedidos.ver', 'televisión monitor panel pared'),
+    nav('Escanear paquete', 'qr', 'escanear/camara', 'pedidos.ver', 'qr cámara lector empaquetar'),
+    nav('Ir a Embalaje', 'box', 'embalaje', 'pedidos.ver', 'cajas paquete'),
+    nav('Ir a Stock', 'box', 'stock', 'productos.ver', 'existencias inventario'),
+    nav('Ir a Impresión (impresoras y etiquetas)', 'printer', 'taller', 'taller.ver', 'cola bambu filamento'),
+    nav('Ir a Facturas', 'archive', 'facturas', 'facturas.emitir', ''),
+    nav('Ir a Informes', 'chart', 'informes', 'informes.ver', 'ventas beneficios'),
+    nav('Ir a Tienda web', 'store', 'tienda', 'tienda.gestionar', 'stripe publicar'),
+    nav('Ir a Configuración', 'settings', 'config', '', 'ajustes opciones'),
+    nav('Ir a Estado del sistema', 'shield', 'estado', 'config.ver', 'diagnóstico copia seguridad'),
+    fn('Tarjeta de resultados para redes', 'camera', () => import('./tarjeta.js').then(m => m.abrirTarjeta()), 'pedidos.ver', 'instagram imagen compartir resumen'),
+    fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),
+    fn('Tema oscuro / claro', 'sparkles', () => { const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
+    fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),
+    fn('Cerrar sesión', 'logout', async () => { await logout(); start(); }, '', 'salir')
+  ];
+  return lista.filter(a => !a.perm || can(a.perm));
+}
 // ---------- Buscador global (Ctrl+K) ----------
 export function palette(initial) {
-  const q = h('input.inp', { placeholder: 'Busca: nº de pedido, cliente, producto, seguimiento, tarea, noticia, archivo…', value: initial || '', 'aria-label': 'Buscar' });
+  const q = h('input.inp', { placeholder: 'Busca un pedido, cliente, producto… o escribe > para acciones (tarjeta para redes, pantalla TV, voz…)', value: initial || '', 'aria-label': 'Buscar' });
   const res = h('div.res');
   let items = [], sel = 0;
   const m = modal('Buscar', h('div', q, res), null, { size: 'palette' });
@@ -312,7 +348,13 @@ export function palette(initial) {
   const run = () => {
     const s = q.value.trim().replace(/^#/, '');
     items = [];
-    if (s.length >= 1) {
+    const todas = accionesPaleta(), modoAcc = q.value.trim().startsWith('>');
+    const ac = (a, grp) => ({ grp, ic: a.ic, t: a.t, sub: a.sub || '', path: a.path, fn: a.fn });
+    if (modoAcc) {
+      const t = q.value.trim().slice(1).trim();
+      todas.filter(a => !t || CL.matches(a.t + ' ' + a.kw, t)).slice(0, 30).forEach(a => items.push(ac(a, 'Acciones')));
+    } else if (s.length >= 1) {
+      todas.filter(a => s.length >= 2 && CL.matches(a.t + ' ' + a.kw, s)).slice(0, 4).forEach(a => items.push(ac(a, 'Acciones')));
       const add = (grp, ic, t, sub, path) => items.push({ grp, ic, t, sub, path });
       const match = (hay) => CL.matches(hay, s);
       if (can('pedidos.ver')) S.t.pedidos.filter(o => match([o.numero, o.cliente, o.producto, o.seguimiento, o.notas, o.personalizacion, o.canal].join(' '))).slice(-15).reverse().forEach(o => add('Pedidos', 'truck', 'Pedido nº ' + o.numero + ' · ' + o.cliente, o.producto + ' · ' + o.estado + (o.seguimiento ? ' · ' + o.seguimiento : ''), 'pedidos/' + o.id));
@@ -329,26 +371,27 @@ export function palette(initial) {
       if (can('informes.ver')) [['Informe de ventas', 'informes'], ['Informe de productos y márgenes', 'informes'], ['Informe de clientes', 'informes'], ['Centro de inteligencia', 'inicio']].filter(x => match(x[0])).forEach(x => add('Informes', 'chart', x[0], '', x[1]));
       if (s.length >= 4 && can('ia.usar')) import('./ai/rag.js').then(r => r.search(s, { k: 3 })).then(list => { if (!list.length || q.value.trim().replace(/^#/, '') !== s) return; list.forEach(d => items.push({ grp: 'En la biblioteca (búsqueda inteligente)', ic: 'sparkles', t: d.titulo + (d.seccion ? ' › ' + d.seccion : ''), sub: d.texto.slice(0, 90) + '…', path: 'ia/biblioteca' })); draw(); }).catch(() => { });
     } else {
-      [['Nuevo pedido', 'plus', 'pedidos/nuevo', 'pedidos.crear'], ['Nuevo producto', 'plus', 'productos/nuevo', 'productos.editar'], ['Nueva tarea', 'plus', 'tareas/nueva', 'tareas.crear'], ['Preguntar a la IA', 'sparkles', 'ia', 'ia.usar']]
-        .filter(x => can(x[3])).forEach(x => items.push({ grp: 'Acciones rápidas', ic: x[1], t: x[0], sub: '', path: x[2] }));
+      todas.slice(0, 9).forEach(a => items.push(ac(a, 'Acciones rápidas')));
+      if (todas.length > 9) items.push({ grp: 'Acciones rápidas', ic: 'search', t: 'Ver todas las acciones…', sub: 'Escribe > para verlas todas', fn: () => { q.value = '>'; run(); } , keep: true });
     }
     sel = 0;
     draw();
   };
+  const exec = it => { if (it.keep) return it.fn(); m.close(); if (it.fn) { try { const r = it.fn(); if (r && r.catch) r.catch(handleError); } catch (e) { handleError(e); } } else go(it.path); };
   const draw = () => {
     clear(res);
     if (!items.length) { res.appendChild(h('div.empty', h('p', q.value ? 'Nada encontrado con "' + q.value + '".' : ''))); return; }
     let last = '';
     items.forEach((it, i) => {
       if (it.grp !== last) { res.appendChild(h('div.grp-t', it.grp)); last = it.grp; }
-      res.appendChild(h('div.it' + (i === sel ? '.on' : ''), { onclick: () => { m.close(); go(it.path); } }, icon(it.ic), h('div.grow', h('div.bold.ellipsis', it.t), it.sub ? h('div.tiny.muted.ellipsis', it.sub) : null)));
+      res.appendChild(h('div.it' + (i === sel ? '.on' : ''), { onclick: () => exec(it) }, icon(it.ic), h('div.grow', h('div.bold.ellipsis', it.t), it.sub ? h('div.tiny.muted.ellipsis', it.sub) : null)));
     });
   };
   q.addEventListener('input', debounce(run, 80));
   q.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, items.length - 1); draw(); e.preventDefault(); }
     if (e.key === 'ArrowUp') { sel = Math.max(sel - 1, 0); draw(); e.preventDefault(); }
-    if (e.key === 'Enter' && items[sel]) { m.close(); go(items[sel].path); }
+    if (e.key === 'Enter' && items[sel]) exec(items[sel]);
   });
   run();
   setTimeout(() => q.focus(), 30);
@@ -368,10 +411,11 @@ let lastAct = Date.now(), locked = false;
 setInterval(() => {
   if (!S.me || locked || !S.cfg) return;
   const mins = Number(S.cfg.seguridad.bloqueoMin) || 0;
-  if (!mins) return; // por defecto no se bloquea: la sesión queda abierta en tu dispositivo
+  if (!mins || document.body.classList.contains('tv-on')) return; // por defecto no se bloquea: la sesión queda abierta en tu dispositivo (y la pantalla TV del taller nunca se bloquea)
   if (Date.now() - lastAct > mins * 60000) lockScreen();
 }, 20000);
 function lockScreen() {
+  if (locked) return;
   locked = true;
   const p = inp({ type: 'password', placeholder: 'Tu contraseña', autocomplete: 'current-password' });
   const msg = h('p.bad-t');
@@ -387,6 +431,8 @@ function lockScreen() {
   document.body.appendChild(o);
   setTimeout(() => p.focus(), 50);
 }
+
+window.__lockScreen = lockScreen; // (también lo usan las pruebas)
 
 // ---------- Tema ----------
 // v11.8: temas · normales para todo el equipo y PREMIUM para administradoras (preparado para añadir más)
@@ -429,12 +475,12 @@ export async function start() {
   applyTheme();
   buildShell();
   onStatus(() => updateSync());
-  if (!unsub) unsub = on(debounce(() => { refreshShell(); if (current.view && current.view.update) current.view.update(); }, 60));
+  if (!unsub) unsub = on(debounce(() => { if (!S.me || !shell) return; /* v12.2: tras cerrar sesión no se repinta nada (daba errores) */ refreshShell(); if (current.view && current.view.update) current.view.update(); }, 60));
   route();
   window.__appStarted = true;
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
-  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); });
+  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); setTimeout(warmUp, 6000); }
 }

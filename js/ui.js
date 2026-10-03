@@ -230,9 +230,9 @@ export function promptDlg(title, label, value, opts = {}) {
 
 // ---------- Avisos ----------
 let toastBox;
-export function toast(text, kind, ms) {
+export function toast(text, kind, ms, action) {
   if (!toastBox) { toastBox = h('div.toasts', { role: 'status', 'aria-live': 'polite' }); document.body.appendChild(toastBox); }
-  const t = h('div.toast' + (kind ? '.' + kind : ''), h('span', text), h('button.x', { 'aria-label': 'Cerrar', onclick: () => t.remove() }, '✕'));
+  const t = h('div.toast' + (kind ? '.' + kind : ''), h('span', text), action ? h('button.btn.sm.ghost', { onclick: () => { t.remove(); action.on(); } }, action.t) : null, h('button.x', { 'aria-label': 'Cerrar', onclick: () => t.remove() }, '✕'));
   toastBox.appendChild(t);
   setTimeout(() => t.remove(), ms || (kind === 'bad' ? 7000 : 3500));
 }

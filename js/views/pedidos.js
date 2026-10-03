@@ -543,15 +543,20 @@ export function orderForm(o, duplicate) {
     try {
       if (isNew) {
         const id = uid('o');
-        const r = await mutate('pedidos.guardar', { id, datos }, { label: 'Nuevo pedido de ' + datos.cliente, tables: ['pedidos'], optimistic: t => t.pedidos.push(Object.assign({ id, numero: datos.numero || '(pendiente)', estado: CL.stateOfPhase(S.cfg.pedidos, 'confirmado') || 'Confirmado', creado: new Date().toISOString(), creadoPor: S.me.nombre, version: 0 }, datos)) });
-        if (r && r.id) { upsertLocal('pedidos', r); emit(); }
-        close();
-        toast(r && r.queued ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : 'Pedido nº ' + r.numero + ' creado', r && r.queued ? 'warn' : 'ok');
-        if (r && r.id) setTimeout(() => profitWarn(byId('pedidos', id)), 1200);
         const lf = labelFile.files && labelFile.files[0];
+        // v12.2: la ventana se cierra YA (el pedido ya se ve en la lista) y el envío al servidor sigue detrás; antes esperaba
+        // 2–5 s con la ventana abierta y parecía que no había hecho nada. Si falla, se vuelve a abrir con todo lo escrito.
+        close();
+        let r;
+        try {
+          r = await mutate('pedidos.guardar', { id, datos }, { label: 'Nuevo pedido de ' + datos.cliente, tables: ['pedidos'], optimistic: t => t.pedidos.push(Object.assign({ id, numero: datos.numero || '(pendiente)', estado: CL.stateOfPhase(S.cfg.pedidos, 'confirmado') || 'Confirmado', creado: new Date().toISOString(), creadoPor: S.me.nombre, version: 0 }, datos)) });
+        } catch (e) { if (e.code === 'PERM') handleError(e, 'pedidos'); else toast('No se pudo crear el pedido: ' + e.message + ' Tus datos siguen en el formulario.', 'bad', 9000); orderForm(datos); return; }
+        if (r && r.id) { upsertLocal('pedidos', r); emit(); }
+        toast(r && r.queued ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : 'Pedido nº ' + r.numero + ' creado', r && r.queued ? 'warn' : 'ok', 6000, r && r.id ? { t: 'Abrir', on: () => go('pedidos/' + id) } : null);
+        if (r && r.id) setTimeout(() => profitWarn(byId('pedidos', id)), 1200);
         if (lf && r && r.id && !r.queued) EV.attachFile(byId('pedidos', id) || r, lf, { transportista: datos.envio || '' }).then(() => toast('🏷️ Etiqueta de envío adjuntada', 'ok')).catch(e => toast('El pedido se ha creado, pero la etiqueta no se pudo adjuntar: ' + e.message + '. Adjúntala desde el pedido.', 'warn', 9000));
         else if (lf) toast('Sin conexión: adjunta la etiqueta desde el pedido cuando vuelva la conexión.', 'warn', 8000);
-        go('pedidos/' + id);
+        if (location.hash.startsWith('#/pedidos/nuevo')) go('pedidos');
       } else {
         const ch = {}; Object.keys(datos).forEach(k => { const a = datos[k], b0 = o[k]; if (typeof a === 'object' ? JSON.stringify(a || []) !== JSON.stringify(b0 || []) : String(a ?? '') !== String(b0 ?? '')) ch[k] = a; });
         if (!Object.keys(ch).length) { close(); return; }

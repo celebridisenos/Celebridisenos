@@ -17,6 +17,7 @@ export const TEMPLATES = {
   producto: { t: 'Producto', w: 50, h: 30, d: 'nombre, SKU, precio y QR' },
   almacen: { t: 'Almacén / caja', w: 100, h: 50, d: 'ubicación grande y QR del stock' },
   qr: { t: 'QR', w: 40, h: 40, d: 'QR universal: abre la ficha al escanearlo' },
+  mesa: { t: 'QR de la mesa de trabajo', w: 100, h: 100, d: 'QR grande para pegar en la mesa: al escanearlo con el móvil abre Escanear paquete / Empaquetar / Hoy' },
   // v11.6 · EMPAQUETAR
   oficial: { t: 'Etiqueta de envío oficial', w: 100, h: 150, d: 'la de Vinted, Correos, InPost…: la adjuntas y sale tal cual (nunca se inventa)' },
   paquete: { t: 'Código del paquete', w: 50, h: 50, d: 'QR + código interno CEB + nº de pedido: se escanea al empaquetar' },
@@ -61,7 +62,7 @@ export function pickPrinter(tpl, list, c) {
   const byName = n => n && real.find(p => p.name === n);
   const lab = byName(v.etiquetas) || on.find(p => p.label && p.label4x6) || on.find(p => p.label);
   const sheet = byName(v.folios) || on.find(p => p.default && !p.label) || on.find(p => !p.label);
-  if (tpl === 'envio' || tpl === 'oficial') return lab || sheet || null;
+  if (tpl === 'envio' || tpl === 'oficial' || tpl === 'mesa') return lab || sheet || null;
   if (tpl === 'tarjetas') return sheet || null; // nunca a la de etiquetas
   // v11.6: código del paquete y tarjeta de gracias (50 × 50): mejor una de etiquetas con ese papel; si no, la de etiquetas
   if (tpl === 'paquete' || tpl === 'gracias') {
@@ -75,6 +76,13 @@ const dpiOf = p => (p && p.label ? 203 : 300);
 const isSheet = (p, s) => !!p && !p.label && (p.a4 || !(p.papers || []).some(x => Math.abs(Math.min(x.wmm, x.hmm) - Math.min(s.w, s.h)) <= 4 && Math.abs(Math.max(x.wmm, x.hmm) - Math.max(s.w, s.h)) <= 6));
 
 // ---------- QR universal ----------
+// v12.2 · QR de la MESA DE TRABAJO: se pega una vez y, con la cámara del móvil, abre directamente cada pantalla
+export const MESA = [
+  { id: 'escanear', t: 'ESCANEAR PAQUETE', d: 'Abre la cámara para leer el QR del paquete' },
+  { id: 'empaquetar', t: 'EMPAQUETAR', d: 'Pedidos que esperan caja y etiquetas' },
+  { id: 'hoy', t: 'HOY', d: 'Qué fabricar, preparar y enviar hoy' }
+];
+export const mesaData = a => ({ qr: qrLink('mesa', a.id), titulo: a.t, ref: { entidad: 'mesa', id: a.id } });
 export function qrLink(tipo, id) { const b = appUrl(); return b ? b + '#/q/' + tipo + '/' + encodeURIComponent(id) : ''; }
 
 // ---------- Dibujo ----------
@@ -211,9 +219,9 @@ export function draw(tpl, d, dpi, size) {
     centered(g, F, k, d, y, cw, W, sz, false);
     if (qs) qr(g, d.qr, ((W - qs) / 2) * k, (H - m - qs) * k, qs * k);
   } else { // qr
-    const cap = d.titulo ? 7 : 0, qs = Math.min(W, H - cap) - 2 * m + 1;
+    const cap = d.titulo ? (H >= 90 ? 13 : 7) : 0, qs = Math.min(W, H - cap) - 2 * m + 1;
     qr(g, d.qr, ((W - qs) / 2) * k, (m - 1) * k, qs * k);
-    if (d.titulo) { g.textAlign = 'center'; g.font = F(H < 45 ? 7 : 9, 700); const l = wrap(g, d.titulo, (W - 2 * m) * k)[0]; g.fillText(l, (W / 2) * k, (H - cap + 0.5) * k); g.textAlign = 'left'; }
+    if (d.titulo) { g.textAlign = 'center'; g.font = F(H < 45 ? 7 : H >= 90 ? 18 : 9, 700); const l = wrap(g, d.titulo, (W - 2 * m) * k)[0]; g.fillText(l, (W / 2) * k, (H - cap + (H >= 90 ? 3 : 0.5)) * k); g.textAlign = 'left'; }
   }
   return c;
 }
