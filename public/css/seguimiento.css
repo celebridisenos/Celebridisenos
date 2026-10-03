@@ -1,0 +1,21 @@
+/* ---------- Seguimiento del pedido (v1.4) ---------- */
+.seg-intro { text-align: center; padding: 28px 0 8px; } .seg-intro h1 { margin: 0 0 6px; font-size: clamp(26px, 5vw, 38px); }
+.seg-form { max-width: 460px; margin: 18px auto; display: grid; gap: 12px; }
+.seg-form label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
+.seg-form input { border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; font-weight: 400; background: #fff; min-height: 48px; }
+.seg-form input:focus-visible { outline: 3px solid color-mix(in srgb, var(--acc) 40%, transparent); border-color: var(--acc); }
+.seg-out { max-width: 640px; margin: 8px auto 0; }
+.seg-wrap h1 { margin: 24px 0 4px; font-size: clamp(22px, 4.5vw, 32px); } .seg-wrap .num { font-variant-numeric: tabular-nums; color: var(--acc); word-break: break-all; }
+.seg { background: var(--bg-2); border-radius: 20px; padding: 20px; margin: 14px 0; display: grid; gap: 16px; }
+.seg-cab { display: flex; gap: 14px; align-items: center; } .seg-cab p { margin: 2px 0 0; color: var(--ink-2); } .seg-cab b { font-size: 20px; }
+.seg-ic { font-size: 34px; width: 62px; height: 62px; display: grid; place-items: center; background: #fff; border-radius: 50%; box-shadow: var(--sh); flex: none; }
+.seg-pasos { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 0; padding: 0; position: relative; }
+.seg-pasos li { display: grid; justify-items: center; gap: 6px; text-align: center; font-size: 12px; color: var(--muted); position: relative; }
+.seg-pasos li::before { content: ""; position: absolute; top: 18px; left: -50%; width: 100%; height: 3px; background: var(--line); z-index: 0; } .seg-pasos li:first-child::before { display: none; }
+.seg-pasos li.hecho::before, .seg-pasos li.ahora::before { background: var(--acc); }
+.seg-pasos .pt { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #fff; border: 2px solid var(--line); font-size: 16px; position: relative; z-index: 1; }
+.seg-pasos li.hecho .pt { background: var(--acc); border-color: var(--acc); color: var(--acc-ink); font-weight: 800; }
+.seg-pasos li.ahora .pt { border-color: var(--acc); box-shadow: 0 0 0 5px color-mix(in srgb, var(--acc) 25%, transparent); } .seg-pasos li.ahora { color: var(--ink); font-weight: 700; }
+.seg-env { display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; background: #fff; } .seg-env small { color: var(--muted); display: block; } .seg-env .cod { font-size: 20px; letter-spacing: .04em; word-break: break-all; }
+.seg-env .botones { display: flex; gap: 8px; flex-wrap: wrap; } .btn.sm { min-height: 40px; padding: 0 14px; font-size: 14px; }
+.tiny { font-size: 12.5px; } @media (prefers-reduced-motion: no-preference) { .seg-pasos li.ahora .pt { animation: latido 2.4s ease-in-out infinite; } } @keyframes latido { 50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--acc) 10%, transparent); } }

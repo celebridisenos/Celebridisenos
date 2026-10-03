@@ -1,16 +1,23 @@
-## Hi there 👋
+# CelebriDiseños · Tienda web
 
-<!--
-**celebridisenos/Celebridisenos** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Tienda online **independiente** del programa interno. Funciona con Cloudflare Pages, Pages Functions (API segura) y D1. No tiene dependencias ni librerías externas.
 
-Here are some ideas to get you started:
+- `public/`: la web (portada, ficha, cesta, compra, gracias, quiénes somos, envíos, textos legales).
+- `functions/`: puntos de entrada de Cloudflare: `/api/*`, `/p/<producto>`, `/sitemap.xml` y `/robots.txt`.
+- `src/`:
+  - `api.js`: la API segura;
+  - `seguridad.js`: firmas HMAC, nonces, límites y registro;
+  - `logica.js`: precios, envíos y validación;
+  - `campanas.js`: campañas y promociones reales;
+  - `pago.js`: Stripe Checkout;
+  - `paginas.js`: fichas para buscadores.
+- `schema.sql`: la base de datos D1.
+- `test/`: pruebas.
+  - `node test/api.test.js`: API y seguridad;
+  - `node test/e2e.test.js`: navegador real, con el pago de Stripe SIMULADO;
+  - `node test/servidor.js`: tienda local de prueba.
+- `docs/DESPLIEGUE.md`: cómo publicarla paso a paso sin instalar nada.
+- `docs/SEGURIDAD.md`: la frontera de datos y las protecciones.
+- `COSTES_DEL_SISTEMA.md`: qué es gratis, qué se paga por uso, qué costaría al crecer y qué es opcional.
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+**Descuentos:** solo existen si se crea una **promoción real** desde el programa (Tienda web → ✨ Campañas). Sin campaña activa no hay precios tachados, porcentajes ni contadores.

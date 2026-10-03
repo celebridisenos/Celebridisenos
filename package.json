@@ -1,0 +1,11 @@
+{
+  "name": "celebridisenos-tienda",
+  "version": "1.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Tienda web de CelebriDiseños (Cloudflare Pages + Pages Functions + D1). Sin dependencias.",
+  "scripts": {
+    "test": "node test/api.test.js && node test/reservas.test.js && node test/seguridad.test.js && node test/seguimiento.test.js && node test/whatsapp.test.js",
+    "dev": "node test/servidor.js"
+  }
+}
