@@ -1041,3 +1041,21 @@ body.tv-on .main { margin-left: 0 !important; } body.tv-on .content { max-width:
 .uni-tipo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .uni-tipo i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: none; }
 @media (max-width: 700px) { .uni-stage { height: 62vh; } }
+
+/* ===== v12.8 · Taller en vivo: pieza 3D que crece ===== */
+.tv-imp.conviva { flex-direction: column; align-items: stretch; gap: 10px; }
+.viva { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #070a17; border: 1px solid rgba(120, 140, 255, .22); }
+.viva-cv { display: block; width: 100%; height: 100%; }
+.viva-cap { position: absolute; left: 8px; bottom: 6px; padding: 2px 8px; border-radius: 8px; font-size: .8rem; color: #dbe4ff; background: rgba(8, 12, 30, .7); }
+.viva.fallo .viva-cap { color: #ffb4b4; }
+.tv-pc { font-size: 2rem; font-weight: 800; letter-spacing: -.02em; color: var(--brand); }
+
+/* ===== v12.8 · ¡Pedido nuevo! ===== */
+.pn-cartel { position: fixed; top: 22px; left: 50%; transform: translateX(-50%); z-index: 10000; padding: 16px 34px; border-radius: 18px; text-align: center; cursor: pointer; color: #fff; background: linear-gradient(135deg, var(--brand), #f59e0b); box-shadow: 0 18px 60px rgba(0, 0, 0, .35), 0 0 0 4px rgba(255, 255, 255, .25); animation: pn-in .55s cubic-bezier(.2, 1.4, .4, 1) both; max-width: 92vw; }
+.pn-cartel.out { animation: pn-out .4s ease-in both; }
+.pn-t { font-size: clamp(1.4rem, 3.2vw, 2.4rem); font-weight: 800; letter-spacing: -.02em; }
+.pn-s { font-size: clamp(1rem, 2vw, 1.4rem); opacity: .95; margin-top: 2px; }
+body.tv-on .pn-cartel { top: 40px; padding: 26px 56px; }
+@keyframes pn-in { from { transform: translate(-50%, -140%) scale(.8); opacity: 0; } to { transform: translate(-50%, 0) scale(1); opacity: 1; } }
+@keyframes pn-out { to { transform: translate(-50%, -140%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pn-cartel { animation: none; } .pn-cartel.out { animation: none; opacity: 0; } }
