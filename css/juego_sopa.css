@@ -1,0 +1,47 @@
+/* v13.4 · juego sopa («Sopa de ideas») */
+.sopa { display: flex; flex-direction: column; gap: 10px; }
+.sopa-top { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sopa-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.sopa-stat span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.sopa-stat b { font-size: 19px; color: var(--text); }
+.sopa-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sopa-flash { min-height: 22px; font-size: 13.5px; color: var(--muted); line-height: 1.35; }
+.sopa-flash.on { color: var(--text); }
+.sopa-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (min-width: 720px) { .sopa-main { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+.sopa-board { position: relative; min-width: 0; }
+.sopa-grid {
+  --n: 8; container-type: inline-size; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 2px; padding: 6px; box-sizing: border-box;
+  width: 100%; max-width: 560px; margin: 0 auto; background: var(--surface-2, var(--surface)); border: 1px solid var(--line); border-radius: 14px;
+  touch-action: none; user-select: none; -webkit-user-select: none; outline: none; -webkit-touch-callout: none;
+}
+.sopa-grid:focus-visible { box-shadow: 0 0 0 3px var(--brand); }
+.sopa-c {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 700; color: var(--text);
+  font-size: clamp(11px, calc(100cqw / var(--n) * .5), 26px); line-height: 1; background: var(--surface); border: 1px solid transparent; cursor: pointer;
+}
+.sopa-c.ok { background: color-mix(in srgb, hsl(var(--h, 280) 80% 55%) 34%, var(--surface)); border-color: hsl(var(--h, 280) 70% 50% / .7); }
+.sopa-c.sel { background: var(--brand-soft, #efe7ff); border-color: var(--brand); color: var(--brand-2, var(--brand)); }
+.sopa-c.ok.sel { border-color: var(--brand); }
+.sopa-c.anc { background: var(--brand); color: var(--brand-text, #fff); border-color: var(--brand); }
+.sopa-c.mal { background: var(--bad-soft, #fde8e8); border-color: var(--bad); color: var(--bad); }
+.sopa-c.pista { box-shadow: inset 0 0 0 2px var(--warn, #d97706); background: var(--warn-soft, #fff4e0); animation: sopapulso 1.1s ease-in-out infinite; }
+.sopa-grid:focus-visible .sopa-c.cur { outline: 2px solid var(--brand); outline-offset: -2px; }
+@keyframes sopapulso { 50% { box-shadow: inset 0 0 0 3px var(--warn, #d97706); } }
+.sopa-win { display: none; }
+.sopa-win.on { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px auto 0; max-width: 560px; padding: 14px 16px; text-align: center; border-radius: 14px; background: var(--ok-soft, #e7f7ec); border: 1px solid var(--ok); color: var(--text); animation: sopapop .25s ease-out; }
+.sopa-win-t { font-size: 20px; color: var(--ok); }
+.sopa-rec { font-weight: 700; color: var(--warn, #b45309); }
+.sopa-win .btn { margin-top: 4px; min-height: 44px; padding-left: 20px; padding-right: 20px; }
+@keyframes sopapop { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+.sopa-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sopa-words-t { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 6px; }
+.sopa-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sopa-chip { font-size: 12.5px; font-weight: 700; letter-spacing: .03em; padding: 3px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-2, var(--line)); color: var(--text); }
+.sopa-chip.on { background: var(--ok-soft, #e7f7ec); border-color: var(--ok); color: var(--ok); text-decoration: line-through; text-decoration-thickness: 1px; }
+.sopa-ideas { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.sopa-ideas h3 { margin: 0 0 6px; font-size: 15px; }
+.sopa-ideas-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow: auto; }
+.sopa-ideas-list li { font-size: 13.5px; line-height: 1.35; padding: 6px 8px; border-radius: 8px; background: var(--surface-2, var(--surface)); color: var(--text); }
+.sopa-ideas-list li.nueva { animation: sopapop .3s ease-out; border-left: 3px solid var(--brand); }
+@media (max-width: 480px) { .sopa-stat b { font-size: 17px; } .sopa-stat span { font-size: 9.5px; } .sopa-grid { gap: 1px; padding: 4px; } .sopa-c { border-radius: 4px; } }

@@ -1,0 +1,99 @@
+/* v13.4 · juego mascota «Bobi» · todo con prefijo .mas-  (colores del tema; el escenario del canvas lleva sus propios colores) */
+.dsc-game[data-juego="mascota"] { max-width: 1000px; }
+.mas { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; color: var(--text); }
+@media (min-width: 860px) { .mas { grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 18px; align-items: start; } }
+.mas-col1 { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mas-stage { position: relative; width: 100%; max-width: 520px; margin: 0 auto; aspect-ratio: 10 / 9; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); box-shadow: var(--shadow); user-select: none; -webkit-user-select: none; }
+.mas-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
+.mas-canvas:focus-visible { box-shadow: inset 0 0 0 3px var(--brand); }
+.mas-hud { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; z-index: 3; }
+.mas[data-modo="gotas"] .mas-hud, .mas[data-modo="memoria"] .mas-hud { display: none; }
+.mas-coins { background: rgba(255,255,255,.93); color: #3b2a00; border: 1px solid rgba(0,0,0,.14); padding: 4px 11px; border-radius: 999px; font-weight: 800; display: inline-flex; gap: 6px; align-items: center; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+.mas-coins.inline { background: var(--surface-2); color: var(--text); box-shadow: none; margin-left: auto; border-color: var(--line-2); }
+.mas-snd { pointer-events: auto; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(0,0,0,.14); background: rgba(255,255,255,.93); font-size: 18px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.18); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.mas-snd:focus-visible, .mas-act:focus-visible, .mas-food:focus-visible, .mas-item:focus-visible, .mas-game:focus-visible, .mas-mem-b:focus-visible, .mas-x:focus-visible, .mas-tab:focus-visible, .mas-color:focus-visible { outline: none; box-shadow: var(--focus); }
+.mas-bubble { position: absolute; left: 50%; top: 50px; transform: translate(-50%, -6px) scale(.96); max-width: 84%; background: #fff; color: #1d1a2b; border: 2px solid #2b2140; padding: 7px 14px; border-radius: 16px; font-weight: 700; font-size: 15px; line-height: 1.25; text-align: center; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 4; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.mas-bubble.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.mas-bubble::after { content: ''; position: absolute; left: 50%; bottom: -10px; width: 14px; height: 14px; background: #fff; border-right: 2px solid #2b2140; border-bottom: 2px solid #2b2140; transform: translateX(-50%) rotate(45deg); }
+.mas-ov { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.mas-ov > * { pointer-events: auto; }
+.mas-hud-juego { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,.95); color: #1d1a2b; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(0,0,0,.14); box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+.mas-hud-juego.top { bottom: auto; top: 8px; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; }
+.mas-hud-juego.inline { position: static; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box; padding: 6px 8px; }
+.mas-bt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mas-hud-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.mas-chip { display: inline-flex; gap: 4px; align-items: center; background: var(--surface-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 999px; padding: 4px 10px; font-size: 13px; }
+.mas-hud-juego .mas-chip { background: #f3f1fa; color: #1d1a2b; font-weight: 700; font-size: 15px; }
+.mas-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: rgba(0,0,0,.65); color: #fff; padding: 6px 12px; border-radius: 999px; font-size: 13px; text-align: center; max-width: 92%; pointer-events: none !important; }
+.mas-res { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(86%, 340px); background: #fff; color: #1d1a2b; border-radius: 18px; padding: 16px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 6px; }
+.mas-res h3 { margin: 0; font-size: 20px; } .mas-res p { margin: 0; } .mas-res .muted { color: #6b6584; }
+.mas-mem { position: absolute; inset: 0; background: rgba(20,16,50,.86); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 10px; box-sizing: border-box; }
+.mas-mem-info { color: #fff; font-size: 18px; min-height: 24px; }
+.mas-mem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: min(100%, 300px); }
+.mas-mem-b { height: clamp(66px, 20vw, 100px); border-radius: 18px; border: 4px solid rgba(255,255,255,.55); opacity: .8; cursor: pointer; font-size: 22px; font-weight: 800; color: rgba(0,0,0,.4); transition: opacity .08s, transform .08s, box-shadow .08s; padding: 0; }
+.mas-mem-b.on { opacity: 1; transform: scale(1.06); box-shadow: 0 0 26px 6px rgba(255,255,255,.7); border-color: #fff; }
+.mas-mem-grid.lock { pointer-events: none; }
+.mas-evo { padding: 10px 12px !important; gap: 4px !important; position: absolute; left: 8px; right: 8px; top: 8px; background: rgba(255,255,255,.97); color: #1d1a2b; border-radius: 16px; padding: 12px 14px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; box-shadow: 0 8px 30px rgba(0,0,0,.35); opacity: 0; animation: masfade .5s ease 1.4s forwards; }
+.mas-evo h3 { margin: 0; font-size: 19px; } .mas-evo p { margin: 0; } .mas-evo .muted { color: #6b6584; font-size: 12.5px; line-height: 1.3; }
+@keyframes masfade { to { opacity: 1; } }
+.mas-status { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--line-2); border-radius: 14px; padding: 10px 14px; }
+.mas-status.hide { display: none; } .mas-status.bien { border-left-color: var(--ok); } .mas-status.mal { border-left-color: var(--bad); }
+.mas-st-e { font-size: 34px; line-height: 1; }
+.mas-st-c { display: flex; flex-direction: column; min-width: 0; }
+.mas-st-t { font-size: 18px; } .mas-st-s { font-size: 13px; color: var(--muted); }
+.mas-ctl { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mas-lock { pointer-events: none; opacity: .5; }
+.mas-bars, .mas-egg { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.mas-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.mas-bars.mini { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; border: 0; background: none; }
+.mas-bar { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "i l n" "t t t"; gap: 3px 6px; align-items: center; font-size: 13px; }
+.mas-bi { grid-area: i; font-size: 18px; } .mas-bl { grid-area: l; font-weight: 600; } .mas-bn { grid-area: n; font-variant-numeric: tabular-nums; }
+.mas-track { grid-area: t; height: 10px; background: var(--surface-3); border-radius: 99px; overflow: hidden; }
+.mas-track i { display: block; height: 100%; border-radius: 99px; background: var(--ok); transition: width .4s; }
+.mas-bar.warn .mas-track i { background: var(--warn); } .mas-bar.bad .mas-track i { background: var(--bad); } .mas-bar.bad .mas-bn { color: var(--bad); }
+.mas-bar.pulse .mas-bi { animation: maspulse 1s ease-in-out infinite; }
+@keyframes maspulse { 50% { transform: scale(1.25); } }
+.mas-egg { display: flex; flex-direction: column; gap: 8px; } .mas-egg h3 { margin: 0; } .mas-egg p { margin: 0; }
+.mas-prog { height: 10px; background: var(--surface-3); border-radius: 99px; overflow: hidden; }
+.mas-hud-juego .mas-prog { background: #e4e0ef; }
+.mas-prog.big { height: 14px; } .mas-prog i { display: block; height: 100%; width: 0; background: var(--brand); border-radius: 99px; transition: width .3s; }
+.mas-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.mas-act { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 8px 2px; min-height: 60px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-2); color: var(--text); cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 600; transition: background .12s, transform .06s; }
+.mas-act:hover:not(:disabled) { background: var(--surface-2); } .mas-act:active:not(:disabled) { transform: scale(.96); }
+.mas-act:disabled { opacity: .4; cursor: default; } .mas-act[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); }
+.mas-ai { font-size: 22px; line-height: 1.1; }
+.mas-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.mas-ph { display: flex; justify-content: space-between; align-items: center; gap: 8px; } .mas-ph b { font-size: 16px; }
+.mas-x { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); font-size: 16px; cursor: pointer; }
+.mas-p-b { display: flex; flex-direction: column; gap: 10px; } .mas-p-b p { margin: 0; }
+.mas-foods, .mas-shop { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.mas-food, .mas-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); cursor: pointer; text-align: center; font: inherit; font-size: 13px; min-height: 96px; }
+.mas-food:hover, .mas-item:hover, .mas-game:hover { border-color: var(--brand); }
+.mas-food.fav { border-color: var(--warn); } .mas-item.own { border-style: dashed; } .mas-item.on { border-color: var(--brand); background: var(--brand-soft); }
+.mas-fe { font-size: 30px; line-height: 1.1; } .mas-price { font-size: 12px; font-weight: 700; color: var(--brand-2); } .mas-fav { font-size: 11px; color: var(--warn); font-weight: 700; }
+.mas-games { display: grid; gap: 8px; }
+.mas-game { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "e t p" "e d p"; column-gap: 12px; align-items: center; text-align: left; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); cursor: pointer; font: inherit; min-height: 60px; }
+.mas-game .mas-fe { grid-area: e; } .mas-game b { grid-area: t; } .mas-game .muted { grid-area: d; } .mas-game .mas-price { grid-area: p; }
+.mas-tabs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mas-tab { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; min-height: 38px; }
+.mas-tab.on { background: var(--brand-soft); border-color: var(--brand); }
+.mas-card { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.mas-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; }
+.mas-grow { display: flex; flex-direction: column; gap: 4px; }
+.mas-logros { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.mas-logro { display: flex; flex-direction: column; gap: 1px; padding: 8px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); opacity: .55; font-size: 13px; }
+.mas-logro.ok { opacity: 1; border-color: var(--warn); background: var(--warn-soft); }
+.mas-logro > span:first-child { font-size: 20px; }
+.mas-dx { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.mas-field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 13px; }
+.mas-name { display: flex; gap: 8px; } .mas-name .inp { flex: 1; min-width: 0; }
+.mas-pick { display: flex; flex-direction: column; gap: 6px; }
+.mas-colors { display: flex; flex-wrap: wrap; gap: 8px; }
+.mas-color { width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--line-2); cursor: pointer; padding: 0; }
+.mas-color.on { box-shadow: 0 0 0 3px var(--brand); }
+.mas-reset { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; } .mas-reset p { margin: 0; color: var(--bad); font-weight: 600; }
+.mas-help ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.mas .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 860px) { .mas { padding-bottom: 92px; } } /* deja sitio al botón + flotante y a la barra inferior de la app */
+@media (max-width: 420px) { .mas-actions { gap: 6px; } .mas-act { font-size: 11px; } .mas-bubble { font-size: 14px; } }
+@media (prefers-reduced-motion: reduce) { .mas-bubble, .mas-track i, .mas-prog i { transition: none; } .mas-bar.pulse .mas-bi { animation: none; } .mas-evo { animation: none; opacity: 1; } }
