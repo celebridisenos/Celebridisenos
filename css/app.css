@@ -1022,25 +1022,48 @@ body.tv-on .main { margin-left: 0 !important; } body.tv-on .content { max-width:
 @media (max-width: 900px) { .tv { padding: 16px; } .tv-cuerpo { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .confeti { display: none; } }
 
-/* ===== v12.7 · Universo CelebriDiseños (galaxia 3D de clientes) ===== */
-.uni { display: grid; gap: 12px; }
-.uni-bar { gap: 8px; align-items: center; }
-.uni-stage { position: relative; height: clamp(380px, 68vh, 780px); border-radius: 16px; overflow: hidden; background: #040712; border: 1px solid rgba(130, 150, 255, .22); box-shadow: 0 10px 40px rgba(20, 20, 80, .35), inset 0 0 90px rgba(80, 60, 200, .12); }
-.uni-stage:fullscreen { height: 100vh; border-radius: 0; border: 0; }
-.uni-cv { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; outline: none; }
-.uni-cv:active { cursor: grabbing; }
-.uni-cv:focus-visible { box-shadow: inset 0 0 0 2px var(--brand); }
-.uni-tip { position: absolute; z-index: 3; max-width: 260px; padding: 8px 11px; border-radius: 10px; background: rgba(12, 16, 38, .92); color: #eaf0ff; border: 1px solid rgba(160, 180, 255, .35); pointer-events: none; display: grid; gap: 2px; backdrop-filter: blur(6px); }
-.uni-tip.hide { display: none; }
-.uni-tip .muted { color: #9fb0e8; }
-.uni-info { color: var(--muted); font-size: .9rem; }
-.uni-ley { background: var(--card, transparent); border: 1px solid var(--line, rgba(128, 128, 128, .25)); border-radius: 12px; padding: 10px 14px; }
-.uni-ley summary { cursor: pointer; font-weight: 600; }
-.uni-ley-b { display: grid; gap: 8px; margin-top: 8px; }
-.uni-tipos { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
-.uni-tipo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.uni-tipo i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: none; }
-@media (max-width: 700px) { .uni-stage { height: 62vh; } }
+/* ===== v13 · Estantería: la tienda web como un mundo virtual (3D con CSS, sin WebGL) ===== */
+.est { display: grid; gap: 12px; }
+.est-bar { gap: 8px; align-items: center; }
+.est-q { min-width: 220px; max-width: 340px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border, #d8d0e0); background: var(--surface, #fff); color: inherit; font: inherit; }
+.est-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.est-info { color: var(--muted); font-size: .9rem; }
+.est-stage { --px: 0; --sx: 0px; position: relative; height: clamp(440px, 72vh, 820px); border-radius: 18px; overflow: hidden; background: #2b2233; isolation: isolate; box-shadow: 0 10px 40px rgba(40, 20, 60, .35); }
+.est-stage:fullscreen { height: 100vh; border-radius: 0; }
+.est-wall { position: absolute; inset: 0 -40px 17% -40px; background: repeating-linear-gradient(90deg, rgba(120, 70, 60, .07) 0 2px, transparent 2px 170px), linear-gradient(180deg, #f7ebe0 0%, #f0dccf 62%, #e3c6b6 100%); background-position: var(--sx) 0, 0 0; transform: translateX(calc(var(--px) * -10px)); }
+.est-lamps { position: absolute; inset: 0 0 auto 0; height: 46%; pointer-events: none; z-index: 1; background: radial-gradient(ellipse 22% 70% at 14% 0, rgba(255, 238, 190, .75), transparent 72%), radial-gradient(ellipse 22% 70% at 50% 0, rgba(255, 238, 190, .7), transparent 72%), radial-gradient(ellipse 22% 70% at 86% 0, rgba(255, 238, 190, .75), transparent 72%); }
+.est-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 19%; z-index: 2; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .3), transparent 38%), repeating-linear-gradient(90deg, #b98a5e 0 96px, #9d6f47 96px 98px, #c49a6c 98px 196px, #9d6f47 196px 198px); background-position: 0 0, calc(var(--sx) * 2) 0; box-shadow: inset 0 14px 22px rgba(0, 0, 0, .25); }
+.est-track { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-end; overflow-x: auto; overflow-y: hidden; padding: 0 14vw calc(var(--sh, 650px) * 0.075); cursor: grab; outline: none; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.est-track.arrastrando { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+.est-track:focus-visible { box-shadow: inset 0 0 0 3px rgba(124, 58, 237, .6); }
+.est-row { display: flex; align-items: flex-end; gap: 64px; padding-right: 14vw; }
+.est-nada { padding: 40px; color: #5a4636; font-weight: 600; }
+.est-unit { flex: 0 0 auto; width: min(clamp(236px, calc((var(--sh, 650px) - 185px) / 1.3), 430px), 82vw); scroll-snap-align: center; transform-origin: 50% 100%; transform: perspective(1000px) rotateY(var(--ry, 0deg)) translateZ(var(--tz, 0px)); transition: transform .12s linear; will-change: transform; }
+.est-sign { width: fit-content; max-width: 92%; margin: 0 auto 8px; padding: 7px 16px; text-align: center; font: 700 1.05rem Georgia, "Times New Roman", serif; color: #fff7ec; background: linear-gradient(#7a4f31, #5f3b24); border-radius: 9px; box-shadow: 0 6px 12px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .22); }
+.est-sign small { opacity: .75; font-size: .75rem; }
+.est-body { padding: 10px 12px 0; background: radial-gradient(ellipse at 50% 30%, #6a4630, #3d281c 80%); border: 10px solid #a56f46; border-bottom: 0; border-radius: 10px 10px 0 0; box-shadow: 0 20px 34px rgba(0, 0, 0, .38), inset 0 0 36px rgba(0, 0, 0, .6); }
+.est-balda { position: relative; padding-top: 4px; }
+.est-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: end; padding: 6px 4px 0; min-height: 152px; }
+.est-board { height: 13px; margin: 0 -12px; border-radius: 2px; background: linear-gradient(#e0ad74, #b98049 55%, #8d5b34); box-shadow: 0 6px 8px rgba(0, 0, 0, .4); }
+.est-prod { position: relative; display: grid; justify-items: center; gap: 3px; min-width: 0; padding: 0 0 7px; background: none; border: 0; color: #fff6ea; font: inherit; cursor: pointer; transition: transform .15s; }
+.est-prod:hover, .est-prod:focus-visible { transform: translateY(-7px) scale(1.07); z-index: 5; outline: none; }
+.est-prod:focus-visible .est-ph { box-shadow: 0 0 0 3px #ffd166, 0 8px 14px rgba(0, 0, 0, .45); }
+.est-ph { display: grid; place-items: center; width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3e6da; border: 3px solid #fff; border-radius: 10px; box-shadow: 0 8px 14px rgba(0, 0, 0, .45); }
+.est-ph img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.est-sin { font: 700 2rem Georgia, serif; color: #b07a56; }
+.est-nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; line-height: 1.15; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); }
+.est-pre { padding: 1px 8px; border-radius: 6px; background: #ffe3a1; color: #4a2d12; font-weight: 800; font-size: .82rem; box-shadow: 0 2px 4px rgba(0, 0, 0, .4); }
+.est-b3, .est-ag { position: absolute; top: 5px; padding: 1px 6px; border-radius: 6px; font-size: .62rem; font-weight: 700; box-shadow: 0 2px 4px rgba(0, 0, 0, .35); }
+.est-b3 { left: 5px; background: #4cc9f0; color: #062a36; }
+.est-ag { right: 5px; background: #e5484d; color: #fff; }
+.est-ag.poco { background: #f59e0b; color: #3b2400; }
+.est-prod.agotado .est-ph { filter: grayscale(.85) brightness(.8); }
+.est-go { position: absolute; top: 50%; z-index: 6; width: 46px; height: 46px; margin-top: -23px; border: 0; border-radius: 50%; font-size: 1.9rem; line-height: 1; color: #fff; background: rgba(40, 24, 56, .62); backdrop-filter: blur(4px); cursor: pointer; transition: opacity .2s, transform .15s; }
+.est-go:hover { transform: scale(1.1); background: rgba(124, 58, 237, .85); }
+.est-go.izq { left: 10px; } .est-go.der { right: 10px; }
+.est-go.off { opacity: .2; pointer-events: none; }
+@media (max-width: 700px) { .est-stage { height: 66vh; } .est-go { width: 38px; height: 38px; margin-top: -19px; font-size: 1.5rem; } .est-row { gap: 40px; } }
+@media (prefers-reduced-motion: reduce) { .est-unit, .est-prod, .est-go { transition: none; } .est-prod:hover, .est-prod:focus-visible { transform: none; } }
 
 /* ===== v12.8 · Taller en vivo: pieza 3D que crece ===== */
 .tv-imp.conviva { flex-direction: column; align-items: stretch; gap: 10px; }
