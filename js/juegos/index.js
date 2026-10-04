@@ -1,12 +1,22 @@
-// v13.4 · Catálogo de juegos de «Descanso». Cada juego es un módulo con:
+// v13.6 · Catálogo de juegos de «Descanso». Cada juego es un módulo con:
 //   export const meta = { id, titulo, emoji, desc }
 //   export function render(el, ctx) → { destroy() }      (ctx: { api, me, h, btn, toast, volver })
-// Se cargan solo al abrirlos. Ningún juego toca los datos reales del negocio (pedidos, stock, puntos…).
+// Se cargan solo al abrirlos. Ningún juego toca los datos reales del negocio (pedidos, stock, clientes…).
+// Los 6 juegos principales + la Sopa de letras salen en el menú. Los descartados (Bobi, Capas, Fusiona, Tres en raya)
+// se conservan con «oculto: true»: no salen en el menú pero su código, sus pruebas y su dirección siguen funcionando.
+// «detectives» (casos rápidos infinitos) también está oculto: se abre desde el juego Detectives (expedientes).
 export const JUEGOS = [
-  { id: 'mascota', titulo: 'Bobi, tu mascota', emoji: '🐣', desc: 'Críala desde el huevo: come, juega, duerme y crece. Tiene ánimo propio.', tag: 'Se queda contigo', cargar: () => import('./mascota.js') },
-  { id: 'tresenraya', titulo: 'Tres en raya', emoji: '❌', desc: 'Contra la máquina (de fácil a imposible) o ONLINE contra alguien del equipo conectado.', tag: 'Online', cargar: () => import('./tresenraya.js') },
-  { id: 'detectives', titulo: 'Detectives del taller', emoji: '🕵️', desc: 'Casos infinitos: lee las pistas, deduce quién fue.', tag: 'Infinito', cargar: () => import('./detectives.js') },
+  { id: 'vida', titulo: 'Vida', emoji: '🌸', desc: 'Tu personaje anime nace, crece (1 día real = 1 año), estudia, trabaja, tiene casa, coche y mascota.', tag: 'Nuevo', cargar: () => import('./vida.js') },
+  { id: 'expedientes', titulo: 'Detectives', emoji: '🕵️', desc: '50 expedientes: escenas, pruebas, declaraciones y documentos. Resuelve quién, cómo y por qué.', tag: '50 casos', cargar: () => import('./expedientes.js') },
+  { id: 'trivial', titulo: 'Trivial', emoji: '🧠', desc: 'Más de 400 preguntas en 14 categorías. Solo o por equipos.', tag: 'Equipos', cargar: () => import('./trivial.js') },
+  { id: 'ahorcado', titulo: 'Ahorcado', emoji: '🪢', desc: 'Adivina la palabra letra a letra antes de que se complete el dibujo.', tag: '', cargar: () => import('./ahorcado.js') },
+  { id: 'subasta', titulo: 'Subasta de encargos', emoji: '🔨', desc: 'Juego ONLINE con el equipo: puja a ciegas tus horas de taller por los mejores encargos. Se juega con fichas.', tag: 'Online', cargar: () => import('./subasta.js') },
+  { id: 'fichas', titulo: 'Fichas ⏱', emoji: '⏱', desc: 'Tu monedero: las fichas se ganan con tiempo activo en la app y se usan en los juegos.', tag: 'Monedero', cargar: () => import('./fichas.js') },
   { id: 'sopa', titulo: 'Sopa de ideas', emoji: '🔤', desc: 'Sopa de letras infinita. Cada palabra que encuentras es una idea de qué fabricar.', tag: 'Infinito', cargar: () => import('./sopa.js') },
-  { id: 'tetris', titulo: 'Capas', emoji: '🎁', desc: 'La sorpresa: apila piezas como capas de una impresión 3D.', tag: 'Sorpresa', cargar: () => import('./tetris.js') },
-  { id: 'fusiona', titulo: 'Fusiona bobinas', emoji: '🧵', desc: 'Un 2048 con filamento. Junta bobinas iguales hasta la de oro.', tag: '', cargar: () => import('./fusiona.js') }
+  // ---- descartados (se conservan, ocultos) ----
+  { id: 'mascota', titulo: 'Bobi, tu mascota', emoji: '🐣', desc: 'Críala desde el huevo.', oculto: true, cargar: () => import('./mascota.js') },
+  { id: 'tresenraya', titulo: 'Tres en raya', emoji: '❌', desc: 'Contra la máquina u online.', oculto: true, cargar: () => import('./tresenraya.js') },
+  { id: 'detectives', titulo: 'Detectives · casos rápidos', emoji: '🕵️', desc: 'Casos infinitos generados al momento.', oculto: true, cargar: () => import('./detectives.js') },
+  { id: 'tetris', titulo: 'Capas', emoji: '🎁', desc: 'Apila piezas como capas.', oculto: true, cargar: () => import('./tetris.js') },
+  { id: 'fusiona', titulo: 'Fusiona bobinas', emoji: '🧵', desc: 'Un 2048 con filamento.', oculto: true, cargar: () => import('./fusiona.js') }
 ];

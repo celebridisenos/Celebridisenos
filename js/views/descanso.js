@@ -5,6 +5,7 @@ import { h, btn, toast } from '../ui.js';
 import { S, api } from '../store.js';
 import { go } from '../app.js';
 import { JUEGOS } from '../juegos/index.js';
+import { fichasChip } from '../juegos/kit.js';
 export { N, vacio, deslizaFila, mover, huecos, sinMovimientos, maximo, nueva, partida, NOMBRES } from '../juegos/fusiona.js';
 
 export function render(el, params) {
@@ -15,13 +16,14 @@ export function render(el, params) {
     cierra(); const mi = ++token; root.replaceChildren();
     const j = JUEGOS.find(x => x.id === id);
     if (!j) {
-      root.append(h('div.page-head', h('h1', '🎮 Descanso'), h('span.muted.tiny', 'Para pasar el rato · no afecta a tus datos')),
-        h('div.dsc-grid', JUEGOS.map(g => h('a.dsc-card', { href: '#/descanso/' + g.id, 'data-juego': g.id },
+      root.append(h('div.page-head', h('h1', '🎮 Descanso'), h('span.grow'), fichasChip({ texto: true })),
+        h('p.muted.small.dsc-sub', 'Para pasar el rato · no afecta a tus datos · las fichas ⏱ se ganan usando la app'),
+        h('div.dsc-grid', JUEGOS.filter(g => !g.oculto).map(g => h('a.dsc-card', { href: '#/descanso/' + g.id, 'data-juego': g.id },
           h('div.dsc-ic', g.emoji), h('div.dsc-ct', h('b', g.titulo), h('span.muted.tiny', g.desc)), g.tag ? h('span.pill.dsc-tag', g.tag) : null))));
       return;
     }
     const caja = h('div.dsc-game', { 'data-juego': j.id });
-    root.append(h('div.page-head', h('h1', j.emoji + ' ' + j.titulo), btn('Todos los juegos', () => go('descanso'), { cls: 'ghost', title: 'Volver al menú de juegos' })), caja);
+    root.append(h('div.page-head.dsc-ghead', h('h1', j.emoji + ' ' + j.titulo), h('span.grow'), j.id !== 'fichas' ? fichasChip() : null, btn('Todos los juegos', () => go('descanso'), { cls: 'ghost', title: 'Volver al menú de juegos' })), caja);
     try {
       const m = await j.cargar(); if (mi !== token) return;
       actual = m.render(caja, { api, me: S.me, h, btn, toast, volver: () => go('descanso') }) || {};
