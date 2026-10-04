@@ -501,7 +501,7 @@ details.more > .in { padding: 0 14px 14px; }
 @media (max-width: 480px) { .role-picker { grid-template-columns: 1fr; } }
 @media print { .sidebar, .topbar, .tabbar, .fab, .no-print, .banner { display: none !important; } .main { margin: 0 !important; } .card { break-inside: avoid; box-shadow: none; } }
 
-@media (max-width: 860px) { body[data-view="chat"] .fab, body[data-view="ia"] .fab { display: none; } }
+@media (max-width: 860px) { body[data-view="chat"] .fab, body[data-view="ia"] .fab, body[data-view="descanso"] .fab { display: none; } /* v13.6: en los juegos el botón «Crear» tapaba los botones de abajo */ }
 
 /* ===== v9.6 · Invitaciones ===== */
 .sep-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 4px 0; }
