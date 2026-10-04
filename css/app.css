@@ -1123,3 +1123,22 @@ body.tv-on .pn-cartel { top: 40px; padding: 26px 56px; }
 .dsc-ct { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .dsc-tag { position: absolute; top: 8px; right: 8px; font-size: 10px; }
 .dsc-game { max-width: 760px; margin: 0 auto; }
+
+/* ===== v13.5 · Visor de PDF propio (etiquetas, adjuntos) ===== */
+.pdfv-pages { display: flex; flex-direction: column; align-items: center; gap: 14px; background: repeating-conic-gradient(var(--surface-2) 0 25%, var(--surface) 0 50%) 0 0 / 16px 16px; border: 1px solid var(--line); border-radius: 12px; padding: 14px; max-height: 66vh; overflow: auto; -webkit-overflow-scrolling: touch; }
+.pdfv-page { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; }
+.pdfv-page img { display: block; width: 100%; height: auto; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); border-radius: 2px; }
+.pdfv-err { text-align: center; padding: 18px 8px; }
+.pdfv-modal .modal-f { flex-wrap: wrap; }
+@media (max-width: 640px) { .pdfv-modal .modal-f .btn { flex: 1 1 45%; } .pdfv-pages { max-height: 58vh; padding: 8px; } }
+@media print { body.printing #print-root.print-pdf img { box-shadow: none; border-radius: 0; margin: 0; } }
+/* v13.5 · Formas de tarjetas y etiquetas */
+.shape-grid { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+.shape-row { display: flex; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.shape-pv { width: 108px; height: 92px; flex: 0 0 auto; display: grid; place-items: center; background: repeating-conic-gradient(var(--surface-2) 0 25%, var(--surface) 0 50%) 0 0 / 12px 12px; border-radius: 10px; overflow: hidden; }
+.shape-prev { max-width: 100px; max-height: 84px; width: auto; height: auto; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.18); }
+.shape-btns { gap: 6px; margin-top: 6px; }
+.shape-btns .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.shape-btns .chip:disabled { opacity: .55; cursor: default; }
+@media (max-width: 640px) { .shape-row { flex-direction: column; align-items: stretch; } .shape-pv { width: 100%; } }
+canvas.lbl-canvas[data-forma]:not([data-forma="rect"]), canvas.shape-prev[data-forma]:not([data-forma="rect"]) { box-shadow: none; background: transparent; filter: drop-shadow(0 2px 6px rgba(0,0,0,.28)); }
