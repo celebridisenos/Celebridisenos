@@ -324,6 +324,9 @@ function drawCard(el) {
   const tj = Object.assign({ modo: 'hoja', tam: '85x55', n: 0, corte: 'marcas', color: '#e0457b', fondo: false, qr: false, pagina: {} }, c0.tarjeta || {}); tj.pagina = Object.assign({ mensaje: '', instagram: '', tiktok: '', web: '', whatsapp: '', email: '' }, tj.pagina || {});
   const im = Object.assign({ paquete: true, gracias: true, propiaSinOficial: false }, c0.imprimir || {});
   const msgs = (c0.mensajes || []).map(m => Object.assign({}, m));
+  // v13.5: forma de cada tarjeta / etiqueta (círculo, rectángulo, esquinas redondeadas…) y línea de corte
+  const formas = Object.assign({ tarjetas: 'rect', gracias: 'rect', regalo: 'rect', paquete: 'rect', qr: 'rect' }, c0.formas || {});
+  const contorno = h('input', { type: 'checkbox', checked: c0.contorno !== false });
   const editCfg = can('config.editar');
   const ti = inp({ value: g.titulo, maxlength: 60 }), tx = area({ rows: 3, maxlength: 220 }), fi = inp({ value: g.firma, maxlength: 60 });
   tx.value = g.texto;
@@ -339,14 +342,36 @@ function drawCard(el) {
   const curT = () => ({ modo: modo.value, tam: tam.value, n: Number(nIn.value) || 0, corte: corte.value, color: color.value, fondo: fo.checked, qr: qr.checked, pagina: Object.fromEntries(Object.keys(pg).map(k => [k, pg[k].value.trim()])) });
   let timer = null;
   const redraw = () => { clearTimeout(timer); timer = setTimeout(paint, 120); };
+  const shapeBox = h('div.shape-grid');
   const paint = async () => {
-    const L = await import('../labels.js'), d = E.universalCard(curG(), curT());
+    const L = await import('../labels.js'), d = E.universalCard(curG(), curT(), formas.tarjetas);
     if (d.logo) d.logoImg = await L.loadLogo();
-    const lay = L.cardLayout(d.tam, d.n); infoN.textContent = lay.per + ' tarjetas caben en una hoja A4 (' + lay.cols + ' × ' + lay.rows + ')';
+    const lay = L.cardLayout(d.tam, d.n, d.forma); infoN.textContent = lay.per + ' tarjetas caben en una hoja A4 (' + lay.cols + ' × ' + lay.rows + ')' + (d.forma !== 'rect' ? ' · forma: ' + L.SHAPES[d.forma].t.toLowerCase() : '');
     const sh = L.drawCardSheet(d, 60); sh.className = 'sheet-prev'; mount(sheetBox, sh);
-    const one = L.drawOneCardCanvas(d, 300), s = L.CARD_SIZES[d.tam]; one.className = 'lbl-canvas'; one.style.width = s.w + 'mm'; one.style.height = s.h + 'mm'; mount(oneBox, one);
+    const one = L.drawOneCardCanvas(d, 300), s = L.oneCardSize(d); one.className = 'lbl-canvas'; one.style.width = s.w + 'mm'; one.style.height = s.h + 'mm'; one.dataset.forma = d.forma; L.cutPreview(one, d.forma, s.w); mount(oneBox, one);
+    paintShapes(L, d);
     mount(warn, d.avisos.concat(d.sinQr ? [d.sinQr] : []).map(x => h('div.warn-t', '⚠️ ' + x)), d.qr ? h('div.tiny.muted', 'El QR abre: ', h('a', { href: d.qr, target: '_blank', rel: 'noopener' }, 'la página de agradecimiento')) : null);
   };
+  // v13.5 · Una fila por plantilla con forma: botones de forma + vista previa en miniatura con esa forma
+  const paintShapes = (L, dU) => {
+    const cfgPrev = { formas, contorno: contorno.checked };
+    const sample = k => k === 'tarjetas' ? null : k === 'gracias' ? Object.assign({ logoImg: dU.logoImg }, E.thanksData({ cliente: 'Lucía', producto: 'Maceta', numero: '1000' }, curG()), { qr: '' })
+      : k === 'regalo' ? L.dataFor('regalo', { url: 'https://celebridisenos.github.io/regalo#ejemplo', numero: '1000', id: 'ejemplo', color: color.value })
+      : k === 'paquete' ? { qr: 'CEB-2026-000000', codigo: 'CEB-2026-000000', numero: '1000', cliente: 'Lucía' } : { qr: 'https://celebridisenos.github.io/#/q/pedido/ejemplo', titulo: 'Pedido nº 1000' };
+    const names = { tarjetas: 'Tarjeta de agradecimiento (hoja A4)', gracias: 'Tarjeta de gracias 50 × 50 (etiqueta)', regalo: 'Tarjeta de regalo con QR', paquete: 'Código del paquete (QR)', qr: 'Etiqueta QR' };
+    mount(shapeBox, L.SHAPED.map(k => {
+      let cv;
+      try {
+        if (k === 'tarjetas') cv = L.drawOneCardCanvas(Object.assign({}, dU, { forma: formas.tarjetas, corte: contorno.checked ? 'borde' : dU.corte }), 110);
+        else { const sz = L.TEMPLATES[k]; cv = L.draw(k, Object.assign({}, sample(k), { forma: formas[k], contorno: contorno.checked }), 110, { w: sz.w, h: sz.h }); }
+      } catch (e) { cv = h('div.tiny.bad-t', e.message); }
+      if (cv.tagName === 'CANVAS') { cv.className = 'shape-prev'; cv.dataset.forma = formas[k]; L.cutPreview(cv, formas[k], k === 'tarjetas' ? L.oneCardSize(dU).w : L.TEMPLATES[k].w); }
+      const btns = Object.keys(L.SHAPES).map(f => h('button.chip' + (formas[k] === f ? '.on' : ''), { type: 'button', disabled: !editCfg, title: L.SHAPES[f].t, 'aria-pressed': String(formas[k] === f), dataset: { forma: f, plantilla: k }, onclick: () => { formas[k] = f; redraw(); } }, L.SHAPES[f].i + ' ' + L.SHAPES[f].t.replace('Rectángulo con esquinas redondeadas', 'Esquinas redondeadas')));
+      const sz = k === 'tarjetas' ? L.oneCardSize(dU) : L.TEMPLATES[k];
+      return h('div.shape-row', { dataset: { plantilla: k } }, h('div.shape-pv', cv), h('div.grow', h('b.small', names[k]), h('div.tiny.muted', Math.round(sz.w) + ' × ' + Math.round(sz.h) + ' mm · ' + L.SHAPES[formas[k]].t), h('div.row.wrap.shape-btns', btns)));
+    }));
+  };
+  contorno.addEventListener('change', redraw);
   [ti, tx, fi, nIn, color].concat(Object.values(pg)).forEach(x => x.addEventListener('input', redraw)); [lg, qr, fo, tam, corte, modo].forEach(x => x.addEventListener('change', redraw));
   const ck = (k, t) => { const c = h('input', { type: 'checkbox', checked: !!im[k] }); c.onchange = () => { im[k] = c.checked; }; return h('label.check', c, t); };
   const auto = h('input', { type: 'checkbox', checked: !!c0.autoAlEscanear });
@@ -358,7 +383,7 @@ function drawCard(el) {
     return h('div.card.flat', h('div.row', t, editCfg ? btn('', () => { msgs.splice(i, 1); drawMsgs(); }, { cls: 'sm ghost icon', icon: 'trash', title: 'Quitar' }) : null), x);
   }), editCfg ? btn('Añadir mensaje', () => { msgs.push({ k: 'm' + Date.now().toString(36), t: 'Mensaje nuevo', texto: '¡Hola {cliente}! ' }); drawMsgs(); }, { cls: 'sm', icon: 'plus' }) : null);
   drawMsgs();
-  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, autoAlEscanear: auto.checked, autoImprimir: autoImp.checked, mensajes: msgs } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
+  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, autoAlEscanear: auto.checked, autoImprimir: autoImp.checked, mensajes: msgs, formas, contorno: contorno.checked } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
   mount(el,
     h('div.card', h('h3', '💌 Tarjetas de agradecimiento'),
       h('p.small.muted', 'Tarjeta UNIVERSAL: sin el nombre del cliente, sirve para todos los pedidos. Así se imprimen varias juntas en una hoja A4 de papel fotográfico y se recortan.'),
@@ -372,6 +397,10 @@ function drawCard(el) {
           h('p.tiny.muted.full', 'Solo sale lo que rellenes: no se inventa ninguna red ni contacto. La página es pública y no tiene acceso a tus datos.'))),
         warn),
         h('div.col', { style: { alignItems: 'center', gap: '6px' } }, h('div.tiny.muted', 'Una tarjeta a tamaño real'), oneBox, h('div.tiny.muted', 'Hoja A4'), sheetBox, infoN))),
+    h('div.card.shapes-card', { style: { marginTop: '12px' } }, h('h3', '🔷 Forma de cada tarjeta y etiqueta'),
+      h('p.small.muted', 'Cada diseño puede tener su forma: círculo, rectángulo, esquinas redondeadas u óvalo. Se usa en la vista previa, al imprimir (PC, Bluetooth), en el PDF y en la hoja A4. Las etiquetas de envío siempre son rectangulares (las pide el transportista).'),
+      shapeBox, h('label.check', contorno, 'Dibujar la línea de corte de la forma (quítala si usas etiquetas ya troqueladas con esa forma)'),
+      editCfg ? h('p.tiny.muted', 'Pulsa «Guardar» abajo para que la forma quede para todo el equipo.') : null),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Imprimir hojas de tarjetas'), h('div', { id: 'card-print' })),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '📦 Qué va con cada paquete'),
       ck('paquete', 'Código del paquete 50 × 50 (QR + CEB-…) para escanearlo'), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
@@ -382,7 +411,7 @@ function drawCard(el) {
     editCfg ? h('div.row', { style: { marginTop: '12px' } }, btn('Guardar', save, { cls: 'primary' })) : h('p.tiny.muted', 'Solo una administradora puede cambiarlo.'),
     h('div', { id: 'lbl-printers' }));
   paint();
-  cardPrintBox(el.querySelector('#card-print'), () => E.universalCard(curG(), curT()));
+  cardPrintBox(el.querySelector('#card-print'), () => E.universalCard(curG(), curT(), formas.tarjetas));
   labelPrinterBox(el.querySelector('#lbl-printers'));
 }
 // Imprimir hojas de tarjetas: impresora de folios/fotos, calidad máxima que dice SU controlador, papel fotográfico

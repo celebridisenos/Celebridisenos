@@ -140,8 +140,7 @@ async function xlsxText(buf) {
 let pdfjs = null;
 async function pdfText(buf, onStep) {
   if (!pdfjs) {
-    pdfjs = await import('../../vendor/pdfjs/pdf.mjs');
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL('../../vendor/pdfjs/pdf.worker.mjs', import.meta.url).href;
+    pdfjs = await (await import('../pdfview.js')).pdfjs(); // v13.5: con la compatibilidad para móviles antiguos
   }
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
   const out = [];

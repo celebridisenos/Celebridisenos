@@ -13,18 +13,55 @@ export const RULES = {
   stl: { ext: ['stl', '3mf', 'obj', 'step', 'stp', 'gcode', 'bgcode'], max: 300 * 1048576, accept: '.stl,.3mf,.obj,.step,.stp,.gcode,.bgcode', t: 'Archivo 3D (STL)', s: '3D', i: 'cube', hint: 'STL, 3MF, OBJ, STEP o GCODE · máx. 300 MB' },
   doc: { ext: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'md', 'markdown', 'json', 'html', 'htm', 'odt', 'ods', 'ppt', 'pptx', 'zip', 'svg', 'ai', 'psd'], max: 100 * 1048576, accept: '', t: 'Documento', s: 'Doc', i: 'file', hint: 'PDF, Word, Excel, ZIP… · máx. 100 MB' }
 };
-export const extOf = n => String(n || '').split('.').pop().toLowerCase();
+export const extOf = n => { const s = String(n || ''), i = s.lastIndexOf('.'); return i > 0 && i > s.lastIndexOf('/') ? s.slice(i + 1).toLowerCase() : ''; };
 export function kindOf(name) { const e = extOf(name); for (const k in RULES) if (RULES[k].ext.includes(e)) return k; return ''; }
+// v13.5 · ARCHIVOS DEL MÓVIL. Android (galería, Google Fotos, Drive, «Descargas», WhatsApp…) entrega a veces el
+// archivo SIN extensión («1000012345», «image:4521», «document») o con una rara; el programa decidía el tipo solo
+// por la extensión y daba «Formato no admitido» aunque fuera una foto o un PDF normal. Ahora se mira también el
+// tipo (MIME) que da el móvil, se le pone la extensión que le toca y se limpia el nombre (sin caracteres que
+// Google Drive o Windows no aceptan), conservando siempre la extensión aunque el nombre sea muy largo.
+export const MIME_EXT = {
+  'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/pjpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/heic': 'heic', 'image/heif': 'heif', 'image/heic-sequence': 'heic', 'image/heif-sequence': 'heif',
+  'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/x-m4v': 'm4v', 'video/3gpp': '3gp', 'video/3gpp2': '3gp', 'video/x-msvideo': 'avi', 'video/x-matroska': 'mkv',
+  'application/pdf': 'pdf', 'application/x-pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'text/csv': 'csv', 'text/comma-separated-values': 'csv', 'text/plain': 'txt', 'text/markdown': 'md',
+  'application/json': 'json', 'text/html': 'html', 'application/vnd.oasis.opendocument.text': 'odt', 'application/vnd.oasis.opendocument.spreadsheet': 'ods', 'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx', 'application/zip': 'zip', 'application/x-zip-compressed': 'zip', 'image/svg+xml': 'svg',
+  'model/stl': 'stl', 'application/sla': 'stl', 'application/vnd.ms-pki.stl': 'stl', 'model/3mf': '3mf', 'application/vnd.ms-package.3dmanufacturing-3dmodel+xml': '3mf', 'model/obj': 'obj'
+};
+const ALL_EXT = Object.values(RULES).flatMap(r => r.ext);
+export function cleanName(name, ext) {
+  let n = String(name || '').normalize ? String(name || '').normalize('NFC') : String(name || '');
+  n = n.replace(/^.*[\\/]/, '').replace(/[\u0000-\u001f\u007f]+/g, '').replace(/[\\/:*?"<>|#%]+/g, '_').replace(/\s+/g, ' ').trim();
+  let base = n, e = extOf(n);
+  if (e && ALL_EXT.includes(e)) { base = n.slice(0, -(e.length + 1)); e = n.slice(-e.length); } else e = ''; // conserva «.JPG» tal cual
+  if (ext) e = ext;
+  base = base.replace(/^[.\s_]+|[.\s]+$/g, '') || 'archivo';
+  if (base.length > 120) base = base.slice(0, 120).trim();
+  return e ? base + '.' + e : base;
+}
+// Devuelve un File con un nombre válido y la extensión correcta (o el mismo si ya lo era)
+export function normalizeFile(f) {
+  if (!f) return f;
+  const e = extOf(f.name), known = e && ALL_EXT.includes(e), type = String(f.type || '').toLowerCase().split(';')[0];
+  const fromMime = MIME_EXT[type] || (type.startsWith('image/') && !known ? 'jpg' : '') || '';
+  const name = known ? cleanName(f.name) : cleanName(f.name, fromMime);
+  if (name === f.name) return f;
+  try { return new File([f], name, { type: f.type || '', lastModified: f.lastModified }); }
+  catch (x) { try { const b = f.slice(0, f.size, f.type); b.name = name; b.lastModified = f.lastModified; return b; } catch (y) { return f; } }
+}
+const touchDevice = () => { try { return (navigator.maxTouchPoints || 0) > 0 && /Android|iP(hone|ad|od)|Mobi/i.test(navigator.userAgent || ''); } catch (e) { return false; } };
 export function validate(file, tipo) {
   const k = kindOf(file.name);
-  if (!k) return 'Formato no admitido (.' + extOf(file.name) + ').';
+  if (!k) return extOf(file.name) ? 'Formato no admitido (.' + extOf(file.name) + '). Fotos: JPG, PNG, WEBP o HEIC · Vídeos: MP4 o MOV · Documentos: PDF, Word, Excel…' : 'No se reconoce el tipo de este archivo (no tiene extensión ni tipo conocido). Prueba a guardarlo primero en el móvil y elígelo desde «Archivos».';
   if (tipo && k !== tipo) return 'Aquí van archivos de tipo ' + RULES[tipo].t.toLowerCase() + '. Este es ' + RULES[k].t.toLowerCase() + '.';
   if (!file.size) return 'El archivo está vacío.';
   if (file.size > RULES[k].max) return 'Pesa ' + bytes(file.size) + '. El máximo es ' + bytes(RULES[k].max) + '.';
   return '';
 }
 export async function sha256(file) {
-  if (file.size > 200 * 1048576 || !crypto.subtle) return '';
+  // v13.5: en el móvil, leer de golpe un vídeo de 150 MB para la huella podía cerrar la página (memoria). Allí el límite es 40 MB.
+  if (file.size > (touchDevice() ? 40 : 200) * 1048576 || !crypto.subtle) return '';
   const d = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
   return Array.from(new Uint8Array(d), b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -76,25 +113,71 @@ export async function shrinkPhoto(file, max = 2048, q = 0.85) {
 }
 
 // Sube un archivo a Drive por trozos. onProgress(0..1)
+// v13.5 · más fiable en el móvil: trozos de 2 MB (antes 4 MB) con datos móviles, si un trozo no llega se parte por la
+// mitad y se pregunta al servidor hasta dónde ha llegado (nunca se duplica ni se corrompe el archivo), y los errores
+// se explican con palabras normales. Si falla, queda apuntado en Auditoría («subida fallida») para poder revisarlo.
+const MB = 1048576, ALIGN = 256 * 1024, MIN_CHUNK = 512 * 1024;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+export function readError(e) {
+  const n = (e && e.name) || '';
+  return /NotReadable|NotFound|Security|Abort/i.test(n) || /could not be read|permission|requested file/i.test((e && e.message) || '');
+}
+export function friendlyUploadError(e, file) {
+  if (e && e.amigable) return e;
+  const code = (e && e.code) || '', msg = (e && e.message) || String(e || '');
+  let t;
+  if (readError(e)) t = 'El móvil no deja leer «' + (file && file.name) + '» (puede que esté solo en la nube —Google Fotos, Drive, iCloud— o que se haya movido). Ábrelo o descárgalo primero en el móvil y vuelve a elegirlo.';
+  else if (code === 'NET') t = /tarda demasiado/.test(msg) ? 'La subida tarda demasiado (conexión lenta). Prueba con Wi-Fi o con un archivo más pequeño; puedes reintentarlo con ↻.' : 'Sin conexión: vuelve a intentarlo cuando tengas Internet.';
+  else if (code === 'SERVER') t = 'Google Drive no ha podido guardar el archivo ahora mismo. Vuelve a intentarlo en un momento (↻).' + (msg ? ' (' + msg.replace(/^Error interno del servidor\.\s*/, '').slice(0, 140) + ')' : '');
+  else if (code === 'BUSY') t = 'El servidor está ocupado. Vuelve a intentarlo en unos segundos (↻).';
+  else if (code === 'AUTH') t = 'Tu sesión ha caducado: vuelve a entrar y repite la subida.';
+  else t = msg || 'No se pudo subir el archivo.';
+  const out = new Error(t); out.code = code || 'CLIENTE'; out.amigable = true; out.original = msg;
+  return out;
+}
+function reportFailure(file, meta, e) {
+  if (e && e.code === 'NET' && !/tarda demasiado/.test(e.message || '')) return; // sin Internet no se puede avisar
+  try {
+    api('archivos.fallo', { nombre: file && file.name, tamano: file && file.size, mime: file && file.type, entidad: meta && meta.entidad, entidadId: meta && meta.entidadId,
+      codigo: (e && e.code) || (e && e.name) || '', mensaje: String((e && (e.original || e.message)) || e).slice(0, 300), navegador: String(navigator.userAgent || '').slice(0, 200) }, { quiet: true, timeout: 20000 }).catch(() => { });
+  } catch (x) { }
+}
 export async function uploadFile(file, meta, onProgress) {
+  file = normalizeFile(file);
+  try { return await uploadInner(file, meta, onProgress); }
+  catch (e) { const fe = friendlyUploadError(e, file); reportFailure(file, meta, fe); throw fe; }
+}
+async function uploadInner(file, meta, onProgress) {
   if (kindOf(file.name) === 'foto' && !meta.original) file = await shrinkPhoto(file);
   const tipo = kindOf(file.name);
-  const huella = meta.huella !== undefined ? meta.huella : await sha256(file);
+  const huella = meta.huella !== undefined ? meta.huella : await sha256(file).catch(() => '');
   const miniatura = meta.miniatura !== undefined ? meta.miniatura : await makeThumb(file, tipo);
   const st = await api('archivos.iniciar', { nombre: file.name, tamano: file.size, mime: file.type || '', huella, miniatura, tipo, entidad: meta.entidad || '', entidadId: meta.entidadId || '', rutaLocal: meta.rutaLocal || '', visibilidad: meta.visibilidad || '' });
   if (st.duplicado) { upsertLocal('archivos', st.archivo); emit(); return Object.assign({ aviso: st.mensaje }, st.archivo); }
-  let off = 0, last = null;
+  const conn = (navigator.connection || {}), lento = touchDevice() || /2g|3g/.test(conn.effectiveType || '') || conn.saveData;
+  let size = Math.max(MIN_CHUNK, Math.min(st.trozo || 4 * MB, lento ? 2 * MB : (st.trozo || 4 * MB)));
+  let off = 0, last = null, fails = 0;
   while (off < file.size) {
-    const chunk = file.slice(off, off + st.trozo);
+    const chunk = file.slice(off, off + size);
     const b64 = await blobToB64(chunk);
-    let tries = 0;
-    for (;;) {
-      try { last = await api('archivos.trozo', { subida: st.subida, desde: off, datos: b64 }, { timeout: 180000 }); break; }
-      catch (e) { if (++tries >= 4 || !['NET', 'SERVER', 'BUSY'].includes(e.code)) throw e; await new Promise(r => setTimeout(r, 1500 * tries)); }
+    try {
+      last = await api('archivos.trozo', { subida: st.subida, desde: off, datos: b64 }, { timeout: Math.max(90000, Math.round(chunk.size / MB * 45000)) });
+      fails = 0;
+    } catch (e) {
+      if (!['NET', 'SERVER', 'BUSY'].includes(e.code) || ++fails > 5) throw e;
+      if (e.code === 'NET' && size > MIN_CHUNK) size = Math.max(MIN_CHUNK, Math.floor(size / 2 / ALIGN) * ALIGN);
+      await sleep(1500 * fails);
+      // ¿llegó el trozo aunque no llegara la respuesta? Se pregunta en qué punto va la subida
+      let est = null;
+      try { est = await api('archivos.estado', { subida: st.subida }, { timeout: 30000, quiet: true }); } catch (x) { if (x.code === 'VALIDATION') throw x; }
+      if (est && est.hecho) { last = est; off = file.size; break; }
+      if (est && typeof est.recibido === 'number') off = est.recibido;
+      continue;
     }
     off = last.hecho ? file.size : (last.recibido || off + chunk.size);
     onProgress && onProgress(off / file.size);
   }
+  if (!last || !last.archivo) throw Object.assign(new Error('La subida no se ha completado. Vuelve a intentarlo (↻).'), { code: 'SERVER' });
   upsertLocal('archivos', last.archivo); emit();
   // v10: vista previa ligera para el feed y el catálogo (el original queda intacto en Drive)
   if (tipo === 'foto' && last.archivo && last.archivo.driveId) makePreview(file).then(async pv => {
@@ -230,7 +313,20 @@ export async function openFile(a) {
       const v = viewer(c, await parse3D(await blob.arrayBuffer(), a.nombre));
       info.textContent += ' · ' + v.dims.map(x => x.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos';
       m.el.addEventListener('remove', () => v.destroy());
-    } else if (extOf(a.nombre) === 'pdf') mount(box, h('iframe', { src: url, style: { width: '100%', height: '70vh', border: 0, borderRadius: '12px' } }), info);
+    } else if (extOf(a.nombre) === 'pdf' || /pdf/i.test(a.mime || '')) {
+      // v13.5: antes un <iframe> con el PDF: en Android salía en blanco y en el iPhone solo la 1.ª página.
+      // Ahora se dibujan las páginas aquí (funciona en todos) y el visor da imprimir / descargar / compartir.
+      URL.revokeObjectURL(url);
+      const PV = await import('./pdfview.js');
+      const pv = h('div.pdfv-pages', h('p.muted.small', 'Dibujando el PDF…'));
+      mount(box, h('div.row.wrap', btn('Ver a pantalla completa · imprimir', () => PV.showPdf({ blob, title: a.nombre, fileName: a.nombre }), { cls: 'primary sm', icon: 'printer' })), pv, info);
+      try {
+        const r = await PV.renderPdf(blob, { maxPages: 10, targetPx: 1000 });
+        mount(pv, r.pages.map((p, i) => { const im = h('img', { alt: 'Página ' + (i + 1), style: { aspectRatio: p.wmm + ' / ' + p.hmm } }); p.canvas.toBlob(b => { const u = URL.createObjectURL(b); im.src = u; m.el.addEventListener('remove', () => URL.revokeObjectURL(u)); }, 'image/jpeg', 0.9); return h('figure.pdfv-page', im); }),
+          r.total > r.pages.length ? h('p.tiny.muted', 'Se ven las ' + r.pages.length + ' primeras páginas de ' + r.total + '. Descárgalo para verlo entero.') : null);
+        info.textContent += ' · ' + r.total + (r.total === 1 ? ' página' : ' páginas');
+      } catch (e) { mount(pv, h('p.bad-t.small', 'No se puede mostrar: ' + e.message + ' Puedes descargarlo.')); }
+    }
     else mount(box, h('div.empty', icon('file'), h('h3', a.nombre), h('p', 'Vista previa no disponible para este tipo. Puedes descargarlo.')), info);
   } catch (e) { mount(box, h('p.bad-t', 'No se pudo abrir: ' + e.message)); }
 }
@@ -268,6 +364,7 @@ export function dropZone(tipo, opts = {}) {
 
   async function addFiles(fl) {
     for (let f of Array.from(fl || [])) {
+      f = normalizeFile(f); // v13.5: nombre sin extensión / raro del móvil → nombre válido con su extensión
       // v12.2: si lo has activado, cada foto pasa antes por el editor (la original no se toca; «Subir tal cual» la deja como está)
       if (tipo === 'foto' && retocarOn() && esFoto(f) && !validate(f, tipo)) { const ed = await editPhoto(f, { titulo: 'Retocar foto · ' + f.name, omitir: 'Subir tal cual', aceptar: 'Usar la foto retocada' }); if (ed) f = ed; }
       const it = { id: uid('f'), file: f, err: validate(f, tipo), state: 'pendiente', progress: 0, thumb: '', huella: '' };
@@ -277,6 +374,8 @@ export function dropZone(tipo, opts = {}) {
       items.push(it); draw();
       if (it.err) continue;
       it.state = 'preparando'; draw();
+      // v13.5: ¿se puede leer? (Android: fotos que solo están en Google Fotos/Drive, o el permiso del selector caducado)
+      try { await f.slice(0, 1).arrayBuffer(); } catch (e) { it.err = friendlyUploadError(e, f).message; it.state = 'error'; draw(); reportFailure(f, { entidad: opts.entidad, entidadId: opts.entidadId }, Object.assign(new Error(e.message), { code: e.name || 'LECTURA', original: e.message })); continue; }
       try { [it.thumb, it.huella] = await Promise.all([makeThumb(f, tipo), sha256(f)]); } catch (e) { }
       if (tipo === 'stl' && ['stl', '3mf', 'obj'].includes(extOf(f.name))) { try { const r = await thumb3D(await f.arrayBuffer(), f.name); it.dims = r.dims; } catch (e) { it.err = 'El archivo 3D parece dañado: ' + e.message; } }
       it.state = it.err ? 'error' : 'listo'; draw();
@@ -299,7 +398,7 @@ export function dropZone(tipo, opts = {}) {
       }
       it.state = 'subido'; it.progress = 1;
       if (it.result && it.result.aviso) it.note = it.result.aviso;
-    } catch (e) { it.state = 'error'; it.err = e.code === 'NET' ? 'Sin conexión: vuelve a intentarlo cuando tengas Internet.' : e.message; }
+    } catch (e) { it.state = 'error'; it.err = friendlyUploadError(e, it.file).message; }
     draw();
     opts.onchange && opts.onchange(items);
     return it.result;
@@ -341,16 +440,31 @@ export function dropZone(tipo, opts = {}) {
       await Promise.all([worker(), worker()]);
       return res.filter(Boolean);
     },
-    pendingCount: () => items.filter(i => !i.err && i.state !== 'subido').length
+    pendingCount: () => items.filter(i => !i.err && i.state !== 'subido').length,
+    // v13.5: quita de la lista lo ya subido (ya sale en la galería)
+    prune: () => { for (let i = items.length - 1; i >= 0; i--) if (items[i].state === 'subido') items.splice(i, 1); draw(); }
   };
 }
 
 // Sección "Archivos" para fichas (pedido, cliente, producto)
+// v13.5 · CAUSA DEL FALLO AL ADJUNTAR DESDE EL MÓVIL: al abrir la cámara o el selector de archivos, el móvil pone la app
+// en segundo plano; al volver, la app sincroniza (visibilitychange → pull) y, si llegaba algo nuevo (un mensaje del chat,
+// otro pedido…), la ficha del pedido se REPINTABA y creaba zonas de adjuntos nuevas: la foto elegida, su barra de progreso
+// y cualquier error se quedaban en la zona vieja, ya fuera de la pantalla. Parecía que no subía o que fallaba.
+// Ahora la zona de cada ficha se conserva entre repintados (con lo que estuviera subiendo).
+const ZONES = new Map();
+function keptZone(key, make) {
+  let z = ZONES.get(key);
+  if (z) { ZONES.delete(key); ZONES.set(key, z); if (!z.busy()) z.prune(); return z; }
+  z = make(); ZONES.set(key, z);
+  while (ZONES.size > 40) { const k0 = ZONES.keys().next().value, z0 = ZONES.get(k0); if (z0.busy()) break; ZONES.delete(k0); }
+  return z;
+}
 export function filesSection(entidad, id, opts = {}) {
   const wrap = h('div.col');
   const drawIt = () => {
     const list = filesOf(entidad, id);
-    const zones = can('archivos.subir') ? h('div.drops', (opts.tipos || ['foto', 'video', 'doc']).map(t => dropZone(t, { entidad, entidadId: id, existing: () => filesOf(entidad, id), onchange: () => { } }).el)) : null;
+    const zones = can('archivos.subir') ? h('div.drops', (opts.tipos || ['foto', 'video', 'doc']).map(t => keptZone(entidad + '|' + id + '|' + t, () => dropZone(t, { entidad, entidadId: id, existing: () => filesOf(entidad, id), onchange: () => { } })).el)) : null;
     mount(wrap, gallery(list), zones);
   };
   drawIt();

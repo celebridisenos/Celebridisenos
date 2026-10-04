@@ -75,12 +75,14 @@ export function thanksUrl(t) {
   if (t.color) q.set('c', t.color.replace('#', ''));
   return b + 'gracias.html?' + q.toString();
 }
-export function universalCard(g, t) {
+export function universalCard(g, t, forma) {
   g = Object.assign({}, ecfg().gracias || {}, g || {}); t = Object.assign({ tam: '85x55', corte: 'marcas', color: '#e0457b' }, ecfg().tarjeta || {}, t || {});
+  // v13.5: forma de la tarjeta (la elegida para la plantilla «tarjetas»)
+  const fs = (ecfg().formas || {}), fo = forma || fs.tarjetas || 'rect';
   const quitados = new Set(), em = emisor(), tienda = em.comercial || em.nombre || (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || '';
   const F = x => String(x || '').replace(/\{(\w+)\}/g, (m, k) => { if (k === 'tienda') return tienda; quitados.add(k); return ''; }).replace(/\s{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').replace(/^[,\s]+|[,\s]+$/g, '').trim();
   const qrUrl = t.qr ? thanksUrl(t) : '';
-  return { titulo: F(g.titulo), texto: F(g.texto), firma: F(g.firma), logo: g.logo !== false, qr: qrUrl, tam: t.tam, n: Number(t.n) || 0, corte: t.corte, color: t.color, fondo: !!t.fondo,
+  return { titulo: F(g.titulo), texto: F(g.texto), firma: F(g.firma), logo: g.logo !== false, qr: qrUrl, tam: t.tam, n: Number(t.n) || 0, corte: t.corte, color: t.color, fondo: !!t.fondo, forma: fo,
     avisos: [...quitados].length ? ['La tarjeta es universal: no lleva ' + [...quitados].map(k => '{' + k + '}').join(', ') + ' (sirve para todos los clientes).'] : [], sinQr: t.qr && !qrUrl ? 'Falta la dirección pública de la app (la de GitHub Pages): sin ella el QR no puede abrir la página de agradecimiento.' : '' };
 }
 export async function printCardSheets(d, opts = {}) {
@@ -112,13 +114,9 @@ export function statusOf(o, tipo) {
 export const pendingOf = o => wanted(o).filter(t => ['Pendiente', 'Error'].includes(statusOf(o, t).estado));
 
 // ---------- Etiqueta oficial: de su PDF o imagen a 100 × 150 sin deformarla ----------
-let pdfjs = null;
-async function pdfLib() {
-  if (pdfjs) return pdfjs;
-  pdfjs = await import('../vendor/pdfjs/pdf.mjs');
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/pdf.worker.mjs', import.meta.url).href;
-  return pdfjs;
-}
+// v13.5: pdf.js se carga desde el visor común (con la compatibilidad para móviles antiguos: antes daba
+// «Promise.withResolvers is not a function» en iPhone con iOS < 17.4 y Android con Chrome antiguo)
+async function pdfLib() { return (await import('./pdfview.js')).pdfjs(); }
 const isPdf = (name, mime) => /pdf/i.test(mime || '') || /\.pdf$/i.test(name || '');
 // Recorta el blanco alrededor (las etiquetas suelen venir en un folio A4) y gira si viene apaisada
 function cropRotate(src, portrait) {
@@ -215,7 +213,7 @@ export async function printOne(o, tipo, opts = {}) {
   upsertLocal('impresiones', row); emit();
   const answer = async (ok, error, impresora) => { try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '' }); upsertLocal('impresiones', r.impresion); emit(); return r.impresion; } catch (e) { return null; } };
   try {
-    const res = await L.sendLabel(b.tpl, (dpi, s) => [L.draw(b.tpl, b.data, dpi, s)], { silent: true, fileName: tipo + '_pedido_' + o.numero });
+    const res = await L.sendLabel(b.tpl, (dpi, s) => [L.draw(b.tpl, b.data, dpi, s)], { silent: true, wait: true, fileName: tipo + '_pedido_' + o.numero, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero }); // v13.5: con PDF se espera a cerrar el visor
     if (res.how === 'printer') { await answer(true, '', res.printer); return { estado: 'Impreso', impresora: res.printer }; }
     // en el móvil (PDF) no sabemos si la impresora lo sacó bien: se pregunta
     const okp = await askPrinted(PRINT_TIPOS[tipo].t);
@@ -230,8 +228,8 @@ export async function printOne(o, tipo, opts = {}) {
 function askPrinted(what) {
   return new Promise(res => {
     let done = false; const fin = v => { if (!done) { done = true; res(v); } };
-    modal('¿Se ha impreso bien?', h('p', 'Se ha abierto el PDF de «' + what + '» a tamaño real. Imprímelo (escala 100 %) y dime cómo ha salido.'),
-      close => [btn('No, ha fallado', () => { fin(false); close(); }, { cls: 'ghost' }), btn('Sí, impreso', () => { fin(true); close(); }, { cls: 'primary' })], { size: 'narrow', onclose: () => fin(false) });
+    modal('¿Se ha impreso bien?', h('p', 'Has visto el PDF de «' + what + '» a tamaño real. ¿Lo has impreso (escala 100 %) y ha salido bien?'),
+      close => [btn('No / todavía no', () => { fin(false); close(); }, { cls: 'ghost' }), btn('Sí, impreso', () => { fin(true); close(); }, { cls: 'primary' })], { size: 'narrow', onclose: () => fin(false) });
   });
 }
 // Reimprimir: lo pide la persona, con motivo; queda como copia 2, 3…
@@ -270,7 +268,8 @@ export function printBlock(o, opts = {}) {
       pill(tipo === 'gracias' && st.estado === 'Impreso' ? 'IMPRESA' : EST_TXT[st.estado] || st.estado.toUpperCase(), EST_CLS[st.estado]),
       edit ? (st.estado === 'Impreso' ? btn('Reimprimir', () => reprintDialog(o, tipo).then(() => opts.redraw && opts.redraw()), { cls: 'sm ghost', icon: 'printer' })
         : st.estado === 'Enviando' ? null : btn(st.estado === 'Error' ? 'Reintentar' : 'Imprimir', () => printOne(o, tipo).then(() => opts.redraw && opts.redraw()).catch(err => toast(err.message, 'bad', 8000)), { cls: 'sm', icon: 'printer' })) : null,
-      tipo !== 'oficial' && tipo !== 'propia' ? btn('', () => previewDialog(o, tipo), { cls: 'sm ghost icon', icon: 'eye', title: 'Ver cómo queda' }) : null);
+      tipo === 'oficial' ? (e && e.archivoId ? btn('', ev => officialPdf(o, ev.target.closest('button')), { cls: 'sm ghost icon', icon: 'file', title: 'Ver el PDF (100 × 150 mm)' }) : null)
+        : btn('', () => previewDialog(o, tipo), { cls: 'sm ghost icon', icon: 'eye', title: 'Ver cómo queda' }));
   };
   const pend = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja'));
   return h('div.card.flat', { style: { marginBottom: '10px' } }, h('div.row', h('div.lbl.grow', { style: { fontWeight: 700 } }, 'ETIQUETAS E IMPRESIÓN'), o.codigo ? h('code.small', o.codigo) : null),
@@ -292,17 +291,34 @@ export async function previewDialog(o, tipo) {
   const cv = L.draw(b.tpl, b.data, 300, s); cv.className = 'lbl-canvas'; cv.style.width = Math.round(s.w * 4) + 'px'; cv.style.maxWidth = '100%';
   const faltan = tipo === 'gracias' ? b.data.faltan : [];
   modal(PRINT_TIPOS[tipo].t + ' · ' + s.w + ' × ' + s.h + ' mm', h('div.col', h('div.lbl-prev', cv), faltan.length ? h('p.small.warn-t', 'Falta: ' + faltan.join(', ')) : null,
-    tipo === 'gracias' ? h('p.tiny.muted', 'El texto se cambia en Embalaje → Tarjeta y mensajes.') : null), close => [btn('Cerrar', close)], { size: 'narrow' });
+    tipo === 'gracias' ? h('p.tiny.muted', 'El texto se cambia en Embalaje → Tarjeta y mensajes.') : null), close => [btn('Cerrar', close),
+    btn('Ver PDF', () => { const pages = [{ canvas: L.draw(b.tpl, b.data, 300, s), wmm: s.w, hmm: s.h }]; import('./pdfview.js').then(PV => PV.showPdf({ blob: L.pdfFromCanvases(pages), pages, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero, fileName: tipo + '_pedido_' + o.numero })); }, { icon: 'file' })], { size: 'narrow' });
 }
 export async function officialPreview(o) {
   const box = h('div.col', h('p.muted', 'Leyendo la etiqueta…'));
-  modal('Etiqueta oficial · pedido nº ' + o.numero, box, close => [btn('Cerrar', close)], { size: 'narrow' });
+  const e0 = o.etiquetaEnvio || {};
+  // v13.5: desde aquí también se abre el PDF a 100 × 150 (imprimir / descargar / compartir) y el archivo original
+  modal('Etiqueta oficial · pedido nº ' + o.numero, box, close => [btn('Cerrar', close),
+    e0.archivoId ? btn('Archivo original', async () => { const a = byId('archivos', e0.archivoId); if (!a) return toast('El archivo original no está en este dispositivo todavía. Sincroniza y vuelve a probar.', 'warn'); (await import('./files.js')).openFile(a); }, { icon: 'file' }) : null,
+    btn('PDF para imprimir', ev => officialPdf(o, ev.target.closest('button')), { cls: 'primary', icon: 'printer' })], { size: 'narrow' });
   try {
     const r = await officialCanvas(o), cv = document.createElement('canvas');
     cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0);
     cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '320px';
     mount(box, h('div.lbl-prev', cv), h('p.tiny.muted', 'Se imprime a 100 × 150 mm sin deformarla' + (r.recorte ? ' · recortado el blanco de alrededor' : '') + (r.giro ? ' · girada para que quepa' : '') + (r.paginas > 1 ? ' · página ' + r.pagina + ' de ' + r.paginas : '') + '. Es tu archivo original: no se cambia nada de lo que pone.'));
   } catch (e) { mount(box, h('p.bad-t', 'No se pudo leer la etiqueta: ' + e.message)); }
+}
+
+// v13.5 · La etiqueta oficial como PDF de 100 × 150 mm en el visor (sin registrar impresión: solo para verla/guardarla)
+export async function officialPdf(o, b) {
+  if (b) b.disabled = true;
+  try {
+    const r = await officialCanvas(o), L = await import('./labels.js');
+    const cv = L.draw('oficial', { canvas: r.canvas }, 300, { w: 100, h: 150 });
+    const pages = [{ canvas: cv, wmm: 100, hmm: 150 }];
+    return (await import('./pdfview.js')).showPdf({ blob: L.pdfFromCanvases(pages), pages, title: 'Etiqueta oficial · pedido nº ' + o.numero, fileName: 'etiqueta_oficial_pedido_' + o.numero });
+  } catch (e) { toast('No se pudo preparar el PDF: ' + e.message, 'bad', 8000); return null; }
+  finally { if (b) b.disabled = false; }
 }
 
 // ---------- Adjuntar la etiqueta oficial ----------

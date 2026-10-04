@@ -28,6 +28,55 @@ export const TEMPLATES = {
   // v11.8: tarjetas UNIVERSALES en hoja A4 para la impresora de papel fotográfico (varias por hoja, con corte)
   tarjetas: { t: 'Tarjetas de agradecimiento (hoja A4)', w: 210, h: 297, d: 'varias tarjetas por hoja, para papel fotográfico' }
 };
+// ================= v13.5 · FORMA de la tarjeta / etiqueta según la plantilla =================
+// Cada plantilla («etiqueta» o diseño) puede tener su forma: rectángulo, rectángulo con esquinas redondeadas, círculo u
+// óvalo. Se guarda para todo el equipo en Configuración del servidor (envio.formas) y se respeta en la vista previa, el
+// editor, la impresión (PC, Bluetooth), el PDF y la hoja A4 de tarjetas, porque TODO sale de draw() / drawOneCard().
+// Para añadir otra forma: una entrada aquí (path = contorno, inner = hueco seguro para el contenido) y su nombre en
+// server/23_envio.gs (FORMAS). Nada más.
+export const SHAPES = {
+  rect: { t: 'Rectángulo', i: '▭', path: (g, x, y, w, hh) => { g.beginPath(); g.rect(x, y, w, hh); }, inner: (w, hh) => ({ x: 0, y: 0, w, h: hh }) },
+  redondeado: { t: 'Rectángulo con esquinas redondeadas', i: '▢', r: (w, hh) => Math.min(6, Math.min(w, hh) * 0.14),
+    path(g, x, y, w, hh, k) { k = k || 1; const r = this.r(w / k, hh / k) * k; g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + hh, r); g.arcTo(x + w, y + hh, x, y + hh, r); g.arcTo(x, y + hh, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); },
+    inner(w, hh) { const p = this.r(w, hh) * 0.32; return { x: p, y: p, w: w - 2 * p, h: hh - 2 * p }; } },
+  circulo: { t: 'Círculo', i: '◯', path: (g, x, y, w, hh) => { const d = Math.min(w, hh); g.beginPath(); g.arc(x + w / 2, y + hh / 2, d / 2, 0, Math.PI * 2); g.closePath(); },
+    // rectángulo con las proporciones de la plantilla, inscrito en el círculo (con 4 % de aire)
+    inner: (w, hh, a) => { const d = Math.min(w, hh) * 0.96, k = a || 1, iw = d * k / Math.sqrt(1 + k * k), ih = d / Math.sqrt(1 + k * k); return { x: (w - iw) / 2, y: (hh - ih) / 2, w: iw, h: ih }; } },
+  ovalo: { t: 'Óvalo', i: '⬭', path: (g, x, y, w, hh) => { g.beginPath(); g.ellipse(x + w / 2, y + hh / 2, w / 2, hh / 2, 0, 0, Math.PI * 2); g.closePath(); },
+    inner: (w, hh) => { const iw = w / Math.SQRT2 * 0.97, ih = hh / Math.SQRT2 * 0.97; return { x: (w - iw) / 2, y: (hh - ih) / 2, w: iw, h: ih }; } }
+};
+// Plantillas en las que se puede elegir la forma (las de envío siempre son rectangulares: las pide el transportista)
+export const SHAPED = ['tarjetas', 'gracias', 'regalo', 'paquete', 'qr'];
+export function formaDe(tpl, cfgEnvio) {
+  if (!SHAPED.includes(tpl)) return 'rect';
+  const f = ((cfgEnvio || (S.cfg && S.cfg.envio) || {}).formas || {})[tpl];
+  return SHAPES[f] ? f : 'rect';
+}
+export const contornoOn = cfgEnvio => ((cfgEnvio || (S.cfg && S.cfg.envio) || {}).contorno) !== false;
+// Tamaño real de la pieza: un círculo ocupa un cuadrado (el lado menor)
+export const shapeBox = (forma, w, hh) => forma === 'circulo' ? { w: Math.min(w, hh), h: Math.min(w, hh) } : { w, h: hh };
+// Pone en forma un lienzo ya dibujado (contenido rectangular): lo encaja en el hueco seguro, recorta fuera
+// de la forma (blanco) y, si se pide, dibuja la línea de corte fina.
+function shapeCanvas(tpl, forma, d, dpi, size) {
+  const S0 = SHAPES[forma], W = size.w, H = size.h, inn = S0.inner(W, H, W / H);
+  const content = draw(tpl, Object.assign({}, d, { forma: 'rect', __inner: true }), dpi, { w: inn.w, h: inn.h });
+  const { c, g, k } = mk(W, H, dpi);
+  g.save(); S0.path(g, 0.3 * k, 0.3 * k, (W - 0.6) * k, (H - 0.6) * k, k); g.clip();
+  if (d.fondoForma) { g.fillStyle = d.fondoForma; g.fillRect(0, 0, c.width, c.height); }
+  g.drawImage(content, Math.round(inn.x * k), Math.round(inn.y * k));
+  g.restore();
+  if (d.contorno !== false) { g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = Math.max(1, 0.2 * k); g.setLineDash([1.2 * k, 0.9 * k]); S0.path(g, 0.3 * k, 0.3 * k, (W - 0.6) * k, (H - 0.6) * k, k); g.stroke(); g.setLineDash([]); }
+  return c;
+}
+
+// Solo para VER en pantalla: lo que queda fuera de la forma se vuelve transparente (al imprimir es papel blanco)
+export function cutPreview(cv, forma, wmm) {
+  if (!cv || !SHAPES[forma] || forma === 'rect') return cv;
+  const g = cv.getContext('2d'); g.save(); g.globalCompositeOperation = 'destination-in'; g.fillStyle = '#000';
+  SHAPES[forma].path(g, 0, 0, cv.width, cv.height, cv.width / (wmm || 50)); g.fill(); g.restore();
+  return cv;
+}
+
 export const CARD_SIZES = { '85x55': { w: 85, h: 55, t: '85 × 55 mm (como una tarjeta de visita)' }, '100x70': { w: 100, h: 70, t: '100 × 70 mm' }, '105x74': { w: 105, h: 74, t: '105 × 74 mm (A7)' }, '148x105': { w: 148, h: 105, t: '148 × 105 mm (A6, postal)' } };
 const A4 = { w: 210, h: 297 };
 
@@ -162,6 +211,9 @@ export function resetLogo() { logoP = null; }
 function line(g, x1, y1, x2, y2, w) { g.lineWidth = w; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
 
 export function draw(tpl, d, dpi, size) {
+  // v13.5: forma de la plantilla (o la que venga en los datos). El contenido se dibuja en el hueco seguro de la forma.
+  const forma = d && d.__inner ? 'rect' : (d && SHAPES[d.forma] ? d.forma : formaDe(tpl));
+  if (forma !== 'rect' && SHAPED.includes(tpl)) return shapeCanvas(tpl, forma, Object.assign({ contorno: contornoOn() }, d), dpi, size || TEMPLATES[tpl]);
   const s = size || TEMPLATES[tpl], { c, g, k, F } = mk(s.w, s.h, dpi);
   g.__k = k;
   const W = s.w, H = s.h, m = 3; // margen interior en mm
@@ -239,7 +291,7 @@ export function draw(tpl, d, dpi, size) {
   } else if (tpl === 'regalo') { // v12.9 · tarjeta de regalo: texto a la izquierda y QR único a la derecha
     const acc = d.color || '#e0457b', qs = Math.min(H - 2 * m - 4, W * 0.42), qx = W - m - qs, qy = (H - qs) / 2 - 1.5, tw = qx - 2 * m, cx = m + tw / 2;
     const FS = (pt, w) => w + ' ' + Math.round(pt * 0.3528 * k) + 'px Georgia, "Times New Roman", serif';
-    g.strokeStyle = acc; g.lineWidth = 0.5 * k; g.strokeRect(1.2 * k, 1.2 * k, (W - 2.4) * k, (H - 2.4) * k);
+    if (!d.__inner) { g.strokeStyle = acc; g.lineWidth = 0.5 * k; g.strokeRect(1.2 * k, 1.2 * k, (W - 2.4) * k, (H - 2.4) * k); } // dentro de una forma, el borde lo pone la forma
     if (d.qr) { qr(g, d.qr, qx * k, qy * k, qs * k); g.textAlign = 'center'; g.fillStyle = '#7a6f80'; g.font = F(5, 600); g.fillText('Ábrelo aquí', (qx + qs / 2) * k, (qy + qs + 0.8) * k); }
     g.textAlign = 'center'; g.textBaseline = 'top';
     const L1 = (g.font = FS(15, 700), wrap(g, '¡Tienes un regalo!', tw * k));
@@ -374,15 +426,18 @@ export async function sendLabel(tpl, build, opts = {}) {
     if (!opts.silent) toast('🖨️ ' + canv.length + (canv.length === 1 ? ' etiqueta enviada' : ' etiquetas enviadas') + ' a ' + pr.name + (tile ? ' (a tamaño real en folio A4)' : ''), 'ok', 5000);
     return { how: 'printer', printer: pr.name, sheet: tile, count: canv.length };
   }
-  // Sin el programa del PC: PDF con el tamaño exacto de la etiqueta
-  const blob = pdfFromCanvases(canv.map(cv => ({ canvas: cv, wmm: s.w, hmm: s.h })));
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, '_blank');
-  if (!w) { const a = h('a', { href: url, download: (opts.fileName || 'etiquetas_' + tpl) + '.pdf' }); document.body.appendChild(a); a.click(); a.remove(); }
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  // Sin impresora (móvil, o PC sin impresora): PDF con el tamaño exacto de la etiqueta.
+  // v13.5: se enseña DENTRO de la app (visor propio): antes se abría con window.open tras esperar al servidor y en
+  // el móvil salía bloqueado o en blanco. Desde el visor se imprime, se descarga, se comparte o se abre con el visor del PC.
+  const pages = canv.map(cv => ({ canvas: cv, wmm: s.w, hmm: s.h }));
+  const blob = pdfFromCanvases(pages);
+  const PV = await import('./pdfview.js');
+  const view = await PV.showPdf({ blob, pages, title: opts.title || ('PDF · ' + (TEMPLATES[tpl] ? TEMPLATES[tpl].t : tpl) + ' · ' + s.w + ' × ' + s.h + ' mm'), fileName: opts.fileName || ('etiquetas_' + tpl), nota: opts.nota || '' });
   if (!opts.silent) toast('📄 PDF de ' + s.w + ' × ' + s.h + ' mm listo. Al imprimir elige "Tamaño real" o "100 %".', 'ok', 7000);
-  return { how: 'pdf', printer: 'PDF', count: canv.length };
+  if (opts.wait) await view.closed;
+  return { how: 'pdf', printer: 'PDF', count: canv.length, blob, view };
 }
+export { pdfFromCanvases };
 
 // ---------- Diálogo único: vista previa a tamaño real + IMPRIMIR ETIQUETA ----------
 export async function labelDialog(tpl, datas, opts = {}) {
@@ -403,7 +458,8 @@ export async function labelDialog(tpl, datas, opts = {}) {
     if (real.checked) { cv.style.width = s.w + 'mm'; cv.style.height = s.h + 'mm'; } else { cv.style.width = '100%'; cv.style.height = 'auto'; cv.style.maxWidth = Math.round(s.w * 3.2) + 'px'; }
     mount(box, h('div.lbl-ruler', { style: real.checked ? { width: s.w + 'mm' } : {} }, h('span', s.w + ' mm')), cv);
     const sheet = isSheet(pr, s);
-    info.textContent = s.w + ' × ' + s.h + ' mm · escala 100 % · márgenes 0 mm · ' + dpi + ' ppp' + (pr ? ' · ' + (sheet ? 'en folio A4 a tamaño real (' + Math.max(1, Math.floor(205 / (s.w + 4))) * Math.max(1, Math.floor(291 / (s.h + 4))) + ' por hoja)' : 'papel ' + s.w + ' × ' + s.h + ' mm') : ' · PDF de tamaño exacto') + (datas.length > 1 ? ' · ' + datas.length + ' etiquetas' : '');
+    info.textContent = s.w + ' × ' + s.h + ' mm · escala 100 % · márgenes 0 mm · ' + dpi + ' ppp' + (pr ? ' · ' + (sheet ? 'en folio A4 a tamaño real (' + Math.max(1, Math.floor(205 / (s.w + 4))) * Math.max(1, Math.floor(291 / (s.h + 4))) + ' por hoja)' : 'papel ' + s.w + ' × ' + s.h + ' mm') : ' · PDF de tamaño exacto') + (datas.length > 1 ? ' · ' + datas.length + ' etiquetas' : '') + (formaDe(cur) !== 'rect' ? ' · forma: ' + SHAPES[formaDe(cur)].t.toLowerCase() + ' (Embalaje → Tarjeta y mensajes)' : '');
+    cv.dataset.forma = formaDe(cur); cutPreview(cv, formaDe(cur), s.w);
   };
   if (prSel) { const p = pickPrinter(cur, list, c); if (p) prSel.value = p.name; prSel.onchange = refresh; }
   if (tplSel) tplSel.onchange = () => { cur = tplSel.value; const p = pickPrinter(cur, list, c); if (p && prSel) prSel.value = p.name; refresh(); };
@@ -429,18 +485,32 @@ export async function labelDialog(tpl, datas, opts = {}) {
 // ================= v11.8 · TARJETAS DE AGRADECIMIENTO EN HOJA A4 (papel fotográfico) =================
 // Tarjeta UNIVERSAL (sin el nombre del cliente): sirve para todos los pedidos y se imprimen varias por hoja.
 // Corte: marcas en las esquinas (fuera de la tarjeta, no estropean el diseño) o un borde fino.
-export function cardLayout(size, n) {
-  const c = CARD_SIZES[size] || CARD_SIZES['85x55'], m = 10, gap = 8;
+export function cardLayout(size, n, forma) {
+  const c0 = CARD_SIZES[size] || CARD_SIZES['85x55'], c = shapeBox(forma || 'rect', c0.w, c0.h), m = 10, gap = 8; // v13.5: un círculo ocupa un cuadrado
   const cols = Math.max(1, Math.floor((A4.w - 2 * m + gap) / (c.w + gap))), rows = Math.max(1, Math.floor((A4.h - 2 * m + gap) / (c.h + gap)));
   const per = cols * rows, gw = cols * c.w + (cols - 1) * gap, gh = rows * c.h + (rows - 1) * gap;
   return { w: c.w, h: c.h, cols, rows, per, n: Math.max(1, Math.min(per, Number(n) || per)), x0: (A4.w - gw) / 2, y0: (A4.h - gh) / 2, gap };
 }
 function rgba(hex, a) { const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i); const v = m ? parseInt(m[1], 16) : 0xe0457b; return 'rgba(' + (v >> 16) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')'; }
 function drawOneCard(g, k, x, y, w, hgt, d) {
+  // v13.5: tarjeta con forma (círculo, esquinas redondeadas, óvalo): fondo dentro de la forma, contenido en su hueco
+  // seguro, recorte de lo que sobresale y, con «Borde fino», la línea de corte siguiendo la forma.
+  const forma = SHAPES[d.forma] && d.forma !== 'rect' ? d.forma : '';
+  if (forma) {
+    const S0 = SHAPES[forma], inn = S0.inner(w, hgt, w / hgt);
+    g.save(); g.fillStyle = '#fff'; g.fillRect(x * k, y * k, w * k, hgt * k);
+    S0.path(g, x * k, y * k, w * k, hgt * k, k); g.clip();
+    if (d.fondo) { g.fillStyle = rgba(d.color || '#e0457b', 0.06); g.fillRect(x * k, y * k, w * k, hgt * k); }
+    drawOneCard(g, k, x + inn.x, y + inn.y, inn.w, inn.h, Object.assign({}, d, { forma: 'rect', fondo: false, corte: 'ninguno', __blanco: false }));
+    g.restore();
+    if (d.corte === 'borde') { g.strokeStyle = 'rgba(0,0,0,.32)'; g.lineWidth = 0.2 * k; S0.path(g, (x + 0.1) * k, (y + 0.1) * k, (w - 0.2) * k, (hgt - 0.2) * k, k); g.stroke(); }
+    g.textAlign = 'left';
+    return;
+  }
   g.__k = k;
   const acc = d.color || '#e0457b', P = 4; // margen interior (mm)
   g.save(); g.translate(x * k, y * k);
-  g.fillStyle = '#fff'; g.fillRect(0, 0, w * k, hgt * k);
+  if (d.__blanco !== false) { g.fillStyle = '#fff'; g.fillRect(0, 0, w * k, hgt * k); }
   if (d.fondo) { g.fillStyle = rgba(acc, 0.06); g.fillRect(0, 0, w * k, hgt * k); }
   if (d.corte === 'borde') { g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 0.2 * k; const r = 2.5 * k; g.beginPath(); g.moveTo(r, 0.1 * k); g.arcTo(w * k, 0, w * k, hgt * k, r); g.arcTo(w * k, hgt * k, 0, hgt * k, r); g.arcTo(0, hgt * k, 0, 0, r); g.arcTo(0, 0, w * k, 0, r); g.stroke(); }
   const qs = d.qr ? Math.min(hgt * 0.36, 20) : 0, tw = w - 2 * P - (qs ? qs + 3 : 0), cx = P + tw / 2;
@@ -473,7 +543,7 @@ function cropMarks(g, k, x, y, w, hgt) {
 }
 // Una hoja A4 con n tarjetas iguales
 export function drawCardSheet(d, dpi) {
-  const L = cardLayout(d.tam, d.n), { c, g, k } = mk(A4.w, A4.h, dpi);
+  const L = cardLayout(d.tam, d.n, d.forma), { c, g, k } = mk(A4.w, A4.h, dpi);
   for (let i = 0; i < L.n; i++) {
     const x = L.x0 + (i % L.cols) * (L.w + L.gap), y = L.y0 + Math.floor(i / L.cols) * (L.h + L.gap);
     drawOneCard(g, k, x, y, L.w, L.h, d);
@@ -481,4 +551,5 @@ export function drawCardSheet(d, dpi) {
   }
   return c;
 }
-export function drawOneCardCanvas(d, dpi) { const s = CARD_SIZES[d.tam] || CARD_SIZES['85x55'], { c, g, k } = mk(s.w, s.h, dpi); drawOneCard(g, k, 0, 0, s.w, s.h, d); return c; }
+export function drawOneCardCanvas(d, dpi) { const s0 = CARD_SIZES[d.tam] || CARD_SIZES['85x55'], s = shapeBox(d.forma || 'rect', s0.w, s0.h), { c, g, k } = mk(s.w, s.h, dpi); drawOneCard(g, k, 0, 0, s.w, s.h, d); return c; }
+export const oneCardSize = d => { const s0 = CARD_SIZES[d.tam] || CARD_SIZES['85x55']; return shapeBox(d.forma || 'rect', s0.w, s0.h); };
