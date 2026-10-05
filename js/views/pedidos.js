@@ -333,12 +333,13 @@ async function save(o, changes, label) {
 const PACK_BEFORE = { reserva: 1, confirmado: 1, impresion: 1, postpro: 1, empaquetar: 1 };
 export async function changeState(o, estado, extra) {
   const to = CL.phaseOf(S.cfg.pedidos, estado);
-  // v13.7: antes de preparar o enviar un paquete, DATOS DEL ENVÍO (empresa, dirección de envío y observaciones). Si es recogida en persona, no se pide.
-  if (['empaquetar', 'listo', 'enviado'].includes(to) && can('pedidos.editar') && !CL.datosEnvioCompletos(Object.assign({}, o, extra || {}))) {
-    const de = await datosEnvioDialog(Object.assign({}, o, extra || {}));
-    if (!de) return false; // cancelado: no se cambia nada
-    extra = Object.assign({}, extra || {}, de);
+  // El código QR es solo interno: antes de entrar en Empaquetar se confirma la bobina 50×50 y se imprime.
+  if (to === 'empaquetar' && ph(o) !== 'empaquetar' && can('pedidos.editar') && !(extra && extra._qrInternoListo) && EV.statusOf(o, 'paquete').estado !== 'Impreso') {
+    if (!await confirmDlg('Bobina 50 × 50 mm', 'Coloca la bobina de 50 × 50 mm. Se imprimirá el identificador QR interno de este pedido.', 'Bobina puesta')) return false;
+    try { const r = await EV.printOne(o, 'paquete'); if (!r || r.estado !== 'Impreso') return false; }
+    catch (e) { toast('No se pudo imprimir el QR interno: ' + e.message, 'bad', 8000); return false; }
   }
+  if (extra && extra._qrInternoListo) { extra = Object.assign({}, extra); delete extra._qrInternoListo; }
   if (PACK_BEFORE[ph(o)] && ['listo', 'enviado', 'entregado'].includes(to) && !(o.embalaje && o.embalaje.hecho) && !(extra && extra.trabajoExtra) && (S.cfg.embalaje || {}).preguntarTrabajo !== false && can('pedidos.editar')) {
     const E = await import('./embalaje.js');
     const tr = await E.askLabor(o);
@@ -415,19 +416,14 @@ function bloqueDatosEnvio(o) {
     necesita && falta.length ? h('p.tiny', { style: { color: 'var(--warn, #b45309)' } }, '⚠️ Falta: ' + falta.join(' y ') + '. Se pedirá antes de preparar o enviar el paquete.') : null);
 }
 export async function shipDialog(o, estado) {
-  // v13.7: si faltan los datos del envío, se piden primero
-  let datos = {};
-  if (can('pedidos.editar') && !CL.datosEnvioCompletos(o)) { datos = await datosEnvioDialog(o); if (!datos) return; }
-  const oo = Object.assign({}, o, datos);
-  const opciones = [''].concat(S.cfg.pedidos.envios); if (oo.envio && !opciones.includes(oo.envio)) opciones.push(oo.envio);
-  const envio = sel(opciones, oo.envio);
-  const seg = inp({ value: o.seguimiento || '', placeholder: 'Ej.: PK123456789ES' });
+  const seg = inp({ value: o.seguimiento || '', placeholder: 'Opcional' });
   const fecha = inp({ type: 'date', value: S.hoy });
   const coste = inp({ type: 'number', min: 0, step: 0.01, value: o.costeEnvio ?? '', placeholder: 'Ej.: 3,20' });
-  modal('Enviar pedido nº ' + o.numero, h('div.form', field('Transportista / método', envio), field('Nº de seguimiento', seg, 'Si no tiene, déjalo vacío.'), field('Fecha de envío', fecha), field('Lo que has pagado por el envío (€)', coste, 'Opcional. Sirve para saber el beneficio real. Si lo paga el cliente, pon 0.')), close => [
+  modal('Enviar pedido nº ' + o.numero, h('div.form', h('p.small', 'El QR es interno. El transportista no hace falta para cambiar el estado.'), field('Nº de seguimiento (opcional)', seg), field('Fecha de envío', fecha), field('Coste del envío (€) (opcional)', coste)), close => [
     btn('Cancelar', close),
-    btn('Marcar como enviado', async () => { close(); const ex = Object.assign({}, datos, { envio: envio.value, seguimiento: seg.value.trim(), fechaEnvio: fecha.value }); if (coste.value !== '') ex.costeEnvio = Number(coste.value); await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
+    btn('Marcar como enviado', async () => { close(); const ex = { seguimiento: seg.value.trim(), fechaEnvio: fecha.value }; if (coste.value !== '') ex.costeEnvio = Number(coste.value); await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
 }
+
 export function issueDialog(o) {
   const t = area({ value: o.incidencia || '', placeholder: 'Qué ha pasado: pieza rota, cliente no responde, paquete perdido…' });
   modal('Incidencia · nº ' + o.numero, h('div.col', field('Descripción', t), h('p.tiny.muted', 'El pedido sigue en su paso (' + o.estado + ') con una marca roja hasta que la marques como resuelta. Se avisa al equipo.')), close => [btn('Cancelar', close), btn('Guardar incidencia', () => { if (!t.value.trim()) return toast('Describe la incidencia', 'warn'); close(); save(o, { incidencia: t.value.trim() }, 'Incidencia en nº ' + o.numero); }, { cls: 'danger solid' })], { size: 'narrow' });
@@ -593,7 +589,7 @@ export function orderForm(o, duplicate) {
     h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full', assist),
       field('Canal / tienda', f.canal), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
     h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Color', f.color), h('div'), field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
-    h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Empresa de transporte / método de envío', f.envio), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada), field('Dirección de envío (este pedido)', f.direccionEnvio, 'Solo para este paquete. La ficha del cliente no cambia.'), field('Observaciones del envío', f.obsEnvio))),
+    h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada), field('Dirección de envío (este pedido)', f.direccionEnvio, 'Solo para este paquete. La ficha del cliente no cambia.'), field('Observaciones del envío', f.obsEnvio))),
     h('details.more', { open: isNew }, h('summary', 'Etiqueta de envío'), h('div.in', isNew
       ? h('div.col', { style: { gap: '6px' } }, labelFile, h('p.tiny.muted', 'Opcional: la etiqueta oficial que te da Vinted, InPost, Correos… (PDF o foto). Si aún no la tienes, la adjuntas después desde el pedido o al empaquetar. Nunca se inventa.'))
       : EV.labelRow(o, () => { }))),

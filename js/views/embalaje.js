@@ -130,11 +130,50 @@ async function setPack(o, choice) {
   } catch (e) { handleError(e, 'pedidos'); }
 }
 async function changeTo(o, estado) { const P = await import('./pedidos.js'); return P.changeState(o, estado); }
-// Cierra el paquete: pregunta el trabajo adicional y pasa a «Listo para envío» (la caja sale del stock)
+// Guarda vídeo probatorio vinculado al pedido y en Drive/Pedidos/Pruebas venta.
+function captureSaleProof(o) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = v => { if (!settled) { settled = true; resolve(v); } };
+    let dialog;
+    const video = h('input', { type: 'file', accept: 'video/*', capture: 'environment', style: { display: 'none' } });
+    const status = h('p.tiny.muted', 'Graba con el móvil o elige un vídeo existente. Se guardará con el número de pedido.');
+    const choose = btn('🎥 Grabar o elegir vídeo', () => video.click(), { cls: 'primary' });
+    video.onchange = async () => {
+      const source = video.files && video.files[0]; video.value = '';
+      if (!source) return;
+      if (!String(source.type || '').startsWith('video/')) { status.textContent = 'El archivo seleccionado no parece un vídeo.'; return; }
+      const ext = (source.name.match(/\.([a-z0-9]{2,5})$/i) || [,'mp4'])[1].toLowerCase();
+      const safe = String(o.numero || o.id).replace(/[^a-z0-9_-]/gi, '_');
+      const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+      const f = new File([source], 'PRUEBA_VENTA_PEDIDO_' + safe + '_' + stamp + '.' + ext, { type: source.type, lastModified: source.lastModified });
+      choose.disabled = true; status.textContent = 'Guardando vídeo del pedido nº ' + o.numero + '…';
+      try {
+        const F = await import('../files.js');
+        await F.uploadFile(f, { entidad: 'pedidos', entidadId: o.id, rutaLocal: 'Pruebas venta' });
+        status.textContent = '✓ Vídeo guardado en «Pruebas venta», vinculado al pedido nº ' + o.numero + '.';
+        finish(true); dialog.close();
+      } catch (e) { status.textContent = 'No se pudo guardar: ' + e.message + '. Comprueba la conexión y vuelve a intentarlo.'; choose.disabled = false; }
+    };
+    const body = h('div.col', h('p', h('b', 'Antes de cerrar, graba el producto y el paquete de este pedido.')), h('ul',
+      h('li', 'Enseña el producto, su estado y que funciona; incluye todas las piezas.'),
+      h('li', 'Graba el material de protección y cómo queda cerrado el paquete.'),
+      h('li', 'Muestra la etiqueta solo si hace falta; evita exponer datos personales en el vídeo.'),
+      h('li', 'Conserva también el resguardo de entrega y el seguimiento cuando lo tengas.')),
+      h('p.tiny.muted', 'La ayuda de Wallapop menciona producto, embalaje y etiqueta al describir evidencias de disputa; Etsy enumera recibo, seguimiento o justificante de envío para casos de no entrega. Son referencias de esas plataformas, no requisitos universales. El vídeo ayuda a documentar el pedido, pero no garantiza que se acepte una reclamación.'),
+      choose, video, status);
+    dialog = modal('🎥 Prueba de venta · pedido nº ' + o.numero, body, close => [btn('Cancelar', () => { close(); finish(false); })], { size: 'narrow', onclose: () => finish(false) });
+  });
+}
+// Cierra el paquete: pide prueba por pedido, pregunta trabajo adicional y pasa a «Listo para envío».
 export async function closePack(o, estado) {
+  const proof = await captureSaleProof(o);
+  if (!proof) return false;
   const target = estado || CL.stateOfPhase(cfg().pedidos, 'listo');
   const P = await import('./pedidos.js');
-  return P.changeState(o, target);
+  const ok = await P.changeState(o, target);
+  if (ok) await E.offerOfficialLabel(byId('pedidos', o.id) || o);
+  return ok;
 }
 function redoDialog(o, after) {
   const back = h('input', { type: 'checkbox', checked: !!o.embalaje.cajaDescontada }), motivo = inp({ placeholder: 'Ej.: me equivoqué de caja' });
@@ -489,3 +528,4 @@ async function labelPrinterBox(el) {
       t.pr ? btn('Prueba', () => L.printLabels('qr', [{ qr: 'CelebriDisenos-prueba', titulo: 'Prueba ' + t.size.w + '×' + t.size.h }], { printer: t.pr.name }).catch(e => toast(e.message, 'bad', 8000)), { cls: 'sm ghost', icon: 'printer' }) : null))),
     h('div.row', { style: { marginTop: '8px' } }, btn('Elegir impresoras, tamaños y calibrar', () => go('taller/papel'), { cls: 'sm' }), btn('Comprobar de nuevo', async () => { await L.printers(true); labelPrinterBox(el); }, { cls: 'sm ghost', icon: 'refresh' }))));
 }
+

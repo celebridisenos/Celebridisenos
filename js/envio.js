@@ -14,7 +14,7 @@ const ecfg = () => (S.cfg && S.cfg.envio) || {};
 export const PRINT_TIPOS = {
   oficial: { t: 'Etiqueta de envío oficial', tpl: 'oficial', f: '100x150', i: '🏷️' },
   propia: { t: 'Etiqueta de dirección propia', tpl: 'envio', f: '100x150', i: '✉️' },
-  paquete: { t: 'Código del paquete (QR)', tpl: 'paquete', f: '50x50', i: '🔳' },
+  paquete: { t: 'Identificador interno del paquete (QR)', tpl: 'paquete', f: '50x50', i: '🔳' },
   gracias: { t: 'Tarjeta de agradecimiento', tpl: 'gracias', f: '50x50', i: '💌' }
 };
 const EST_CLS = { Pendiente: 'warn', Enviando: 'brand', Impreso: 'ok', Error: 'bad' };
@@ -424,6 +424,15 @@ export function prepareBanner(o, redraw) {
 }
 
 // ---------- «Preparado para enviar»: se comprueba todo antes de marcar como enviado (sin repetir impresiones) ----------
+export async function offerOfficialLabel(o) {
+  o = byId('pedidos', o.id) || o;
+  if (!hasLabel(o)) { toast('El pedido ya está en «Listo para envío», pero falta adjuntar su etiqueta oficial 100 × 150 mm.', 'warn', 8000); return false; }
+  const { confirmDlg } = await import('./ui.js');
+  if (!await confirmDlg('Bobina de envío 100 × 150 mm', 'El pedido está en «Listo para envío». Coloca la bobina de 100 × 150 mm. ¿Quieres imprimir ahora la etiqueta oficial que ya adjuntaste?', 'Sí, imprimir etiqueta')) return true;
+  const r = await printOne(o, 'oficial');
+  return !!r && r.estado === 'Impreso';
+}
+
 export function sendCheck(o, after) {
   o = byId('pedidos', o.id) || o;
   const packed = !!(o.embalaje && o.embalaje.hecho), items = [
@@ -431,10 +440,8 @@ export function sendCheck(o, after) {
     ['📦 Paquete', packed ? 'ok' : 'warn', packed ? 'Hecho el ' + String(o.embalaje.hecho).split('-').reverse().join('/') : 'Sin cerrar'],
     ['🔳 Código del paquete (QR)', statusOf(o, 'paquete').estado === 'Impreso' ? 'ok' : wanted(o).includes('paquete') ? 'warn' : 'ok', statusOf(o, 'paquete').estado === 'Impreso' ? 'Impreso' : wanted(o).includes('paquete') ? 'Sin imprimir' : 'No se usa'],
     ['💌 Tarjeta', statusOf(o, 'gracias').estado === 'Impreso' ? 'ok' : wanted(o).includes('gracias') ? 'warn' : 'ok', statusOf(o, 'gracias').estado === 'Impreso' ? (cardMode() === 'hoja' ? 'Metida en el paquete' : 'Impresa') : wanted(o).includes('gracias') ? (cardMode() === 'hoja' ? 'Sin meter en el paquete' : 'Sin imprimir') : 'No se usa'],
-    // v13.7: datos del envío (empresa, dirección de envío y observaciones)
-    (() => { const CL = window.CL, falta = CL.datosEnvioFalta(o); return ['📮 Datos del envío', falta.length ? 'warn' : 'ok', !CL.necesitaEnvio(o) ? 'No se envía (' + (o.envio || 'en persona') + ')' : falta.length ? 'Falta: ' + falta.join(' y ') + ' (se pide al marcar enviado)' : o.envio + (o.direccionEnvio && o.direccionEnvio !== '•••' ? ' · ' + o.direccionEnvio : '') + (o.obsEnvio ? ' · ' + o.obsEnvio : '')]; })()
+    ['📮 Datos del envío', 'ok', 'El QR solo identifica el pedido dentro del taller.'],
   ];
-  const carrier = o.envio || (o.etiquetaEnvio && o.etiquetaEnvio.transportista) || '';
   const pend = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja'));
   const cardPend = cardMode() === 'hoja' && wanted(o).includes('gracias') && statusOf(o, 'gracias').estado !== 'Impreso';
   modal('🚚 Preparado para enviar · nº ' + o.numero, h('div.col', h('div.list', items.map(([t, nv, d]) => h('div.item', { style: { cursor: 'default' } }, h('span.grow', h('b', t), h('div.tiny.muted', d)), pill(nv === 'ok' ? '✓' : 'REVISAR', nv)))),
@@ -442,5 +449,5 @@ export function sendCheck(o, after) {
   close => [btn('Cancelar', close),
     cardPend && can('pedidos.editar') ? btn('💌 Tarjeta metida', async () => { close(); await cardIncluded(o); sendCheck(o, after); }) : null,
     pend.length && can('pedidos.editar') ? btn('🖨️ Imprimir lo que falta (' + pend.length + ')', async () => { close(); await printPending(o); sendCheck(o, after); }) : null,
-    btn(carrier ? '🚚 Enviar con ' + carrier : '🚚 Marcar como enviado', async () => { close(); const P = await import('./views/pedidos.js'); P.shipDialog(byId('pedidos', o.id) || o); after && after(); }, { cls: 'primary' })], { size: 'narrow' });
+    btn('🚚 Marcar como enviado', async () => { close(); const P = await import('./views/pedidos.js'); P.shipDialog(byId('pedidos', o.id) || o); after && after(); }, { cls: 'primary' })], { size: 'narrow' });
 }

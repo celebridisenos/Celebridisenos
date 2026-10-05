@@ -26,6 +26,14 @@ export function mesaDialog() {
   return modal('📍 QR para mi mesa de trabajo', body, close => [btn('Cerrar', close), sinUrl ? null : btn('Imprimir los 3', () => { close(); L.labelDialog('mesa', items.map(x => x.d)); }, { cls: 'primary', icon: 'printer' })], { size: 'wide' });
 }
 
+export function pruebaQrDialog() {
+  const code = 'CD-PRUEBA-QR-' + Date.now().toString(36).toUpperCase();
+  const body = h('div.col', h('p.small', 'QR de demostración: al escanearlo verás una confirmación verde. No busca ni cambia ningún pedido real.'),
+    h('div', { style: { width: '220px', margin: '0 auto' }, html: qrSvg(code, 5) }), h('code', { style: { textAlign: 'center' } }, code),
+    btn('🖨️ Imprimir prueba 50 × 50 mm', () => L.labelDialog('paquete', [{ qr: code, codigo: 'PRUEBA', numero: 'PRUEBA', cliente: 'TEST' }]), { cls: 'primary' }));
+  return modal('Prueba del lector QR', body, close => [btn('Cerrar', close)], { size: 'narrow' });
+}
+
 const CL = window.CL;
 const cfg = () => S.cfg || {};
 let stream = null, timer = null, lastHit = { code: '', at: 0 };
@@ -41,7 +49,7 @@ export function render(el, params) {
   const camBtn = btn('Abrir la cámara', () => (stream ? stopCam(camBox, camBtn) : startCam(video, camBox, camMsg, camBtn, c => lookup(c, result, hist))), { cls: 'primary', icon: 'camera' });
   code.onkeydown = e => { if (e.key === 'Enter') { lookup(code.value, result, hist); code.select(); } };
   el.append(head,
-    h('div.card', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, camBtn, code, btn('Buscar', () => lookup(code.value, result, hist), { icon: 'search' }), btn('QR para mi mesa', () => mesaDialog(), { icon: 'printer', cls: 'ghost' })), camMsg, camBox,
+    h('div.card', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, camBtn, code, btn('Buscar', () => lookup(code.value, result, hist), { icon: 'search' }), btn('QR para mi mesa', () => mesaDialog(), { icon: 'printer', cls: 'ghost' }), btn('Probar QR', () => pruebaQrDialog(), { icon: 'qr', cls: 'ghost' })), camMsg, camBox,
       h('p.tiny.muted', 'También funciona escaneando el QR con la cámara normal del móvil: abre esta pantalla directamente.')),
     result, hist);
   setTimeout(() => code.focus(), 50);
@@ -115,6 +123,10 @@ export function appLinkFrom(text) {
 async function lookup(text, result, hist) {
   text = String(text || '').trim();
   if (!text) return;
+  if (/^CD-PRUEBA-QR-[A-Z0-9]+$/i.test(text)) {
+    mount(result, h('div.scan-card.scan-ok', h('div.scan-big', '✅'), h('h2', 'QR de prueba leído'), h('p', 'Cámara y lectura correctas. No se ha consultado ni modificado ningún pedido.')));
+    flash(result.firstChild, true); return;
+  }
   // v13.2: los QR de las etiquetas son ENLACES de la app (envío → #/pedidos/<id>/?enviar=1, producto, almacén, mesa, prueba…).
   // La cámara normal del móvil los abre; la de aquí tenía que entenderlos igual (antes solo entendía el código CEB-… y daba error).
   const link = appLinkFrom(text);
@@ -194,8 +206,8 @@ function showOrder(o, extra, el, fresh) {
   const wasOpen = !!(el.querySelector('details.scan-more') || {}).open;
   mount(el, card,
     edit ? h('div.scan-actions',
-      ph === 'empaquetar' ? btn('✅ Marcar preparado', async () => { const EM = await import('./embalaje.js'); if (await EM.closePack(o)) redraw(); }, { cls: 'primary' })
-        : ph === 'listo' ? btn('🚚 ' + (o.envio ? 'Enviar con ' + o.envio : 'Preparado para enviar'), () => E.sendCheck(o, redraw), { cls: 'primary' })
+      ph === 'empaquetar' ? btn('📦 Envío empaquetado', async () => { const EM = await import('./embalaje.js'); if (await EM.closePack(o)) redraw(); }, { cls: 'primary' })
+        : ph === 'listo' ? btn('🚚 Enviar pedido', () => E.sendCheck(o, redraw), { cls: 'primary' })
         : ['reserva', 'confirmado', 'impresion', 'postpro'].includes(ph) ? btn('📦 Pasar a «' + (CL.stateOfPhase(cfg().pedidos, 'empaquetar') || 'Empaquetar') + '»', async () => { await (await P()).changeState(o, CL.stateOfPhase(cfg().pedidos, 'empaquetar')); redraw(); }, { cls: 'primary' }) : null,
       btn('🔄 Cambiar estado', async () => (await P()).stateDialog(o)),
       can('archivos.subir') ? btn('📷 Hacer foto', () => photo.click()) : null,
