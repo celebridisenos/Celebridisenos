@@ -60,7 +60,9 @@ export function thanksData(o, g) {
   g = Object.assign({}, ecfg().gracias || {}, g || {});
   const c = ctxOf(o), F = t => fill(t, c);
   const parts = [F(g.titulo), F(g.texto), F(g.firma)];
-  return { titulo: parts[0].texto, texto: parts[1].texto, firma: parts[2].texto, faltan: [...new Set(parts.flatMap(p => p.faltan))], logo: g.logo !== false, qr: g.qrCodigo && o.codigo ? qrPayload(o) : '' };
+  const t = ecfg().tarjeta || {}; // v13.7: el mismo DISEÑO que las tarjetas (fondo, letras, colores) también en la etiqueta 50 × 50
+  return { titulo: parts[0].texto, texto: parts[1].texto, firma: parts[2].texto, faltan: [...new Set(parts.flatMap(p => p.faltan))], logo: g.logo !== false, qr: g.qrCodigo && o.codigo ? qrPayload(o) : '',
+    color: t.color || '#e0457b', fondo: !!t.fondo, diseno: t.diseno || null };
 }
 
 // ---------- v11.8 · Tarjeta UNIVERSAL en hoja A4 (no lleva datos del cliente) ----------
@@ -82,12 +84,13 @@ export function universalCard(g, t, forma) {
   const quitados = new Set(), em = emisor(), tienda = em.comercial || em.nombre || (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || '';
   const F = x => String(x || '').replace(/\{(\w+)\}/g, (m, k) => { if (k === 'tienda') return tienda; quitados.add(k); return ''; }).replace(/\s{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').replace(/^[,\s]+|[,\s]+$/g, '').trim();
   const qrUrl = t.qr ? thanksUrl(t) : '';
-  return { titulo: F(g.titulo), texto: F(g.texto), firma: F(g.firma), logo: g.logo !== false, qr: qrUrl, tam: t.tam, n: Number(t.n) || 0, corte: t.corte, color: t.color, fondo: !!t.fondo, forma: fo,
+  return { titulo: F(g.titulo), texto: F(g.texto), firma: F(g.firma), logo: g.logo !== false, qr: qrUrl, tam: t.tam, n: Number(t.n) || 0, corte: t.corte, color: t.color, fondo: !!t.fondo, forma: fo, diseno: t.diseno || null,
     avisos: [...quitados].length ? ['La tarjeta es universal: no lleva ' + [...quitados].map(k => '{' + k + '}').join(', ') + ' (sirve para todos los clientes).'] : [], sinQr: t.qr && !qrUrl ? 'Falta la dirección pública de la app (la de GitHub Pages): sin ella el QR no puede abrir la página de agradecimiento.' : '' };
 }
 export async function printCardSheets(d, opts = {}) {
   const L = await import('./labels.js');
   if (d.logo) d.logoImg = await L.loadLogo();
+  d.fondoImg = await L.loadCardBg(d.diseno); // v13.7: imagen de fondo (si la hay)
   const hojas = Math.max(1, Math.min(20, Number(opts.hojas) || 1)), dpi = opts.dpi || 300;
   const r = await L.sendLabel('tarjetas', () => Array.from({ length: hojas }, () => L.drawCardSheet(d, dpi)), { printer: opts.printer, calidad: 'foto', fileName: 'tarjetas_agradecimiento' });
   api('etiquetas.registrar', { plantilla: 'tarjetas', entidad: 'etiqueta', entidadId: 'tarjetas-A4', titulo: hojas + ' hoja(s) de tarjetas ' + d.tam, impresora: r.printer, copias: hojas }, { quiet: true }).catch(() => { });
@@ -184,6 +187,7 @@ async function buildFor(o, tipo, L) {
   if (tipo === 'paquete') return { tpl: 'paquete', data: { qr: qrPayload(o), codigo: o.codigo, numero: o.numero, cliente: String(o.cliente || '').split(/\s+/)[0] } };
   const d = thanksData(o);
   if (d.logo) d.logoImg = await L.loadLogo();
+  d.fondoImg = await L.loadCardBg(d.diseno);
   return { tpl: T.tpl, data: d };
 }
 // Modo hoja A4: la tarjeta ya está impresa en hojas; en el pedido solo se apunta que va DENTRO del paquete
@@ -426,7 +430,9 @@ export function sendCheck(o, after) {
     ['🏷️ Etiqueta de envío', hasLabel(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'ok' : 'warn') : 'warn', hasLabel(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'Adjuntada e impresa' : 'Adjuntada, sin imprimir') : 'FALTA (no se puede imprimir lo que no existe)'],
     ['📦 Paquete', packed ? 'ok' : 'warn', packed ? 'Hecho el ' + String(o.embalaje.hecho).split('-').reverse().join('/') : 'Sin cerrar'],
     ['🔳 Código del paquete (QR)', statusOf(o, 'paquete').estado === 'Impreso' ? 'ok' : wanted(o).includes('paquete') ? 'warn' : 'ok', statusOf(o, 'paquete').estado === 'Impreso' ? 'Impreso' : wanted(o).includes('paquete') ? 'Sin imprimir' : 'No se usa'],
-    ['💌 Tarjeta', statusOf(o, 'gracias').estado === 'Impreso' ? 'ok' : wanted(o).includes('gracias') ? 'warn' : 'ok', statusOf(o, 'gracias').estado === 'Impreso' ? (cardMode() === 'hoja' ? 'Metida en el paquete' : 'Impresa') : wanted(o).includes('gracias') ? (cardMode() === 'hoja' ? 'Sin meter en el paquete' : 'Sin imprimir') : 'No se usa']
+    ['💌 Tarjeta', statusOf(o, 'gracias').estado === 'Impreso' ? 'ok' : wanted(o).includes('gracias') ? 'warn' : 'ok', statusOf(o, 'gracias').estado === 'Impreso' ? (cardMode() === 'hoja' ? 'Metida en el paquete' : 'Impresa') : wanted(o).includes('gracias') ? (cardMode() === 'hoja' ? 'Sin meter en el paquete' : 'Sin imprimir') : 'No se usa'],
+    // v13.7: datos del envío (empresa, dirección de envío y observaciones)
+    (() => { const CL = window.CL, falta = CL.datosEnvioFalta(o); return ['📮 Datos del envío', falta.length ? 'warn' : 'ok', !CL.necesitaEnvio(o) ? 'No se envía (' + (o.envio || 'en persona') + ')' : falta.length ? 'Falta: ' + falta.join(' y ') + ' (se pide al marcar enviado)' : o.envio + (o.direccionEnvio && o.direccionEnvio !== '•••' ? ' · ' + o.direccionEnvio : '') + (o.obsEnvio ? ' · ' + o.obsEnvio : '')]; })()
   ];
   const carrier = o.envio || (o.etiquetaEnvio && o.etiquetaEnvio.transportista) || '';
   const pend = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja'));

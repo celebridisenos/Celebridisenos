@@ -42,6 +42,19 @@ export function popup({ titulo, texto, enlace, avatarDe, ic, kind }, force) {
   el.addEventListener('mouseleave', () => { t = setTimeout(close, 2500); });
 }
 
+// ---------- v13.7 · Sonido de pedido web nuevo (dos notas suaves, sin archivos). Se apaga desde «Pedidos web». ----------
+export const sonidoActivo = () => { try { return localStorage.getItem('cd.pw.sonido') !== '0'; } catch (e) { return true; } };
+export function sonidoPedidoWeb(forzar) {
+  if (!forzar && !sonidoActivo()) return;
+  try {
+    const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+    const ctx = new A(), t0 = ctx.currentTime;
+    [[880, 0], [1320, 0.16]].forEach(([f, d]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.18, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.35); o.connect(g).connect(ctx.destination); o.start(t0 + d); o.stop(t0 + d + 0.4); });
+    setTimeout(() => ctx.close().catch(() => { }), 900);
+    window.__cdSonidos = (window.__cdSonidos || 0) + 1; // (para las pruebas)
+  } catch (e) { }
+}
+
 // ---------- Vigilante: qué es nuevo desde la última vez ----------
 let seenN = null, seenO = null, seenC = null;
 export function startPopups() {
@@ -53,15 +66,22 @@ export function startPopups() {
       if (seenN.has(n.id)) return; seenN.add(n.id);
       if (n.leida || !rule(evOf(n)).popup) return;
       if (evOf(n) === 'mencion' && document.body.dataset.view === 'chat') return;
-      popup({ titulo: n.titulo, texto: n.texto, enlace: String(n.enlace || '').replace(/^pedido:/, 'pedidos/').replace(/^taller:/, 'taller/'), kind: n.tipo === 'urgente' || n.tipo === 'incidencia' ? 'bad' : n.tipo === 'stock' || n.tipo === 'taller' ? 'warn' : '' });
+      popup({ titulo: n.titulo, texto: n.texto, enlace: String(n.enlace || '').replace(/^pedido:/, 'pedidos/').replace(/^pedidoweb:/, 'pedidosweb/').replace(/^taller:/, 'taller/'), kind: n.tipo === 'urgente' || n.tipo === 'incidencia' ? 'bad' : n.tipo === 'stock' || n.tipo === 'taller' ? 'warn' : n.tipo === 'pedido_web' ? 'web' : '' });
+      if (n.tipo === 'pedido_web') { // v13.7: un pedido de la web suena (se puede apagar en «Pedidos web») y, si la app está detrás, aviso del sistema
+        sonidoPedidoWeb();
+        if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+          try { const x = new Notification(n.titulo || '🛍️ Nuevo pedido web', { body: String(n.texto || '').slice(0, 180), tag: 'pw-' + n.id }); x.onclick = () => { try { window.focus(); location.hash = '#/' + String(n.enlace || '').replace(/^pedidoweb:/, 'pedidosweb/'); } catch (e) { } x.close(); }; } catch (e) { }
+        }
+      }
     });
     os.forEach(o => {
       if (seenO.has(o.id)) return; seenO.add(o.id);
       if (!o.creadoPor || o.creadoPor === S.me.nombre || !rule('pedido_nuevo').popup) return;
+      if (o.refWeb) return; // v13.7: un pedido de la web ya tiene su propio aviso «NUEVO PEDIDO WEB» (no se repite por cada línea)
       popup({ titulo: '🛒 Pedido nuevo nº ' + o.numero, texto: o.cliente + ' · ' + (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto + ' · por ' + o.creadoPor, enlace: 'pedidos/' + o.id });
     });
   };
-  on(scan);
+  on(scan); scan(); // v13.7: la referencia se toma YA (antes se tomaba en el primer cambio y ese primer aviso nuevo no salía)
   onChat(() => {
     if (!S.me) return;
     const msgs = CHAT.msgs || [];

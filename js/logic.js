@@ -1453,13 +1453,64 @@ var CL = (function () {
     out.sort(function (a, b) { return a.horas - b.horas; });
     return out;
   }
-  return { RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
+  // ---------- v13.7 · PEDIDOS WEB: estado de cada solicitud de la tienda ----------
+  // El equipo decide (nuevo → en revisión → aprobado → en espera / rechazado); la fabricación lo hace avanzar sola
+  // (procesando → completado) según el estado de sus líneas en «Pedidos». Lo mismo en el servidor y en la app.
+  var PW_ESTADOS = ['nuevo', 'en_revision', 'aprobado', 'en_espera', 'procesando', 'completado', 'rechazado', 'cancelado'];
+  var PW_NOMBRE = { nuevo: 'Nuevo', en_revision: 'En revisión', aprobado: 'Aprobado', en_espera: 'En espera', procesando: 'Procesando', completado: 'Completado', rechazado: 'Rechazado', cancelado: 'Cancelado' };
+  // Acción → estados desde los que se puede hacer y estado al que lleva. Lo que no está aquí, no se puede hacer.
+  var PW_ACCIONES = {
+    revisar: { desde: ['nuevo'], hasta: 'en_revision', t: 'Marcar en revisión' },
+    aprobar: { desde: ['nuevo', 'en_revision'], hasta: 'aprobado', t: 'Aprobar' },
+    espera: { desde: ['aprobado'], hasta: 'en_espera', t: 'Poner en espera' },
+    reanudar: { desde: ['en_espera'], hasta: 'aprobado', t: 'Quitar de espera' },
+    producir: { desde: ['aprobado', 'en_espera'], hasta: 'procesando', t: 'Pasar a producción' },
+    completar: { desde: ['procesando'], hasta: 'completado', t: 'Marcar completado' },
+    rechazar: { desde: ['nuevo', 'en_revision'], hasta: 'rechazado', t: 'Rechazar' },
+    cancelar: { desde: ['aprobado', 'en_espera', 'procesando'], hasta: 'cancelado', t: 'Cancelar pedido' }
+  };
+  var PW_PROD = ['impresion', 'postpro', 'empaquetar', 'listo', 'enviado', 'entregado'];
+  // pw = fila de «Pedidos web» · lineas = sus pedidos del programa (mismo refWeb)
+  function pwEstado(pw, lineas, cfgPedidos) {
+    var dec = PW_ESTADOS.indexOf(s(pw && pw.estado)) >= 0 ? pw.estado : 'nuevo';
+    lineas = lineas || [];
+    if (!lineas.length) return dec;
+    var vivas = lineas.filter(function (x) { return phaseOf(cfgPedidos, x.estado) !== 'cancelado'; });
+    if (!vivas.length) return dec === 'rechazado' ? 'rechazado' : 'cancelado';
+    var f = vivas.map(function (x) { return phaseOf(cfgPedidos, x.estado); });
+    if (f.every(function (x) { return x === 'enviado' || x === 'entregado'; })) return 'completado';
+    if (f.some(function (x) { return PW_PROD.indexOf(x) >= 0; })) return 'procesando';
+    if (f.every(function (x) { return x === 'reserva'; })) return dec === 'nuevo' || dec === 'en_revision' ? dec : 'en_revision'; // si alguien devolvió las líneas a «Reservado», vuelve a estar pendiente
+    return dec === 'en_espera' ? 'en_espera' : 'aprobado'; // líneas confirmadas (aunque se confirmaran desde «Pedidos») = aprobado
+  }
+  var PW_PENDIENTES = ['nuevo', 'en_revision'];
+  // ---------- v13.7: DATOS DEL ENVÍO (empresa de transporte · dirección de envío · observaciones) ----------
+  // La empresa va en «envio» (el mismo campo de siempre). La dirección de envío es la de ESE paquete (no cambia la ficha del cliente).
+  var RECOGIDA_RE = /(en mano|recogida|recoger|en persona|en tienda|en el local|sin envio|no se envia|no hay envio)/;
+  function esRecogida(envio) { return RECOGIDA_RE.test(norm(envio)); }
+  function necesitaEnvio(o) { var e = s(o && o.envio).trim(); if (e) return !esRecogida(e); return norm(o && o.canal) !== 'en persona'; }
+  function datosEnvioCompletos(o) {
+    if (!necesitaEnvio(o)) return true;
+    var e = norm(o.envio);
+    return !!e && e !== 'otro' && e !== 'otra' && !!s(o.direccionEnvio).trim();
+  }
+  function datosEnvioFalta(o) {
+    if (!necesitaEnvio(o)) return [];
+    var f = [], e = norm(o.envio);
+    if (!e || e === 'otro' || e === 'otra') f.push('empresa de transporte');
+    if (!s(o.direccionEnvio).trim()) f.push('dirección de envío');
+    return f;
+  }
+
+  return { PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
+    RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
     finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,
+    esRecogida: esRecogida, necesitaEnvio: necesitaEnvio, datosEnvioCompletos: datosEnvioCompletos, datosEnvioFalta: datosEnvioFalta,
     waPhone: waPhone, waLink: waLink, pagoWeb: pagoWeb, webGroup: webGroup, reservaHasta: reservaHasta, reservasPorCaducar: reservasPorCaducar };
 })();
 if (typeof module !== 'undefined') module.exports = CL;

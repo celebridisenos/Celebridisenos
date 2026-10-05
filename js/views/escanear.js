@@ -166,7 +166,7 @@ function showOrder(o, extra, el, fresh) {
   el.dataset.id = o.id;
   const ph = CL.phaseOf(cfg().pedidos, o.estado), t = CL.orderTiming(o, cfg().pedidos, S.hoy);
   const cli = o.clienteId ? byId('clientes', o.clienteId) : null, xc = extra && extra.cliente;
-  const dir = (cli && cli.direccion && cli.direccion !== '•••' && cli.direccion) || (xc && xc.direccion) || '';
+  const dir = (o.direccionEnvio && o.direccionEnvio !== '•••' && o.direccionEnvio) || (cli && cli.direccion && cli.direccion !== '•••' && cli.direccion) || (xc && xc.direccion) || ''; // v13.7: primero la dirección de envío del pedido
   const hidden = !can('clientes.datos');
   const st = (cfg().pedidos.estados || []).find(x => x.k === o.estado) || {};
   const edit = can('pedidos.editar');

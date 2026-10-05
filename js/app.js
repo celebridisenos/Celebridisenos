@@ -1,6 +1,6 @@
 // ================= Arranque, navegación y estructura =================
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
-import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo } from './store.js';
+import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes } from './store.js';
 import { desktop } from './desktop.js';
 import { BAMBU } from './bambu.js';
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
@@ -40,6 +40,7 @@ const VIEWS = {
   estado: () => import('./views/estado.js'),
   informes: () => import('./views/informes.js'),
   notificaciones: () => import('./views/notificaciones.js'),
+  pedidosweb: () => import('./views/pedidosweb.js'),
   config: () => import('./views/config.js')
 };
 export const NAV = [
@@ -47,6 +48,7 @@ export const NAV = [
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
   { k: 'tv', t: 'Pantalla TV del taller', i: 'play', p: 'pedidos.ver' }, // v12.3
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
+  { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes)
   { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje
   { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
@@ -208,7 +210,7 @@ function startNovaWatch() {
 function refreshShell() {
   if (!shell) return;
   const d = S.cfg ? dash() : null;
-  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, ia: S.novaPend || 0 } : {};
+  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, ia: S.novaPend || 0, pedidosweb: can('pedidos.ver') ? pwPendientes() : 0 } : {};
   // v11: solo se redibuja el menú si ha cambiado algo (antes se rehacía en cada sincronización y parpadeaba)
   const navSig = JSON.stringify([counts, S.perms, S.ws]);
   if (shell.navSig !== navSig) { shell.navSig = navSig;

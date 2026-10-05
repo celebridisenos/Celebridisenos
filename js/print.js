@@ -44,7 +44,7 @@ export async function printDoc(node, { size = 'a4' } = {}) {
 export function labelDoc(o, c) {
   const em = emisor(), base = appUrl();
   const link = base ? base + '#/pedidos/' + o.id + '/?enviar=1' : '';
-  const dest = c && c.direccion && c.direccion !== '•••' ? c.direccion : '';
+  const dest = o.direccionEnvio && o.direccionEnvio !== '•••' ? o.direccionEnvio : c && c.direccion && c.direccion !== '•••' ? c.direccion : ''; // v13.7: manda la dirección de envío del pedido
   return h('div.doc.label',
     h('div.lb-top', h('b', 'PEDIDO Nº ' + esc(o.numero)), h('span', fdate(o.fecha))),
     h('div.lb-box', h('div.lb-t', 'DE'), h('div.lb-from', h('b', em.comercial || em.nombre), em.direccion ? h('div', em.direccion) : null, em.localidad ? h('div', em.localidad) : null, em.telefono ? h('div', em.telefono) : null)),

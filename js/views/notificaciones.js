@@ -19,6 +19,7 @@ export function linkPath(enlace) {
   if (k === 'presupuesto' && id) return 'presupuestos/' + id;
   if (k === 'factura') return 'facturas';
   if (k === 'inicio') return 'inicio';
+  if (k === 'pedidoweb' && id) return 'pedidosweb/' + id; // v13.7
   return { pedido: 'pedidos/' + id, tarea: 'tareas/' + id, noticia: 'noticias/' + id, redes: 'redes/' + id, solicitudes: 'config/solicitudes', auditoria: 'config/auditoria', copias: 'config/copias', informes: 'informes', pedidos: 'pedidos' }[k] || (k ? k : '');
 }
 async function markRead(ids, all) {

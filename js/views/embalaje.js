@@ -7,6 +7,7 @@ import { h, mount, btn, modal, toast, eur, empty, field, inp, area, sel, pill, c
 import { S, can, api, upsertLocal, emit, byId, pull, mutate, on } from '../store.js';
 import { handleError, requestAccess, go } from '../app.js';
 import * as E from '../envio.js';
+import { FUENTES_TARJETA, DISENO_DEF, resetCardBg } from '../labels.js';
 
 const CL = window.CL;
 const cfg = () => S.cfg || {};
@@ -330,7 +331,38 @@ function drawCard(el) {
   const editCfg = can('config.editar');
   const ti = inp({ value: g.titulo, maxlength: 60 }), tx = area({ rows: 3, maxlength: 220 }), fi = inp({ value: g.firma, maxlength: 60 });
   tx.value = g.texto;
-  const lg = h('input', { type: 'checkbox', checked: g.logo !== false }), qr = h('input', { type: 'checkbox', checked: !!tj.qr }), fo = h('input', { type: 'checkbox', checked: !!tj.fondo });
+  const lg = h('input', { type: 'checkbox', checked: g.logo !== false }), qr = h('input', { type: 'checkbox', checked: !!tj.qr }); // (el antiguo «Fondo suave» ahora está en 🎨 Diseño → Fondo)
+  // v13.7 · DISEÑO: fondo (blanco, suave, degradado o imagen difuminada), letras, tamaños, colores y posición del texto
+  const ds = Object.assign({}, DISENO_DEF, tj.fondo ? { fondo: 'suave' } : {}, tj.diseno || {});
+  const dsSel = (k, opts) => { const x = sel(opts, ds[k], { 'data-diseno': k }); x.onchange = () => { ds[k] = x.value; dsVis(); redraw(); }; return x; };
+  const dsRange = (k, min, max, step, fmt) => { const v = h('span.tiny.muted'), x = h('input', { type: 'range', min, max, step, value: ds[k], 'data-diseno': k }); const upd = () => { v.textContent = fmt(Number(x.value)); }; x.oninput = () => { ds[k] = Number(x.value); upd(); redraw(); }; upd(); return h('span.row', { style: { gap: '8px', alignItems: 'center' } }, x, v); };
+  const dsColor = k => { const x = inp({ type: 'color', value: ds[k], style: { width: '60px', padding: '2px' }, 'data-diseno': k }); x.oninput = () => { ds[k] = x.value; redraw(); }; return x; };
+  const fuentes = FUENTES_TARJETA.map(f => ({ v: f.k, t: f.t }));
+  const fondoSel = dsSel('fondo', [{ v: 'blanco', t: 'Blanco' }, { v: 'suave', t: 'Suave (color de acento)' }, { v: 'degradado', t: 'Degradado' }, { v: 'imagen', t: 'Imagen de fondo' }]);
+  const imgInfo = h('span.small.muted'), imgIn = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', style: { display: 'none' } });
+  const pintaImg = () => { const a = (S.t.archivos || []).find(x => x.id === ds.imagenId); imgInfo.textContent = a ? '🖼️ ' + a.nombre : ds.imagenId ? 'Imagen guardada' : 'Sin imagen'; };
+  imgIn.onchange = async () => {
+    const f = imgIn.files[0]; imgIn.value = ''; if (!f) return;
+    imgInfo.textContent = 'Subiendo la imagen…';
+    try { const F = await import('../files.js'); const a = await F.uploadFile(f, { entidad: '', entidadId: '' }); ds.imagenId = a.id; ds.fondo = 'imagen'; fondoSel.value = 'imagen'; resetCardBg(); pintaImg(); dsVis(); redraw(); toast('Imagen de fondo lista. Pulsa «Guardar» para que la use todo el equipo.', 'ok'); }
+    catch (e) { imgInfo.textContent = '⚠️ ' + (e.message || e); }
+  };
+  pintaImg();
+  const filaDeg = h('div.form.diseno-deg', field('Segundo color', dsColor('color2'), 'El primero es el color de acento'), field('Dirección', dsRange('angulo', 0, 360, 15, v => v + '°')));
+  const filaImg = h('div.form.diseno-img', field('Imagen', h('span.row', { style: { gap: '8px', alignItems: 'center' } }, btn('Elegir imagen…', () => imgIn.click(), { cls: 'sm', icon: 'upload', disabled: !can('archivos.subir') }), imgInfo, imgIn), 'JPG o PNG. Se guarda en el programa (Archivos).'),
+    field('Encaje', dsSel('ajuste', [{ v: 'cubrir', t: 'Llenar la tarjeta (recorta lo que sobra)' }, { v: 'contener', t: 'Entera (puede dejar bordes)' }])),
+    field('Difuminado', dsRange('difuminado', 0, 10, 0.5, v => v ? v + ' mm' : 'nítida')));
+  // un solo control de velo (sirve para el degradado y para la imagen)
+  const filaVelo = h('div.form.diseno-velo', field('Velo (para que se lea el texto)', dsRange('velo', 0, 0.9, 0.05, v => Math.round(v * 100) + ' %')), field('Color del velo', dsSel('veloColor', [{ v: 'claro', t: 'Claro (texto oscuro)' }, { v: 'oscuro', t: 'Oscuro (texto claro)' }])));
+  const dsVis = () => { filaDeg.style.display = ds.fondo === 'degradado' ? '' : 'none'; filaImg.style.display = ds.fondo === 'imagen' ? '' : 'none'; filaVelo.style.display = ds.fondo === 'degradado' || ds.fondo === 'imagen' ? '' : 'none'; };
+  const disenoBox = h('div.col.diseno-tarjeta', { style: { gap: '8px' } },
+    field('Fondo', fondoSel), filaDeg, filaImg, filaVelo,
+    h('div.form', field('Letra del título', dsSel('fuenteTitulo', fuentes)), field('Letra del texto y la firma', dsSel('fuenteTexto', fuentes)),
+      field('Tamaño del título', dsRange('tamTitulo', 50, 200, 5, v => v + ' %')), field('Tamaño del texto', dsRange('tamTexto', 50, 200, 5, v => v + ' %')), field('Tamaño de la firma', dsRange('tamFirma', 50, 200, 5, v => v + ' %')),
+      field('Color del título', dsColor('colorTitulo')), field('Color del texto', dsColor('colorTexto')),
+      field('Posición del texto', dsSel('posicion', [{ v: 'arriba', t: 'Arriba' }, { v: 'centro', t: 'En el centro' }, { v: 'abajo', t: 'Abajo' }])),
+      field('Alineación', dsSel('alineacion', [{ v: 'izquierda', t: 'A la izquierda' }, { v: 'centro', t: 'Centrado' }, { v: 'derecha', t: 'A la derecha' }]))));
+  dsVis();
   const tam = sel(Object.keys({ '85x55': 1, '100x70': 1, '105x74': 1, '148x105': 1 }).map(k => ({ v: k, t: k.replace('x', ' × ') + ' mm' })), tj.tam);
   const corte = sel([{ v: 'marcas', t: 'Marcas de corte en las esquinas' }, { v: 'borde', t: 'Borde fino redondeado' }, { v: 'ninguno', t: 'Sin marcas' }], tj.corte);
   const color = inp({ type: 'color', value: tj.color || '#e0457b', style: { width: '60px', padding: '2px' } });
@@ -339,13 +371,14 @@ function drawCard(el) {
   const pg = {}; ['mensaje', 'instagram', 'tiktok', 'web', 'whatsapp', 'email'].forEach(k => { pg[k] = inp({ value: tj.pagina[k] || '', placeholder: { mensaje: 'Tu apoyo hace posible que sigamos creando.', instagram: 'usuario (sin @)', tiktok: 'usuario (sin @)', web: 'https://tu-tienda…', whatsapp: '+34…', email: 'hola@…' }[k] }); });
   const sheetBox = h('div.card-sheet'), oneBox = h('div'), warn = h('div.small'), infoN = h('span.tiny.muted');
   const curG = () => ({ titulo: ti.value, texto: tx.value, firma: fi.value, logo: lg.checked, qrCodigo: false });
-  const curT = () => ({ modo: modo.value, tam: tam.value, n: Number(nIn.value) || 0, corte: corte.value, color: color.value, fondo: fo.checked, qr: qr.checked, pagina: Object.fromEntries(Object.keys(pg).map(k => [k, pg[k].value.trim()])) });
+  const curT = () => ({ modo: modo.value, tam: tam.value, n: Number(nIn.value) || 0, corte: corte.value, color: color.value, fondo: ds.fondo === 'suave', qr: qr.checked, pagina: Object.fromEntries(Object.keys(pg).map(k => [k, pg[k].value.trim()])), diseno: Object.assign({}, ds) });
   let timer = null;
   const redraw = () => { clearTimeout(timer); timer = setTimeout(paint, 120); };
   const shapeBox = h('div.shape-grid');
   const paint = async () => {
     const L = await import('../labels.js'), d = E.universalCard(curG(), curT(), formas.tarjetas);
     if (d.logo) d.logoImg = await L.loadLogo();
+    d.fondoImg = await L.loadCardBg(d.diseno);
     const lay = L.cardLayout(d.tam, d.n, d.forma); infoN.textContent = lay.per + ' tarjetas caben en una hoja A4 (' + lay.cols + ' × ' + lay.rows + ')' + (d.forma !== 'rect' ? ' · forma: ' + L.SHAPES[d.forma].t.toLowerCase() : '');
     const sh = L.drawCardSheet(d, 60); sh.className = 'sheet-prev'; mount(sheetBox, sh);
     const one = L.drawOneCardCanvas(d, 300), s = L.oneCardSize(d); one.className = 'lbl-canvas'; one.style.width = s.w + 'mm'; one.style.height = s.h + 'mm'; one.dataset.forma = d.forma; L.cutPreview(one, d.forma, s.w); mount(oneBox, one);
@@ -355,7 +388,7 @@ function drawCard(el) {
   // v13.5 · Una fila por plantilla con forma: botones de forma + vista previa en miniatura con esa forma
   const paintShapes = (L, dU) => {
     const cfgPrev = { formas, contorno: contorno.checked };
-    const sample = k => k === 'tarjetas' ? null : k === 'gracias' ? Object.assign({ logoImg: dU.logoImg }, E.thanksData({ cliente: 'Lucía', producto: 'Maceta', numero: '1000' }, curG()), { qr: '' })
+    const sample = k => k === 'tarjetas' ? null : k === 'gracias' ? Object.assign({ logoImg: dU.logoImg }, E.thanksData({ cliente: 'Lucía', producto: 'Maceta', numero: '1000' }, curG()), { qr: '', diseno: dU.diseno, color: dU.color, fondoImg: dU.fondoImg })
       : k === 'regalo' ? L.dataFor('regalo', { url: 'https://celebridisenos.github.io/regalo#ejemplo', numero: '1000', id: 'ejemplo', color: color.value })
       : k === 'paquete' ? { qr: 'CEB-2026-000000', codigo: 'CEB-2026-000000', numero: '1000', cliente: 'Lucía' } : { qr: 'https://celebridisenos.github.io/#/q/pedido/ejemplo', titulo: 'Pedido nº 1000' };
     const names = { tarjetas: 'Tarjeta de agradecimiento (hoja A4)', gracias: 'Tarjeta de gracias 50 × 50 (etiqueta)', regalo: 'Tarjeta de regalo con QR', paquete: 'Código del paquete (QR)', qr: 'Etiqueta QR' };
@@ -372,7 +405,7 @@ function drawCard(el) {
     }));
   };
   contorno.addEventListener('change', redraw);
-  [ti, tx, fi, nIn, color].concat(Object.values(pg)).forEach(x => x.addEventListener('input', redraw)); [lg, qr, fo, tam, corte, modo].forEach(x => x.addEventListener('change', redraw));
+  [ti, tx, fi, nIn, color].concat(Object.values(pg)).forEach(x => x.addEventListener('input', redraw)); [lg, qr, tam, corte, modo].forEach(x => x.addEventListener('change', redraw));
   const ck = (k, t) => { const c = h('input', { type: 'checkbox', checked: !!im[k] }); c.onchange = () => { im[k] = c.checked; }; return h('label.check', c, t); };
   const auto = h('input', { type: 'checkbox', checked: !!c0.autoAlEscanear });
   const autoImp = h('input', { type: 'checkbox', checked: c0.autoImprimir !== false });
@@ -391,7 +424,8 @@ function drawCard(el) {
       h('div.thanks-edit', h('div.col',
         field('Título', ti), field('Texto', tx), field('Firma', fi, '{tienda} = el nombre de tu empresa'),
         h('div.form', field('Tamaño de cada tarjeta', tam), field('Corte', corte), field('Color de acento', color), field('Tarjetas por hoja', nIn, 'Vacío = las que quepan')),
-        h('label.check', lg, 'Con mi logo (Configuración → Empresa y logo)'), h('label.check', fo, 'Fondo suave del color de acento'),
+        h('label.check', lg, 'Con mi logo (Configuración → Empresa y logo)'),
+        h('details.more.diseno-det', { open: true }, h('summary', '🎨 Diseño: fondo, letras, tamaños, colores y posición'), h('div.in', disenoBox)),
         h('label.check', qr, 'Con un QR a una página de agradecimiento (opcional)'),
         h('details.more', h('summary', 'Página de agradecimiento del QR'), h('div.in.form', field('Mensaje', pg.mensaje, null, 'full'), field('Instagram', pg.instagram), field('TikTok', pg.tiktok), field('Tienda / web', pg.web), field('WhatsApp', pg.whatsapp), field('Email', pg.email),
           h('p.tiny.muted.full', 'Solo sale lo que rellenes: no se inventa ninguna red ni contacto. La página es pública y no tiene acceso a tus datos.'))),

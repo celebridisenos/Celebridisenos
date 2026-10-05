@@ -6,8 +6,8 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '13.6.0';
-const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones'];
+export const APP_VERSION = '13.7.0';
+const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb'];
 
 export const S = {
   server: '', token: '', device: '', me: null, perms: { all: false, list: [], temp: [] }, cfg: null,
@@ -366,6 +366,12 @@ export function removeLocal(t, id, key = 'id') { S.t[t] = S.t[t].filter(x => x[k
 export function user(nameOrId) { return S.t.usuarios.find(u => u.id === nameOrId || u.nombre === nameOrId) || null; }
 export function timing(o) { return CL.orderTiming(o, S.cfg.pedidos, S.hoy); }
 export function stateColor(k) { const s = (S.cfg && S.cfg.pedidos.estados || []).find(x => x.k === k); return s ? s.c : '#64748b'; }
+// v13.7 · Pedidos web con su estado EFECTIVO (decisión del equipo + avance de sus líneas). Igual que en el servidor (CL.pwEstado).
+export function pwFilas() {
+  const CL = window.CL, ped = S.t.pedidos || [], cp = S.cfg && S.cfg.pedidos;
+  return (S.t.pedidosWeb || []).map(r => { const lineas = ped.filter(o => o.refWeb === r.id); return Object.assign({}, r, { efectivo: CL.pwEstado(r, lineas, cp), lineasProg: lineas }); });
+}
+export function pwPendientes() { return pwFilas().filter(r => window.CL.PW_PENDIENTES.includes(r.efectivo)).length; }
 export function clientStats() {
   const key = S.t.clientes.length + ':' + S.t.pedidos.length + ':' + (S.meta.pedidos && S.meta.pedidos.hash) + (S.meta.clientes && S.meta.clientes.hash) + S.hoy + JSON.stringify(S.cfg && S.cfg.clientes);
   if (clientStats._k !== key) { clientStats._k = key; clientStats._v = CL.allClientStats(S.t.clientes, S.t.pedidos, S.cfg, S.hoy); }

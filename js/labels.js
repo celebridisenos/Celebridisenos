@@ -59,10 +59,12 @@ export const shapeBox = (forma, w, hh) => forma === 'circulo' ? { w: Math.min(w,
 // de la forma (blanco) y, si se pide, dibuja la línea de corte fina.
 function shapeCanvas(tpl, forma, d, dpi, size) {
   const S0 = SHAPES[forma], W = size.w, H = size.h, inn = S0.inner(W, H, W / H);
-  const content = draw(tpl, Object.assign({}, d, { forma: 'rect', __inner: true }), dpi, { w: inn.w, h: inn.h });
+  const conDiseno = !!(d.diseno && tpl === 'gracias'); // v13.7: el fondo del diseño llena toda la forma y el contenido va encima, transparente
+  const content = draw(tpl, Object.assign({}, d, { forma: 'rect', __inner: true, __transparente: conDiseno }), dpi, { w: inn.w, h: inn.h });
   const { c, g, k } = mk(W, H, dpi);
   g.save(); S0.path(g, 0.3 * k, 0.3 * k, (W - 0.6) * k, (H - 0.6) * k, k); g.clip();
   if (d.fondoForma) { g.fillStyle = d.fondoForma; g.fillRect(0, 0, c.width, c.height); }
+  if (conDiseno && pintaFondo(g, k, 0, 0, W, H, d)) c.__tramado = true;
   g.drawImage(content, Math.round(inn.x * k), Math.round(inn.y * k));
   g.restore();
   if (d.contorno !== false) { g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = Math.max(1, 0.2 * k); g.setLineDash([1.2 * k, 0.9 * k]); S0.path(g, 0.3 * k, 0.3 * k, (W - 0.6) * k, (H - 0.6) * k, k); g.stroke(); g.setLineDash([]); }
@@ -189,10 +191,12 @@ function qr(g, data, x, y, size) {
 function fit(g, s, maxW) { s = String(s || ''); while (s.length > 1 && g.measureText(s).width > maxW) s = s.slice(0, -2) + '…'; return s; }
 // Tarjeta de gracias: título, texto y firma centrados; devuelve dónde acaba (mm). dry = solo medir.
 function centered(g, F, k, d, y, cw, W, sz, dry) {
-  const parts = [[d.titulo, 11, 800], [d.texto, 8, 400], [d.firma, 7.5, 600]].filter(p => p[0]);
+  const ds = d.diseno ? diseno(d) : null, pc = v => (Number(v) || 100) / 100;
+  const parts = [[d.titulo, 11 * (ds ? pc(ds.tamTitulo) : 1), 800, ds && fuenteCss(ds.fuenteTitulo), ds && ds.colorTitulo], [d.texto, 8 * (ds ? pc(ds.tamTexto) : 1), 400, ds && fuenteCss(ds.fuenteTexto), ds && ds.colorTexto], [d.firma, 7.5 * (ds ? pc(ds.tamFirma) : 1), 600, ds && fuenteCss(ds.fuenteTexto), null]].filter(p => p[0]);
   g.textAlign = 'center';
-  parts.forEach(([t, pt, wt], i) => {
-    g.font = F(pt * sz, wt);
+  parts.forEach(([t, pt, wt, fam, col], i) => {
+    g.font = fam ? wt + ' ' + Math.round(pt * sz * 0.3528 * k) + 'px ' + fam : F(pt * sz, wt);
+    if (!dry) g.fillStyle = col || '#000';
     const lh = pt * sz * 0.3528 * 1.18;
     wrap(g, t, cw * k).forEach(l => { if (!dry) g.fillText(l, (W / 2) * k, y * k); y += lh; });
     if (i < parts.length - 1) y += 1.2 * sz;
@@ -215,6 +219,7 @@ export function draw(tpl, d, dpi, size) {
   const forma = d && d.__inner ? 'rect' : (d && SHAPES[d.forma] ? d.forma : formaDe(tpl));
   if (forma !== 'rect' && SHAPED.includes(tpl)) return shapeCanvas(tpl, forma, Object.assign({ contorno: contornoOn() }, d), dpi, size || TEMPLATES[tpl]);
   const s = size || TEMPLATES[tpl], { c, g, k, F } = mk(s.w, s.h, dpi);
+  if (d && d.__transparente) { g.clearRect(0, 0, c.width, c.height); g.fillStyle = '#000'; }
   g.__k = k;
   const W = s.w, H = s.h, m = 3; // margen interior en mm
   const T = (str, xmm, ymm, wmm, pt, weight, maxLines) => text(g, F, str, xmm * k, ymm * k, wmm * k, pt, weight, maxLines) / k;
@@ -277,6 +282,7 @@ export function draw(tpl, d, dpi, size) {
   } else if (tpl === 'gracias') {
     let y = m - 0.5;
     const cw = W - 2 * m;
+    if (d.diseno && !d.__inner && pintaFondo(g, k, 0, 0, W, H, d)) c.__tramado = true; // v13.7: mismo diseño que las tarjetas
     if (d.logoImg && d.logoImg.width) {
       const lh = Math.min(H * 0.26, 14), lw = Math.min(cw, d.logoImg.width / d.logoImg.height * lh);
       const lh2 = lw / (d.logoImg.width / d.logoImg.height);
@@ -330,7 +336,8 @@ export function draw(tpl, d, dpi, size) {
 export function dataFor(tpl, x) {
   if (tpl === 'envio') {
     const o = x.o, c = x.c, em = emisor();
-    const addr = c && c.direccion && c.direccion !== '•••' ? c.direccion : '';
+    // v13.7: la dirección de ENVÍO del pedido manda; si no hay, la de la ficha del cliente
+    const addr = o.direccionEnvio && o.direccionEnvio !== '•••' ? o.direccionEnvio : c && c.direccion && c.direccion !== '•••' ? c.direccion : '';
     return { numero: o.numero, fecha: o.fecha, de: { nombre: em.comercial || em.nombre, direccion: em.direccion, localidad: em.localidad, telefono: em.telefono },
       para: { nombre: o.cliente, direccion: addr, telefono: c && c.telefono && c.telefono !== '•••' ? c.telefono : '' },
       contenido: (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto + (o.color ? ' · ' + o.color : '') + (o.personalizacion ? '\n' + o.personalizacion : ''),
@@ -492,6 +499,82 @@ export function cardLayout(size, n, forma) {
   return { w: c.w, h: c.h, cols, rows, per, n: Math.max(1, Math.min(per, Number(n) || per)), x0: (A4.w - gw) / 2, y0: (A4.h - gh) / 2, gap };
 }
 function rgba(hex, a) { const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i); const v = m ? parseInt(m[1], 16) : 0xe0457b; return 'rgba(' + (v >> 16) + ',' + ((v >> 8) & 255) + ',' + (v & 255) + ',' + a + ')'; }
+// ---------- v13.7 · DISEÑO de la tarjeta: fondo (color, degradado o imagen difuminada), letras, tamaños, colores y posición ----------
+// Una sola implementación para todo: vista previa, hoja A4 / PDF, impresora de papel y la etiqueta 50 × 50 (también por Bluetooth).
+export const FUENTES_TARJETA = [
+  { k: 'georgia', t: 'Georgia (clásica)', css: 'Georgia, "Times New Roman", serif' },
+  { k: 'segoe', t: 'Segoe UI (moderna)', css: '"Segoe UI", Arial, sans-serif' },
+  { k: 'palatino', t: 'Palatino (elegante)', css: '"Palatino Linotype", "Book Antiqua", Palatino, serif' },
+  { k: 'trebuchet', t: 'Trebuchet (redonda)', css: '"Trebuchet MS", "Segoe UI", sans-serif' },
+  { k: 'arialblack', t: 'Arial Black (gruesa)', css: '"Arial Black", "Segoe UI Black", Arial, sans-serif' },
+  { k: 'impact', t: 'Impact (titulares)', css: 'Impact, "Arial Black", sans-serif' },
+  { k: 'manuscrita', t: 'Manuscrita', css: '"Segoe Script", "Lucida Handwriting", "Brush Script MT", cursive' },
+  { k: 'informal', t: 'Informal', css: '"Segoe Print", "Comic Sans MS", cursive' },
+  { k: 'maquina', t: 'Máquina de escribir', css: '"Courier New", Courier, monospace' }
+];
+const fuenteCss = k => (FUENTES_TARJETA.find(f => f.k === k) || {}).css;
+export const DISENO_DEF = { fondo: 'blanco', color2: '#ffd6e5', angulo: 135, imagenId: '', ajuste: 'cubrir', difuminado: 0, velo: 0.35, veloColor: 'claro',
+  fuenteTitulo: 'georgia', fuenteTexto: 'segoe', tamTitulo: 100, tamTexto: 100, tamFirma: 100, colorTitulo: '#2b2230', colorTexto: '#54495c', posicion: 'centro', alineacion: 'centro' };
+export function diseno(d) {
+  const x = Object.assign({}, DISENO_DEF, (d && d.diseno) || {});
+  if (!(d && d.diseno && d.diseno.fondo) && d && d.fondo) x.fondo = 'suave'; // compatibilidad: «Fondo suave del color de acento» de antes
+  return x;
+}
+// Imagen de fondo (un archivo subido al programa): se descarga una vez y se guarda en memoria
+const fondos = new Map();
+export async function loadCardBg(ds) {
+  const id = ds && ds.fondo === 'imagen' && ds.imagenId;
+  if (!id) return null;
+  if (fondos.has(id)) return fondos.get(id);
+  const p = (async () => {
+    const a = (S.t.archivos || []).find(x => x.id === id); if (!a) return null;
+    const F = await import('./files.js'); const b = await F.fetchFile(a);
+    if (window.createImageBitmap) { try { return await createImageBitmap(b); } catch (e) { } }
+    return await new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = URL.createObjectURL(b); });
+  })().catch(() => null);
+  fondos.set(id, p);
+  return p;
+}
+export function resetCardBg() { fondos.clear(); }
+// Difuminado: con el filtro del navegador si existe; si no, reduciendo y ampliando (mismo efecto aproximado)
+const borrosas = new Map();
+function imagenFondo(img, wpx, hpx, ajuste, blurPx) {
+  const key = [img.width, img.height, wpx, hpx, ajuste, blurPx].join('|');
+  const cache = borrosas.get(img) || new Map(); borrosas.set(img, cache);
+  if (cache.has(key)) return cache.get(key);
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(wpx)); c.height = Math.max(1, Math.round(hpx));
+  const g = c.getContext('2d');
+  const sc = ajuste === 'contener' ? Math.min(c.width / img.width, c.height / img.height) : Math.max(c.width / img.width, c.height / img.height);
+  const dw = img.width * sc, dh = img.height * sc, dx = (c.width - dw) / 2, dy = (c.height - dh) / 2;
+  if (blurPx > 0.5 && 'filter' in g) {
+    const m = Math.ceil(blurPx * 2); g.filter = 'blur(' + blurPx.toFixed(1) + 'px)'; g.drawImage(img, dx - m, dy - m, dw + 2 * m, dh + 2 * m); g.filter = 'none';
+  } else if (blurPx > 0.5) {
+    const f = Math.max(2, Math.round(blurPx / 2)), t = document.createElement('canvas'); t.width = Math.max(1, Math.round(c.width / f)); t.height = Math.max(1, Math.round(c.height / f));
+    const tg = t.getContext('2d'); tg.imageSmoothingQuality = 'high'; tg.drawImage(img, dx / f, dy / f, dw / f, dh / f);
+    g.imageSmoothingQuality = 'high'; g.drawImage(t, 0, 0, c.width, c.height);
+  } else g.drawImage(img, dx, dy, dw, dh);
+  cache.set(key, c);
+  return c;
+}
+// Pinta el fondo de una tarjeta (x, y, w, h en mm). Devuelve true si es un fondo «de foto» (para tramar en impresoras térmicas).
+export function pintaFondo(g, k, x, y, w, hgt, d) {
+  const ds = diseno(d), acc = d.color || '#e0457b', X = x * k, Y = y * k, W = w * k, H = hgt * k;
+  if (d.__blanco !== false) { g.fillStyle = '#fff'; g.fillRect(X, Y, W, H); }
+  if (ds.fondo === 'suave') { g.fillStyle = rgba(acc, 0.06); g.fillRect(X, Y, W, H); return false; }
+  if (ds.fondo === 'degradado') {
+    // ángulo como en CSS y en los programas de diseño: 0° hacia arriba, 90° hacia la derecha, 135° de arriba-izquierda a abajo-derecha
+    const a = (Number(ds.angulo) || 0) * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a), cx = X + W / 2, cy = Y + H / 2, r = (Math.abs(W * dx) + Math.abs(H * dy)) / 2;
+    const gr = g.createLinearGradient(cx - dx * r, cy - dy * r, cx + dx * r, cy + dy * r);
+    gr.addColorStop(0, acc); gr.addColorStop(1, ds.color2 || '#ffffff'); g.fillStyle = gr; g.fillRect(X, Y, W, H);
+  } else if (ds.fondo === 'imagen' && d.fondoImg && d.fondoImg.width) {
+    const bpx = Math.max(0, Math.min(10, Number(ds.difuminado) || 0)) * k; // difuminado en mm → píxeles de esta resolución
+    g.drawImage(imagenFondo(d.fondoImg, W, H, ds.ajuste, bpx), X, Y, W, H);
+  } else return false;
+  const v = Math.max(0, Math.min(0.9, Number(ds.velo) || 0));
+  if (v > 0) { g.fillStyle = ds.veloColor === 'oscuro' ? 'rgba(0,0,0,' + v + ')' : 'rgba(255,255,255,' + v + ')'; g.fillRect(X, Y, W, H); }
+  return true;
+}
+
 function drawOneCard(g, k, x, y, w, hgt, d) {
   // v13.5: tarjeta con forma (círculo, esquinas redondeadas, óvalo): fondo dentro de la forma, contenido en su hueco
   // seguro, recorte de lo que sobresale y, con «Borde fino», la línea de corte siguiendo la forma.
@@ -500,18 +583,17 @@ function drawOneCard(g, k, x, y, w, hgt, d) {
     const S0 = SHAPES[forma], inn = S0.inner(w, hgt, w / hgt);
     g.save(); g.fillStyle = '#fff'; g.fillRect(x * k, y * k, w * k, hgt * k);
     S0.path(g, x * k, y * k, w * k, hgt * k, k); g.clip();
-    if (d.fondo) { g.fillStyle = rgba(d.color || '#e0457b', 0.06); g.fillRect(x * k, y * k, w * k, hgt * k); }
-    drawOneCard(g, k, x + inn.x, y + inn.y, inn.w, inn.h, Object.assign({}, d, { forma: 'rect', fondo: false, corte: 'ninguno', __blanco: false }));
+    if (pintaFondo(g, k, x, y, w, hgt, d)) g.canvas.__tramado = true; // v13.7: el fondo llena toda la forma
+    drawOneCard(g, k, x + inn.x, y + inn.y, inn.w, inn.h, Object.assign({}, d, { forma: 'rect', fondo: false, corte: 'ninguno', __blanco: false, __sinFondo: true }));
     g.restore();
     if (d.corte === 'borde') { g.strokeStyle = 'rgba(0,0,0,.32)'; g.lineWidth = 0.2 * k; S0.path(g, (x + 0.1) * k, (y + 0.1) * k, (w - 0.2) * k, (hgt - 0.2) * k, k); g.stroke(); }
     g.textAlign = 'left';
     return;
   }
   g.__k = k;
-  const acc = d.color || '#e0457b', P = 4; // margen interior (mm)
+  const acc = d.color || '#e0457b', P = 4, ds = diseno(d); // margen interior (mm)
   g.save(); g.translate(x * k, y * k);
-  if (d.__blanco !== false) { g.fillStyle = '#fff'; g.fillRect(0, 0, w * k, hgt * k); }
-  if (d.fondo) { g.fillStyle = rgba(acc, 0.06); g.fillRect(0, 0, w * k, hgt * k); }
+  if (!d.__sinFondo && pintaFondo(g, k, 0, 0, w, hgt, d)) g.canvas.__tramado = true;
   if (d.corte === 'borde') { g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 0.2 * k; const r = 2.5 * k; g.beginPath(); g.moveTo(r, 0.1 * k); g.arcTo(w * k, 0, w * k, hgt * k, r); g.arcTo(w * k, hgt * k, 0, hgt * k, r); g.arcTo(0, hgt * k, 0, 0, r); g.arcTo(0, 0, w * k, 0, r); g.stroke(); }
   const qs = d.qr ? Math.min(hgt * 0.36, 20) : 0, tw = w - 2 * P - (qs ? qs + 3 : 0), cx = P + tw / 2;
   let y0 = P + 1;
@@ -521,16 +603,22 @@ function drawOneCard(g, k, x, y, w, hgt, d) {
   if (d.logoImg && d.logoImg.width) { const lh = Math.min(hgt * 0.24, 16 * sc), lw = Math.min(tw, d.logoImg.width / d.logoImg.height * lh); parts.push({ t: 'logo', h: lw / (d.logoImg.width / d.logoImg.height), w: lw }); }
   const font = (pt, wt, fam) => (wt || 400) + ' ' + Math.round(pt * sc * 0.3528 * k) + 'px ' + (fam || '"Segoe UI", Arial, sans-serif');
   const lines = (txt, pt, wt, fam) => { g.font = font(pt, wt, fam); return wrap(g, txt, tw * k).filter(Boolean); };
-  const T1 = d.titulo ? lines(d.titulo, 15, 700, 'Georgia, "Times New Roman", serif') : [], T2 = d.texto ? lines(d.texto, 7.6, 400) : [], T3 = d.firma ? lines(d.firma, 7, 700) : [];
+  // v13.7: letra, tamaño y color de cada texto, alineación y posición del bloque (arriba, centro o abajo)
+  const fT = fuenteCss(ds.fuenteTitulo) || 'Georgia, "Times New Roman", serif', fX = fuenteCss(ds.fuenteTexto);
+  const pT = 15 * (Number(ds.tamTitulo) || 100) / 100, pX = 7.6 * (Number(ds.tamTexto) || 100) / 100, pF = 7 * (Number(ds.tamFirma) || 100) / 100;
+  const T1 = d.titulo ? lines(d.titulo, pT, 700, fT) : [], T2 = d.texto ? lines(d.texto, pX, 400, fX) : [], T3 = d.firma ? lines(d.firma, pF, 700, fX) : [];
   const lh = pt => pt * sc * 0.3528 * 1.25;
-  const total = (parts[0] ? parts[0].h + 2.2 : 0) + T1.length * lh(15) + (T1.length && (T2.length || T3.length) ? 3.2 : 0) + T2.length * lh(7.6) + (T3.length ? 2 + T3.length * lh(7) : 0);
-  y0 = Math.max(P, (hgt - total) / 2);
-  g.textAlign = 'center'; g.textBaseline = 'top';
-  if (parts[0]) { g.drawImage(d.logoImg, (cx - parts[0].w / 2) * k, y0 * k, parts[0].w * k, parts[0].h * k); y0 += parts[0].h + 2.2; }
-  g.fillStyle = '#2b2230'; g.font = font(15, 700, 'Georgia, "Times New Roman", serif'); T1.forEach(l => { g.fillText(l, cx * k, y0 * k); y0 += lh(15); });
-  if (T1.length && (T2.length || T3.length)) { g.strokeStyle = acc; g.lineWidth = 0.35 * k; g.beginPath(); g.moveTo((cx - 9) * k, (y0 + 1.2) * k); g.lineTo((cx + 9) * k, (y0 + 1.2) * k); g.stroke(); y0 += 3.2; }
-  g.fillStyle = '#54495c'; g.font = font(7.6, 400); T2.forEach(l => { g.fillText(l, cx * k, y0 * k); y0 += lh(7.6); });
-  if (T3.length) { y0 += 2; g.fillStyle = acc; g.font = font(7, 700); T3.forEach(l => { g.fillText(l.toUpperCase(), cx * k, y0 * k); y0 += lh(7); }); }
+  const total = (parts[0] ? parts[0].h + 2.2 : 0) + T1.length * lh(pT) + (T1.length && (T2.length || T3.length) ? 3.2 : 0) + T2.length * lh(pX) + (T3.length ? 2 + T3.length * lh(pF) : 0);
+  y0 = ds.posicion === 'arriba' ? P : ds.posicion === 'abajo' ? Math.max(P, hgt - P - total) : Math.max(P, (hgt - total) / 2);
+  const al = ds.alineacion === 'izquierda' ? 'left' : ds.alineacion === 'derecha' ? 'right' : 'center';
+  const ax = al === 'left' ? P : al === 'right' ? P + tw : cx;
+  g.textAlign = al; g.textBaseline = 'top';
+  if (parts[0]) { const lx = al === 'left' ? P : al === 'right' ? P + tw - parts[0].w : cx - parts[0].w / 2; g.drawImage(d.logoImg, lx * k, y0 * k, parts[0].w * k, parts[0].h * k); y0 += parts[0].h + 2.2; }
+  g.fillStyle = ds.colorTitulo || '#2b2230'; g.font = font(pT, 700, fT); T1.forEach(l => { g.fillText(l, ax * k, y0 * k); y0 += lh(pT); });
+  if (T1.length && (T2.length || T3.length)) { const x1 = al === 'left' ? P : al === 'right' ? P + tw - 18 : cx - 9; g.strokeStyle = acc; g.lineWidth = 0.35 * k; g.beginPath(); g.moveTo(x1 * k, (y0 + 1.2) * k); g.lineTo((x1 + 18) * k, (y0 + 1.2) * k); g.stroke(); y0 += 3.2; }
+  g.fillStyle = ds.colorTexto || '#54495c'; g.font = font(pX, 400, fX); T2.forEach(l => { g.fillText(l, ax * k, y0 * k); y0 += lh(pX); });
+  if (T3.length) { y0 += 2; g.fillStyle = acc; g.font = font(pF, 700, fX); T3.forEach(l => { g.fillText(l.toUpperCase(), ax * k, y0 * k); y0 += lh(pF); }); }
+  g.textAlign = 'center';
   if (qs) { const qx = w - P - qs, qy = (hgt - qs) / 2 - 1.5; qr(g, d.qr, qx * k, qy * k, qs * k); g.fillStyle = '#7a6f80'; g.font = font(5, 600); g.fillText('Escanéame', (qx + qs / 2) * k, (qy + qs + 0.6) * k); }
   g.restore(); g.textAlign = 'left';
 }

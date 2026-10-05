@@ -17,12 +17,22 @@ export const LANGS = [
 export const langName = k => (LANGS.find(x => x.k === k) || {}).t || k;
 
 // ---------- Imagen → puntos blanco/negro (1 bit). Corte fijo: QR y texto salen nítidos, sin grises ----------
-export function bitmap(canvas, thr = 150) {
+// v13.7: si la etiqueta lleva un fondo de foto o degradado (canvas.__tramado), los grises se TRAMAN (Floyd–Steinberg)
+// para que se vean como en la tarjeta; el negro y el blanco puros (texto, QR) siguen igual de nítidos.
+export function bitmap(canvas, thr = 150, tramar) {
   const W = canvas.width, H = canvas.height, wb = Math.ceil(W / 8);
   const d = canvas.getContext('2d').getImageData(0, 0, W, H).data, rows = new Uint8Array(wb * H);   // 1 = negro
+  const L = new Float32Array(W * H);
+  for (let i = 0, p = 0; p < W * H; p++, i += 4) { const a = d[i + 3] / 255; L[p] = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * a + 255 * (1 - a); }
+  const tr = tramar === undefined ? !!canvas.__tramado : tramar;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = (y * W + x) * 4, a = d[i + 3] / 255, l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * a + 255 * (1 - a);
-    if (l < thr) rows[y * wb + (x >> 3)] |= 0x80 >> (x & 7);
+    const p = y * W + x, l = L[p], negro = tr ? l < 128 : l < thr;
+    if (negro) rows[y * wb + (x >> 3)] |= 0x80 >> (x & 7);
+    if (tr) {
+      const e = l - (negro ? 0 : 255);
+      if (x + 1 < W) L[p + 1] += e * 7 / 16;
+      if (y + 1 < H) { if (x > 0) L[p + W - 1] += e * 3 / 16; L[p + W] += e * 5 / 16; if (x + 1 < W) L[p + W + 1] += e / 16; }
+    }
   }
   return { w: wb * 8, h: H, wb, rows };
 }

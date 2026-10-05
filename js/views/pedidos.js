@@ -125,7 +125,7 @@ export function render(el, params) {
     if (pp.q.cliente) { st.q = pp.q.cliente; search.value = pp.q.cliente; st.preset = 'todos'; }
     drawKpis(); drawList();
     if (pp.id === 'nuevo') { history.replaceState(null, '', '#/pedidos'); orderForm(); }
-    else if (pp.id && (pp.id !== openId || !document.querySelector('.drawer'))) { openId = pp.id; dr = orderDrawer(pp.id, () => { openId = null; dr = null; if (location.hash.startsWith('#/pedidos/' + pp.id)) history.replaceState(null, '', '#/pedidos'); }); }
+    else if (pp.id && (pp.id !== openId || !document.querySelector('.drawer'))) { if (dr && pp.id !== openId) { try { dr.close(); } catch (e) { } } /* v13.7: no apilar fichas al saltar de un pedido a otro */ openId = pp.id; dr = orderDrawer(pp.id, () => { openId = null; dr = null; if (location.hash.startsWith('#/pedidos/' + pp.id)) history.replaceState(null, '', '#/pedidos'); }); }
     // v10.8: QR de la etiqueta → marcar como enviado desde el móvil
     if (pp.id && pp.q.enviar) { const o = byId('pedidos', pp.id); history.replaceState(null, '', '#/pedidos/' + pp.id); if (o && can('pedidos.editar')) { const t = timing(o); if (t.enviado) toast('Este pedido ya estaba enviado (' + o.estado + ').', 'ok'); else setTimeout(() => shipDialog(o), 250); } }
   }
@@ -280,7 +280,7 @@ const TABS = {
     mount(el, h('div.facts', fact('Método / transportista', na(o.envio)), fact('Nº de seguimiento', o.seguimiento ? h('span.row', o.seguimiento, btn('', () => copyText(o.seguimiento), { cls: 'ghost icon sm', icon: 'copy', title: 'Copiar' })) : na('Sin número')),
       fact('Enviado el', o.fechaEnvio ? fdate(o.fechaEnvio) : na('Aún no')), fact('Entregado el', o.fechaEntrega ? fdate(o.fechaEntrega) : na('Aún no'))),
       track ? h('p', { style: { marginTop: '12px' } }, btn('Ver seguimiento en la web del transportista', () => window.open(track, '_blank', 'noopener'), { icon: 'external' })) : null,
-      c_addr(o));
+      bloqueDatosEnvio(o), c_addr(o));
   },
   archivos(el, o) { mount(el, h('p.small.muted', 'Fotos del producto terminado, del paquete, del justificante de envío o de una incidencia. En el móvil puedes hacer la foto directamente.'), filesSection('pedidos', o.id, { tipos: ['foto', 'video', 'doc'] }).el); },
   tareas(el, o) {
@@ -297,7 +297,7 @@ const TABS = {
 function c_addr(o) {
   const c = byId('clientes', o.clienteId);
   if (!c || !can('clientes.datos') || !c.direccion) return null;
-  return h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row', h('b', 'Dirección de envío'), btn('', () => copyText(c.nombre + '\n' + c.direccion + (c.telefono ? '\n' + c.telefono : '')), { cls: 'ghost icon sm', icon: 'copy', title: 'Copiar' })), h('p', { style: { whiteSpace: 'pre-wrap' } }, c.direccion));
+  return h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row', h('b', 'Dirección del cliente (ficha)'), btn('', () => copyText(c.nombre + '\n' + c.direccion + (c.telefono ? '\n' + c.telefono : '')), { cls: 'ghost icon sm', icon: 'copy', title: 'Copiar' })), h('p', { style: { whiteSpace: 'pre-wrap' } }, c.direccion));
 }
 export function accionTxt(a) { return { crear: 'lo creó', editar: 'lo modificó', borrar: 'lo borró', restaurar: 'lo restauró', subir_archivo: 'subió un archivo', vincular_archivo: 'vinculó un archivo', borrar_archivo: 'borró un archivo', estado_tarea: 'cambió el estado' }[a] || a.replace(/_/g, ' '); }
 export function resumenDetalle(d) {
@@ -333,6 +333,12 @@ async function save(o, changes, label) {
 const PACK_BEFORE = { reserva: 1, confirmado: 1, impresion: 1, postpro: 1, empaquetar: 1 };
 export async function changeState(o, estado, extra) {
   const to = CL.phaseOf(S.cfg.pedidos, estado);
+  // v13.7: antes de preparar o enviar un paquete, DATOS DEL ENVÍO (empresa, dirección de envío y observaciones). Si es recogida en persona, no se pide.
+  if (['empaquetar', 'listo', 'enviado'].includes(to) && can('pedidos.editar') && !CL.datosEnvioCompletos(Object.assign({}, o, extra || {}))) {
+    const de = await datosEnvioDialog(Object.assign({}, o, extra || {}));
+    if (!de) return false; // cancelado: no se cambia nada
+    extra = Object.assign({}, extra || {}, de);
+  }
   if (PACK_BEFORE[ph(o)] && ['listo', 'enviado', 'entregado'].includes(to) && !(o.embalaje && o.embalaje.hecho) && !(extra && extra.trabajoExtra) && (S.cfg.embalaje || {}).preguntarTrabajo !== false && can('pedidos.editar')) {
     const E = await import('./embalaje.js');
     const tr = await E.askLabor(o);
@@ -353,14 +359,74 @@ export function stateDialog(o) {
     return h('div', h('div.lbl', { style: { marginBottom: '6px' } }, groups[g]), h('div.row.wrap', list.map(s => h('button.btn' + (s.k === o.estado ? '.primary' : ''), { onclick: () => { m.close(); if (s.issue) issueDialog(o); else if (s.shipped && !o.seguimiento) shipDialog(o, s.k); else changeState(o, s.k); } }, h('span.pill', { style: { background: 'transparent', padding: 0 } }, h('span.d', { style: { background: s.c } })), s.k))));
   })), null, { size: 'narrow' });
 }
-export function shipDialog(o, estado) {
-  const envio = sel([''].concat(S.cfg.pedidos.envios), o.envio);
+// ---------- v13.7 · DATOS DEL ENVÍO ----------
+// Empresa de transporte (se guarda en «envio», el campo de siempre) · Dirección de envío de ESTE pedido (no cambia la ficha del cliente) · Observaciones.
+const otraEmpresa = x => /^otr[oa]s?$/i.test(String(x || '').trim());
+export function empresasEnvio() { return (S.cfg.pedidos.envios || []).filter(x => !CL.esRecogida(x) && !otraEmpresa(x)); }
+export function datosEnvioDialog(o, opts = {}) {
+  return new Promise(resolve => {
+    let hecho = false; const fin = v => { if (!hecho) { hecho = true; resolve(v); } };
+    const lista = empresasEnvio();
+    const inicial = o.envio && !CL.esRecogida(o.envio) && !otraEmpresa(o.envio) ? String(o.envio) : '';
+    let empresa = inicial;
+    const otra = inp({ value: inicial && !lista.includes(inicial) ? inicial : '', placeholder: 'Escribe la empresa (p. ej. DHL, Nacex, UPS…)', 'aria-label': 'Otra empresa de transporte', maxlength: 80 });
+    const chips = h('div.row.wrap.envio-emp', { style: { gap: '6px' } });
+    const pinta = () => mount(chips, lista.map(x => h('button.btn.sm' + (empresa === x ? '.primary' : ''), { type: 'button', 'data-empresa': x, onclick: () => { empresa = x; otra.value = ''; pinta(); } }, x)),
+      h('button.btn.sm' + (empresa && !lista.includes(empresa) ? '.primary' : ''), { type: 'button', 'data-empresa': '__otra', onclick: () => { empresa = otra.value.trim(); pinta(); otra.focus(); } }, 'Otra…'));
+    otra.addEventListener('input', () => { empresa = otra.value.trim(); pinta(); });
+    pinta();
+    const c = byId('clientes', o.clienteId);
+    const dirCli = c && c.direccion && c.direccion !== '•••' ? String(c.direccion) : '';
+    const pw = o.refWeb ? (S.t.pedidosWeb || []).find(x => x.id === o.refWeb) : null;
+    const dirWeb = pw && pw.direccion && pw.direccion !== '•••' ? String(pw.direccion) : '';
+    const oculta = o.direccionEnvio === '•••';
+    const dir = area({ rows: 3, maxlength: 300, value: oculta ? '' : (o.direccionEnvio || dirWeb || dirCli), placeholder: oculta ? 'Ya hay una dirección guardada (no tienes permiso para verla)' : 'Calle y número, piso · código postal y ciudad · provincia', 'aria-label': 'Dirección de envío' });
+    const obs = area({ rows: 2, maxlength: 500, value: o.obsEnvio || '', placeholder: 'Ej.: entregar por la tarde · frágil · llamar antes de ir', 'aria-label': 'Observaciones del envío' });
+    const err = h('div');
+    const ref = dirCli && !oculta ? h('div.tiny.muted', 'Dirección de la ficha del cliente: ', h('span', dirCli), ' ', h('button.btn.sm.ghost', { type: 'button', onclick: () => { dir.value = dirCli; } }, 'Usar esta')) : null;
+    const recogida = (S.cfg.pedidos.envios || []).find(x => CL.esRecogida(x)) || 'Entrega en mano';
+    modal('📮 Datos del envío · nº ' + o.numero, h('div.col.datos-envio', { style: { gap: '10px' } },
+      h('p', h('b', '¿A qué empresa de transporte vamos a enviar este paquete?')),
+      h('div.lbl', 'Empresa de transporte'), chips, otra,
+      h('label.field', h('span.lbl', 'Dirección de envío'), dir, h('span.tiny.muted', 'Es la dirección a la que va ESTE paquete. La ficha del cliente no cambia.')), ref,
+      h('label.field', h('span.lbl', 'Observaciones del envío'), obs),
+      err), close => [
+      btn('Cancelar', () => { close(); fin(null); }),
+      opts.sinRecogida ? null : btn('No se envía (recogida en persona)', () => { fin({ envio: recogida }); close(); }, { cls: 'ghost', title: 'No pide datos de transporte' }),
+      btn('Guardar datos del envío', () => {
+        const emp = (empresa || otra.value || '').trim(), d = dir.value.trim();
+        if (!emp) return mount(err, h('p.small', { style: { color: 'var(--bad, #b91c1c)' } }, 'Elige o escribe la empresa de transporte.'));
+        if (!d && !oculta) return mount(err, h('p.small', { style: { color: 'var(--bad, #b91c1c)' } }, 'Escribe la dirección de envío.'));
+        const r = { envio: emp, obsEnvio: obs.value.trim() }; if (d) r.direccionEnvio = d; fin(r); close(); // (primero el resultado: al cerrar se resolvería «cancelado»)
+      }, { cls: 'primary', icon: 'truck' })], { size: 'narrow', onclose: () => fin(null) });
+  });
+}
+export async function editarDatosEnvio(o) {
+  const r = await datosEnvioDialog(o, { sinRecogida: false });
+  if (r) await save(o, r, 'Datos del envío de nº ' + o.numero);
+}
+function bloqueDatosEnvio(o) {
+  const necesita = CL.necesitaEnvio(o), falta = CL.datosEnvioFalta(o);
+  const dir = o.direccionEnvio === '•••' ? h('span.muted', 'Guardada (sin permiso para verla)') : o.direccionEnvio ? h('span', { style: { whiteSpace: 'pre-wrap' } }, o.direccionEnvio) : na('Sin indicar');
+  return h('div.card.flat.datos-envio-ficha', { style: { marginTop: '12px' } },
+    h('div.row', h('b.grow', '📮 DATOS DEL ENVÍO'), can('pedidos.editar') ? btn('Editar', () => editarDatosEnvio(o), { cls: 'sm', icon: 'edit' }) : null),
+    !necesita ? h('p.small', '🤝 ' + (o.envio || 'Venta en persona') + ': no se envía, no hacen falta datos de transporte.') :
+      h('div.facts', fact('Empresa de transporte', o.envio && !otraEmpresa(o.envio) ? o.envio : na('Sin indicar')), fact('Dirección de envío', dir), fact('Observaciones', o.obsEnvio ? h('span', { style: { whiteSpace: 'pre-wrap' } }, o.obsEnvio) : na('Ninguna'))),
+    necesita && falta.length ? h('p.tiny', { style: { color: 'var(--warn, #b45309)' } }, '⚠️ Falta: ' + falta.join(' y ') + '. Se pedirá antes de preparar o enviar el paquete.') : null);
+}
+export async function shipDialog(o, estado) {
+  // v13.7: si faltan los datos del envío, se piden primero
+  let datos = {};
+  if (can('pedidos.editar') && !CL.datosEnvioCompletos(o)) { datos = await datosEnvioDialog(o); if (!datos) return; }
+  const oo = Object.assign({}, o, datos);
+  const opciones = [''].concat(S.cfg.pedidos.envios); if (oo.envio && !opciones.includes(oo.envio)) opciones.push(oo.envio);
+  const envio = sel(opciones, oo.envio);
   const seg = inp({ value: o.seguimiento || '', placeholder: 'Ej.: PK123456789ES' });
   const fecha = inp({ type: 'date', value: S.hoy });
   const coste = inp({ type: 'number', min: 0, step: 0.01, value: o.costeEnvio ?? '', placeholder: 'Ej.: 3,20' });
   modal('Enviar pedido nº ' + o.numero, h('div.form', field('Transportista / método', envio), field('Nº de seguimiento', seg, 'Si no tiene, déjalo vacío.'), field('Fecha de envío', fecha), field('Lo que has pagado por el envío (€)', coste, 'Opcional. Sirve para saber el beneficio real. Si lo paga el cliente, pon 0.')), close => [
     btn('Cancelar', close),
-    btn('Marcar como enviado', async () => { close(); const ex = { envio: envio.value, seguimiento: seg.value.trim(), fechaEnvio: fecha.value }; if (coste.value !== '') ex.costeEnvio = Number(coste.value); await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
+    btn('Marcar como enviado', async () => { close(); const ex = Object.assign({}, datos, { envio: envio.value, seguimiento: seg.value.trim(), fechaEnvio: fecha.value }); if (coste.value !== '') ex.costeEnvio = Number(coste.value); await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
 }
 export function issueDialog(o) {
   const t = area({ value: o.incidencia || '', placeholder: 'Qué ha pasado: pieza rota, cliente no responde, paquete perdido…' });
@@ -458,8 +524,10 @@ export function orderForm(o, duplicate) {
     notas: area({ value: o.notas || '', style: { minHeight: '64px' } }),
     numero: inp({ value: isNew ? '' : o.numero || '', placeholder: 'Automático' }),
     fecha: inp({ type: 'date', value: (isNew && !duplicate) ? S.hoy : (o.fecha || S.hoy) }),
-    envio: sel([''].concat(cfg.envios), o.envio || ''),
+    envio: sel([''].concat(cfg.envios, o.envio && !cfg.envios.includes(o.envio) ? [o.envio] : []), o.envio || ''),
     seguimiento: inp({ value: o.seguimiento || '' }),
+    direccionEnvio: area({ value: o.direccionEnvio || '', maxlength: 300, placeholder: o.direccionEnvio === '•••' ? 'Guardada (sin permiso para verla)' : 'Vacío = se pregunta al preparar el paquete', style: { minHeight: '56px' } }),
+    obsEnvio: area({ value: o.obsEnvio || '', maxlength: 500, placeholder: 'Ej.: entregar por la tarde · frágil', style: { minHeight: '48px' } }),
     entregaEstimada: inp({ type: 'date', value: o.entregaEstimada || '' })
   };
   const limitTxt = h('span.small.muted');
@@ -525,7 +593,7 @@ export function orderForm(o, duplicate) {
     h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full', assist),
       field('Canal / tienda', f.canal), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
     h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Color', f.color), h('div'), field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
-    h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Método de envío', f.envio), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada))),
+    h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Empresa de transporte / método de envío', f.envio), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada), field('Dirección de envío (este pedido)', f.direccionEnvio, 'Solo para este paquete. La ficha del cliente no cambia.'), field('Observaciones del envío', f.obsEnvio))),
     h('details.more', { open: isNew }, h('summary', 'Etiqueta de envío'), h('div.in', isNew
       ? h('div.col', { style: { gap: '6px' } }, labelFile, h('p.tiny.muted', 'Opcional: la etiqueta oficial que te da Vinted, InPost, Correos… (PDF o foto). Si aún no la tienes, la adjuntas después desde el pedido o al empaquetar. Nunca se inventa.'))
       : EV.labelRow(o, () => { }))),

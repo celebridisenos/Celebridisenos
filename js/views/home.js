@@ -1,6 +1,6 @@
 // ================= Inicio: ¿qué pasa hoy y qué necesita mi atención? =================
 import { h, mount, icon, btn, modal, eur, fdate, ago, avatar, sw, pill } from '../ui.js';
-import { S, can, dash, unreadCount, byId, timing } from '../store.js';
+import { S, can, dash, unreadCount, byId, timing, pwPendientes } from '../store.js';
 import { go } from '../app.js';
 import { BAMBU } from '../bambu.js';
 import { homeCameras } from '../camaras.js';
@@ -107,6 +107,8 @@ function attention(d) {
     const venc = d.pedidos.vencidos.map(id => byId('pedidos', id)).filter(Boolean);
     add('bad', 'alert', venc.length, venc.length === 1 ? 'pedido vencido' : 'pedidos vencidos', 'pedidos/?f=vencidos', venc.slice(0, 3).map(o => 'nº ' + o.numero + ' ' + o.cliente).join(' · '));
     const hoy = d.pedidos.proximos.map(id => byId('pedidos', id)).filter(o => o && timing(o).nivel === 'today');
+    const pwp = pwPendientes(); // v13.7: solicitudes de la web sin responder (24–48 h)
+    add('bad', 'store', pwp, pwp === 1 ? 'pedido web por revisar' : 'pedidos web por revisar', 'pedidosweb', 'Respóndelos en 24–48 horas: apruébalos o recházalos');
     add('bad', 'clock', hoy.length, hoy.length === 1 ? 'pedido vence hoy' : 'pedidos vencen hoy', 'pedidos/?f=hoy', hoy.slice(0, 3).map(o => 'nº ' + o.numero + ' ' + o.cliente).join(' · '));
     const prox = d.pedidos.proximos.length - hoy.length;
     add('warn', 'clock', prox, prox === 1 ? 'pedido próximo a vencer' : 'pedidos próximos a vencer', 'pedidos/?f=proximos', 'En los próximos ' + (S.cfg.pedidos.avisoDias || 2) + ' días');
