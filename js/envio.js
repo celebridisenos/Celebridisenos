@@ -468,6 +468,7 @@ export function conjuntoBlock(o, redraw) {
   return h('div.card.flat.conjunto.on', { style: { marginTop: '10px' } },
     h('div.row.wrap', h('b.grow', '📦 ENVÍO CONJUNTO · ' + g.length + ' pedidos en un solo paquete'), edit ? btn('Añadir', () => conjuntoDialog(o).then(() => redraw && redraw()), { cls: 'sm ghost' }) : null),
     h('div.list', g.map((p, i) => h('div.item', { style: { cursor: 'default' } }, h('b', 'Nº ' + p.numero), h('span.grow.small', (p.producto || '') + ' · ' + p.estado + (i === 0 ? ' · QR y etiqueta de este paquete' : '')),
+      CL.phaseOf(S.cfg.pedidos, p.estado) === 'cancelado' ? pill('⛔ CANCELADO: no lo metas', 'bad') : null,
       edit ? btn('Separar', () => separar(p).then(() => redraw && redraw()), { cls: 'sm ghost' }) : null))));
 }
 export async function attachFile(o, file, extra = {}) {

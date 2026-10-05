@@ -36,6 +36,10 @@ function parseParams(params) {
 
 export function render(el, params) {
   const st = { preset: 'abiertos', q: '', estado: '', canal: '', resp: '', desde: '', hasta: '', sort: 'limite', limit: 60 };
+  // v13.8.1: los pedidos de un mismo cliente se ven JUNTOS en una fila con su nombre; al pulsarla se despliegan
+  st.agrupar = (() => { try { return localStorage.getItem('cd.pedidos.agrupar') !== '0'; } catch (e) { return true; } })();
+  const abiertosCli = new Set();
+  const agruparBtn = h('button.btn.sm' + (st.agrupar ? '.primary' : ''), { type: 'button', title: 'Ver los pedidos de cada cliente juntos', onclick: () => { st.agrupar = !st.agrupar; try { localStorage.setItem('cd.pedidos.agrupar', st.agrupar ? '1' : '0'); } catch (e) { } agruparBtn.classList.toggle('primary', st.agrupar); drawList(); } }, '👤 Agrupar por cliente');
   const head = h('div.page-head', h('h1', 'Pedidos'), h('div.row',
     can('pedidos.crear') ? btn('Nuevo pedido', () => orderForm(), { cls: 'primary', icon: 'plus' }) : null));
   const kpis = h('div.kpis.compact', { style: { marginBottom: '14px' } });
@@ -49,7 +53,7 @@ export function render(el, params) {
     field('Estado', fEstado), field('Canal / tienda', fCanal), field('Responsable', fResp), field('Desde', fDesde), field('Hasta', fHasta), field('Ordenar por', fSort)),
     btn('Quitar filtros', () => { [fEstado, fCanal, fResp].forEach(x => x.value = ''); fDesde.value = fHasta.value = ''; search.value = ''; Object.assign(st, { q: '', estado: '', canal: '', resp: '', desde: '', hasta: '' }); drawList(); }, { cls: 'ghost sm' })));
   const listBox = h('div');
-  el.append(head, kpis, h('div.row', { style: { marginBottom: '10px' } }, h('div.inp-icon.grow', icon('search', 's'), search)), moreFilters, listBox);
+  el.append(head, kpis, h('div.row', { style: { marginBottom: '10px', gap: '8px' } }, h('div.inp-icon.grow', icon('search', 's'), search), agruparBtn), moreFilters, listBox);
 
   function fillSelects() {
     const keep = [fEstado.value, fCanal.value, fResp.value];
@@ -98,25 +102,50 @@ export function render(el, params) {
     const rows = filtered();
     if (!S.t.pedidos.length) { mount(listBox, h('div.card', empty('truck', 'Todavía no hay pedidos', 'Crea el primero o añádelos en la hoja Pedidos de vuestro Google Sheet: aparecerán aquí solos.', can('pedidos.crear') ? btn('Nuevo pedido', () => orderForm(), { cls: 'primary', icon: 'plus' }) : null))); return; }
     if (!rows.length) { mount(listBox, h('div.card', empty('search', 'No hay pedidos con estos filtros', 'Prueba con "Todos" o quita filtros.'))); return; }
-    const shown = rows.slice(0, st.limit);
     const total = rows.reduce((s, x) => s + CL.orderTotal(x.o), 0);
     const mobile = window.innerWidth <= 860;
+    // grupos por cliente (misma ficha o mismo nombre), en el orden en que aparece su primer pedido
+    const grupos = [];
+    if (st.agrupar) {
+      const idx = new Map();
+      rows.forEach(x => { const k = x.o.clienteId ? 'id:' + x.o.clienteId : 'n:' + CL.norm(x.o.cliente || '—'); if (!idx.has(k)) { idx.set(k, { k, items: [] }); grupos.push(idx.get(k)); } idx.get(k).items.push(x); });
+    } else rows.forEach(x => grupos.push({ k: 'o:' + x.o.id, items: [x] }));
+    const shownG = grupos.slice(0, st.limit);
+    const abierto = k => abiertosCli.has(k) || !!st.q.trim(); // al buscar, se ven desplegados
+    const toggle = k => { if (abiertosCli.has(k)) abiertosCli.delete(k); else abiertosCli.add(k); drawList(); };
+    const resumen = items => { const c = {}; items.forEach(({ o }) => { c[o.estado] = (c[o.estado] || 0) + 1; }); return Object.keys(c).map(k => pill((c[k] > 1 ? c[k] + ' · ' : '') + k, '', stateColor(k))); };
+    const urgente = items => items.map(x => x.t).filter(t => t.abierto && t.limite).sort((a, b) => a.limite.localeCompare(b.limite))[0];
+    const mRow = ({ o, t }, hijo) => h('div.item' + (hijo ? '.cli-hijo' : ''), { onclick: () => go('pedidos/' + o.id) },
+      h('div.grow', h('div.row', h('b', 'nº ' + o.numero), hijo ? null : h('span.ellipsis.grow', o.cliente), o.prioridad === 'Urgente' ? pill('Urgente', 'bad') : null),
+        h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto),
+        h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t))),
+      h('div.bold', eur(CL.orderTotal(o))));
+    const tRow = ({ o, t }, hijo) => h('tr' + (hijo ? '.cli-hijo' : ''), { onclick: () => go('pedidos/' + o.id) },
+      h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
+      h('td.nowrap', fdate(o.fecha)), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
+      h('td', h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto)),
+      h('td', pill(o.estado, '', stateColor(o.estado))), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
+      h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—')));
+    const cliTitle = g => (g.items[0].o.cliente || '—');
     const body = mobile
-      ? h('div.list.boxed', shown.map(({ o, t }) => h('div.item', { onclick: () => go('pedidos/' + o.id) },
-          h('div.grow', h('div.row', h('b', 'nº ' + o.numero), h('span.ellipsis.grow', o.cliente), o.prioridad === 'Urgente' ? pill('Urgente', 'bad') : null),
-            h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto),
-            h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t))),
-          h('div.bold', eur(CL.orderTotal(o))))))
+      ? h('div.list.boxed', shownG.map(g => g.items.length === 1 ? mRow(g.items[0]) : [
+          h('div.item.cli-grupo', { onclick: () => toggle(g.k), 'aria-expanded': String(abierto(g.k)) },
+            h('div.grow', h('div.row', h('span', abierto(g.k) ? '▾' : '▸'), h('b.ellipsis.grow', '👤 ' + cliTitle(g)), h('span.cli-n', String(g.items.length))),
+              h('div.row.wrap', { style: { marginTop: '4px', gap: '6px' } }, resumen(g.items), urgente(g.items) ? dueBadge(urgente(g.items)) : null)),
+            h('div.bold', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0)))),
+          abierto(g.k) ? g.items.map(x => mRow(x, true)) : null]))
       : h('div.table-wrap', h('table.t', h('thead', h('tr', ['Nº', 'Fecha', 'Cliente', 'Producto', 'Estado', 'Plazo', 'Importe', 'Responsable', 'Canal'].map(x => h('th', x)))),
-          h('tbody', shown.map(({ o, t }) => h('tr', { onclick: () => go('pedidos/' + o.id) },
-            h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
-            h('td.nowrap', fdate(o.fecha)), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, o.cliente)),
-            h('td', h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto)),
-            h('td', pill(o.estado, '', stateColor(o.estado))), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
-            h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—')))))));
+          h('tbody', shownG.map(g => g.items.length === 1 ? tRow(g.items[0]) : [
+            h('tr.cli-grupo', { onclick: () => toggle(g.k), 'aria-expanded': String(abierto(g.k)) },
+              h('td.nowrap', abierto(g.k) ? '▾' : '▸'), h('td', ''),
+              h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, '👤 ' + cliTitle(g), h('span.cli-n', String(g.items.length)))),
+              h('td.small.muted', g.items.length + ' pedidos · pulsa para verlos'),
+              h('td', h('div.row.wrap', { style: { gap: '4px' } }, resumen(g.items))), h('td', urgente(g.items) ? dueBadge(urgente(g.items)) : null),
+              h('td.nowrap', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0))), h('td', ''), h('td', '')),
+            abierto(g.k) ? g.items.map(x => tRow(x, true)) : null]))));
     mount(listBox, h('div.row.small.muted', { style: { margin: '0 0 8px' } }, h('span', rows.length + (rows.length === 1 ? ' pedido' : ' pedidos')), can('informes.ver') ? h('span', '· ' + eur(total)) : null,
         ['enviar', 'empaquetar'].includes(st.preset) && rows.length ? btn('Imprimir etiquetas (' + rows.length + ')', () => printLabels(rows.map(x => x.o)), { cls: 'sm ghost', icon: 'printer' }) : null),
-      body, rows.length > st.limit ? h('div.pager', btn('Mostrar más (' + (rows.length - st.limit) + ')', () => { st.limit += 100; drawList(); })) : null);
+      body, grupos.length > st.limit ? h('div.pager', btn('Mostrar más (' + (grupos.length - st.limit) + ')', () => { st.limit += 100; drawList(); })) : null);
   }
   let openId = null, dr = null;
   function applyParams(p) {

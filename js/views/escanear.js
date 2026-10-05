@@ -184,6 +184,18 @@ function showOrder(o, extra, el, fresh) {
   const edit = can('pedidos.editar');
   const redraw = () => showOrder(byId('pedidos', o.id), extra, el, false);
   const when = t.enviado ? (o.fechaEnvio ? 'Enviado el ' + o.fechaEnvio.split('-').reverse().join('/') : 'Enviado') : t.limite ? t.limite.split('-').reverse().join('/') + ' · ' + t.texto.toLowerCase() : 'sin fecha';
+  // v13.8.1: pedido CANCELADO → pantalla en ROJO, vibración larga y sonido de error. No se puede empaquetar ni enviar.
+  if (ph === 'cancelado') {
+    const cc = h('div.scan-card.scan-cancelado',
+      h('div.scan-big', '⛔'), h('h2.scan-cancel-t', 'CANCELADO'),
+      h('p', h('b', 'Nº ' + o.numero), ' · ' + (o.cliente || '') + ' · ' + (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + (o.producto || '')),
+      h('p', 'Este pedido está cancelado. No lo empaquetes ni lo envíes.'),
+      o.incidencia ? h('p.small', '⚠️ ' + o.incidencia) : null,
+      h('div.row.wrap', { style: { gap: '8px', justifyContent: 'center' } }, btn('Abrir el pedido', () => go('pedidos/' + o.id))));
+    mount(el, cc);
+    if (fresh) { flash(cc, false); try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 400]); } catch (e) { } }
+    return;
+  }
   const row = (ic, label, v, cls) => h('div.scan-row' + (cls ? '.' + cls : ''), h('span.scan-ic', ic), h('div.grow', h('div.scan-l', label), h('div.scan-v', v)));
   const lbl = E.hasLabelEnvio(o); // v13.8: en un envío conjunto vale la etiqueta de cualquier pedido del paquete
   const card = h('div.scan-card',
