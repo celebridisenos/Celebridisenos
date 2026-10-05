@@ -1176,3 +1176,18 @@ canvas.lbl-canvas[data-forma]:not([data-forma="rect"]), canvas.shape-prev[data-f
 .cli-grupo .cli-n { display: inline-block; min-width: 22px; padding: 1px 8px; border-radius: 999px; background: var(--brand, #7c3aed); color: #fff; font-size: .78rem; text-align: center; margin-left: 6px; }
 .cli-hijo td:first-child { padding-left: 28px; }
 .item.cli-hijo { margin-left: 18px; border-left: 3px solid var(--line, #ddd); }
+/* v13.9 · Stock → Envases / embalaje (tarjetas) y «Embalaje del pedido» */
+.stock-tabs { display: flex; gap: 6px; }
+.envases .env-sec { margin: 18px 0; }
+.envases .env-sec h3 { margin: 0 0 8px; font-size: 1.05rem; letter-spacing: .02em; }
+.env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.env-card { border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 6px; }
+.env-card.ok { border-color: rgba(22,163,74,.45); }
+.env-card.bajo { border-color: #f59e0b; background: rgba(245,158,11,.06); }
+.env-card.agotado { border-color: #dc2626; background: rgba(220,38,38,.06); }
+.env-card .env-s { font-size: 1.05rem; }
+.env-step { gap: 6px; align-items: center; }
+.env-step .btn { min-width: 38px; font-size: 1.1rem; }
+.envase-pedido .chip.on { outline: 2px solid var(--brand, #7c3aed); }
+.envase-total { margin-top: 8px; }
+.envase-ficha.warn { border-color: var(--warn, #f59e0b); }
