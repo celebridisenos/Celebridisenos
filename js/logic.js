@@ -643,7 +643,7 @@ var CL = (function () {
     ml: { fam: 'vol', f: 1, t: 'ml' }, l: { fam: 'vol', f: 1000, t: 'l' },
     ud: { fam: 'ud', f: 1, t: 'ud.' }, h: { fam: 'h', f: 1, t: 'h' }, eur: { fam: 'eur', f: 1, t: '€' }
   };
-  var MAT_TIPOS = ['material', 'filamento', 'componente', 'caja', 'embalaje', 'otro'];
+  var MAT_TIPOS = ['material', 'filamento', 'componente', 'caja', 'sobre', 'bolsa', 'embalaje', 'otro']; // v13.9: sobre y bolsa (Stock → Envases)
   // Estado de un dato: de más fiable a menos. «pendiente» = falta el dato (no se puede calcular).
   var CONF = ['confirmado', 'importado', 'calculado', 'estimado', 'orientativo', 'revisar', 'pendiente'];
   var CONF_TXT = { confirmado: 'CONFIRMADO', importado: 'IMPORTADO', calculado: 'CALCULADO', estimado: 'ESTIMADO', orientativo: 'ORIENTATIVO', revisar: 'REVISAR', pendiente: 'PENDIENTE' };
@@ -855,8 +855,44 @@ var CL = (function () {
     return null;
   }
   function productWeight(o, data) { var p = productOf(o, data); return p && filled(p.pesoG) && n(p.pesoG) > 0 ? n(p.pesoG) : null; }
+  // ---------- v13.9 · EMBALAJE SENCILLO: Caja / Sobre / Bolsa (1 € cada uno) + papel kraft y marrón por metros + cinta a precio fijo ----------
+  var ENVASE_TIPOS = [['caja', '📦', 'Caja', 'Cajas'], ['sobre', '✉️', 'Sobre', 'Sobres'], ['bolsa', '🛍️', 'Bolsa', 'Bolsas']];
+  var SIMPLE_DEF = { precioEnvase: 1, cinta: 0, avisoUnidades: 3, avisoMetros: 2, kraftId: '', marronId: '' };
+  function simpleCfg(c) { var o = {}; c = c || {}; Object.keys(SIMPLE_DEF).forEach(function (k) { o[k] = c[k] !== undefined && c[k] !== null && c[k] !== '' ? c[k] : SIMPLE_DEF[k]; }); ['precioEnvase', 'cinta', 'avisoUnidades', 'avisoMetros'].forEach(function (k) { o[k] = n(o[k]); }); return o; }
+  function envaseTipo(k) { for (var i = 0; i < ENVASE_TIPOS.length; i++) if (ENVASE_TIPOS[i][0] === k) return ENVASE_TIPOS[i]; return null; }
+  function medidasTxt(m) { var v = [m.largo, m.ancho, m.alto].filter(function (x) { return filled(x) && n(x) > 0; }).map(fmtN); return v.length ? v.join(' × ') + ' cm' : ''; }
+  function envaseNombre(tipo, m) { var t = envaseTipo(tipo); return (t ? t[2] : 'Envase') + (medidasTxt(m) ? ' ' + medidasTxt(m) : ''); }
+  function porMetro(m) { if (!m) return null; var c = matCost(m); return c.coste === null ? null : (c.costeM !== undefined ? c.costeM : c.coste); }
+  // 'ok' 🟢 · 'bajo' 🟠 · 'agotado' 🔴 · 'sin' (sin contar)
+  function stockEstado(m, sc) {
+    if (!m || !filled(m.stock)) return 'sin';
+    var st = n(m.stock); sc = simpleCfg(sc);
+    if (st <= 0) return 'agotado';
+    var min = filled(m.stockMin) ? n(m.stockMin) : (unitKey(m.unidad) === 'm' ? sc.avisoMetros : sc.avisoUnidades);
+    return st <= min ? 'bajo' : 'ok';
+  }
+  function simplePlan(o, data) {
+    var e = o.embalaje.simple, sc = simpleCfg(data.simple), mats = {}; (data.materiales || []).forEach(function (m) { mats[m.id] = m; });
+    var fx = e.precios && typeof e.precios === 'object' ? e.precios : null; // v13.9: precios FIJADOS al guardar el pedido (no cambian si luego cambias los de Stock)
+    if (fx) { if (has(fx.envase)) sc.precioEnvase = n(fx.envase); if (has(fx.cinta)) sc.cinta = n(fx.cinta); }
+    var env = e.envaseId ? mats[e.envaseId] : null, t = envaseTipo(e.tipo), lineas = [], pend = [];
+    lineas.push({ nombre: env ? env.nombre : (t ? t[2] : 'Envase') + ' (sin medida)', cantidad: 1, unidad: 'ud', coste: r2x(sc.precioEnvase), estado: 'confirmado', peso: env && filled(env.pesoG) && n(env.pesoG) > 0 ? n(env.pesoG) : null });
+    [['kraft', 'kraftId', 'Papel kraft'], ['marron', 'marronId', 'Papel marrón']].forEach(function (x) {
+      var q = n(e[x[0]]); if (!(q > 0)) return;
+      var pm = fx && has(fx[x[0]]) ? n(fx[x[0]]) : porMetro(mats[sc[x[1]]]);
+      if (pm === null) pend.push({ nombre: x[2], falta: 'precio por metro (Stock)' });
+      lineas.push({ nombre: x[2], cantidad: q, unidad: 'm', coste: pm === null ? null : r2x(q * pm), estado: pm === null ? 'pendiente' : 'confirmado', peso: null });
+    });
+    if (e.cinta) lineas.push({ nombre: 'Cinta adhesiva', cantidad: 1, unidad: 'pedido', coste: r2x(sc.cinta), estado: 'confirmado', peso: null });
+    var conocido = r2x(lineas.reduce(function (a, l) { return a + (l.coste === null ? 0 : l.coste); }, 0)), falta = lineas.some(function (l) { return l.coste === null; });
+    var peso = lineas[0].peso;
+    return { plantilla: { id: 'simple', nombre: lineas[0].nombre }, origen: 'simple', simple: true, envase: { tipo: e.tipo, enMano: !!e.enMano }, lineas: lineas, coste: falta ? null : conocido, conocido: conocido,
+      estado: falta ? 'pendiente' : 'confirmado', pendientes: pend, peso: peso, pesoFuente: peso === null ? 'pendiente' : 'calculado', pesoConocido: peso || 0, pesoFalta: peso === null ? ['peso del envase'] : [],
+      caja: env ? { id: env.id, nombre: env.nombre, stock: filled(env.stock) ? n(env.stock) : null, stockMin: filled(env.stockMin) ? n(env.stockMin) : null } : null, cajas: 1, sinPlantilla: false };
+  }
   // Embalaje de un pedido: el elegido · el de la receta del producto · el estándar. Coste y peso calculados solos.
   function packPlan(o, data, pp) {
+    if (o && o.embalaje && o.embalaje.simple && o.embalaje.simple.tipo) return simplePlan(o, data || {}); // v13.9
     var e = (o && o.embalaje) || {}, embs = data.embalajes || [], tpl = null, from = '';
     var byEmb = function (id) { for (var i = 0; i < embs.length; i++) if (embs[i].id === id) return embs[i]; return null; };
     if (e.plantillaId) { tpl = byEmb(e.plantillaId); from = 'elegido'; }
@@ -937,6 +973,7 @@ var CL = (function () {
     data = data || {}; var pp = (cfg && cfg.precios) || {};
     var total = orderTotal(o), qty = n(o.cantidad) || 1, e = (o.embalaje && typeof o.embalaje === 'object') ? o.embalaje : {};
     var fab = fabOf(o, data, pp);
+    if (!data.simple && e.simple && cfg && cfg.embalaje) data = Object.assign({}, data, { simple: cfg.embalaje.simple }); // v13.9
     var frozen = !!(e.hecho && e.snap), pack = frozen ? e.snap : packPlan(o, data, pp);
     var lab = laborOf(o.trabajoExtra, pp.manoObraHora), mo = lab.respondido ? (has(o.manoObra) ? n(o.manoObra) : lab.coste) : 0;
     var perdL = Array.isArray(o.perdidas) ? o.perdidas : [], perd = r2x(perdL.reduce(function (a, x) { return a + n(x && x.importe); }, 0));
@@ -1554,6 +1591,7 @@ var CL = (function () {
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,
+    ENVASE_TIPOS: ENVASE_TIPOS, SIMPLE_DEF: SIMPLE_DEF, simpleCfg: simpleCfg, envaseTipo: envaseTipo, medidasTxt: medidasTxt, envaseNombre: envaseNombre, porMetro: porMetro, stockEstado: stockEstado, simplePlan: simplePlan,
     grupoEnvio: grupoEnvio, principalEnvio: principalEnvio, mismoCliente: mismoCliente, candidatosConjunto: candidatosConjunto, numerosGrupo: numerosGrupo,
     esRecogida: esRecogida, necesitaEnvio: necesitaEnvio, datosEnvioCompletos: datosEnvioCompletos, datosEnvioFalta: datosEnvioFalta,
     waPhone: waPhone, waLink: waLink, pagoWeb: pagoWeb, webGroup: webGroup, reservaHasta: reservaHasta, reservasPorCaducar: reservasPorCaducar };

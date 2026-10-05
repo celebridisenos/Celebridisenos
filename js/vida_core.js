@@ -147,7 +147,30 @@ var VIDA = (function () {
     { id: 'bebe_palabra', edad: [1, 3], t: 'Hoy podrías decir tu primera palabra…', o: [{ t: '«¡Mamá!»', ef: { social: 15 }, r: '¡Todos aplauden!' }, { t: '«¡Agua!»', ef: { hambre: 10, rasgo: 'cerebro' }, r: 'Práctico y directo.' }] },
     { id: 'jubilacion', edad: [65, 120], t: 'Te ofrecen dar clases en el centro cultural.', o: [{ t: 'Acepto', ef: { social: 20, dinero: 40 }, r: 'Tus alumnos te adoran.' }, { t: 'Prefiero descansar', ef: { energia: 20 }, r: 'Te lo has ganado.' }] }
   ];
-  var CAT = { casas: CASAS, muebles: MUEBLES, ropa: ROPA, coches: COCHES, mascotas: MASCOTAS, trabajos: TRABAJOS };
+  // ---------- v13.9 · EL BARRIO: comida de verdad, sitios del mundo, premios y escenas VIP ----------
+  // ef = lo que sube o baja (necesidades, salud). Precio en monedas (de pequeño paga la familia).
+  var COMIDA = [
+    { id: 'manzana', t: 'Manzana', i: '🍎', precio: 2, ef: { hambre: 12, salud: 2 }, en: ['mercado'] },
+    { id: 'croissant', t: 'Cruasán', i: '🥐', precio: 4, ef: { hambre: 20, energia: 6 }, en: ['mercado', 'cafe'] },
+    { id: 'zumo', t: 'Zumo de naranja', i: '🧃', precio: 3, ef: { energia: 12, salud: 1 }, en: ['mercado', 'cafe'] },
+    { id: 'bocadillo', t: 'Bocadillo de tortilla', i: '🥪', precio: 6, ef: { hambre: 38 }, en: ['mercado', 'cafe'] },
+    { id: 'ensalada', t: 'Ensalada', i: '🥗', precio: 7, ef: { hambre: 30, salud: 4 }, en: ['mercado'] },
+    { id: 'pizza', t: 'Pizza', i: '🍕', precio: 10, ef: { hambre: 45, diversion: 6 }, en: ['mercado'] },
+    { id: 'hamburguesa', t: 'Hamburguesa', i: '🍔', precio: 10, ef: { hambre: 50, salud: -2 }, en: ['mercado'] },
+    { id: 'paella', t: 'Paella', i: '🥘', precio: 14, ef: { hambre: 55, social: 8 }, en: ['mercado'] },
+    { id: 'sushi', t: 'Sushi', i: '🍣', precio: 16, ef: { hambre: 48, salud: 4 }, en: ['mercado'] },
+    { id: 'chocolate', t: 'Chocolate con churros', i: '🍫', precio: 6, ef: { hambre: 22, diversion: 10 }, en: ['cafe'] },
+    { id: 'cafe', t: 'Café con leche', i: '☕', precio: 2, ef: { energia: 16 }, en: ['cafe'], edad: 14 },
+    { id: 'helado', t: 'Helado', i: '🍦', precio: 4, ef: { diversion: 15, hambre: 8 }, en: ['parque', 'cafe'] }
+  ];
+  // Los sitios del barrio (el mapa los coloca; aquí está lo que se puede hacer dentro)
+  var LUGARES = [
+    { id: 'casa', t: 'Tu casa', i: '🏠' }, { id: 'mercado', t: 'Mercado La Huerta', i: '🛒' }, { id: 'cafe', t: 'Cafetería Nube', i: '☕' },
+    { id: 'parque', t: 'Parque del Sol', i: '🌳' }, { id: 'tienda', t: 'Tienda de moda', i: '👗' }, { id: 'escuela', t: 'Escuela y oficinas', i: '🏫' },
+    { id: 'gimnasio', t: 'Gimnasio', i: '💪' }, { id: 'salud', t: 'Centro de salud', i: '🩺' }, { id: 'vip', t: 'Club Estrella VIP', i: '🌟' }, { id: 'plaza', t: 'Plaza del cofre', i: '🎁' }
+  ];
+  var VIP_FICHAS = 3, MONEDAS_DIA = 8;
+  var CAT = { casas: CASAS, muebles: MUEBLES, ropa: ROPA, coches: COCHES, mascotas: MASCOTAS, trabajos: TRABAJOS, comida: COMIDA };
   function buscar(lista, id) { for (var i = 0; i < lista.length; i++) if (lista[i].id === id) return lista[i]; return null; }
   function clamp(v) { return Math.max(0, Math.min(100, Math.round(v))); }
   function err(msg) { var e = new Error(msg); e.code = 'VALIDATION'; throw e; }
@@ -303,6 +326,43 @@ var VIDA = (function () {
       case 'dimitir':
         if (!s.trabajo) err('No tienes trabajo.');
         diario(s, now, 'Deja el trabajo de ' + buscar(TRABAJOS, s.trabajo.id).t + '.'); s.trabajo = null; out.msg = 'Has dejado el trabajo.'; return out;
+      // ---- v13.9 · el barrio ----
+      case 'comida':
+        it = buscar(COMIDA, id); if (!it) err('Esa comida no existe.');
+        if (it.edad && e < it.edad) err('Eso es para mayores de ' + it.edad + '.');
+        cooldown(s, 'comida', 8, now); pagar(s, e < 18 ? 0 : it.precio);
+        aplicar(s, it.ef); s.stats.comidas = (s.stats.comidas || 0) + 1;
+        if (!(s.probado || []).includes(id)) { s.probado = (s.probado || []).concat([id]); diario(s, now, 'Prueba por primera vez: ' + it.t + ' ' + it.i + '.'); }
+        out.msg = it.i + ' ¡Qué rico! ' + it.t + (e >= 18 ? ' (−' + it.precio + ' monedas)' : ''); return out;
+      case 'parque':
+        cooldown(s, 'parque', 30, now); aplicar(s, { diversion: 30, social: 10, energia: -5 });
+        if (s.mascota) { s.mascota.feliz = clamp(s.mascota.feliz + 20); }
+        out.msg = '🌳 Un paseo por el parque' + (s.mascota ? ' con tu mascota' : '') + '.'; return out;
+      case 'gym':
+        if (e < 12) err('El gimnasio es a partir de 12 años.');
+        cooldown(s, 'gym', 60, now); pagar(s, e < 18 ? 0 : 5); aplicar(s, { energia: -15, salud: 8, diversion: 8 });
+        s.stats.gym = (s.stats.gym || 0) + 1; out.msg = '💪 ¡Buen entrenamiento! (+8 salud)'; return out;
+      case 'vip':
+        if (e < 18) err('El Club Estrella VIP es para mayores de 18.');
+        cooldown(s, 'vip', 360, now); out.fichas = VIP_FICHAS; aplicar(s, { diversion: 55, social: 35, energia: -10 });
+        s.stats.vip = (s.stats.vip || 0) + 1; diario(s, now, '🌟 Noche VIP en el Club Estrella: alfombra roja, luces y foto con famosos.');
+        out.msg = '🌟 ¡Noche VIP inolvidable!'; out.escena = 'vip'; return out;
+      case 'cofre': {
+        var dia = new Date(now + 2 * HORA).toISOString().slice(0, 10), ayer = new Date(now + 2 * HORA - DIA).toISOString().slice(0, 10);
+        s.cofre = s.cofre || { dia: '', racha: 0 };
+        if (s.cofre.dia === dia) err('El cofre de hoy ya está abierto. ¡Vuelve mañana!');
+        s.cofre.racha = s.cofre.dia === ayer ? s.cofre.racha + 1 : 1; s.cofre.dia = dia;
+        var premio = Math.min(100, 15 + 10 * s.cofre.racha); s.dinero += premio;
+        aplicar(s, { diversion: 10 });
+        out.msg = '🎁 ¡Cofre del día! +' + premio + ' monedas · racha de ' + s.cofre.racha + (s.cofre.racha === 1 ? ' día' : ' días'); out.premio = premio;
+        if (s.cofre.racha % 7 === 0) diario(s, now, '🏆 ¡Una semana entera abriendo el cofre!');
+        return out; }
+      case 'recoger': {
+        var hoy = new Date(now + 2 * HORA).toISOString().slice(0, 10), n2 = Math.round(Number(id));
+        if (!(n2 >= 0 && n2 < MONEDAS_DIA)) err('Esa moneda no existe.');
+        s.recogidas = s.recogidas && s.recogidas.dia === hoy ? s.recogidas : { dia: hoy, ids: [] };
+        if (s.recogidas.ids.indexOf(n2) >= 0) err('Esa moneda ya la cogiste.');
+        s.recogidas.ids.push(n2); s.dinero += 3; out.msg = '🪙 +3 monedas'; return out; }
       case 'peinado':
         if (PEINADOS[s.sexo].indexOf(id) < 0) err('Peinado no válido.'); pagar(s, e < 12 ? 0 : 15); s.aspecto.peinado = id; out.msg = '💇 ¡Nuevo look!'; return out;
     }
@@ -374,7 +434,7 @@ var VIDA = (function () {
   return {
     DIA: DIA, HORA: HORA, NEC: NEC, NEC_TXT: NEC_TXT, ETAPAS: ETAPAS, HISTORIA: HISTORIA, NOMBRES: NOMBRES, CAT: CAT, ACCIONES: ACCIONES, EVENTOS: EVENTOS, PEINADOS: PEINADOS, JUEGOS: JUEGOS,
     buscar: buscar, edad: edad, etapa: etapa, nacer: nacer, tick: tick, eventoNuevo: eventoNuevo, evento: evento, accion: accion, empezarTurno: empezarTurno, terminarTurno: terminarTurno,
-    resumen: resumen, trabajosPosibles: trabajosPosibles, bono: bono
+    resumen: resumen, trabajosPosibles: trabajosPosibles, bono: bono, COMIDA: COMIDA, LUGARES: LUGARES, VIP_FICHAS: VIP_FICHAS, MONEDAS_DIA: MONEDAS_DIA
   };
 })();
 if (typeof module !== 'undefined') module.exports = VIDA;

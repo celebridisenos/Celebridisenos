@@ -7,6 +7,7 @@ import { h, btn, inp, confirmDlg, modal, toast, fdt } from '../ui.js';
 import { pon, llamar, cargando, errorCaja, reloj, fiesta, aviso, setSaldo } from './kit.js';
 import { avatar, mascotaDibujo } from './vida_avatar.js';
 import { jugar } from './vida_minijuegos.js';
+import { mundo } from './vida_mundo.js'; // v13.9: el barrio
 
 export const meta = { id: 'vida', titulo: 'Vida', emoji: '🌸', desc: 'Tu personaje vive contigo.' };
 let coreP = null;
@@ -19,7 +20,7 @@ const precio = it => it.fichas ? '⏱ ' + it.fichas + ' fichas' : it.precio ? '�
 const dur = ms => ms <= 0 ? '' : ms >= 3600000 ? Math.ceil(ms / 3600000) + ' h' : Math.ceil(ms / 60000) + ' min';
 
 export function render(el) {
-  const R = reloj(); let vivo = true, E = null, V = null, tab = 'hoy', offset = 0;
+  const R = reloj(); let vivo = true, E = null, V = null, tab = 'barrio', offset = 0, M = null, sAhora = null;
   const raiz = h('div.vd'); el.append(raiz);
   const ahora = () => Date.now() + offset;
   async function carga() {
@@ -30,8 +31,8 @@ export function render(el) {
     if (!E.vida) return historia();
     pinta();
   }
-  async function hacer(a, d, ok) {
-    try { const r = await llamar(a, d); E = r; offset = r.ahora - Date.now(); if (typeof r.saldo === 'number') setSaldo(r.saldo); else setSaldo(r.fichas); if (r.msg) toast(r.msg, 'ok', 3500); if (ok) ok(r); pinta(); return r; }
+  async function hacer(a, d, ok, quiet) {
+    try { const r = await llamar(a, d); E = r; offset = r.ahora - Date.now(); if (typeof r.saldo === 'number') setSaldo(r.saldo); else setSaldo(r.fichas); if (r.msg && !quiet) toast(r.msg, 'ok', 3500); if (ok) ok(r); pinta(); return r; }
     catch (e) { return null; } // llamar() ya enseña el motivo (p. ej. «No tienes fichas suficientes…»)
   }
 
@@ -59,14 +60,14 @@ export function render(el) {
   // ---------- Pantalla principal ----------
   function pinta() {
     if (!vivo || !E || !E.vida) return;
-    const s = JSON.parse(JSON.stringify(E.vida)); V.tick(s, ahora());
+    const s = JSON.parse(JSON.stringify(E.vida)); V.tick(s, ahora()); sAhora = s;
     const rs = V.resumen(s, ahora()), ed = rs.edad, falta = rs.proximoCumple - ahora();
     const nec = h('div.vd-nec', V.NEC.map(n => { const v = s.necesidades[n]; return h('div.vd-bar', h('span.vd-bar-t', V.NEC_TXT[n]), h('div.vd-bar-b', h('i', { style: { width: v + '%', background: v < 20 ? '#ef4444' : v < 45 ? '#f59e0b' : '#22c55e' } })), h('b', String(v))); }),
       h('div.vd-bar', h('span.vd-bar-t', 'Salud'), h('div.vd-bar-b', h('i', { style: { width: s.salud + '%', background: s.salud < 35 ? '#ef4444' : '#ec4899' } })), h('b', String(s.salud))));
     const acc = h('div.vd-acc', Object.keys(V.ACCIONES).map(k => { const a = V.ACCIONES[k], resta = ((s.cd || {})[k] || 0) + a.cd * 60000 - ahora(); return btn(a.i + ' ' + a.t + (resta > 0 ? ' · ' + dur(resta) : ''), () => hacer('vida.accion', { tipo: k }), { cls: 'vd-a', disabled: resta > 0, title: (ed < 18 || !a.coste ? '' : 'Cuesta ' + a.coste + ' monedas · ') + '+' + a.mas + ' ' + V.NEC_TXT[a.nec] }); }),
       s.salud < 70 ? btn('🩺 Médico', () => hacer('vida.accion', { tipo: 'medico' }), { cls: 'vd-a' }) : null);
     const ev = E.evento ? h('div.jg-card.vd-evento', h('b', '📰 ¡Pasa algo!'), h('p', E.evento.t), h('div.row.wrap', { style: { gap: '6px' } }, E.evento.o.map((o, i) => btn(o.t, () => hacer('vida.evento', { opcion: i }), { cls: 'sm' })))) : null;
-    const tabs = [['hoy', '🏠 Hoy'], ['trabajo', ed < 14 ? '📚 Estudios' : '💼 Trabajo y estudios'], ['casa', '🛋️ Casa'], ['tienda', '👗 Tienda'], ['mascota', '🐾 Mascota'], ['vehiculo', '🚲 Vehículo'], ['diario', '📔 Diario'], ['premium', '⏱ Premium']];
+    const tabs = [['barrio', '🗺️ Barrio'], ['hoy', '🏠 Hoy'], ['trabajo', ed < 14 ? '📚 Estudios' : '💼 Trabajo y estudios'], ['casa', '🛋️ Casa'], ['tienda', '👗 Tienda'], ['mascota', '🐾 Mascota'], ['vehiculo', '🚲 Vehículo'], ['diario', '📔 Diario'], ['premium', '⏱ Premium']];
     const cuerpo = h('div.vd-cuerpo');
     pon(raiz,
       h('div.vd-top', h('div.vd-perfil', h('div.vd-av', avatar(s, { ahora: ahora() }), mascotaDibujo(s)),
@@ -76,7 +77,16 @@ export function render(el) {
           h('div.small', '📚 Estudios ' + s.estudios + '/100'))),
         h('div.vd-panel', nec, acc)),
       ev, h('div.tabs.vd-tabs', tabs.map(([k, t]) => h('button' + (tab === k ? '.on' : ''), { type: 'button', 'data-tab': k, onclick: () => { tab = k; pinta(); } }, t))), cuerpo);
-    ({ hoy: tHoy, trabajo: tTrabajo, casa: tCasa, tienda: tTienda, mascota: tMascota, vehiculo: tVehiculo, diario: tDiario, premium: tPremium }[tab])(cuerpo, s, ed);
+    ({ barrio: tBarrio, hoy: tHoy, trabajo: tTrabajo, casa: tCasa, tienda: tTienda, mascota: tMascota, vehiculo: tVehiculo, diario: tDiario, premium: tPremium }[tab])(cuerpo, s, ed);
+  }
+  // v13.9 · el barrio: se crea una vez y se vuelve a colocar en cada repintado (no se pierde dónde estás)
+  function tBarrio(c, s, ed) {
+    if (!M) {
+      M = mundo({ estado: () => sAhora || s, ahora, edad: () => V.edad(sAhora || s, ahora()), me: (E && E.yo) || '',
+        hacer: (tipo, id, quiet) => hacer('vida.accion', { tipo, id }, null, quiet), irTab: k => { tab = k; pinta(); } });
+      window.__cdVidaMundo = M;
+    } else M.actualizar();
+    pon(c, M.el, h('p.tiny.muted', { style: { marginTop: '6px' } }, '🕹️ Muévete con las flechas (o W A S D), con los botones o tocando el mapa. Acércate a una puerta y pulsa «Entrar» (o Intro). Cada día hay 8 monedas por la calle y un cofre en la plaza. Los compañeros que estén jugando a la vez aparecen en el barrio: salúdalos.'));
   }
   function tHoy(c, s, ed) {
     const consejos = [];
@@ -170,5 +180,5 @@ export function render(el) {
   }
   carga();
   R.i(() => { if (vivo && E && E.vida && document.visibilityState === 'visible' && !document.querySelector('.vd-mj')) llamar('vida.estado', {}, { silencio: true }).then(r => { if (!vivo) return; E = r; offset = r.ahora - Date.now(); pinta(); }).catch(() => { }); }, 60000);
-  return { destroy() { vivo = false; R.fin(); } };
+  return { destroy() { vivo = false; R.fin(); if (M) M.destroy(); } };
 }

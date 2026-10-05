@@ -6,14 +6,15 @@
 // se conservan con «oculto: true»: no salen en el menú pero su código, sus pruebas y su dirección siguen funcionando.
 // «detectives» (casos rápidos infinitos) también está oculto: se abre desde el juego Detectives (expedientes).
 export const JUEGOS = [
-  { id: 'vida', titulo: 'Vida', emoji: '🌸', desc: 'Tu personaje anime nace, crece (1 día real = 1 año), estudia, trabaja, tiene casa, coche y mascota.', tag: 'Nuevo', cargar: () => import('./vida.js') },
-  { id: 'expedientes', titulo: 'Detectives', emoji: '🕵️', desc: '50 expedientes: escenas, pruebas, declaraciones y documentos. Resuelve quién, cómo y por qué.', tag: '50 casos', cargar: () => import('./expedientes.js') },
+  { id: 'vida', titulo: 'Vida', emoji: '🌸', desc: 'Pasea por tu barrio en 3.ª persona con tus compañeros: comida de verdad, cofre diario, Club VIP… y tu personaje crece (1 día real = 1 año).', tag: 'Barrio', cargar: () => import('./vida.js') },
   { id: 'trivial', titulo: 'Trivial', emoji: '🧠', desc: 'Más de 400 preguntas en 14 categorías. Solo o por equipos.', tag: 'Equipos', cargar: () => import('./trivial.js') },
   { id: 'ahorcado', titulo: 'Ahorcado', emoji: '🪢', desc: 'Adivina la palabra letra a letra antes de que se complete el dibujo.', tag: '', cargar: () => import('./ahorcado.js') },
   { id: 'subasta', titulo: 'Subasta de encargos', emoji: '🔨', desc: 'Juego ONLINE con el equipo: puja a ciegas tus horas de taller por los mejores encargos. Se juega con fichas.', tag: 'Online', cargar: () => import('./subasta.js') },
-  { id: 'fichas', titulo: 'Fichas ⏱', emoji: '⏱', desc: 'Tu monedero: las fichas se ganan con tiempo activo en la app y se usan en los juegos.', tag: 'Monedero', cargar: () => import('./fichas.js') },
   { id: 'sopa', titulo: 'Sopa de ideas', emoji: '🔤', desc: 'Sopa de letras infinita. Cada palabra que encuentras es una idea de qué fabricar.', tag: 'Infinito', cargar: () => import('./sopa.js') },
   // ---- descartados (se conservan, ocultos) ----
+  // v13.9: Detectives y Fichas salen del menú (el dueño lo pidió para dar más espacio a Vida). Siguen funcionando por su dirección.
+  { id: 'expedientes', titulo: 'Detectives', emoji: '🕵️', desc: '50 expedientes: escenas, pruebas, declaraciones y documentos. Resuelve quién, cómo y por qué.', tag: '50 casos', oculto: true, cargar: () => import('./expedientes.js') },
+  { id: 'fichas', titulo: 'Fichas ⏱', emoji: '⏱', desc: 'Tu monedero: las fichas se ganan con tiempo activo en la app y se usan en los juegos.', tag: 'Monedero', oculto: true, cargar: () => import('./fichas.js') },
   { id: 'mascota', titulo: 'Bobi, tu mascota', emoji: '🐣', desc: 'Críala desde el huevo.', oculto: true, cargar: () => import('./mascota.js') },
   { id: 'tresenraya', titulo: 'Tres en raya', emoji: '❌', desc: 'Contra la máquina u online.', oculto: true, cargar: () => import('./tresenraya.js') },
   { id: 'detectives', titulo: 'Detectives · casos rápidos', emoji: '🕵️', desc: 'Casos infinitos generados al momento.', oculto: true, cargar: () => import('./detectives.js') },

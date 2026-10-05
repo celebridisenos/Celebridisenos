@@ -14,7 +14,7 @@ const cfg = () => S.cfg || {};
 const pp = () => cfg().precios || {};
 const ec = () => cfg().embalaje || {};
 const ph = o => CL.phaseOf(cfg().pedidos, o.estado);
-export const packData = () => ({ materiales: S.t.materiales || [], embalajes: S.t.embalajes || [], recetas: S.t.recetas || [], productos: S.t.productos || [], calculadora: S.t.calculadora || [], gastos: S.t.gastos || [] });
+export const packData = () => ({ materiales: S.t.materiales || [], embalajes: S.t.embalajes || [], recetas: S.t.recetas || [], productos: S.t.productos || [], calculadora: S.t.calculadora || [], gastos: S.t.gastos || [], simple: (S.cfg && S.cfg.embalaje && S.cfg.embalaje.simple) || null });
 const verCostes = () => can('productos.costes');
 const g = v => v === null || v === undefined || v === '' ? null : Math.round(Number(v));
 const gTxt = v => g(v) === null ? null : g(v).toLocaleString('es-ES') + ' g';

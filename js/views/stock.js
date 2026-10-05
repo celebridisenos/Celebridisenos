@@ -6,6 +6,7 @@ import { h, mount, icon, btn, drawer, toast, fdate, ago, pill, empty, inp, field
 import { S, can, mutate, api, byId, emit } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { filesOf } from '../files.js';
+import * as ENV from '../envases.js';
 
 const CL = window.CL;
 const FILTERS = [
@@ -33,14 +34,36 @@ export async function move(producto, cantidad, motivo, notas) {
   } catch (e) { handleError(e, 'stock'); return false; }
 }
 
+// v13.9: Stock tiene dos partes: «📦 Envases / embalaje» (lo que hay para preparar pedidos) y «🧩 Productos» (lo de siempre)
 export function render(el, params) {
+  const qs = (params || []).find(x => x && x.startsWith('?')) || '';
+  const quiere = new URLSearchParams(qs.slice(1)).get('ver');
+  let tab = quiere || ((params || []).some(x => x && !x.startsWith('?')) ? 'productos' : (() => { try { return localStorage.getItem('cd.stock.tab') || 'envases'; } catch (e) { return 'envases'; } })());
+  const bar = h('div.tabs.stock-tabs', { style: { marginBottom: '14px' } });
+  const pane = h('div');
+  const head = h('div.page-head', h('h1', 'Stock'));
+  el.append(head, bar, pane);
+  let cur = null;
+  const show = (k, p) => {
+    tab = k; try { localStorage.setItem('cd.stock.tab', k); } catch (e) { }
+    mount(bar, [['envases', '📦 Envases / embalaje'], ['productos', '🧩 Productos']].map(([x, l]) => h('button' + (tab === x ? '.on' : ''), { type: 'button', 'data-tab': x, onclick: () => { if (tab !== x) show(x); } }, l)));
+    if (cur && cur.destroy) cur.destroy();
+    mount(pane);
+    if (k === 'envases') cur = ENV.renderStock(pane);
+    else cur = renderProductos(pane, p || []);
+  };
+  show(tab, params);
+  return { params: p => { const prod = (p || []).some(x => x && !x.startsWith('?')); if (prod && tab !== 'productos') show('productos', p); else if (cur && cur.params) cur.params(p); },
+    update: () => cur && cur.update && cur.update(), destroy: () => cur && cur.destroy && cur.destroy() };
+}
+function renderProductos(el, params) {
   const st = { f: 'control', q: '' };
   const kpis = h('div.grid.kpis', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', marginBottom: '14px' } });
   const search = inp({ type: 'search', placeholder: 'Buscar producto, ubicación…', 'aria-label': 'Buscar en stock' });
   search.addEventListener('input', debounce(() => { st.q = search.value; draw(); }, 100));
   const chips = h('div.row.wrap', { style: { margin: '0 0 12px' } });
   const box = h('div');
-  el.append(h('div.page-head', h('div.grow', h('h1', 'Stock'), h('p.small.muted', { style: { margin: '2px 0 0' } }, 'Bajo demanda: los pedidos apartan, lo impreso entra y lo enviado sale. Todo solo.')),
+  el.append(h('div.page-head', h('div.grow', h('h1', 'Productos en stock'), h('p.small.muted', { style: { margin: '2px 0 0' } }, 'Bajo demanda: los pedidos apartan, lo impreso entra y lo enviado sale. Todo solo.')),
     can('taller.editar') ? btn('Imprimir para stock', () => import('./taller.js').then(m => m.jobForm()), { icon: 'cube' }) : null),
   kpis, h('div.row', { style: { marginBottom: '10px' } }, h('div.inp-icon.grow', icon('search', 's'), search)), chips, box);
   let dr = null, openName = '';
