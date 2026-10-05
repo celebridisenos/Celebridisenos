@@ -1164,3 +1164,15 @@ canvas.lbl-canvas[data-forma]:not([data-forma="rect"]), canvas.shape-prev[data-f
 .pw-com { padding: 6px 0; border-bottom: 1px dashed var(--line); gap: 8px; align-items: center; } .pw-com:last-child { border-bottom: 0; }
 .pw-hist { margin: 0; padding-left: 18px; } .pw-hist li { margin: 4px 0; }
 :root[data-theme="oscuro"] .pw-ind.ok, :root[data-theme="oscuro"] .pw-ind.warn, :root[data-theme="oscuro"] .pw-ind.bad, :root[data-theme="oscuro"] .pw-aviso.warn { filter: brightness(.85); }
+
+/* v13.8.1 · escanear un pedido CANCELADO: todo en rojo */
+.scan-card.scan-cancelado { background: #fde8e8; border-color: #dc2626 !important; border-width: 3px; text-align: center; color: #7f1d1d; }
+.scan-card.scan-cancelado .scan-cancel-t { font-size: 2.4rem; font-weight: 900; letter-spacing: .06em; color: #dc2626; margin: 4px 0 8px; }
+.scan-card.scan-cancelado .scan-big { font-size: 3.2rem; }
+@media (prefers-color-scheme: dark) { .scan-card.scan-cancelado { background: #3b1111; color: #fecaca; } }
+/* v13.8.1 · pedidos agrupados por cliente */
+.cli-grupo { cursor: pointer; background: var(--soft, rgba(124,58,237,.05)); }
+.cli-grupo td, .cli-grupo .grow { font-weight: 600; }
+.cli-grupo .cli-n { display: inline-block; min-width: 22px; padding: 1px 8px; border-radius: 999px; background: var(--brand, #7c3aed); color: #fff; font-size: .78rem; text-align: center; margin-left: 6px; }
+.cli-hijo td:first-child { padding-left: 28px; }
+.item.cli-hijo { margin-left: 18px; border-left: 3px solid var(--line, #ddd); }
