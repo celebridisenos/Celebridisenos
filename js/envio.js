@@ -14,7 +14,7 @@ const ecfg = () => (S.cfg && S.cfg.envio) || {};
 export const PRINT_TIPOS = {
   oficial: { t: 'Etiqueta de envío oficial', tpl: 'oficial', f: '100x150', i: '🏷️' },
   propia: { t: 'Etiqueta de dirección propia', tpl: 'envio', f: '100x150', i: '✉️' },
-  paquete: { t: 'Identificador interno del paquete (QR)', tpl: 'paquete', f: '50x50', i: '🔳' },
+  paquete: { t: 'QR interno del paquete', tpl: 'paquete', f: '50x50', i: '🔳' },
   gracias: { t: 'Tarjeta de agradecimiento', tpl: 'gracias', f: '50x50', i: '💌' }
 };
 const EST_CLS = { Pendiente: 'warn', Enviando: 'brand', Impreso: 'ok', Error: 'bad' };
@@ -107,6 +107,7 @@ export function wanted(o) {
   return out;
 }
 export function statusOf(o, tipo) {
+  o = ownerOf(o, tipo); // v13.8: en un envío conjunto el QR, la tarjeta y la etiqueta son UNA para todo el paquete
   const rows = printsOf(o).filter(r => r.tipo === tipo), last = rows[rows.length - 1];
   const done = rows.filter(r => r.estado === 'Impreso');
   if (!last) return { estado: 'Pendiente', rows, done };
@@ -184,7 +185,7 @@ async function buildFor(o, tipo, L) {
   const T = PRINT_TIPOS[tipo];
   if (tipo === 'oficial') { const r = await officialCanvas(o); return { tpl: 'oficial', data: { canvas: r.canvas } }; }
   if (tipo === 'propia') { return { tpl: 'envio', data: L.dataFor('envio', { o, c: o.clienteId ? byId('clientes', o.clienteId) : null }) }; }
-  if (tipo === 'paquete') return { tpl: 'paquete', data: { qr: qrPayload(o), codigo: o.codigo, numero: o.numero, cliente: String(o.cliente || '').split(/\s+/)[0] } };
+  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, cliente: String(o.cliente || '').split(/\s+/)[0] } }; }
   const d = thanksData(o);
   if (d.logo) d.logoImg = await L.loadLogo();
   d.fondoImg = await L.loadCardBg(d.diseno);
@@ -201,6 +202,7 @@ export async function cardIncluded(o) {
   return r.impresion;
 }
 export async function printOne(o, tipo, opts = {}) {
+  o = ownerOf(o, tipo);
   if (tipo === 'gracias' && cardMode() === 'hoja') return (await cardIncluded(o)) ? { estado: 'Impreso' } : { estado: 'omitido' };
   const L = await import('./labels.js');
   if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
@@ -397,6 +399,77 @@ export function messageDialog(o, kind) {
 
 // ---------- v11.7 · La etiqueta de envío vive en el PEDIDO (crear, ver, sustituir) ----------
 export const hasLabel = o => !!(o && o.etiquetaEnvio && o.etiquetaEnvio.archivoId);
+// ---------- v13.8 · ENVÍO CONJUNTO: varios pedidos del mismo cliente en un solo paquete (un QR, una prueba, una etiqueta) ----------
+export const grupoDe = o => o ? CL.grupoEnvio(S.t.pedidos || [], byId('pedidos', o.id) || o) : [];
+export const principalDe = o => grupoDe(o)[0] || o;
+export const enConjunto = o => grupoDe(o).length > 1;
+// La etiqueta de envío del paquete: la del principal o, si no tiene, la de otro pedido del grupo
+export function labelOwner(o) { const g = grupoDe(o); return g.find(hasLabel) || g[0] || o; }
+export const hasLabelEnvio = o => hasLabel(labelOwner(o));
+function ownerOf(o, tipo) { if (!o || !enConjunto(o)) return o; return tipo === 'oficial' ? labelOwner(o) : (tipo === 'paquete' || tipo === 'gracias') ? principalDe(o) : o; }
+const NO_CONJ = 'cd.conjuntoNo';
+const conjNo = () => { try { return JSON.parse(sessionStorage.getItem(NO_CONJ) || '[]'); } catch (e) { return []; } };
+// ¿Hay otros pedidos del mismo cliente sin enviar? Se pregunta si van en el mismo paquete (y, si el nombre solo se parece, «¿es el mismo cliente?»).
+// opts.auto: solo pregunta si hay candidatos y no se dijo «por separado» antes. Devuelve el grupo final (o null si se cancela).
+export function conjuntoDialog(o, opts = {}) {
+  o = byId('pedidos', o.id) || o;
+  const cands = CL.candidatosConjunto(S.t.pedidos || [], S.cfg.pedidos, o).filter(c => !opts.auto || !conjNo().includes(o.id + '|' + c.pedido.id));
+  const g0 = grupoDe(o);
+  if (opts.auto && !cands.length) return Promise.resolve(g0);
+  return new Promise(resolve => {
+    let done = false; const fin = v => { if (!done) { done = true; resolve(v); } };
+    const checks = cands.map(c => ({ c, x: h('input', { type: 'checkbox', checked: c.seguro }) }));
+    const yaDentro = g0.filter(p => p.id !== o.id);
+    const body = h('div.col.conjunto-dlg', { style: { gap: '10px' } },
+      h('p', h('b', o.cliente), ' tiene ' + (cands.length === 1 ? 'otro pedido' : 'otros pedidos') + ' sin enviar. ¿Van en el mismo paquete? Saldrá un solo QR, un solo vídeo de prueba y una sola etiqueta de envío.'),
+      yaDentro.length ? h('p.small', '📦 Ya van juntos: ' + yaDentro.map(p => 'nº ' + p.numero).join(', ')) : null,
+      checks.length ? h('div.list', checks.map(({ c, x }) => h('label.item', { style: { cursor: 'pointer', alignItems: 'flex-start' } }, x,
+        h('span.grow.small', h('b', 'Nº ' + c.pedido.numero), ' · ' + (c.pedido.producto || '') + ' · ' + c.pedido.estado,
+          c.seguro ? null : h('div.warn-t.tiny', '¿Es el mismo cliente? Este pedido está a nombre de «' + c.pedido.cliente + '». Márcalo solo si es la misma persona.'))))) : h('p.small.muted', 'No hay otros pedidos de este cliente para juntar.'));
+    modal('📦 Envío conjunto · ' + o.cliente, body, close => [
+      btn(opts.auto ? 'No, van por separado' : 'Cerrar', () => { try { const l = conjNo(); cands.forEach(c => l.push(o.id + '|' + c.pedido.id)); sessionStorage.setItem(NO_CONJ, JSON.stringify(l)); } catch (e) { } fin(g0); close(); }),
+      checks.length ? btn('Sí, en el mismo paquete', async () => {
+        const sel = checks.filter(z => z.x.checked).map(z => z.c.pedido);
+        if (!sel.length) return toast('Marca al menos un pedido', 'warn');
+        fin(juntar(o, sel)); close(); // (primero el resultado: al cerrar se resolvería «sin cambios»)
+      }, { cls: 'primary' }) : null], { size: 'narrow', onclose: () => fin(g0) });
+  });
+}
+// Junta pedidos en el paquete de «o». El principal es el que ya tenga el QR impreso (si no, «o» o su principal).
+export async function juntar(o, otros) {
+  const g = grupoDe(o).concat(otros.filter(p => !grupoDe(o).some(x => x.id === p.id)));
+  const conQr = g.find(p => statusOf(p, 'paquete').estado === 'Impreso' && !enConjunto(p));
+  const pr = conQr || principalDe(o);
+  for (const p of g) if ((byId('pedidos', p.id) || p).envioConjunto !== pr.id) await guardarConj(p, pr.id);
+  toast('📦 Envío conjunto: nº ' + CL.numerosGrupo(grupoDe(pr)) + ' van en un solo paquete', 'ok', 6000);
+  return grupoDe(pr);
+}
+// Saca un pedido del envío conjunto (si queda uno solo, el paquete vuelve a ser normal)
+export async function separar(o) {
+  const g = grupoDe(o), pr = g[0];
+  if (o.id === pr.id) { for (const p of g) await guardarConj(p, ''); }
+  else { await guardarConj(o, ''); const rest = grupoDe(pr); if (rest.length < 2) await guardarConj(pr, ''); }
+  toast('El pedido nº ' + o.numero + ' ya va por separado', 'ok');
+}
+async function guardarConj(p, val) {
+  const { mutate } = await import('./store.js');
+  const r = await mutate('pedidos.guardar', { id: p.id, datos: { envioConjunto: val }, orig: { envioConjunto: p.envioConjunto || '' } }, { label: 'Envío conjunto nº ' + p.numero, tables: ['pedidos'], optimistic: t => { const x = t.pedidos.find(q => q.id === p.id); if (x) x.envioConjunto = val; } });
+  if (r && r.id) upsertLocal('pedidos', r);
+  emit();
+}
+// Recuadro para la ficha / el escáner / el embalaje
+export function conjuntoBlock(o, redraw) {
+  const g = grupoDe(o), edit = can('pedidos.editar');
+  if (g.length < 2) {
+    const c = edit ? CL.candidatosConjunto(S.t.pedidos || [], S.cfg.pedidos, o) : [];
+    return c.length ? h('div.card.flat.conjunto', { style: { marginTop: '10px' } }, h('div.row.wrap', h('span.grow.small', '📦 ' + o.cliente + ' tiene ' + c.length + (c.length === 1 ? ' pedido más' : ' pedidos más') + ' sin enviar (nº ' + c.map(x => x.pedido.numero).join(', ') + ').'),
+      btn('Envío conjunto', () => conjuntoDialog(o).then(() => redraw && redraw()), { cls: 'sm' }))) : null;
+  }
+  return h('div.card.flat.conjunto.on', { style: { marginTop: '10px' } },
+    h('div.row.wrap', h('b.grow', '📦 ENVÍO CONJUNTO · ' + g.length + ' pedidos en un solo paquete'), edit ? btn('Añadir', () => conjuntoDialog(o).then(() => redraw && redraw()), { cls: 'sm ghost' }) : null),
+    h('div.list', g.map((p, i) => h('div.item', { style: { cursor: 'default' } }, h('b', 'Nº ' + p.numero), h('span.grow.small', (p.producto || '') + ' · ' + p.estado + (i === 0 ? ' · QR y etiqueta de este paquete' : '')),
+      edit ? btn('Separar', () => separar(p).then(() => redraw && redraw()), { cls: 'sm ghost' }) : null))));
+}
 export async function attachFile(o, file, extra = {}) {
   const F = await import('./files.js');
   const a = await F.uploadFile(file, { entidad: 'pedidos', entidadId: o.id, original: true });
@@ -426,25 +499,27 @@ export function prepareBanner(o, redraw) {
 // ---------- «Preparado para enviar»: se comprueba todo antes de marcar como enviado (sin repetir impresiones) ----------
 export async function offerOfficialLabel(o) {
   o = byId('pedidos', o.id) || o;
-  if (!hasLabel(o)) { toast('El pedido ya está en «Listo para envío», pero falta adjuntar su etiqueta oficial 100 × 150 mm.', 'warn', 8000); return false; }
-  const { confirmDlg } = await import('./ui.js');
-  if (!await confirmDlg('Bobina de envío 100 × 150 mm', 'El pedido está en «Listo para envío». Coloca la bobina de 100 × 150 mm. ¿Quieres imprimir ahora la etiqueta oficial que ya adjuntaste?', 'Sí, imprimir etiqueta')) return true;
-  const r = await printOne(o, 'oficial');
+  const g = grupoDe(o), lo = labelOwner(o), cuales = g.length > 1 ? 'Envío conjunto nº ' + CL.numerosGrupo(g) : 'El pedido';
+  if (!hasLabel(lo)) { toast(cuales + ' ya está en «Listo para envío», pero falta adjuntar su etiqueta oficial 100 × 150 mm.', 'warn', 8000); return false; }
+  if (statusOf(lo, 'oficial').estado === 'Impreso') return true; // ya impresa: no se repite
+  if (!await confirmDlg('Bobina de envío 100 × 150 mm', cuales + ' está en «Listo para envío». Coloca la bobina de 100 × 150 mm. ¿Quieres imprimir ahora la etiqueta de envío que adjuntaste al crear el pedido?', 'Sí, imprimir etiqueta')) return false;
+  const r = await printOne(lo, 'oficial');
   return !!r && r.estado === 'Impreso';
 }
 
 export function sendCheck(o, after) {
   o = byId('pedidos', o.id) || o;
   const packed = !!(o.embalaje && o.embalaje.hecho), items = [
-    ['🏷️ Etiqueta de envío', hasLabel(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'ok' : 'warn') : 'warn', hasLabel(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'Adjuntada e impresa' : 'Adjuntada, sin imprimir') : 'FALTA (no se puede imprimir lo que no existe)'],
+    ['🏷️ Etiqueta de envío', hasLabelEnvio(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'ok' : 'warn') : 'warn', hasLabelEnvio(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'Adjuntada e impresa' : 'Adjuntada, sin imprimir') : 'FALTA (no se puede imprimir lo que no existe)'],
     ['📦 Paquete', packed ? 'ok' : 'warn', packed ? 'Hecho el ' + String(o.embalaje.hecho).split('-').reverse().join('/') : 'Sin cerrar'],
-    ['🔳 Código del paquete (QR)', statusOf(o, 'paquete').estado === 'Impreso' ? 'ok' : wanted(o).includes('paquete') ? 'warn' : 'ok', statusOf(o, 'paquete').estado === 'Impreso' ? 'Impreso' : wanted(o).includes('paquete') ? 'Sin imprimir' : 'No se usa'],
+    ['🔳 QR interno del paquete', statusOf(o, 'paquete').estado === 'Impreso' ? 'ok' : wanted(o).includes('paquete') ? 'warn' : 'ok', statusOf(o, 'paquete').estado === 'Impreso' ? 'Impreso' : wanted(o).includes('paquete') ? 'Sin imprimir' : 'No se usa'],
     ['💌 Tarjeta', statusOf(o, 'gracias').estado === 'Impreso' ? 'ok' : wanted(o).includes('gracias') ? 'warn' : 'ok', statusOf(o, 'gracias').estado === 'Impreso' ? (cardMode() === 'hoja' ? 'Metida en el paquete' : 'Impresa') : wanted(o).includes('gracias') ? (cardMode() === 'hoja' ? 'Sin meter en el paquete' : 'Sin imprimir') : 'No se usa'],
-    ['📮 Datos del envío', 'ok', 'El QR solo identifica el pedido dentro del taller.'],
+    ['📮 Dirección de envío', 'ok', o.direccionEnvio && o.direccionEnvio !== '•••' ? o.direccionEnvio : 'La que lleva la etiqueta de envío'],
+    ...(enConjunto(o) ? [['📦 Envío conjunto', 'ok', 'Van juntos los pedidos nº ' + CL.numerosGrupo(grupoDe(o))]] : []),
   ];
   const pend = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja'));
   const cardPend = cardMode() === 'hoja' && wanted(o).includes('gracias') && statusOf(o, 'gracias').estado !== 'Impreso';
-  modal('🚚 Preparado para enviar · nº ' + o.numero, h('div.col', h('div.list', items.map(([t, nv, d]) => h('div.item', { style: { cursor: 'default' } }, h('span.grow', h('b', t), h('div.tiny.muted', d)), pill(nv === 'ok' ? '✓' : 'REVISAR', nv)))),
+  modal('🚚 Preparado para enviar · nº ' + (enConjunto(o) ? CL.numerosGrupo(grupoDe(o)) : o.numero), h('div.col', h('div.list', items.map(([t, nv, d]) => h('div.item', { style: { cursor: 'default' } }, h('span.grow', h('b', t), h('div.tiny.muted', d)), pill(nv === 'ok' ? '✓' : 'REVISAR', nv)))),
     pend.length || cardPend ? h('p.small', 'Puedes completar lo que falta (sin repetir lo ya impreso) o enviarlo igualmente.') : h('p.small.ok-t', '✓ Todo listo.')),
   close => [btn('Cancelar', close),
     cardPend && can('pedidos.editar') ? btn('💌 Tarjeta metida', async () => { close(); await cardIncluded(o); sendCheck(o, after); }) : null,

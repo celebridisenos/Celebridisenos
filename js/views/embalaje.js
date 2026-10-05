@@ -107,6 +107,7 @@ export function packPanel(id) {
       sec('PEDIDO', h('div.facts', fact('Cliente', o.cliente), fact('País', (cli && cli.pais && cli.pais !== '•••') ? cli.pais : h('span.muted', 'sin indicar')), fact('Envío', o.envio || h('span.muted', 'sin indicar')),
         fact('Estado', pill(o.estado, '', (cfg().pedidos.estados.find(s => s.k === o.estado) || {}).c)), o.seguimiento ? fact('Seguimiento', o.seguimiento) : null)),
       E.printBlock(o, { redraw: draw }),
+      E.conjuntoBlock(o, draw),
       verCostes() ? costCenter(c) : null,
       h('div.row.wrap', { style: { marginTop: '6px' } },
         can('pedidos.editar') && !packed && ['reserva', 'confirmado', 'impresion', 'postpro'].includes(ph(o)) ? btn('Pasar a «' + (CL.stateOfPhase(cfg().pedidos, 'empaquetar') || 'Empaquetar') + '»', async () => { await changeTo(o, CL.stateOfPhase(cfg().pedidos, 'empaquetar')); draw(); }, { icon: 'box' }) : null,
@@ -130,50 +131,89 @@ async function setPack(o, choice) {
   } catch (e) { handleError(e, 'pedidos'); }
 }
 async function changeTo(o, estado) { const P = await import('./pedidos.js'); return P.changeState(o, estado); }
-// Guarda vídeo probatorio vinculado al pedido y en Drive/Pedidos/Pruebas venta.
-function captureSaleProof(o) {
+// ---------- v13.8 · PRUEBA DE EMPAQUETADO ----------
+// Antes de cerrar el paquete: instrucciones de lo que suelen pedir las plataformas, un vídeo corto (obligatorio) y fotos (opcionales).
+// Con «Vale, guardar» todo va a la carpeta «PRUEBAS VENTA» del programa y a los archivos de cada pedido del paquete.
+// Cada archivo lleva su nombre para que no se mezcle nada: PRUEBA_VENTA_Pedido-1001_Ana-Lopez_2026-10-05_12-30_video-empaquetado.mp4
+export const PRUEBA_PASOS = [
+  'Graba UN SOLO vídeo seguido, sin cortes ni pausas, con buena luz.',
+  'Empieza enseñando el producto entero: que se vea bien su estado y que van todas las piezas.',
+  'Mete el producto en la caja con su protección (papel, burbujas…).',
+  'Cierra y precinta la caja delante de la cámara.',
+  'Termina enseñando la etiqueta de envío ya pegada, con el número de seguimiento a la vista.',
+  'No enseñes más datos personales de los necesarios.'
+];
+const limpio = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'sin-nombre';
+const dos = n => String(n).padStart(2, '0');
+export function pruebaNombre(grupo, cuando, que, ext) {
+  const d = cuando || new Date(), g = Array.isArray(grupo) ? grupo : [grupo];
+  return 'PRUEBA_VENTA_Pedido-' + g.map(p => limpio(p.numero || p.id)).join('-') + '_' + limpio(g[0].cliente) + '_' +
+    d.getFullYear() + '-' + dos(d.getMonth() + 1) + '-' + dos(d.getDate()) + '_' + dos(d.getHours()) + '-' + dos(d.getMinutes()) + '_' + que + '.' + (ext || 'mp4');
+}
+const extDe = (f, def) => ((String(f.name || '').match(/\.([a-z0-9]{2,5})$/i) || [, ''])[1] || (String(f.type || '').split('/')[1] || def).replace('quicktime', 'mov').replace('jpeg', 'jpg')).toLowerCase();
+export function captureSaleProof(o) {
   return new Promise(resolve => {
-    let settled = false;
+    let settled = false, saving = false;
     const finish = v => { if (!settled) { settled = true; resolve(v); } };
-    let dialog;
-    const video = h('input', { type: 'file', accept: 'video/*', capture: 'environment', style: { display: 'none' } });
-    const status = h('p.tiny.muted', 'Graba con el móvil o elige un vídeo existente. Se guardará con el número de pedido.');
-    const choose = btn('🎥 Grabar o elegir vídeo', () => video.click(), { cls: 'primary' });
-    video.onchange = async () => {
-      const source = video.files && video.files[0]; video.value = '';
-      if (!source) return;
-      if (!String(source.type || '').startsWith('video/')) { status.textContent = 'El archivo seleccionado no parece un vídeo.'; return; }
-      const ext = (source.name.match(/\.([a-z0-9]{2,5})$/i) || [,'mp4'])[1].toLowerCase();
-      const safe = String(o.numero || o.id).replace(/[^a-z0-9_-]/gi, '_');
-      const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-      const f = new File([source], 'PRUEBA_VENTA_PEDIDO_' + safe + '_' + stamp + '.' + ext, { type: source.type, lastModified: source.lastModified });
-      choose.disabled = true; status.textContent = 'Guardando vídeo del pedido nº ' + o.numero + '…';
-      try {
-        const F = await import('../files.js');
-        await F.uploadFile(f, { entidad: 'pedidos', entidadId: o.id, rutaLocal: 'Pruebas venta' });
-        status.textContent = '✓ Vídeo guardado en «Pruebas venta», vinculado al pedido nº ' + o.numero + '.';
-        finish(true); dialog.close();
-      } catch (e) { status.textContent = 'No se pudo guardar: ' + e.message + '. Comprueba la conexión y vuelve a intentarlo.'; choose.disabled = false; }
+    const P = E.grupoDe(o);
+    let dialog, video = null; const fotos = [];
+    const pickV = h('input', { type: 'file', accept: 'video/*', capture: 'environment', style: { display: 'none' }, 'aria-label': 'Vídeo de empaquetado' });
+    const pickF = h('input', { type: 'file', accept: 'image/*', capture: 'environment', multiple: true, style: { display: 'none' }, 'aria-label': 'Fotos de empaquetado' });
+    const status = h('p.small.prueba-estado');
+    const lista = h('div.list.prueba-lista');
+    const ok = btn('✅ Vale, guardar', () => guardar(), { cls: 'primary', disabled: true });
+    const grupo = () => (P || [o]);
+    const draw = () => {
+      mount(lista, video ? h('div.item', { style: { cursor: 'default' } }, h('span', '🎥'), h('span.grow.small', h('b', 'Vídeo'), h('div.tiny.muted', pruebaNombre(grupo(), new Date(), 'video-empaquetado', extDe(video, 'mp4')))), btn('Quitar', () => { video = null; draw(); }, { cls: 'sm ghost' })) : null,
+        fotos.map((f, i) => h('div.item', { style: { cursor: 'default' } }, h('span', '📷'), h('span.grow.small', h('b', 'Foto ' + (i + 1)), h('div.tiny.muted', pruebaNombre(grupo(), new Date(), 'foto-' + (i + 1), extDe(f, 'jpg')))), btn('Quitar', () => { fotos.splice(i, 1); draw(); }, { cls: 'sm ghost' }))));
+      ok.disabled = !video || saving;
+      if (!saving) status.textContent = video ? 'Revisa y pulsa «Vale, guardar».' : 'Falta el vídeo: es obligatorio para cerrar el paquete.';
     };
-    const body = h('div.col', h('p', h('b', 'Antes de cerrar, graba el producto y el paquete de este pedido.')), h('ul',
-      h('li', 'Enseña el producto, su estado y que funciona; incluye todas las piezas.'),
-      h('li', 'Graba el material de protección y cómo queda cerrado el paquete.'),
-      h('li', 'Muestra la etiqueta solo si hace falta; evita exponer datos personales en el vídeo.'),
-      h('li', 'Conserva también el resguardo de entrega y el seguimiento cuando lo tengas.')),
-      h('p.tiny.muted', 'La ayuda de Wallapop menciona producto, embalaje y etiqueta al describir evidencias de disputa; Etsy enumera recibo, seguimiento o justificante de envío para casos de no entrega. Son referencias de esas plataformas, no requisitos universales. El vídeo ayuda a documentar el pedido, pero no garantiza que se acepte una reclamación.'),
-      choose, video, status);
-    dialog = modal('🎥 Prueba de venta · pedido nº ' + o.numero, body, close => [btn('Cancelar', () => { close(); finish(false); })], { size: 'narrow', onclose: () => finish(false) });
+    pickV.onchange = () => {
+      const f = pickV.files && pickV.files[0]; pickV.value = '';
+      if (!f) return;
+      if (!String(f.type || '').startsWith('video/') && !/\.(mp4|mov|webm|m4v|3gp)$/i.test(f.name || '')) { status.textContent = 'Eso no parece un vídeo. Elige o graba un vídeo.'; return; }
+      video = f; draw();
+    };
+    pickF.onchange = () => { Array.from(pickF.files || []).forEach(f => { if (String(f.type || '').startsWith('image/') || /\.(jpe?g|png|webp|heic)$/i.test(f.name || '')) fotos.push(f); }); pickF.value = ''; draw(); };
+    async function guardar() {
+      if (!video || saving) return;
+      saving = true; ok.disabled = true;
+      const cuando = new Date(), g = grupo(), F = await import('../files.js');
+      const files = [new File([video], pruebaNombre(g, cuando, 'video-empaquetado', extDe(video, 'mp4')), { type: video.type || 'video/mp4', lastModified: video.lastModified })]
+        .concat(fotos.map((f, i) => new File([f], pruebaNombre(g, cuando, 'foto-' + (i + 1), extDe(f, 'jpg')), { type: f.type || 'image/jpeg', lastModified: f.lastModified })));
+      try {
+        let n = 0;
+        for (const f of files) {
+          for (const p of g) {
+            status.textContent = 'Guardando ' + (++n) + ' de ' + files.length * g.length + '… (no cierres esta ventana)';
+            await F.uploadFile(f, { entidad: 'pedidos', entidadId: p.id, rutaLocal: 'PRUEBAS VENTA', original: true });
+          }
+        }
+        status.textContent = '✓ Guardado en «PRUEBAS VENTA».';
+        toast('🎥 Prueba de empaquetado guardada en «PRUEBAS VENTA» (' + files.length + (files.length === 1 ? ' archivo' : ' archivos') + ')', 'ok', 6000);
+        finish(true); dialog.close();
+      } catch (e) { saving = false; status.textContent = 'No se pudo guardar: ' + e.message + ' Comprueba la conexión y vuelve a pulsar «Vale, guardar».'; draw(); }
+    }
+    const nums = grupo().map(p => p.numero).join(' + ');
+    const body = h('div.col.prueba-venta', { style: { gap: '10px' } },
+      h('p', h('b', 'Antes de cerrar el paquete, graba un vídeo corto. Es tu prueba si el comprador reclama.')),
+      grupo().length > 1 ? h('p.small', '📦 Envío conjunto: un solo vídeo para los pedidos nº ' + nums + '.') : null,
+      h('div.lbl', 'Qué suelen pedir las plataformas'),
+      h('ol.prueba-pasos', PRUEBA_PASOS.map(x => h('li', x))),
+      h('p.tiny.muted', 'Si hay una reclamación, plataformas como Wallapop, Vinted o Etsy pueden pedirte fotos o vídeo del producto y del embalaje, y el justificante de envío con su seguimiento. Guarda también el resguardo de la oficina. El vídeo ayuda, pero cada plataforma decide con sus normas.'),
+      h('div.row.wrap', { style: { gap: '8px' } }, btn('🎥 Grabar o elegir vídeo', () => pickV.click(), { cls: 'primary' }), btn('📷 Añadir fotos (opcional)', () => pickF.click())),
+      lista, status, pickV, pickF);
+    draw();
+    dialog = modal('🎥 Prueba de empaquetado · ' + (grupo().length > 1 ? 'envío conjunto nº ' + nums : 'pedido nº ' + o.numero), body, close => [btn('Cancelar', () => { if (saving) return; close(); finish(false); }), h('span.grow'), ok], { size: 'narrow', onclose: () => finish(false) });
   });
 }
 // Cierra el paquete: pide prueba por pedido, pregunta trabajo adicional y pasa a «Listo para envío».
 export async function closePack(o, estado) {
-  const proof = await captureSaleProof(o);
-  if (!proof) return false;
+  // El control común de pedidos.changeState solicita y guarda la prueba antes de cualquier cierre.
   const target = estado || CL.stateOfPhase(cfg().pedidos, 'listo');
   const P = await import('./pedidos.js');
-  const ok = await P.changeState(o, target);
-  if (ok) await E.offerOfficialLabel(byId('pedidos', o.id) || o);
-  return ok;
+  return P.changeState(o, target);
 }
 function redoDialog(o, after) {
   const back = h('input', { type: 'checkbox', checked: !!o.embalaje.cajaDescontada }), motivo = inp({ placeholder: 'Ej.: me equivoqué de caja' });

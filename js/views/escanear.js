@@ -49,7 +49,7 @@ export function render(el, params) {
   const camBtn = btn('Abrir la cámara', () => (stream ? stopCam(camBox, camBtn) : startCam(video, camBox, camMsg, camBtn, c => lookup(c, result, hist))), { cls: 'primary', icon: 'camera' });
   code.onkeydown = e => { if (e.key === 'Enter') { lookup(code.value, result, hist); code.select(); } };
   el.append(head,
-    h('div.card', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, camBtn, code, btn('Buscar', () => lookup(code.value, result, hist), { icon: 'search' }), btn('QR para mi mesa', () => mesaDialog(), { icon: 'printer', cls: 'ghost' }), btn('Probar QR', () => pruebaQrDialog(), { icon: 'qr', cls: 'ghost' })), camMsg, camBox,
+    h('div.card', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, camBtn, h('span.small.muted', '✍️ o escribe el código a mano:'), code, btn('Buscar', () => lookup(code.value, result, hist), { icon: 'search' }), btn('QR para mi mesa', () => mesaDialog(), { icon: 'printer', cls: 'ghost' }), btn('Probar QR', () => pruebaQrDialog(), { icon: 'qr', cls: 'ghost' })), camMsg, camBox,
       h('p.tiny.muted', 'También funciona escaneando el QR con la cámara normal del móvil: abre esta pantalla directamente.')),
     result, hist);
   setTimeout(() => code.focus(), 50);
@@ -185,7 +185,7 @@ function showOrder(o, extra, el, fresh) {
   const redraw = () => showOrder(byId('pedidos', o.id), extra, el, false);
   const when = t.enviado ? (o.fechaEnvio ? 'Enviado el ' + o.fechaEnvio.split('-').reverse().join('/') : 'Enviado') : t.limite ? t.limite.split('-').reverse().join('/') + ' · ' + t.texto.toLowerCase() : 'sin fecha';
   const row = (ic, label, v, cls) => h('div.scan-row' + (cls ? '.' + cls : ''), h('span.scan-ic', ic), h('div.grow', h('div.scan-l', label), h('div.scan-v', v)));
-  const lbl = o.etiquetaEnvio && o.etiquetaEnvio.archivoId;
+  const lbl = E.hasLabelEnvio(o); // v13.8: en un envío conjunto vale la etiqueta de cualquier pedido del paquete
   const card = h('div.scan-card',
     h('div.scan-head', h('b', 'Nº ' + o.numero), o.codigo ? h('code', o.codigo) : null, h('span.grow'), pill(o.estado, '', st.c)),
     row('👤', 'Cliente', o.cliente || '—'),
@@ -197,7 +197,8 @@ function showOrder(o, extra, el, fresh) {
     row('🛒', 'Plataforma', o.canal || h('span.muted', 'sin indicar')),
     o.personalizacion ? row('✏️', 'Personalización', o.personalizacion) : null,
     o.incidencia ? row('⚠️', 'Incidencia', o.incidencia, 'late') : null,
-    h('div.scan-lbl' + (lbl ? '.ok' : '.warn'), lbl ? '🟢 ETIQUETA ADJUNTADA' : '🟠 FALTA ETIQUETA DE ENVÍO', !lbl && edit ? h('button.btn.sm', { style: { marginLeft: '10px' }, onclick: () => E.attachDialog(o, redraw) }, 'Adjuntar') : null));
+    h('div.scan-lbl' + (lbl ? '.ok' : '.warn'), lbl ? '🟢 ETIQUETA ADJUNTADA' : '🟠 FALTA ETIQUETA DE ENVÍO', !lbl && edit ? h('button.btn.sm', { style: { marginLeft: '10px' }, onclick: () => E.attachDialog(E.labelOwner(o), redraw) }, 'Adjuntar') : null),
+    E.conjuntoBlock(o, redraw));
   const photo = h('input', { type: 'file', accept: 'image/*', capture: 'environment', style: { display: 'none' }, onchange: async () => {
     const f = photo.files[0]; photo.value = ''; if (!f) return;
     try { const F = await import('../files.js'); await F.uploadFile(f, { entidad: 'pedidos', entidadId: o.id }); toast('📷 Foto guardada en el pedido nº ' + o.numero, 'ok'); } catch (e) { handleError(e); }
@@ -206,9 +207,10 @@ function showOrder(o, extra, el, fresh) {
   const wasOpen = !!(el.querySelector('details.scan-more') || {}).open;
   mount(el, card,
     edit ? h('div.scan-actions',
-      ph === 'empaquetar' ? btn('📦 Envío empaquetado', async () => { const EM = await import('./embalaje.js'); if (await EM.closePack(o)) redraw(); }, { cls: 'primary' })
-        : ph === 'listo' ? btn('🚚 Enviar pedido', () => E.sendCheck(o, redraw), { cls: 'primary' })
-        : ['reserva', 'confirmado', 'impresion', 'postpro'].includes(ph) ? btn('📦 Pasar a «' + (CL.stateOfPhase(cfg().pedidos, 'empaquetar') || 'Empaquetar') + '»', async () => { await (await P()).changeState(o, CL.stateOfPhase(cfg().pedidos, 'empaquetar')); redraw(); }, { cls: 'primary' }) : null,
+      // v13.8: con el QR interno (desde Postprocesado) «📦 Envío empaquetado» pide la PRUEBA DE EMPAQUETADO y pasa a «Listo para envío»
+      ph === 'empaquetar' || ph === 'postpro' ? btn('📦 Envío empaquetado', async () => { const EM = await import('./embalaje.js'); if (await EM.closePack(o)) redraw(); }, { cls: 'primary' })
+        : ph === 'listo' ? btn('🚚 Enviar pedido', () => E.sendCheck(o, redraw), { cls: 'primary' }) : null,
+      ['reserva', 'confirmado', 'impresion', 'postpro'].includes(ph) ? btn('📦 Pasar a «' + (CL.stateOfPhase(cfg().pedidos, 'empaquetar') || 'Empaquetar') + '»', async () => { await (await P()).changeState(o, CL.stateOfPhase(cfg().pedidos, 'empaquetar')); redraw(); }, { cls: ph === 'postpro' ? '' : 'primary' }) : null,
       btn('🔄 Cambiar estado', async () => (await P()).stateDialog(o)),
       can('archivos.subir') ? btn('📷 Hacer foto', () => photo.click()) : null,
       !o.incidencia ? btn('⚠️ Incidencia', async () => (await P()).issueDialog(o)) : null, photo) : null,

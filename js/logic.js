@@ -1502,6 +1502,50 @@ var CL = (function () {
     return f;
   }
 
+  // ---------- v13.8: ENVÍO CONJUNTO (varios pedidos del mismo cliente en un solo paquete, un solo QR) ----------
+  // «envioConjunto» guarda el id del pedido PRINCIPAL (el del QR y la etiqueta). El principal también lo lleva (su propio id).
+  var CONJ_FASES = { reserva: 1, confirmado: 1, impresion: 1, postpro: 1, empaquetar: 1, listo: 1 };
+  function numCmp(a, b) { var x = n(a && a.numero), y = n(b && b.numero); return x !== y ? x - y : s(a && a.numero).localeCompare(s(b && b.numero)); }
+  function grupoEnvio(pedidos, o) {
+    if (!o) return [];
+    var g = s(o.envioConjunto).trim();
+    if (!g) return [o];
+    var list = (pedidos || []).filter(function (p) { return p && !p.borrado && (p.id === g || s(p.envioConjunto).trim() === g); });
+    if (!list.some(function (p) { return p.id === o.id; })) list.push(o);
+    list.sort(function (a, b) { return (a.id === g ? -1 : b.id === g ? 1 : 0) || numCmp(a, b); });
+    return list;
+  }
+  function principalEnvio(pedidos, o) { var g = grupoEnvio(pedidos, o); return g[0] || o; }
+  function nombreTokens(v) { return norm(v).replace(/[^a-z0-9ñ ]/g, ' ').split(' ').filter(function (w) { return w.length >= 2; }); }
+  // ¿mismo cliente? 'seguro' (misma ficha o mismo nombre), 'parecido' (hay que preguntar) o ''
+  function mismoCliente(a, b) {
+    if (!a || !b) return '';
+    if (s(a.clienteId) && s(a.clienteId) === s(b.clienteId)) return 'seguro';
+    var x = norm(a.cliente), y = norm(b.cliente);
+    if (!x || !y) return '';
+    if (x === y) return 'seguro';
+    var ta = nombreTokens(x), tb = nombreTokens(y);
+    if (!ta.length || !tb.length || ta[0] !== tb[0]) return '';
+    var comunes = ta.filter(function (w) { return tb.indexOf(w) >= 0; }).length;
+    return comunes >= 2 || ta.length === 1 || tb.length === 1 ? 'parecido' : '';
+  }
+  // Otros pedidos abiertos (sin enviar) que podrían ir en el mismo paquete
+  function candidatosConjunto(pedidos, cp, o) {
+    if (!o || !necesitaEnvio(o)) return [];
+    var mio = s(o.envioConjunto).trim(), out = [];
+    (pedidos || []).forEach(function (p) {
+      if (!p || p.borrado || p.id === o.id || !CONJ_FASES[phaseOf(cp, p.estado)] || !necesitaEnvio(p)) return;
+      var g = s(p.envioConjunto).trim();
+      if (mio && g === mio) return;          // ya está en mi paquete
+      if (g && g !== p.id) return;           // va dentro del paquete de otro pedido
+      if (g && grupoEnvio(pedidos, p).length > 1) return; // es principal de otro paquete
+      var m = mismoCliente(o, p);
+      if (m) out.push({ pedido: p, seguro: m === 'seguro' });
+    });
+    return out.sort(function (a, b) { return (b.seguro - a.seguro) || numCmp(a.pedido, b.pedido); });
+  }
+  function numerosGrupo(g) { return (g || []).map(function (p) { return s(p.numero); }).join('+'); }
+
   return { PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
@@ -1510,6 +1554,7 @@ var CL = (function () {
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,
+    grupoEnvio: grupoEnvio, principalEnvio: principalEnvio, mismoCliente: mismoCliente, candidatosConjunto: candidatosConjunto, numerosGrupo: numerosGrupo,
     esRecogida: esRecogida, necesitaEnvio: necesitaEnvio, datosEnvioCompletos: datosEnvioCompletos, datosEnvioFalta: datosEnvioFalta,
     waPhone: waPhone, waLink: waLink, pagoWeb: pagoWeb, webGroup: webGroup, reservaHasta: reservaHasta, reservasPorCaducar: reservasPorCaducar };
 })();

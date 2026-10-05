@@ -184,6 +184,7 @@ export function orderDrawer(id, onClose) {
           h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k)))),
           o.incidencia && t.abierto ? h('div.issue-bar', icon('alert', 's'), h('span.grow', h('b', 'Incidencia: '), o.incidencia), editable ? btn('Resuelta', () => save(o, { incidencia: '' }, 'Incidencia resuelta · nº ' + o.numero), { cls: 'sm', icon: 'check' }) : null) : null,
           t.abierto || t.enviado ? EV.labelRow(o, draw) : null,
+          t.abierto || t.enviado ? EV.conjuntoBlock(o, draw) : null, // v13.8: envío conjunto
           editable ? h('div.row.wrap',
             nx && !(ph(o) === 'listo' && nx && S.cfg.pedidos.estados.find(s => s.k === nx && s.shipped)) ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
             !t.enviado && !t.cancelado ? btn(ph(o) === 'listo' ? 'Preparado para enviar' : 'Enviar pedido', () => ['listo', 'empaquetar'].includes(ph(o)) ? EV.sendCheck(o) : shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,
@@ -332,20 +333,61 @@ async function save(o, changes, label) {
 // v11.4: al CERRAR el paquete (pasar a «Listo para envío» o más allá desde antes) se pregunta el trabajo adicional
 const PACK_BEFORE = { reserva: 1, confirmado: 1, impresion: 1, postpro: 1, empaquetar: 1 };
 export async function changeState(o, estado, extra) {
+  o = byId('pedidos', o.id) || o;
+  const fromPhase = ph(o);
   const to = CL.phaseOf(S.cfg.pedidos, estado);
-  // El código QR es solo interno: antes de entrar en Empaquetar se confirma la bobina 50×50 y se imprime.
-  if (to === 'empaquetar' && ph(o) !== 'empaquetar' && can('pedidos.editar') && !(extra && extra._qrInternoListo) && EV.statusOf(o, 'paquete').estado !== 'Impreso') {
-    if (!await confirmDlg('Bobina 50 × 50 mm', 'Coloca la bobina de 50 × 50 mm. Se imprimirá el identificador QR interno de este pedido.', 'Bobina puesta')) return false;
-    try { const r = await EV.printOne(o, 'paquete'); if (!r || r.estado !== 'Impreso') return false; }
-    catch (e) { toast('No se pudo imprimir el QR interno: ' + e.message, 'bad', 8000); return false; }
+  const editor = can('pedidos.editar');
+  extra = Object.assign({}, extra || {});
+  const qrListo = extra._qrInternoListo, pruebaLista = extra._pruebaVentaLista; delete extra._qrInternoListo; delete extra._pruebaVentaLista;
+  // v13.8 · QR interno 50 × 50: se imprime al entrar en Postprocesado (o en Empaquetar si se saltó). Antes se pregunta si va junto con otros pedidos del cliente.
+  if (editor && !qrListo && (to === 'postpro' || to === 'empaquetar') && to !== fromPhase) {
+    if (await EV.conjuntoDialog(o, { auto: true }) === null) return false;
+    o = byId('pedidos', o.id) || o;
+    if (EV.statusOf(o, 'paquete').estado !== 'Impreso') {
+      const g = EV.grupoDe(o);
+      if (!await confirmDlg('Bobina 50 × 50 mm', 'Coloca la bobina de 50 × 50 mm. Se imprimirá el QR interno ' + (g.length > 1 ? 'del envío conjunto (nº ' + CL.numerosGrupo(g) + ')' : 'de este pedido') + '.', 'Bobina puesta')) return false;
+      try { const r = await EV.printOne(o, 'paquete'); if (!r || r.estado !== 'Impreso') return false; }
+      catch (e) { toast('No se pudo imprimir el QR interno: ' + e.message, 'bad', 8000); return false; }
+    }
   }
-  if (extra && extra._qrInternoListo) { extra = Object.assign({}, extra); delete extra._qrInternoListo; }
-  if (PACK_BEFORE[ph(o)] && ['listo', 'enviado', 'entregado'].includes(to) && !(o.embalaje && o.embalaje.hecho) && !(extra && extra.trabajoExtra) && (S.cfg.embalaje || {}).preguntarTrabajo !== false && can('pedidos.editar')) {
+  const cierra = PACK_BEFORE[fromPhase] && ['listo', 'enviado', 'entregado'].includes(to);
+  if (cierra && !(o.embalaje && o.embalaje.hecho) && !extra.trabajoExtra && (S.cfg.embalaje || {}).preguntarTrabajo !== false && editor) {
     const E = await import('./embalaje.js');
     const tr = await E.askLabor(o);
     if (!tr) return false; // cancelado: no se cambia nada
-    extra = Object.assign({}, extra || {}, { trabajoExtra: tr });
+    extra.trabajoExtra = tr;
   }
+  if (cierra && editor && !pruebaLista) {
+    const atras = EV.grupoDe(o).filter(p => p.id !== o.id && CL.PHASES.indexOf(ph(p)) < CL.PHASES.indexOf('postpro'));
+    if (atras.length && !await confirmDlg('Envío conjunto sin terminar', 'En este paquete también va ' + atras.map(p => 'el nº ' + p.numero + ' (' + p.estado + ')').join(', ') + '. ¿Cerrar el paquete igualmente?', 'Sí, cerrar el paquete')) return false;
+  }
+  // Cualquier acceso (Hoy, escáner, ficha o cambio manual) guarda la PRUEBA DE EMPAQUETADO antes de cerrar (una por paquete).
+  if (cierra && editor && !pruebaLista) {
+    const EM = await import('./embalaje.js');
+    if (!await EM.captureSaleProof(o)) return false;
+  }
+  // Al pasar a Enviado, exige la etiqueta adjunta e imprime en 100 × 150 si aún falta.
+  if (to === 'enviado' && fromPhase !== 'enviado' && editor && CL.necesitaEnvio(o)) { // (una venta en persona no lleva etiqueta)
+    if (!EV.hasLabelEnvio(o)) { if (!await confirmDlg('Sin etiqueta de envío', 'Este pedido no tiene adjunta la etiqueta de envío de 100 × 150 mm. ¿Lo marcas como enviado igualmente?', 'Sí, enviado sin etiqueta')) return false; }
+    else if (EV.statusOf(o, 'oficial').estado !== 'Impreso' && !await EV.offerOfficialLabel(o)) return false;
+  }
+  const grupo = EV.grupoDe(o);
+  const ok = await applyState(o, estado, extra);
+  // v13.8: en un envío conjunto todo el paquete cambia a la vez (sin repetir preguntas: el trabajo ya se apuntó en este pedido)
+  if (ok && grupo.length > 1 && ['listo', 'enviado', 'entregado'].includes(to)) {
+    const comun = {}; ['seguimiento', 'envio', 'fechaEnvio', 'fechaEntrega'].forEach(k => { if (extra[k] !== undefined) comun[k] = extra[k]; });
+    for (const p0 of grupo) {
+      const p = byId('pedidos', p0.id) || p0;
+      if (p.id === o.id || p.estado === estado || CL.PHASES.indexOf(ph(p)) > CL.PHASES.indexOf(to)) continue;
+      const ex = Object.assign({}, comun);
+      if (PACK_BEFORE[ph(p)] && ['listo', 'enviado', 'entregado'].includes(to) && !(p.embalaje && p.embalaje.hecho) && !p.trabajoExtra) ex.trabajoExtra = { lineas: [] };
+      await applyState(p, estado, ex, true);
+    }
+  }
+  if (ok && to === 'listo' && fromPhase !== 'listo' && CL.necesitaEnvio(o)) await EV.offerOfficialLabel(byId('pedidos', o.id) || o);
+  return ok;
+}
+async function applyState(o, estado, extra, quiet) {
   const ch = Object.assign({ estado }, extra || {});
   const st = S.cfg.pedidos.estados.find(s => s.k === estado) || {};
   if (st.shipped && !o.fechaEnvio && !ch.fechaEnvio) ch.fechaEnvio = S.hoy;
@@ -367,15 +409,7 @@ export function empresasEnvio() { return (S.cfg.pedidos.envios || []).filter(x =
 export function datosEnvioDialog(o, opts = {}) {
   return new Promise(resolve => {
     let hecho = false; const fin = v => { if (!hecho) { hecho = true; resolve(v); } };
-    const lista = empresasEnvio();
-    const inicial = o.envio && !CL.esRecogida(o.envio) && !otraEmpresa(o.envio) ? String(o.envio) : '';
-    let empresa = inicial;
-    const otra = inp({ value: inicial && !lista.includes(inicial) ? inicial : '', placeholder: 'Escribe la empresa (p. ej. DHL, Nacex, UPS…)', 'aria-label': 'Otra empresa de transporte', maxlength: 80 });
-    const chips = h('div.row.wrap.envio-emp', { style: { gap: '6px' } });
-    const pinta = () => mount(chips, lista.map(x => h('button.btn.sm' + (empresa === x ? '.primary' : ''), { type: 'button', 'data-empresa': x, onclick: () => { empresa = x; otra.value = ''; pinta(); } }, x)),
-      h('button.btn.sm' + (empresa && !lista.includes(empresa) ? '.primary' : ''), { type: 'button', 'data-empresa': '__otra', onclick: () => { empresa = otra.value.trim(); pinta(); otra.focus(); } }, 'Otra…'));
-    otra.addEventListener('input', () => { empresa = otra.value.trim(); pinta(); });
-    pinta();
+
     const c = byId('clientes', o.clienteId);
     const dirCli = c && c.direccion && c.direccion !== '•••' ? String(c.direccion) : '';
     const pw = o.refWeb ? (S.t.pedidosWeb || []).find(x => x.id === o.refWeb) : null;
@@ -387,18 +421,16 @@ export function datosEnvioDialog(o, opts = {}) {
     const ref = dirCli && !oculta ? h('div.tiny.muted', 'Dirección de la ficha del cliente: ', h('span', dirCli), ' ', h('button.btn.sm.ghost', { type: 'button', onclick: () => { dir.value = dirCli; } }, 'Usar esta')) : null;
     const recogida = (S.cfg.pedidos.envios || []).find(x => CL.esRecogida(x)) || 'Entrega en mano';
     modal('📮 Datos del envío · nº ' + o.numero, h('div.col.datos-envio', { style: { gap: '10px' } },
-      h('p', h('b', '¿A qué empresa de transporte vamos a enviar este paquete?')),
-      h('div.lbl', 'Empresa de transporte'), chips, otra,
+      h('p.small.muted', 'Completa la dirección y las observaciones solo si te hacen falta.'),
       h('label.field', h('span.lbl', 'Dirección de envío'), dir, h('span.tiny.muted', 'Es la dirección a la que va ESTE paquete. La ficha del cliente no cambia.')), ref,
       h('label.field', h('span.lbl', 'Observaciones del envío'), obs),
       err), close => [
       btn('Cancelar', () => { close(); fin(null); }),
       opts.sinRecogida ? null : btn('No se envía (recogida en persona)', () => { fin({ envio: recogida }); close(); }, { cls: 'ghost', title: 'No pide datos de transporte' }),
       btn('Guardar datos del envío', () => {
-        const emp = (empresa || otra.value || '').trim(), d = dir.value.trim();
-        if (!emp) return mount(err, h('p.small', { style: { color: 'var(--bad, #b91c1c)' } }, 'Elige o escribe la empresa de transporte.'));
+        const d = dir.value.trim();
         if (!d && !oculta) return mount(err, h('p.small', { style: { color: 'var(--bad, #b91c1c)' } }, 'Escribe la dirección de envío.'));
-        const r = { envio: emp, obsEnvio: obs.value.trim() }; if (d) r.direccionEnvio = d; fin(r); close(); // (primero el resultado: al cerrar se resolvería «cancelado»)
+        const r = { obsEnvio: obs.value.trim() }; if (d) r.direccionEnvio = d; fin(r); close(); // (primero el resultado: al cerrar se resolvería «cancelado»)
       }, { cls: 'primary', icon: 'truck' })], { size: 'narrow', onclose: () => fin(null) });
   });
 }
@@ -413,15 +445,16 @@ function bloqueDatosEnvio(o) {
     h('div.row', h('b.grow', '📮 DATOS DEL ENVÍO'), can('pedidos.editar') ? btn('Editar', () => editarDatosEnvio(o), { cls: 'sm', icon: 'edit' }) : null),
     !necesita ? h('p.small', '🤝 ' + (o.envio || 'Venta en persona') + ': no se envía, no hacen falta datos de transporte.') :
       h('div.facts', fact('Empresa de transporte', o.envio && !otraEmpresa(o.envio) ? o.envio : na('Sin indicar')), fact('Dirección de envío', dir), fact('Observaciones', o.obsEnvio ? h('span', { style: { whiteSpace: 'pre-wrap' } }, o.obsEnvio) : na('Ninguna'))),
-    necesita && falta.length ? h('p.tiny', { style: { color: 'var(--warn, #b45309)' } }, '⚠️ Falta: ' + falta.join(' y ') + '. Se pedirá antes de preparar o enviar el paquete.') : null);
+    necesita && falta.includes('dirección de envío') ? h('p.tiny.muted', 'Sin dirección de envío guardada: vale la que lleva la etiqueta de envío adjunta. La empresa de transporte es opcional.') : null);
 }
 export async function shipDialog(o, estado) {
   const seg = inp({ value: o.seguimiento || '', placeholder: 'Opcional' });
   const fecha = inp({ type: 'date', value: S.hoy });
   const coste = inp({ type: 'number', min: 0, step: 0.01, value: o.costeEnvio ?? '', placeholder: 'Ej.: 3,20' });
-  modal('Enviar pedido nº ' + o.numero, h('div.form', h('p.small', 'El QR es interno. El transportista no hace falta para cambiar el estado.'), field('Nº de seguimiento (opcional)', seg), field('Fecha de envío', fecha), field('Coste del envío (€) (opcional)', coste)), close => [
+  const g = EV.grupoDe(o);
+  modal((g.length > 1 ? 'Enviar el envío conjunto nº ' + CL.numerosGrupo(g) : 'Enviar pedido nº ' + o.numero), h('div.form', h('p.small', 'El QR es interno. El transportista no hace falta para cambiar el estado.' + (g.length > 1 ? ' Se marcan como enviados todos los pedidos del paquete.' : '')), field('Nº de seguimiento (opcional)', seg), field('Fecha de envío', fecha), field('Coste del envío (€) (opcional)', coste)), close => [
     btn('Cancelar', close),
-    btn('Marcar como enviado', async () => { close(); const ex = { seguimiento: seg.value.trim(), fechaEnvio: fecha.value }; if (coste.value !== '') ex.costeEnvio = Number(coste.value); await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
+    btn('Marcar como enviado', async () => { close(); const ex = { seguimiento: seg.value.trim(), fechaEnvio: fecha.value }; if (coste.value !== '') ex.costeEnvio = Number(coste.value); const ok = await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (ok && x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
 }
 
 export function issueDialog(o) {
