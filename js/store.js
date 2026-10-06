@@ -6,8 +6,8 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '13.9.0';
-const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb'];
+export const APP_VERSION = '14.1.0';
+const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
 export const S = {
   server: '', token: '', device: '', me: null, perms: { all: false, list: [], temp: [] }, cfg: null,
@@ -107,11 +107,13 @@ function scheduleReconnect() {
   status();
   reconT = setTimeout(async () => {
     try { await api('sys.ping', {}, { quiet: true, timeout: 8000 }); } catch (e) { }
-    if (!S.online) { reconDelay = Math.min(reconDelay * 2, 30000); scheduleReconnect(); }
+    if (!S.online) { reconDelay = Math.min(reconDelay * 2, 8000); scheduleReconnect(); } // v13.10: como mucho cada 8 s (antes 30 s)
   }, reconDelay);
 }
 export function reconnectNow() { reconDelay = 1000; clearTimeout(reconT); if (!S.online) { reconT = setTimeout(scheduleReconnect, 0); api('sys.ping', {}, { quiet: true, timeout: 8000 }).catch(() => { }); } }
 window.addEventListener('online', () => reconnectNow());
+// v13.10: al tocar la pantalla sin conexión se reintenta al momento (como mucho una vez cada 3 s)
+let ultimoToque = 0; document.addEventListener('pointerdown', () => { if (!S.online && Date.now() - ultimoToque > 3000) { ultimoToque = Date.now(); reconnectNow(); } }, true);
 window.addEventListener('offline', () => { if (S.online) setOnline(false); else status(); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !S.online) reconnectNow(); });
 
@@ -285,7 +287,7 @@ export function pull(full) {
 let pullTimer = null;
 export function startAutoSync() {
   clearInterval(pullTimer);
-  pullTimer = setInterval(() => { if (document.visibilityState === 'visible' || Date.now() % 5 === 0) pull(); }, 30000);
+  pullTimer = setInterval(() => { if (document.visibilityState === 'visible' || Date.now() % 5 === 0) pull(); }, 15000); // v13.10: cada 15 s (la pantalla no se mueve)
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
   const midnight = setInterval(() => { const d = CL.today(); if (d !== S.hoy) { S.hoy = d; emit(); } }, 60000);
 }

@@ -251,7 +251,7 @@ var VIDA = (function () {
   }
   function pagar(s, precio) { if (s.dinero < precio) err('Te faltan ' + (precio - s.dinero) + ' monedas.'); s.dinero -= precio; }
   // Devuelve { msg, fichas } — si «fichas» > 0 el SERVIDOR debe cobrarlas antes de guardar (artículo premium)
-  function accion(s, tipo, id, now) {
+  function accionBase(s, tipo, id, now) {
     var e = edad(s, now), out = { msg: '', fichas: 0 };
     if (ACCIONES[tipo]) {
       var a = ACCIONES[tipo]; cooldown(s, tipo, a.cd, now);
@@ -369,6 +369,176 @@ var VIDA = (function () {
     err('Acción desconocida.');
   }
 
+
+  // ================= v13.12 · VIDA 2.0: casa con muebles de verdad, huerto, vender, misiones y mercadillo de fichas =================
+  // Tamaño de cada mueble en casillas (w × h). «suelo» = alfombras: pueden ir debajo de otros muebles.
+  var DIM = { cama: [1, 2], cama_grande: [2, 2], escritorio: [2, 1], estanteria: [1, 1], sofa: [2, 1], tele: [1, 1], consola: [1, 1], nevera: [1, 1], cocina: [2, 1], banera: [2, 1], planta: [1, 1], alfombra: [2, 2], guitarra: [1, 1], lampara_luna: [1, 1], impresora3d: [1, 1], acuario: [2, 1] };
+  var SUELO = { alfombra: true, alfombra_redonda: true };
+  [
+    { id: 'mesa', t: 'Mesa de comedor', precio: 90, bono: { social: 4 }, i: '🍽️', w: 2, h: 1 },
+    { id: 'silla', t: 'Silla de madera', precio: 25, i: '🪑', w: 1, h: 1 },
+    { id: 'mesita', t: 'Mesita de noche', precio: 40, bono: { energia: 2 }, i: '🗃️', w: 1, h: 1 },
+    { id: 'lampara_pie', t: 'Lámpara de pie', precio: 55, bono: { energia: 2 }, i: '🪔', w: 1, h: 1 },
+    { id: 'cuadro', t: 'Cuadro bonito', precio: 35, bono: { diversion: 2 }, i: '🖼️', w: 1, h: 1 },
+    { id: 'armario', t: 'Armario', precio: 200, bono: { higiene: 4 }, i: '🚪', w: 2, h: 1 },
+    { id: 'espejo', t: 'Espejo', precio: 60, bono: { higiene: 3 }, i: '🪞', w: 1, h: 1 },
+    { id: 'cojines', t: 'Cojines', precio: 20, bono: { diversion: 2 }, i: '🧸', w: 1, h: 1 },
+    { id: 'monstera', t: 'Monstera', precio: 45, bono: { diversion: 3 }, i: '🌿', w: 1, h: 1 },
+    { id: 'cactus', t: 'Cactus', precio: 15, bono: { diversion: 1 }, i: '🌵', w: 1, h: 1 },
+    { id: 'tocador', t: 'Tocador', precio: 150, bono: { higiene: 6 }, i: '💄', w: 2, h: 1 },
+    { id: 'chimenea', t: 'Chimenea', precio: 900, bono: { energia: 8, social: 6 }, i: '🔥', w: 2, h: 1 },
+    { id: 'piano', t: 'Piano', precio: 1500, bono: { diversion: 14, estudio: 6 }, i: '🎹', w: 2, h: 1 },
+    { id: 'alfombra_redonda', t: 'Alfombra redonda', precio: 80, bono: { social: 2 }, i: '🟣', w: 2, h: 2 },
+    { id: 'puff', t: 'Puf', precio: 30, bono: { diversion: 2 }, i: '🫘', w: 1, h: 1 },
+    { id: 'tocadiscos', t: 'Tocadiscos', precio: 260, bono: { diversion: 9 }, i: '📻', w: 1, h: 1 },
+    { id: 'cama_nube', t: 'Cama nube', fichas: 20, bono: { energia: 18 }, i: '☁️', w: 2, h: 2 },
+    { id: 'estrella_neon', t: 'Estrella de neón', fichas: 10, bono: { diversion: 6 }, i: '⭐', w: 1, h: 1 },
+    { id: 'fuente_zen', t: 'Fuente zen', fichas: 14, bono: { energia: 5, diversion: 4 }, i: '⛲', w: 1, h: 1 },
+    { id: 'gato_dorado', t: 'Gato de la suerte', fichas: 8, bono: { diversion: 3 }, i: '🐈', w: 1, h: 1 }
+  ].forEach(function (m) { MUEBLES.push(m); });
+  [
+    { id: 'top_estrellas', t: 'Sudadera de estrellas', parte: 'top', fichas: 12, color: '#1e1b4b', estilo: 'sudadera' },
+    { id: 'top_vestido', t: 'Vestido de flores', parte: 'top', precio: 70, color: '#f9a8d4', estilo: 'kimono' },
+    { id: 'top_rayas', t: 'Camiseta de rayas', parte: 'top', precio: 30, color: '#0ea5e9' },
+    { id: 'bajo_peto', t: 'Peto vaquero', parte: 'bajo', precio: 50, color: '#2563eb' },
+    { id: 'bajo_rosa', t: 'Falda rosa', parte: 'bajo', precio: 35, color: '#f472b6', estilo: 'falda' },
+    { id: 'zap_botas_lluvia', t: 'Botas de agua', parte: 'zapatos', precio: 30, color: '#facc15' },
+    { id: 'acc_corona', t: 'Corona de flores', parte: 'accesorio', fichas: 10, color: '#f472b6', estilo: 'lazo' },
+    { id: 'acc_sombrero', t: 'Sombrero de paja', parte: 'accesorio', precio: 35, color: '#eab308', estilo: 'gorra' }
+  ].forEach(function (r) { ROPA.push(r); });
+  function dimDe(m) { var d = m && (m.w ? [m.w, m.h] : DIM[m.id]); return d || [1, 1]; }
+  var CASA_GRID = { familia: [6, 5], habitacion: [7, 5], estudio: [8, 6], piso: [9, 7], casa: [10, 8], atico: [12, 8] };
+  function gridDe(s) { return CASA_GRID[s.casa] || [6, 5]; }
+  // Comprueba y guarda la casa: deco = [{ id, x, y, r }] (r = girado). Cada mueble que tengas, una vez.
+  function decorar(s, deco, now) {
+    if (!Array.isArray(deco)) err('Casa no válida.');
+    if (deco.length > 60) err('Demasiados muebles para esta casa.');
+    var g = gridDe(s), vistos = {}, ocup = {}, limpio = [];
+    deco.forEach(function (d) {
+      var id = String(d && d.id || ''), m = buscar(MUEBLES, id);
+      if (!m) err('Ese mueble no existe.');
+      if ((s.inventario || []).indexOf(id) < 0) err('Primero compra: ' + m.t + '.');
+      if (vistos[id]) err('«' + m.t + '» ya está colocado.'); vistos[id] = true;
+      var r = !!(d.r), dm = dimDe(m), w = r ? dm[1] : dm[0], h = r ? dm[0] : dm[1], x = Math.round(Number(d.x)), y = Math.round(Number(d.y));
+      if (!(x >= 0 && y >= 0 && x + w <= g[0] && y + h <= g[1])) err('«' + m.t + '» no cabe ahí.');
+      if (!SUELO[id]) for (var i = 0; i < w; i++) for (var j = 0; j < h; j++) { var k = (x + i) + ',' + (y + j); if (ocup[k]) err('«' + m.t + '» choca con otro mueble.'); ocup[k] = true; }
+      limpio.push({ id: id, x: x, y: y, r: r });
+    });
+    s.deco = limpio; s.muebles = {}; limpio.forEach(function (d, i) { s.muebles[i] = d.id; });
+    return { msg: '🏠 Casa guardada (' + limpio.length + (limpio.length === 1 ? ' mueble' : ' muebles') + ').' };
+  }
+  // Partidas antiguas: los muebles de los «huecos» se colocan solos en la casa nueva
+  function migrarDeco(s) {
+    if (s.deco) return;
+    var g = gridDe(s), ocup = {}, out = [], ids = []; for (var k in (s.muebles || {})) if (ids.indexOf(s.muebles[k]) < 0) ids.push(s.muebles[k]);
+    ids.forEach(function (id) {
+      var m = buscar(MUEBLES, id); if (!m) return; var dm = dimDe(m);
+      for (var y = 0; y + dm[1] <= g[1]; y++) for (var x = 0; x + dm[0] <= g[0]; x++) {
+        var libre = true; for (var i = 0; i < dm[0]; i++) for (var j = 0; j < dm[1]; j++) if (ocup[(x + i) + ',' + (y + j)]) libre = false;
+        if (libre) { for (i = 0; i < dm[0]; i++) for (j = 0; j < dm[1]; j++) ocup[(x + i) + ',' + (y + j)] = true; out.push({ id: id, x: x, y: y, r: false }); return; }
+      }
+    });
+    s.deco = out; s.muebles = {}; out.forEach(function (d, i) { s.muebles[i] = d.id; });
+  }
+  // ---------- Huerto ----------
+  var SEMILLAS = [
+    { id: 'lechuga', t: 'Lechuga', i: '🥬', precio: 4, horas: 2, venta: 10, ef: { hambre: 14, salud: 2 } },
+    { id: 'zanahoria', t: 'Zanahoria', i: '🥕', precio: 6, horas: 3, venta: 14, ef: { hambre: 15, salud: 2 } },
+    { id: 'tomate', t: 'Tomate', i: '🍅', precio: 8, horas: 4, venta: 19, ef: { hambre: 16, salud: 2 } },
+    { id: 'fresa', t: 'Fresas', i: '🍓', precio: 10, horas: 5, venta: 25, ef: { hambre: 12, diversion: 6 } },
+    { id: 'maiz', t: 'Maíz', i: '🌽', precio: 10, horas: 6, venta: 24, ef: { hambre: 22 } },
+    { id: 'girasol', t: 'Girasol', i: '🌻', precio: 12, horas: 6, venta: 32, ef: { diversion: 10 } },
+    { id: 'calabaza', t: 'Calabaza', i: '🎃', precio: 15, horas: 8, venta: 42, ef: { hambre: 30 } }
+  ];
+  var PARCELAS_MIN = 6, PARCELAS_MAX = 12;
+  function huerto(s) { s.huerto = s.huerto || { n: PARCELAS_MIN, p: [] }; while (s.huerto.p.length < s.huerto.n) s.huerto.p.push(null); return s.huerto; }
+  function crece(pl, now) { var se = buscar(SEMILLAS, pl.s), total = se.horas * HORA * (1 - 0.2 * Math.min(2, (pl.agua || []).length)); return { f: Math.min(1, (now - pl.t0) / total), queda: Math.max(0, pl.t0 + total - now) }; }
+  function hashTxt(t) { var h = 2166136261; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+  function diaDe(now) { return new Date(now + 2 * HORA).toISOString().slice(0, 10); }
+  function precioHoy(id, now) { var se = buscar(SEMILLAS, id); if (!se) return 0; return Math.max(1, Math.round(se.venta * (0.8 + (hashTxt(diaDe(now) + id) % 1000) / 1000 * 0.55))); }
+  // ---------- Misiones del día (3 cada día; se cobran al terminarlas) ----------
+  var MISIONES = [
+    { id: 'regar', t: 'Riega 3 plantas del huerto', meta: 3, premio: 25, i: '💧' }, { id: 'cosechar', t: 'Cosecha 2 veces', meta: 2, premio: 30, i: '🧺' },
+    { id: 'vender', t: 'Vende 3 cosas de tu huerto', meta: 3, premio: 35, i: '💰' }, { id: 'sembrar', t: 'Siembra 3 semillas', meta: 3, premio: 20, i: '🌱' },
+    { id: 'recoger', t: 'Coge 4 monedas por la calle', meta: 4, premio: 20, i: '🪙' }, { id: 'comida', t: 'Come algo en el mercado o la cafetería', meta: 1, premio: 15, i: '🍽️' },
+    { id: 'decorar', t: 'Cambia algo en tu casa', meta: 1, premio: 15, i: '🛋️' }, { id: 'gym', t: 'Entrena en el gimnasio', meta: 1, premio: 20, i: '💪', edad: 12 },
+    { id: 'parque', t: 'Da un paseo por el parque', meta: 1, premio: 15, i: '🌳' }, { id: 'turno', t: 'Haz un turno de trabajo o de estudio', meta: 1, premio: 30, i: '📚', edad: 3 },
+    { id: 'cofre', t: 'Abre el cofre de la plaza', meta: 1, premio: 10, i: '🎁' }, { id: 'mascota', t: 'Juega con tu mascota', meta: 1, premio: 15, i: '🐾', mascota: true }
+  ];
+  function misiones(s, now) {
+    var dia = diaDe(now);
+    if (!s.misiones || s.misiones.dia !== dia) {
+      var e = edad(s, now), pool = MISIONES.filter(function (m) { return (!m.edad || e >= m.edad) && (!m.mascota || s.mascota); }), h = hashTxt(dia + ':' + s.nacido), lista = [];
+      while (lista.length < 3 && pool.length) { var m = pool.splice(h % pool.length, 1)[0]; h = Math.imul(h ^ 0x9e3779b9, 2654435761) >>> 0; lista.push({ id: m.id, t: m.t, i: m.i, meta: m.meta, premio: m.premio, prog: 0, cobrada: false }); }
+      s.misiones = { dia: dia, lista: lista };
+    }
+    return s.misiones;
+  }
+  function progreso(s, clave, n, now) { var ms = misiones(s, now); ms.lista.forEach(function (m) { if (m.id === clave && !m.cobrada) m.prog = Math.min(m.meta, m.prog + (n || 1)); }); }
+  // ---------- Mercadillo de fichas: 4 ofertas al día de cosas exclusivas, que van de verdad a tu vida ----------
+  function mercadillo(now) {
+    var pool = MUEBLES.filter(function (m) { return m.fichas; }).concat(ROPA.filter(function (r) { return r.fichas; })), h = hashTxt('mercadillo:' + diaDe(now)), out = [];
+    pool = pool.slice();
+    while (out.length < 4 && pool.length) { var it = pool.splice(h % pool.length, 1)[0]; h = Math.imul(h ^ 0x85ebca6b, 2246822519) >>> 0; out.push({ id: it.id, t: it.t, i: it.i || '👕', color: it.color, parte: it.parte, fichas: it.fichas, precio: out.length === 0 ? Math.max(1, Math.round(it.fichas * 0.7)) : it.fichas, oferta: out.length === 0 }); }
+    return out;
+  }
+  var CLAVE_MISION = { regar: 'regar', cosechar: 'cosechar', sembrar: 'sembrar', recoger: 'recoger', comida: 'comida', gym: 'gym', parque: 'parque', cofre: 'cofre', mascota_jugar: 'mascota' };
+  function accion(s, tipo, id, now) {
+    var e = edad(s, now), out = { msg: '', fichas: 0 }, it, hu, k, n, p;
+    migrarDeco(s);
+    switch (tipo) {
+      case 'semilla': // id = «semilla:cantidad»
+        p = String(id || '').split(':'); it = buscar(SEMILLAS, p[0]); n = Math.max(1, Math.min(20, Math.round(Number(p[1]) || 1)));
+        if (!it) err('Esa semilla no existe.'); if (e < 5) err('El huerto es a partir de 5 años.');
+        pagar(s, it.precio * n); s.semillas = s.semillas || {}; s.semillas[it.id] = (s.semillas[it.id] || 0) + n;
+        out.msg = '🌱 ' + n + ' × semillas de ' + it.t.toLowerCase() + ' (−' + it.precio * n + ' monedas)'; return out;
+      case 'sembrar': // id = «parcela:semilla»
+        p = String(id || '').split(':'); hu = huerto(s); k = Math.round(Number(p[0])); it = buscar(SEMILLAS, p[1]);
+        if (!(k >= 0 && k < hu.n)) err('Esa parcela no existe.'); if (!it) err('Esa semilla no existe.');
+        if (hu.p[k]) err('Esa parcela ya está plantada.'); if (!((s.semillas || {})[it.id] > 0)) err('No te quedan semillas de ' + it.t.toLowerCase() + '. Cómpralas en el mercado.');
+        s.semillas[it.id]--; hu.p[k] = { s: it.id, t0: now, agua: [] }; progreso(s, 'sembrar', 1, now);
+        out.msg = '🌱 Has sembrado ' + it.t.toLowerCase() + '. Estará lista en unas ' + it.horas + ' h (riégala y tardará menos).'; return out;
+      case 'regar':
+        hu = huerto(s); k = Math.round(Number(id)); var pl = hu.p[k]; if (!pl) err('Ahí no hay nada plantado.');
+        if (crece(pl, now).f >= 1) err('Ya está lista: ¡cosecha!'); if ((pl.agua || []).length >= 2) err('Ya la has regado bastante.');
+        if (pl.agua.length && now - pl.agua[pl.agua.length - 1] < 20 * MIN) err('Acabas de regarla: espera un poco.');
+        pl.agua.push(now); progreso(s, 'regar', 1, now); out.msg = '💧 ¡Regada! Crecerá más rápido.'; return out;
+      case 'cosechar':
+        hu = huerto(s); k = Math.round(Number(id)); pl = hu.p[k]; if (!pl) err('Ahí no hay nada plantado.');
+        if (crece(pl, now).f < 1) err('Todavía no está lista.');
+        it = buscar(SEMILLAS, pl.s); n = 1 + ((pl.agua || []).length >= 2 ? 1 : 0); s.cosecha = s.cosecha || {}; s.cosecha[it.id] = (s.cosecha[it.id] || 0) + n; hu.p[k] = null;
+        s.stats.cosechas = (s.stats.cosechas || 0) + n; progreso(s, 'cosechar', 1, now);
+        if (s.stats.cosechas === n) diario(s, now, '🧺 Primera cosecha del huerto: ' + it.t.toLowerCase() + '.');
+        out.msg = it.i + ' ¡Has cosechado ' + n + ' × ' + it.t.toLowerCase() + '!'; out.cosecha = { id: it.id, n: n }; return out;
+      case 'parcela':
+        hu = huerto(s); if (hu.n >= PARCELAS_MAX) err('Tu huerto ya tiene el máximo de parcelas.');
+        pagar(s, 250 * (hu.n - PARCELAS_MIN + 1)); hu.n++; hu.p.push(null); out.msg = '🧑‍🌾 ¡Nueva parcela! Ya tienes ' + hu.n + '.'; return out;
+      case 'vender': // id = «cosecha:cantidad»
+        p = String(id || '').split(':'); it = buscar(SEMILLAS, p[0]); n = Math.max(1, Math.round(Number(p[1]) || 1));
+        if (!it) err('Eso no se puede vender aquí.'); if (!((s.cosecha || {})[it.id] >= n)) err('No tienes tanto para vender.');
+        var pv = precioHoy(it.id, now) * n; s.cosecha[it.id] -= n; s.dinero += pv; s.stats.vendido = (s.stats.vendido || 0) + pv; progreso(s, 'vender', n, now);
+        out.msg = '💰 Vendes ' + n + ' × ' + it.t.toLowerCase() + ' por ' + pv + ' monedas.'; return out;
+      case 'comer_cosecha':
+        it = buscar(SEMILLAS, id); if (!it) err('Eso no se come.'); if (!((s.cosecha || {})[it.id] > 0)) err('No te queda.');
+        s.cosecha[it.id]--; aplicar(s, it.ef); out.msg = it.i + ' ¡De tu propio huerto!'; return out;
+      case 'mision':
+        var ms = misiones(s, now), m = ms.lista.filter(function (x) { return x.id === id; })[0];
+        if (!m) err('Esa misión no es de hoy.'); if (m.cobrada) err('Ya la has cobrado.'); if (m.prog < m.meta) err('Aún no la has terminado.');
+        m.cobrada = true; s.dinero += m.premio; s.estrellas = (s.estrellas || 0) + 1;
+        var todas = ms.lista.every(function (x) { return x.cobrada; }); if (todas) { s.dinero += 25; s.estrellas++; diario(s, now, '⭐ Todas las misiones del día cumplidas.'); }
+        out.msg = '⭐ ¡Misión cumplida! +' + m.premio + ' monedas' + (todas ? ' · ¡y +25 de premio por hacerlas todas!' : ''); return out;
+      case 'mercadillo':
+        var of = mercadillo(now).filter(function (x) { return x.id === id; })[0]; if (!of) err('Esa oferta ya no está: el mercadillo cambia cada día.');
+        if ((s.inventario || []).indexOf(id) >= 0) err('Ya lo tienes.');
+        out.fichas = of.precio; s.inventario.push(id); s.premium.push(id); out.msg = '🛍️ ¡Es tuyo! ' + of.t + ' ya está en tu ' + (of.parte ? 'armario' : 'casa') + '.'; diario(s, now, 'Compra en el mercadillo: ' + of.t + '.'); return out;
+    }
+    out = accionBase(s, tipo, id, now);
+    if (CLAVE_MISION[tipo]) progreso(s, CLAVE_MISION[tipo], 1, now);
+    if (tipo === 'casa') { var g = gridDe(s); s.deco = (s.deco || []).filter(function (d) { var mm = buscar(MUEBLES, d.id), dm = dimDe(mm), w = d.r ? dm[1] : dm[0], hh = d.r ? dm[0] : dm[1]; return d.x + w <= g[0] && d.y + hh <= g[1]; }); s.muebles = {}; s.deco.forEach(function (d, i) { s.muebles[i] = d.id; }); }
+    return out;
+  }
+  LUGARES.push({ id: 'huerto', t: 'Tu huerto', i: '🌱' }, { id: 'mercadillo', t: 'Mercadillo de fichas', i: '🛍️' });
+
   // ---------- Turnos con minijuego (trabajo, estudio, autoescuela) ----------
   var JUEGOS = ['calculo', 'memoria', 'reflejos', 'orden', 'patron'];
   function empezarTurno(s, tipo, now, rnd) {
@@ -393,7 +563,8 @@ var VIDA = (function () {
     s.turno = { tipo: tipo, juego: juego, t0: now, token: Math.floor((rnd || Math.random)() * 1e9).toString(36) + now.toString(36) };
     return s.turno;
   }
-  function terminarTurno(s, token, puntos, now) {
+  function terminarTurno(s, token, puntos, now) { var rT = terminarTurnoBase(s, token, puntos, now); progreso(s, 'turno', 1, now); return rT; }
+  function terminarTurnoBase(s, token, puntos, now) {
     var tr = s.turno;
     if (!tr || tr.token !== String(token)) err('Ese turno ya no es válido.');
     var seg = (now - tr.t0) / 1000;
@@ -422,6 +593,32 @@ var VIDA = (function () {
     return r;
   }
 
+  // ---------- v13.12 · Juego «Mi puesto del mercado» (sustituye a la Subasta): lo que ganas va DE VERDAD a la hucha de tu personaje ----------
+  var PUESTO_PARTIDAS = 3, PUESTO_MAX = 25; // 3 partidas pagadas al día · como mucho 25 clientes por partida (3 monedas cada uno)
+  function empezarPuesto(s, now, rnd) {
+    if (s.puestoT && now - s.puestoT.t0 < 20 * 1000) err('Ya tienes una partida empezada.');
+    s.puestoT = { t0: now, token: Math.floor((rnd || Math.random)() * 1e9).toString(36) + now.toString(36) };
+    var dia = diaDe(now), pd = s.puestoDia && s.puestoDia.dia === dia ? s.puestoDia.n : 0;
+    return { token: s.puestoT.token, pagadas: pd, max: PUESTO_PARTIDAS, cosecha: s.cosecha || {} };
+  }
+  function terminarPuesto(s, token, servidos, propinas, now) {
+    var t = s.puestoT; if (!t || t.token !== String(token)) err('Esa partida ya no es válida.');
+    var seg = (now - t.t0) / 1000; s.puestoT = null;
+    if (seg < 20) return { servidos: 0, monedas: 0, msg: 'Partida demasiado corta: esta no se cobra.' };
+    var n = Math.max(0, Math.min(PUESTO_MAX, Math.round(Number(servidos) || 0), Math.floor(seg / 3))); // como mucho 1 cliente cada 3 s
+    if (seg > 10 * 60) n = 0;
+    var dia = diaDe(now); if (!s.puestoDia || s.puestoDia.dia !== dia) s.puestoDia = { dia: dia, n: 0 };
+    var r = { servidos: n, monedas: 0, msg: '' };
+    if (s.puestoDia.n >= PUESTO_PARTIDAS) { r.msg = '🧺 ¡' + n + ' clientes contentos! Hoy ya has cobrado tus ' + PUESTO_PARTIDAS + ' partidas: esta es solo por diversión.'; return r; }
+    s.puestoDia.n++;
+    var m = n * 3 + Math.max(0, Math.min(15, Math.round(Number(propinas) || 0)));
+    if (!n) m = 0;
+    s.dinero += m; s.stats.ganado += m; s.stats.puesto = (s.stats.puesto || 0) + n; r.monedas = m;
+    if (n >= 15 && !s.stats.puestoTop) { s.stats.puestoTop = true; diario(s, now, '🧺 Un día genial en el puesto del mercado: ' + n + ' clientes.'); }
+    r.msg = '🧺 Has atendido a ' + n + ' clientes: +' + m + ' monedas para ' + s.nombre + '.';
+    return r;
+  }
+
   // ---------- Datos para la pantalla ----------
   function resumen(s, now) {
     var e = edad(s, now);
@@ -434,7 +631,11 @@ var VIDA = (function () {
   return {
     DIA: DIA, HORA: HORA, NEC: NEC, NEC_TXT: NEC_TXT, ETAPAS: ETAPAS, HISTORIA: HISTORIA, NOMBRES: NOMBRES, CAT: CAT, ACCIONES: ACCIONES, EVENTOS: EVENTOS, PEINADOS: PEINADOS, JUEGOS: JUEGOS,
     buscar: buscar, edad: edad, etapa: etapa, nacer: nacer, tick: tick, eventoNuevo: eventoNuevo, evento: evento, accion: accion, empezarTurno: empezarTurno, terminarTurno: terminarTurno,
-    resumen: resumen, trabajosPosibles: trabajosPosibles, bono: bono, COMIDA: COMIDA, LUGARES: LUGARES, VIP_FICHAS: VIP_FICHAS, MONEDAS_DIA: MONEDAS_DIA
+    resumen: resumen, trabajosPosibles: trabajosPosibles, bono: bono, COMIDA: COMIDA, LUGARES: LUGARES, VIP_FICHAS: VIP_FICHAS, MONEDAS_DIA: MONEDAS_DIA,
+    // v13.12 · Vida 2.0
+    SEMILLAS: SEMILLAS, MISIONES: MISIONES, CASA_GRID: CASA_GRID, SUELO: SUELO, PARCELAS_MAX: PARCELAS_MAX, dimDe: dimDe, gridDe: gridDe, decorar: decorar, migrarDeco: migrarDeco,
+    huerto: huerto, crece: crece, precioHoy: precioHoy, misiones: misiones, progreso: progreso, mercadillo: mercadillo, diaDe: diaDe,
+    empezarPuesto: empezarPuesto, terminarPuesto: terminarPuesto, PUESTO_PARTIDAS: PUESTO_PARTIDAS
   };
 })();
 if (typeof module !== 'undefined') module.exports = VIDA;

@@ -32,7 +32,7 @@ var CL = (function () {
   function stateOf(cfgPedidos, k) { return stateMap(cfgPedidos)[k] || { k: k, open: true, c: '#64748b' }; }
   // v11: fase fija de cada estado (la lógica usa la fase, nunca el nombre). Reconoce también los nombres antiguos.
   var OLD_PHASE = { 'nuevo': 'confirmado', 'pendiente de revision': 'confirmado', 'pendiente de fabricacion': 'confirmado', 'incidencia': 'confirmado', 'reservado': 'reserva', 'apartado': 'reserva',
-    'en fabricacion': 'impresion', 'fabricado': 'postpro', 'empaquetar': 'empaquetar', 'para empaquetar': 'empaquetar', 'empaquetado': 'listo', 'listo para enviar': 'listo', 'en transito': 'enviado', 'en reparto': 'enviado' };
+    'en fabricacion': 'impresion', 'fabricado': 'postpro', 'postprocesado': 'postpro', 'postprocesando': 'postpro', 'acabado': 'postpro', 'empaquetar': 'empaquetar', 'para empaquetar': 'empaquetar', 'empaquetado': 'listo', 'listo para enviar': 'listo', 'en transito': 'enviado', 'en reparto': 'enviado' };
   // v11.4: «empaquetar» (preparar el paquete) entre el postprocesado y «Listo para envío»
   var PHASES = ['reserva', 'confirmado', 'impresion', 'postpro', 'empaquetar', 'listo', 'enviado', 'entregado', 'cancelado'];
   function phaseOf(cfgPedidos, k) {
@@ -273,6 +273,13 @@ var CL = (function () {
     var qty = Math.max(1, n(o.cantidad) || 1);
     var costOf = costIndex(data, pp);
     var ci = costOf(o);
+    // v13.10: el EMBALAJE elegido (caja/sobre/bolsa + papel + cinta) se suma al coste y al precio recomendado
+    var emb = null;
+    if (o.embalaje && o.embalaje.simple && o.embalaje.simple.tipo) {
+      var pl = simplePlan(o, { materiales: data.materiales || [], simple: (cfg.embalaje || {}).simple });
+      emb = { total: r2x(pl.coste !== null ? pl.coste : pl.conocido), lineas: pl.lineas, nombre: pl.lineas[0] ? pl.lineas[0].nombre : '' };
+      if (ci) { var add = emb.total / qty; ci = Object.assign({}, ci, { coste: ci.coste + add, recomendado: ci.recomendado ? r2x(ci.recomendado + add) : ci.recomendado, minimo: ci.minimo ? r2x(ci.minimo + add) : ci.minimo }); }
+    }
     var prod = null;
     (data.productos || []).forEach(function (p) { if ((o.productoId && p.id === o.productoId) || (!o.productoId && norm(p.nombre) === norm(o.producto))) prod = prod || p; });
     var same = (data.pedidos || []).filter(function (x) { return x.id !== o.id && !stateOf(cp, x.estado).cancelled && n(x.precio) > 0 && ((o.productoId && x.productoId === o.productoId) || norm(x.producto) === norm(o.producto)); })
@@ -281,7 +288,7 @@ var CL = (function () {
     var last = sameClient[sameClient.length - 1] || null, lastAny = same[same.length - 1] || null;
     var out = { coste: ci ? r2(ci.coste) : null, catalogo: prod && n(prod.precio) > 0 ? n(prod.precio) : null, recomendado: ci && ci.recomendado ? ci.recomendado : null,
       minimo: ci && ci.minimo ? ci.minimo : (ci ? r2(ci.coste / (1 - minM)) : null), anteriorCliente: last ? n(last.precio) : null, anterior: lastAny ? n(lastAny.precio) : null,
-      ventasPrevias: same.length, cantidad: qty, notas: [], avisos: [], fuente: '' };
+      ventasPrevias: same.length, cantidad: qty, notas: [], avisos: [], fuente: '', embalaje: emb };
     // Precio sugerido: el del catálogo o el recomendado por costes; al cliente habitual, su último precio
     var sug = null;
     if (out.anteriorCliente && (!out.minimo || out.anteriorCliente >= out.minimo)) { sug = out.anteriorCliente; out.fuente = 'Último precio que pagó este cliente'; }
@@ -1103,7 +1110,7 @@ var CL = (function () {
         var ya = open.filter(function (o) { return phaseOf(cp, o.estado) === 'empaquetar'; }), prox = open.filter(function (o) { return phaseOf(cp, o.estado) === 'postpro'; });
         R.valor = ya.length + ' pedido(s) en «Empaquetar»'; R.enlace = 'embalaje';
         R.lista = ya.map(function (o) { return { t: 'Nº ' + o.numero + ' · ' + o.cliente + ' · ' + (n(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto, enlace: 'pedidos/' + o.id }; });
-        if (prox.length) R.filas.push({ t: 'Próximos (en postprocesado)', v: String(prox.length), estado: 'confirmado' });
+        if (prox.length) R.filas.push({ t: 'Próximos (en acabado)', v: String(prox.length), estado: 'confirmado' });
         if (!ya.length) R.vacio = true;
       } else if (id === 'pendientes') {
         var byPh = {}; open.forEach(function (o) { var k = o.estado; byPh[k] = (byPh[k] || 0) + 1; });

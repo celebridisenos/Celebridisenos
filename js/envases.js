@@ -26,7 +26,7 @@ export function resumen(simple) {
 }
 
 // ---------- «📦 EMBALAJE DEL PEDIDO»: lo que se elige en el pedido ----------
-export function widget(o) {
+export function widget(o, opts = {}) {
   const s0 = (o && o.embalaje && o.embalaje.simple) || {};
   const st = { tipo: s0.tipo || '', envaseId: s0.envaseId || '', kraft: s0.kraft ? fmt(s0.kraft) : '', marron: s0.marron ? fmt(s0.marron) : '', cinta: !!s0.cinta, enMano: !!s0.enMano };
   const el = h('div.envase-pedido');
@@ -39,7 +39,7 @@ export function widget(o) {
     kraft.oninput = () => { st.kraft = kraft.value; total(); }; marron.oninput = () => { st.marron = marron.value; total(); };
     const cinta = h('input', { type: 'checkbox', checked: st.cinta, 'aria-label': 'Utilizar cinta', onchange: e => { st.cinta = e.target.checked; total(); } });
     const tot = h('div.envase-total');
-    const total = () => { const p = costeDe(value()); mount(tot, p ? h('div', h('b', 'Coste del embalaje: ' + (p.coste === null ? 'al menos ' + eur(p.conocido) : eur(p.coste))), h('div.tiny.muted', p.lineas.map(l => l.nombre + (l.unidad === 'm' ? ' ' + fmt(l.cantidad) + ' m' : '') + ' ' + (l.coste === null ? 'sin precio' : eur(l.coste))).join(' + '))) : h('span.tiny.muted', 'Elige caja, sobre o bolsa.')); };
+    const total = () => { if (opts.onChange) { try { opts.onChange(value()); } catch (e) { } } const p = costeDe(value()); mount(tot, p ? h('div', h('b', 'Coste del embalaje: ' + (p.coste === null ? 'al menos ' + eur(p.conocido) : eur(p.coste))), h('div.tiny.muted', p.lineas.map(l => l.nombre + (l.unidad === 'm' ? ' ' + fmt(l.cantidad) + ' m' : '') + ' ' + (l.coste === null ? 'sin precio' : eur(l.coste))).join(' + '))) : h('span.tiny.muted', 'Elige caja, sobre o bolsa.')); };
     mount(el,
       h('div.lbl', { style: { fontWeight: 700 } }, '📦 EMBALAJE DEL PEDIDO'),
       h('p.small', { style: { margin: '4px 0 6px' } }, '¿Cómo se entrega o se prepara este pedido?'),

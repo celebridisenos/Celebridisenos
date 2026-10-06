@@ -20,6 +20,14 @@ export const PRINT_TIPOS = {
 const EST_CLS = { Pendiente: 'warn', Enviando: 'brand', Impreso: 'ok', Error: 'bad' };
 // lo que ve la persona (en el registro se guarda Enviando/Impreso)
 const EST_TXT = { Pendiente: 'PENDIENTE', Enviando: 'IMPRIMIENDO', Impreso: 'IMPRESO', Error: 'ERROR' };
+// v13.10: la etiqueta del paquete sale en la MISMA bobina que la de envío (100 × 150) salvo que elijas el formato pequeño 50 × 50
+export const formatoPaquete = () => (ecfg().formatoPaquete === 'pequeno' ? 'pequeno' : 'largo');
+export const fmtPaquete = () => formatoPaquete() === 'largo' ? '100x150' : '50x50';
+// Antes de imprimir el QR interno: con el formato pequeño se pide cambiar a la bobina 50 × 50; con el largo no hace falta cambiar nada
+export async function bobinaPaquete(texto) {
+  if (formatoPaquete() === 'largo') return true;
+  return confirmDlg('Bobina 50 × 50 mm', 'Coloca la bobina de 50 × 50 mm. ' + texto, 'Bobina puesta');
+}
 export const CODE_RX = /CEB-\d{4}-\d{6}/i;
 export const codeFrom = t => { const m = String(t || '').match(CODE_RX); return m ? m[0].toUpperCase() : ''; };
 
@@ -97,6 +105,17 @@ export async function printCardSheets(d, opts = {}) {
   return r;
 }
 
+// v13.10 · Tarjetas por la IMPRESORA DE ETIQUETAS: una tarjeta por etiqueta, al tamaño de la tarjeta (ej. 85 × 55 mm)
+export async function printCardLabels(d, opts = {}) {
+  const L = await import('./labels.js');
+  if (d.logo) d.logoImg = await L.loadLogo();
+  d.fondoImg = await L.loadCardBg(d.diseno);
+  const s = L.oneCardSize(d); L.TEMPLATES.tarjeta1.w = s.w; L.TEMPLATES.tarjeta1.h = s.h;
+  const n = Math.max(1, Math.min(200, Number(opts.copias) || 1));
+  const r = await L.sendLabel('tarjeta1', dpi => Array.from({ length: n }, () => L.drawOneCardCanvas(d, dpi)), { printer: opts.printer, fileName: 'tarjetas_etiqueta' });
+  api('etiquetas.registrar', { plantilla: 'tarjeta1', entidad: 'etiqueta', entidadId: 'tarjetas-etiqueta', titulo: n + ' tarjeta(s) ' + d.tam + ' en etiqueta', impresora: r.printer, copias: n }, { quiet: true }).catch(() => { });
+  return r;
+}
 // ---------- Estado de impresión de cada cosa del paquete ----------
 export const printsOf = o => (S.t.impresiones || []).filter(r => r.pedidoId === o.id).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
 export function wanted(o) {
@@ -138,12 +157,13 @@ function cropRotate(src, portrait) {
   o.drawImage(src, x0, y0, cw, ch, 0, 0, cw, ch);
   return { canvas: out, recorte, giro };
 }
-const officialCache = new Map();
-export async function officialCanvas(o, opts = {}) {
+const officialCache = new Map(), pageCache = new Map();
+// La página entera de la etiqueta (PDF a 300 ppp o la foto), sin tocar
+export async function paginaEtiqueta(o, opts = {}) {
   const e = o.etiquetaEnvio;
   if (!e || !e.archivoId) throw new Error('Este pedido no tiene la etiqueta oficial adjunta.');
-  const pagina = Math.max(1, Number(opts.pagina || e.pagina) || 1), key = e.archivoId + ':' + pagina + ':' + (opts.recortar === false ? 0 : 1);
-  if (officialCache.has(key)) return officialCache.get(key);
+  const pagina = Math.max(1, Number(opts.pagina || e.pagina) || 1), key = e.archivoId + ':' + pagina;
+  if (pageCache.has(key)) return pageCache.get(key);
   const a = byId('archivos', e.archivoId) || { id: e.archivoId, nombre: e.nombre, mime: e.mime, driveId: 'x' };
   const F = await import('./files.js');
   const blob = opts.blob || await F.fetchFile(a);
@@ -161,31 +181,86 @@ export async function officialCanvas(o, opts = {}) {
     src = document.createElement('canvas'); src.width = bmp.width; src.height = bmp.height;
     const g = src.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, src.width, src.height); g.drawImage(bmp, 0, 0);
   }
-  const r = opts.recortar === false ? { canvas: src, recorte: false, giro: false } : cropRotate(src, true);
-  const out = Object.assign(r, { paginas, pagina });
-  officialCache.set(key, out);
+  const out = { src, paginas, pagina: Math.min(pagina, paginas) };
+  pageCache.set(key, out); if (pageCache.size > 12) pageCache.delete(pageCache.keys().next().value);
   return out;
 }
-// Posibles números de seguimiento escritos en la etiqueta (solo se PROPONEN; la persona elige)
-export async function trackingCandidates(blob, name) {
-  try {
-    if (!isPdf(name, blob.type)) return [];
-    const lib = await pdfLib();
-    const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
-    let txt = '';
-    for (let i = 1; i <= Math.min(doc.numPages, 3); i++) { const tc = await (await doc.getPage(i)).getTextContent(); txt += ' ' + tc.items.map(x => x.str).join(' '); }
-    const found = new Set();
-    [/\b[A-Z]{2}\d{9}[A-Z]{2}\b/g, /\bPQ[A-Z0-9]{10,22}\b/g, /\b\d{12,24}\b/g, /\b[A-Z]{2,4}\d{8,20}[A-Z]{0,2}\b/g].forEach(rx => (txt.replace(/\s(?=\d{4}\b)/g, ' ').match(rx) || []).forEach(x => found.add(x)));
-    return [...found].filter(x => !/^(19|20)\d{6}$/.test(x)).slice(0, 5);
-  } catch (e) { return []; }
+// La etiqueta lista para imprimir: con su RECORTE (v14.1: el que hizo el programa o la persona) o sin el blanco de alrededor
+export async function officialCanvas(o, opts = {}) {
+  const e = o.etiquetaEnvio;
+  if (!e || !e.archivoId) throw new Error('Este pedido no tiene la etiqueta oficial adjunta.');
+  const rc = opts.recorte !== undefined ? opts.recorte : e.recorte || null;
+  const pagina = Math.max(1, Number(opts.pagina || e.pagina) || 1), key = e.archivoId + ':' + pagina + ':' + (opts.recortar === false ? 0 : 1) + ':' + JSON.stringify(rc || '');
+  if (officialCache.has(key)) return officialCache.get(key);
+  const pg = await paginaEtiqueta(o, opts);
+  let r;
+  if (opts.recortar === false) r = { canvas: pg.src, recorte: false, giro: false };
+  else if (rc) { const RC = await import('./recorte.js'); const c = RC.aplicar(pg.src, rc); r = cropRotate(c, !rc.giro); r.recorte = true; r.recortada = true; r.giro = r.giro || !!rc.giro; }
+  else r = cropRotate(pg.src, true);
+  const out = Object.assign(r, { paginas: pg.paginas, pagina: pg.pagina, page: pg.src });
+  officialCache.set(key, out); if (officialCache.size > 20) officialCache.delete(officialCache.keys().next().value);
+  return out;
 }
+// v14.1 · ✂️ Recortar la etiqueta (inteligente + a mano) y guardarlo en el pedido
+export async function recortarEtiqueta(o, after) {
+  o = labelOwner(byId('pedidos', o.id) || o);
+  try {
+    const pg = await paginaEtiqueta(o), RC = await import('./recorte.js');
+    const auto = RC.detectarEtiqueta(pg.src), e = o.etiquetaEnvio || {};
+    const v = await RC.recortarDialog(pg.src, e.recorte || (auto ? Object.assign({ modo: 'auto' }, auto) : null), { auto });
+    if (v === undefined) return null;
+    const r = await api('pedidos.etiquetaOficial', { id: o.id, recorte: v });
+    upsertLocal('pedidos', r); emit();
+    toast(v ? '✂️ Recorte guardado: se imprimirá solo la etiqueta' : 'Se imprimirá la página entera (sin recorte)', 'ok');
+    after && after(); return r;
+  } catch (e) { toast('No se pudo recortar: ' + e.message, 'bad', 8000); return null; }
+}
+// Posibles números de seguimiento escritos en la etiqueta (solo se PROPONEN; la persona elige)
+// v13.10 · LEER LA ETIQUETA que subes (PDF): transportista y nº de seguimiento, para no escribirlos a mano
+const TRANSPORTISTAS = [['Vinted Go', /vinted\s*go\b|vintedgo/i], ['InPost', /in\s?post/i], ['Correos Express', /correos\s*express/i], ['Correos', /\bcorreos\b/i], ['SEUR', /\bseur\b/i], ['MRW', /\bmrw\b/i],
+  ['GLS', /\bgls\b/i], ['UPS', /\bups\b/i], ['DHL', /\bdhl\b/i], ['Mondial Relay', /mondial\s*relay/i], ['Nacex', /\bnacex\b/i], ['CTT', /\bctt\b/i], ['Celeritas', /celeritas/i], ['Zeleris', /zeleris/i],
+  ['Envialia', /envialia/i], ['TIPSA', /\btipsa\b/i], ['Packlink', /packlink/i], ['Paack', /\bpaack\b/i]];
+async function pdfTexto(blob, name) {
+  if (!isPdf(name, blob.type)) return '';
+  const lib = await pdfLib();
+  const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
+  let txt = '';
+  for (let i = 1; i <= Math.min(doc.numPages, 3); i++) { const tc = await (await doc.getPage(i)).getTextContent(); txt += ' ' + tc.items.map(x => x.str).join(' '); }
+  return txt;
+}
+function seguimientosDe(txt) {
+  const found = new Set();
+  [/\b[A-Z]{2}\d{9}[A-Z]{2}\b/g, /\bPQ[A-Z0-9]{10,22}\b/g, /\b\d{12,24}\b/g, /\b[A-Z]{2,4}\d{8,20}[A-Z]{0,2}\b/g].forEach(rx => (txt.replace(/\s(?=\d{4}\b)/g, ' ').match(rx) || []).forEach(x => found.add(x)));
+  return [...found].filter(x => !/^(19|20)\d{6}$/.test(x)).slice(0, 5);
+}
+export function transportistaDe(txt) {
+  const t = String(txt || ''), lista = (S.cfg && S.cfg.pedidos && S.cfg.pedidos.envios) || [];
+  for (const [n, rx] of TRANSPORTISTAS) if (rx.test(t)) { const enLista = lista.find(x => CL.norm(x) === CL.norm(n) || (n === 'Vinted Go' && /vinted/i.test(x))); return enLista || n; }
+  return '';
+}
+// { transportista, seguimientos: [...] } (vacío si es una foto o no se puede leer)
+export async function leerEtiqueta(blob, name) {
+  try { const txt = await pdfTexto(blob, name); return { transportista: transportistaDe(txt), seguimientos: seguimientosDe(txt), leida: !!txt.trim() }; }
+  catch (e) { return { transportista: '', seguimientos: [], leida: false }; }
+}
+export async function trackingCandidates(blob, name) { return (await leerEtiqueta(blob, name)).seguimientos; }
 
 // ---------- Imprimir una cosa del paquete, registrada y sin dobles ----------
 async function buildFor(o, tipo, L) {
   const T = PRINT_TIPOS[tipo];
   if (tipo === 'oficial') { const r = await officialCanvas(o); return { tpl: 'oficial', data: { canvas: r.canvas } }; }
   if (tipo === 'propia') { return { tpl: 'envio', data: L.dataFor('envio', { o, c: o.clienteId ? byId('clientes', o.clienteId) : null }) }; }
-  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, cliente: String(o.cliente || '').split(/\s+/)[0] } }; }
+  if (tipo === 'paquete' && formatoPaquete() === 'largo') {
+    const g = grupoDe(o).length ? grupoDe(o) : [o], t = CL.orderTiming(o, S.cfg.pedidos, S.hoy), gd = thanksData(o), lo = labelOwner(o), et = (lo.etiquetaEnvio || {});
+    const d = { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, conjunto: g.length > 1,
+      cliente: (() => { const p = String(o.cliente || '').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1].charAt(0).toUpperCase() + '.' : ''); })(),
+      limite: t && t.limite ? t.limite.split('-').reverse().slice(0, 2).join('/') : '', transportista: lo.envio || et.transportista || '', seguimiento: lo.seguimiento || '', canal: o.canal || '', cuenta: [...new Set(g.map(p => p.cuenta).filter(Boolean))].join(' + '), // v14.1: desde qué cuenta se vendió
+      lineas: g.map(p => (Number(p.cantidad) > 1 ? p.cantidad + ' × ' : '') + p.producto + (p.color ? ' · ' + p.color : '') + (p.personalizacion ? ' · «' + String(p.personalizacion).slice(0, 40) + '»' : '') + (g.length > 1 ? ' (nº ' + p.numero + ')' : '')),
+      nota: String(o.obsEnvio || '').slice(0, 120), gracias: { titulo: gd.titulo, texto: gd.texto, firma: gd.firma } };
+    if (gd.logo) d.logoImg = await L.loadLogo();
+    return { tpl: 'paquete150', data: d };
+  }
+  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + ') } }; }
   const d = thanksData(o);
   if (d.logo) d.logoImg = await L.loadLogo();
   d.fondoImg = await L.loadCardBg(d.diseno);
@@ -201,16 +276,66 @@ export async function cardIncluded(o) {
   upsertLocal('impresiones', r.impresion); emit(); toast('💌 Tarjeta metida en el paquete', 'ok');
   return r.impresion;
 }
+// ---------- v14.1 · IMPRIMIR EN EL PC DEL TALLER desde el móvil o el portátil ----------
+// Sin impresora en este aparato se pregunta: «En el PC del taller» (queda encargado y el programa del PC lo saca solo)
+// o «Aquí» (el PDF de siempre). La elección se puede recordar en este aparato.
+const DKEY = 'cd.imprimirEn';
+export function destinoGuardado() { try { const v = localStorage.getItem(DKEY); return v === 'taller' || v === 'aqui' ? v : ''; } catch (e) { return ''; } }
+export function guardarDestino(v) { try { if (v) localStorage.setItem(DKEY, v); else localStorage.removeItem(DKEY); } catch (e) { } }
+export function elegirDestino(what) {
+  const g = destinoGuardado(); if (g) return Promise.resolve(g);
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    const rec = h('input', { type: 'checkbox', checked: true });
+    modal('¿Dónde lo imprimo?', h('div.col', h('p', 'Este aparato no tiene impresora de etiquetas. ' + (what ? '«' + what + '»' : 'La etiqueta') + ' puede salir por el PC del taller (el programa tiene que estar abierto) o aquí, en PDF.'),
+      h('label.check.small', rec, 'Recordarlo en este aparato (se cambia en Configuración → Centro de impresión)')),
+    close => [btn('📄 Aquí', () => { if (rec.checked) guardarDestino('aqui'); fin('aqui'); close(); }, { cls: 'ghost' }), btn('🖨️ En el PC del taller', () => { if (rec.checked) guardarDestino('taller'); fin('taller'); close(); }, { cls: 'primary' })],
+    { size: 'narrow', onclose: () => fin('') });
+  });
+}
+async function encargar(o, tipo, opts) {
+  let r;
+  try { r = await api('impresiones.encargar', { pedidoId: o.id, tipo, formato: tipo === 'paquete' ? fmtPaquete() : PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', dispositivo: S.device || '' }); }
+  catch (e) {
+    if (e.code === 'YA_IMPRESO' && !opts.auto) return reprintDialog(o, tipo, e.message);
+    if (e.code === 'YA_IMPRESO' || e.code === 'EN_CURSO') { if (!opts.auto) toast(e.message, 'warn', 7000); return { estado: 'omitido', motivo: e.message }; }
+    throw e;
+  }
+  upsertLocal('impresiones', r.impresion); emit();
+  if (!opts.silencio) toast('🖨️ ' + PRINT_TIPOS[tipo].t + (r.yaEncargado ? ': ya estaba encargada al PC del taller.' : ': enviada al PC del taller. Sale en cuanto el programa del PC la coja.'), 'ok', 7000);
+  return { estado: 'Encargado', impresion: r.impresion };
+}
+// Lo encargado al PC del taller que aún no ha salido (para el bloque de impresión y para «Hoy»)
+export const encargadaPC = (o, tipo) => { const st = statusOf(o, tipo); return st.last && st.last.estado === 'Pendiente' ? st.last : null; };
+export function encargosPendientes() {
+  const out = [];
+  for (const r of (S.t.impresiones || [])) {
+    if (r.estado !== 'Pendiente') continue;
+    const o = byId('pedidos', r.pedidoId);
+    if (o && !o.eliminado) out.push({ o, r, min: (Date.now() - new Date(r.fecha).getTime()) / 60000 });
+  }
+  return out;
+}
+
 export async function printOne(o, tipo, opts = {}) {
   o = ownerOf(o, tipo);
   if (tipo === 'gracias' && cardMode() === 'hoja') return (await cardIncluded(o)) ? { estado: 'Impreso' } : { estado: 'omitido' };
   const L = await import('./labels.js');
   if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
+  // v14.1: sin impresora real aquí → ¿en el PC del taller o aquí?
+  if (!opts.aqui) {
+    const t0 = await L.targetFor(PRINT_TIPOS[tipo].tpl === 'paquete' && formatoPaquete() === 'largo' ? 'paquete150' : PRINT_TIPOS[tipo].tpl).catch(() => null);
+    if (!t0 || !t0.pr) {
+      const dest = opts.destino || await elegirDestino(PRINT_TIPOS[tipo].t);
+      if (!dest) return { estado: 'cancelado' };
+      if (dest === 'taller') return encargar(o, tipo, opts);
+    }
+  }
   const b = await buildFor(o, tipo, L); // si falta algo (la etiqueta no se puede leer…) no se registra nada
   const t = await L.targetFor(b.tpl);
   let row;
   try {
-    row = (await api('impresiones.iniciar', { pedidoId: o.id, tipo, formato: PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', impresora: t.pr ? t.pr.name : 'PDF', dispositivo: S.device || '' })).impresion;
+    row = (await api('impresiones.iniciar', { pedidoId: o.id, tipo, formato: tipo === 'paquete' ? fmtPaquete() : PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', impresora: t.pr ? t.pr.name : 'PDF', dispositivo: S.device || '' })).impresion;
   } catch (e) {
     if (e.code === 'YA_IMPRESO' && !opts.auto) return reprintDialog(o, tipo, e.message);
     if (e.code === 'YA_IMPRESO' || e.code === 'EN_CURSO') { if (!opts.auto) toast(e.message, 'warn', 7000); return { estado: 'omitido', motivo: e.message }; }
@@ -251,9 +376,14 @@ export function reprintDialog(o, tipo, aviso) {
 // Imprime en orden todo lo que falta (sin repetir lo ya impreso)
 export async function printPending(o) {
   const list = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja')), out = [];
-  for (const t of list) { out.push([t, await printOne(byId('pedidos', o.id) || o, t, { auto: true })]); }
-  const ok = out.filter(x => x[1].estado === 'Impreso').length, bad = out.filter(x => x[1].estado === 'Error').length;
-  if (list.length) toast(ok + ' de ' + list.length + ' impreso(s)' + (bad ? ' · ' + bad + ' con error' : ''), bad ? 'warn' : 'ok', 6000);
+  // v14.1: se pregunta UNA vez dónde (si este aparato no tiene impresora), no una por etiqueta
+  const L = await import('./labels.js'), t0 = list.length ? await L.targetFor('oficial').catch(() => null) : null;
+  let destino = '';
+  if (list.length && (!t0 || !t0.pr)) { destino = await elegirDestino('Lo que falta del pedido nº ' + o.numero); if (!destino) return out; }
+  for (const t of list) { out.push([t, await printOne(byId('pedidos', o.id) || o, t, { auto: true, destino, silencio: true })]); }
+  const ok = out.filter(x => x[1].estado === 'Impreso').length, bad = out.filter(x => x[1].estado === 'Error').length, enc = out.filter(x => x[1].estado === 'Encargado').length;
+  if (enc) toast('🖨️ ' + enc + ' etiqueta(s) enviadas al PC del taller' + (ok ? ' · ' + ok + ' impresa(s) aquí' : '') + (bad ? ' · ' + bad + ' con error' : ''), bad ? 'warn' : 'ok', 7000);
+  else if (list.length) toast(ok + ' de ' + list.length + ' impreso(s)' + (bad ? ' · ' + bad + ' con error' : ''), bad ? 'warn' : 'ok', 6000);
   return out;
 }
 
@@ -271,7 +401,8 @@ export function printBlock(o, opts = {}) {
     return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span', T.i), h('span.grow.small', h('b', T.t), h('span.tiny.muted', ' · ' + T.f.replace('x', ' × ') + ' mm'),
       last ? h('div.tiny.muted', 'Impreso ' + fdt(last.fecha) + ' por ' + last.usuario + (st.done.length > 1 ? ' · ' + st.done.length + ' copias' : '') + (last.impresora ? ' · ' + last.impresora : '')) : null,
       st.fallo ? h('div.tiny.bad-t', 'Error: ' + st.fallo.error) : null),
-      pill(tipo === 'gracias' && st.estado === 'Impreso' ? 'IMPRESA' : EST_TXT[st.estado] || st.estado.toUpperCase(), EST_CLS[st.estado]),
+      encargadaPC(o, tipo) ? h('div.tiny.muted', '🖨️ Encargada al PC del taller ' + fdt(encargadaPC(o, tipo).fecha) + ' por ' + (encargadaPC(o, tipo).usuario || '?')) : null,
+      pill(tipo === 'gracias' && st.estado === 'Impreso' ? 'IMPRESA' : encargadaPC(o, tipo) ? 'EN EL PC DEL TALLER' : EST_TXT[st.estado] || st.estado.toUpperCase(), EST_CLS[st.estado]),
       edit ? (st.estado === 'Impreso' ? btn('Reimprimir', () => reprintDialog(o, tipo).then(() => opts.redraw && opts.redraw()), { cls: 'sm ghost', icon: 'printer' })
         : st.estado === 'Enviando' ? null : btn(st.estado === 'Error' ? 'Reintentar' : 'Imprimir', () => printOne(o, tipo).then(() => opts.redraw && opts.redraw()).catch(err => toast(err.message, 'bad', 8000)), { cls: 'sm', icon: 'printer' })) : null,
       tipo === 'oficial' ? (e && e.archivoId ? btn('', ev => officialPdf(o, ev.target.closest('button')), { cls: 'sm ghost icon', icon: 'file', title: 'Ver el PDF (100 × 150 mm)' }) : null)
@@ -304,14 +435,14 @@ export async function officialPreview(o) {
   const box = h('div.col', h('p.muted', 'Leyendo la etiqueta…'));
   const e0 = o.etiquetaEnvio || {};
   // v13.5: desde aquí también se abre el PDF a 100 × 150 (imprimir / descargar / compartir) y el archivo original
-  modal('Etiqueta oficial · pedido nº ' + o.numero, box, close => [btn('Cerrar', close),
+  modal('Etiqueta oficial · pedido nº ' + o.numero, box, close => [btn('Cerrar', close), can('pedidos.editar') ? btn('✂️ Recortar', () => { close(); recortarEtiqueta(o, () => officialPreview(byId('pedidos', o.id) || o)); }) : null,
     e0.archivoId ? btn('Archivo original', async () => { const a = byId('archivos', e0.archivoId); if (!a) return toast('El archivo original no está en este dispositivo todavía. Sincroniza y vuelve a probar.', 'warn'); (await import('./files.js')).openFile(a); }, { icon: 'file' }) : null,
     btn('PDF para imprimir', ev => officialPdf(o, ev.target.closest('button')), { cls: 'primary', icon: 'printer' })], { size: 'narrow' });
   try {
     const r = await officialCanvas(o), cv = document.createElement('canvas');
     cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0);
     cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '320px';
-    mount(box, h('div.lbl-prev', cv), h('p.tiny.muted', 'Se imprime a 100 × 150 mm sin deformarla' + (r.recorte ? ' · recortado el blanco de alrededor' : '') + (r.giro ? ' · girada para que quepa' : '') + (r.paginas > 1 ? ' · página ' + r.pagina + ' de ' + r.paginas : '') + '. Es tu archivo original: no se cambia nada de lo que pone.'));
+    mount(box, h('div.lbl-prev', cv), h('p.tiny.muted', 'Se imprime a 100 × 150 mm sin deformarla' + (r.recortada ? ' · ✂️ recortada: solo la etiqueta' : r.recorte ? ' · recortado el blanco de alrededor' : '') + (r.giro ? ' · girada para que quepa' : '') + (r.paginas > 1 ? ' · página ' + r.pagina + ' de ' + r.paginas : '') + '. Es tu archivo original: no se cambia nada de lo que pone.'));
   } catch (e) { mount(box, h('p.bad-t', 'No se pudo leer la etiqueta: ' + e.message)); }
 }
 
@@ -328,42 +459,75 @@ export async function officialPdf(o, b) {
 }
 
 // ---------- Adjuntar la etiqueta oficial ----------
-export function attachDialog(o, after) {
+export function attachDialog(o, after, opts = {}) {
   const fi = h('input', { type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp' });
   const tr = sel([{ v: '', t: o.envio ? o.envio + ' (el del pedido)' : '—' }].concat(((S.cfg && S.cfg.pedidos && S.cfg.pedidos.envios) || []).map(x => ({ v: x, t: x }))), '');
   const seg = inp({ placeholder: 'Nº de seguimiento (si lo sabes)', value: '' }), sug = h('div.row.wrap', { style: { gap: '6px' } }), prev = h('div.lbl-prev'), info = h('p.tiny.muted');
   const pagSel = sel([{ v: 1, t: 'Página 1' }], 1);
-  let file = null;
-  const showPrev = async () => {
+  let file = null, rec = null, recAuto = null; // v14.1: recorte (inteligente al elegir el archivo; se puede ajustar a mano)
+  const local = () => ({ etiquetaEnvio: { archivoId: 'local:' + file.name + ':' + file.size, nombre: file.name, mime: file.type } });
+  const recBtns = h('div.row.wrap.rc-botones', { style: { gap: '6px' } });
+  const showPrev = async (nuevo) => {
     if (!file) return;
     mount(prev, h('p.muted.small', 'Preparando la vista previa…'));
     try {
-      const r = await officialCanvas({ etiquetaEnvio: { archivoId: 'local:' + file.name + ':' + file.size, nombre: file.name, mime: file.type } }, { blob: file, pagina: Number(pagSel.value) });
+      if (nuevo) { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); const RC = await import('./recorte.js'); recAuto = RC.detectarEtiqueta(pg.src); rec = recAuto ? Object.assign({ modo: 'auto' }, recAuto) : null; }
+      const r = await officialCanvas(local(), { blob: file, pagina: Number(pagSel.value), recorte: rec });
       if (r.paginas > 1 && pagSel.options.length !== r.paginas) mount(pagSel, Array.from({ length: r.paginas }, (_, i) => h('option', { value: i + 1, selected: i + 1 === r.pagina }, 'Página ' + (i + 1))));
-      const cv = r.canvas; cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '260px';
-      mount(prev, cv); info.textContent = 'Así saldrá (100 × 150 mm)' + (r.recorte ? ' · sin el blanco de alrededor' : '') + (r.giro ? ' · girada' : '') + (r.paginas > 1 ? ' · el PDF tiene ' + r.paginas + ' páginas: elige la de la etiqueta' : '') + '.';
+      const cv = document.createElement('canvas'); cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0); cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '260px';
+      mount(prev, cv); info.textContent = 'Así saldrá (100 × 150 mm)' + (rec ? (rec.modo === 'auto' ? ' · ✂️ recortada sola: solo la etiqueta, sin las instrucciones' : ' · ✂️ con tu recorte') : r.recorte ? ' · sin el blanco de alrededor' : '') + (r.giro ? ' · girada' : '') + (r.paginas > 1 ? ' · el PDF tiene ' + r.paginas + ' páginas: elige la de la etiqueta' : '') + '.';
+      mount(recBtns, btn('✂️ ' + (rec ? 'Ajustar el recorte' : 'Recortar'), async () => { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); const RC = await import('./recorte.js'); const v = await RC.recortarDialog(pg.src, rec, { auto: recAuto }); if (v !== undefined) { rec = v; showPrev(false); } }, { cls: 'sm' }),
+        rec ? btn('Sin recortar', () => { rec = null; showPrev(false); }, { cls: 'sm ghost' }) : null);
     } catch (e) { mount(prev, h('p.bad-t.small', 'No se puede leer este archivo: ' + e.message)); }
   };
-  pagSel.onchange = showPrev;
+  pagSel.onchange = () => showPrev(true);
   fi.onchange = async () => {
     file = fi.files[0] || null; mount(sug);
     if (!file) return;
-    showPrev();
-    if (o.seguimiento) return;
-    const c = await trackingCandidates(file, file.name);
-    if (c.length) mount(sug, h('span.tiny.muted', 'En la etiqueta pone (¿es el seguimiento?):'), c.map(x => h('button.chip', { onclick: () => { seg.value = x; } }, x)));
+    showPrev(true);
+    const L = await leerEtiqueta(file, file.name);
+    if (L.transportista && !o.envio) { if (![...tr.options].some(x => x.value === L.transportista)) tr.append(h('option', { value: L.transportista }, L.transportista)); tr.value = L.transportista; }
+    if (!o.seguimiento && L.seguimientos.length && !seg.value) seg.value = L.seguimientos[0];
+    mount(sug, L.leida && (L.transportista || L.seguimientos.length) ? h('span.tiny.ok-t', '📖 Leído de la etiqueta: ' + [L.transportista, L.seguimientos[0]].filter(Boolean).join(' · ')) : !L.leida ? h('span.tiny.muted', 'Es una foto: si quieres, escribe el transportista y el seguimiento.') : null,
+      !o.seguimiento && L.seguimientos.length ? [h('span.tiny.muted', L.seguimientos.length > 1 ? ' ¿Es otro número?' : ' Seguimiento:'), L.seguimientos.map(x => h('button.chip', { onclick: () => { seg.value = x; } }, x))] : null);
   };
   modal('Adjuntar la etiqueta oficial · nº ' + o.numero, h('div.col',
     h('p.small', 'La etiqueta que te da la plataforma o la empresa de envíos (Vinted, Wallapop, Correos, InPost…), en PDF o foto. Se imprime tal cual: el programa no la inventa ni cambia lo que pone.'),
-    fi, prev, info, h('div.form', field('Página del PDF', pagSel), field('Transportista', tr), field('Nº de seguimiento', seg, o.seguimiento ? 'Ya tiene: ' + o.seguimiento + ' (no se cambia)' : 'Solo si es el de la etiqueta')), sug),
+    fi, prev, info, recBtns, h('div.form', field('Página del PDF', pagSel), field('Transportista', tr), field('Nº de seguimiento', seg, o.seguimiento ? 'Ya tiene: ' + o.seguimiento + ' (no se cambia)' : 'Solo si es el de la etiqueta')), sug),
   close => [btn('Cancelar', close), btn('Adjuntar', async ev => {
     if (!file) return toast('Elige el archivo de la etiqueta', 'warn');
     const bt = ev.target.closest('button'); bt.disabled = true;
     try {
-      await attachFile(o, file, { transportista: tr.value || o.envio || '', seguimiento: seg.value.trim(), paginas: pagSel.options.length, pagina: Number(pagSel.value) || 1 });
-      close(); toast('🏷️ Etiqueta oficial adjuntada', 'ok'); after && after();
+      await attachFile(o, file, { transportista: tr.value || o.envio || '', seguimiento: seg.value.trim(), paginas: pagSel.options.length, pagina: Number(pagSel.value) || 1, recorte: rec || undefined });
+      close(); after && after();
+      if (opts.imprimir) { toast('🏷️ Etiqueta oficial adjuntada: se imprime tal cual', 'ok'); printOne(byId('pedidos', o.id) || o, 'oficial').then(() => after && after()).catch(e => toast(e.message, 'bad')); }
+      else toast('🏷️ Etiqueta oficial adjuntada', 'ok', 8000, can('pedidos.editar') ? { t: '🖨️ Imprimir ahora', on: () => printOne(byId('pedidos', o.id) || o, 'oficial').catch(e => toast(e.message, 'bad')) } : null);
     } catch (e) { toast(e.message, 'bad', 8000); bt.disabled = false; }
   }, { cls: 'primary', icon: 'upload' })], { size: 'wide' });
+}
+
+// v13.10 · «🏷️ Etiqueta de envío»: SIEMPRE la que adjuntas (Vinted, Wallapop, Etsy, Correos…), tal cual. Si aún no está,
+// se pide adjuntarla y se imprime al momento. La etiqueta con dirección hecha por el programa queda solo como último recurso.
+export async function etiquetaEnvio(o, after) {
+  o = byId('pedidos', o.id) || o;
+  const lo = labelOwner(o);
+  if (hasLabel(lo)) return printOne(lo, 'oficial').then(r => { after && after(); return r; });
+  if (!can('pedidos.editar')) return toast('Este pedido aún no tiene la etiqueta de envío adjunta.', 'warn');
+  let m = null;
+  m = modal('🏷️ Etiqueta de envío · nº ' + (enConjunto(o) ? CL.numerosGrupo(grupoDe(o)) : o.numero), h('div.col', { style: { gap: '10px' } },
+    h('p', 'Este pedido aún no tiene la etiqueta de la plataforma (Vinted, Wallapop, Etsy, Correos, InPost…).'),
+    h('p.small.muted', 'Adjúntala (PDF o foto) y se imprime tal cual en la bobina de 100 × 150. El programa lee el transportista y el nº de seguimiento.'),
+    h('details.more', h('summary', 'Lo envío yo por mi cuenta, sin etiqueta de plataforma'), h('div.in', h('p.small', 'Puedes sacar una etiqueta con la dirección hecha por el programa.'),
+      btn('Etiqueta con la dirección', async () => { if (m) m.close(); const P = await import('./views/pedidos.js'); P.labelDialog(o); }, { cls: 'sm ghost', icon: 'printer' })))),
+  close => [btn('Cancelar', close), btn('📎 Adjuntar e imprimir', () => { close(); attachDialog(lo, after, { imprimir: true }); }, { cls: 'primary' })], { size: 'narrow' });
+  return m;
+}
+export async function etiquetasEnvio(list) {
+  const con = [], sin = [], vistos = new Set();
+  list.forEach(o => { const lo = labelOwner(byId('pedidos', o.id) || o); if (vistos.has(lo.id)) return; vistos.add(lo.id); (hasLabel(lo) ? con : sin).push(lo); });
+  if (!con.length) return toast('Ninguno tiene adjunta la etiqueta de la plataforma. Adjúntala desde cada pedido.', 'warn', 8000);
+  if (!await confirmDlg('Imprimir etiquetas de envío', 'Se imprimen ' + con.length + ' etiqueta(s) tal cual las adjuntaste (bobina de 100 × 150).' + (sin.length ? ' Sin etiqueta adjunta: nº ' + sin.map(x => x.numero).join(', ') + '.' : ''), 'Imprimir')) return;
+  for (const o of con) { try { await printOne(o, 'oficial', { auto: true }); } catch (e) { toast('Nº ' + o.numero + ': ' + e.message, 'bad', 8000); } }
 }
 
 // ---------- Mensaje para el cliente (idea 6): elegir, revisar y copiar — v12.5: o abrir directo en WhatsApp ----------
@@ -484,6 +648,7 @@ export function labelRow(o, after) {
   return h('div.lbl-row' + (ok ? '.ok' : '.warn'),
     h('span.grow', h('b', ok ? '🟢 ETIQUETA ADJUNTADA' : '🟠 FALTA ETIQUETA DE ENVÍO'), ok ? h('span.tiny', ' · ' + e.nombre + (e.transportista ? ' · ' + e.transportista : '')) : h('span.tiny', ' · la de Vinted, InPost, Correos… (nunca se inventa)')),
     ok ? btn('Ver', () => officialPreview(o), { cls: 'sm ghost', icon: 'eye' }) : null,
+    ok && edit ? btn(e.recorte ? '✂️ Recorte' : '✂️ Recortar', () => recortarEtiqueta(o, after), { cls: 'sm ghost', title: 'Dejar solo la etiqueta (sin instrucciones alrededor)' }) : null,
     edit ? btn(ok ? 'Sustituir' : 'Adjuntar etiqueta', () => attachDialog(o, after), { cls: 'sm' + (ok ? ' ghost' : ' primary'), icon: 'upload' }) : null);
 }
 // «Omitir por ahora»: deja seguir trabajando; la falta sigue marcada en 🟠

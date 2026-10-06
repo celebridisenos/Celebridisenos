@@ -308,9 +308,11 @@ export async function openFile(a) {
     if (k === 'foto') mount(box, h('img', { src: url, alt: a.nombre, style: { maxWidth: '100%', maxHeight: '70vh', borderRadius: '12px', alignSelf: 'center' } }), info);
     else if (k === 'video') mount(box, h('video', { src: url, controls: true, playsinline: true, style: { width: '100%', maxHeight: '70vh', borderRadius: '12px', background: '#000' } }), info);
     else if (k === 'stl' && ['stl', '3mf', 'obj'].includes(extOf(a.nombre))) {
-      const c = h('canvas.stl-view');
-      mount(box, c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'));
-      const v = viewer(c, await parse3D(await blob.arrayBuffer(), a.nombre));
+      const c = h('canvas.stl-view'), sim = h('div.row.wrap', { style: { gap: '6px' } });
+      mount(box, c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim);
+      const pos = await parse3D(await blob.arrayBuffer(), a.nombre), v = viewer(c, pos);
+      // v13.10: ver cómo se imprime capa a capa (y sacar un vídeo corto)
+      mount(sim, btn('▶️ Ver cómo se imprime', () => import('./simulacion.js').then(SM => SM.simularImpresion(pos, { nombre: a.nombre, productoId: a.entidad === 'productos' ? a.entidadId : '' })), { cls: 'primary sm' }), h('span.tiny.muted', 'Simulación capa a capa · vídeo de 3 s'));
       info.textContent += ' · ' + v.dims.map(x => x.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos';
       m.el.addEventListener('remove', () => v.destroy());
     } else if (extOf(a.nombre) === 'pdf' || /pdf/i.test(a.mime || '')) {

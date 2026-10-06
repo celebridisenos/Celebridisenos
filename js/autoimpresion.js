@@ -35,14 +35,21 @@ function leader() {
   return false;
 }
 
+// v14.1: lo que alguien ENCARGÓ al PC del taller desde el móvil o el portátil (filas «Pendiente»), en cualquier fase
+export function encargos(o) {
+  return Object.keys(E.PRINT_TIPOS).filter(t => E.encargadaPC(o, t));
+}
+const enEmpaquetar = o => faseDe(o) === 'empaquetar' && !E.labelSkipped(o);
 // ¿Qué falta imprimir en este pedido y puede hacerse solo? (sin la tarjeta en modo «hoja», que se marca a mano)
 export function porImprimir(o) {
-  return E.pendingOf(o).filter(t => !(t === 'gracias' && E.cardMode() === 'hoja'));
+  const enc = encargos(o);
+  const auto = enEmpaquetar(o) ? E.pendingOf(o).filter(t => !(t === 'gracias' && E.cardMode() === 'hoja')) : [];
+  return Object.keys(E.PRINT_TIPOS).filter(t => enc.includes(t) || auto.includes(t)); // en orden: oficial → propia → paquete → tarjeta
 }
 
 // Pedidos que deben imprimirse ahora mismo
 export function candidatos() {
-  return (S.t.pedidos || []).filter(o => !o.eliminado && !o.archivado && faseDe(o) === 'empaquetar' && !E.labelSkipped(o) && porImprimir(o).length);
+  return (S.t.pedidos || []).filter(o => !o.eliminado && !o.archivado && porImprimir(o).length);
 }
 
 // Se puede imprimir tipo → plantilla con impresora real y conectada. Si no, devuelve el MOTIVO (texto) en vez de intentarlo.
@@ -75,8 +82,10 @@ export async function autoTick() {
       const f = AUTO.fallos.get(o.id) || { n: 0, next: 0 };
       if (f.n >= MAX_INTENTOS || Date.now() < f.next) continue;
       let fallo = '';
+      const enc = encargos(o);
       for (const tipo of porImprimir(o)) {
         let motivo = await motivoImposible(tipo);
+        if (motivo && enc.includes(tipo) && !enEmpaquetar(o)) continue; // un encargo que este PC no puede sacar se deja para el PC del taller, sin avisar
         if (!motivo) {
           try {
             const r = await E.printOne(byId('pedidos', o.id) || o, tipo, { auto: true });

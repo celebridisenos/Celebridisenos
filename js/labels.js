@@ -22,11 +22,15 @@ export const TEMPLATES = {
   // v11.6 · EMPAQUETAR
   oficial: { t: 'Etiqueta de envío oficial', w: 100, h: 150, d: 'la de Vinted, Correos, InPost…: la adjuntas y sale tal cual (nunca se inventa)' },
   paquete: { t: 'Código del paquete', w: 50, h: 50, d: 'QR + código interno CEB + nº de pedido: se escanea al empaquetar' },
+  // v13.10: la misma información en la bobina de ENVÍO (100 × 150): arriba «gracias», abajo QR, nº de pedido y qué meter. Sin dirección.
+  paquete150: { t: 'Etiqueta del paquete (larga)', w: 100, h: 150, d: 'misma bobina que la de envío: arriba «gracias», abajo QR, nº de pedido y lo que hay que meter (sin dirección)' },
   qrtest: { t: 'Prueba de QR (6 tamaños)', w: 100, h: 150, d: 'el mismo QR en 6 tamaños: sirve para ver cuál lee mejor tu móvil con tu impresora' },
   regalo: { t: 'Tarjeta de regalo con QR', w: 85, h: 55, d: 'QR único: abre la página «Tu regalo» de la tienda (con tu dedicatoria)' },
   gracias: { t: 'Tarjeta de agradecimiento (50 × 50, modo antiguo)', w: 50, h: 50, d: 'en la impresora de etiquetas, una por pedido' },
   // v11.8: tarjetas UNIVERSALES en hoja A4 para la impresora de papel fotográfico (varias por hoja, con corte)
-  tarjetas: { t: 'Tarjetas de agradecimiento (hoja A4)', w: 210, h: 297, d: 'varias tarjetas por hoja, para papel fotográfico' }
+  tarjetas: { t: 'Tarjetas de agradecimiento (hoja A4)', w: 210, h: 297, d: 'varias tarjetas por hoja, para papel fotográfico' },
+  // v13.10: las mismas tarjetas, UNA por etiqueta, en la impresora de etiquetas (la que más se usa)
+  tarjeta1: { t: 'Tarjeta de agradecimiento (etiqueta)', w: 85, h: 55, d: 'una tarjeta por etiqueta, en la impresora de etiquetas' }
 };
 // ================= v13.5 · FORMA de la tarjeta / etiqueta según la plantilla =================
 // Cada plantilla («etiqueta» o diseño) puede tener su forma: rectángulo, rectángulo con esquinas redondeadas, círculo u
@@ -130,14 +134,15 @@ export function pickPrinter(tpl, list, c) {
   const byName = n => n && real.find(p => p.name === n);
   const lab = byName(v.etiquetas) || on.find(p => p.label && p.label4x6) || on.find(p => p.label);
   const sheet = byName(v.folios) || on.find(p => p.default && !p.label) || on.find(p => !p.label);
-  if (tpl === 'envio' || tpl === 'oficial' || tpl === 'mesa') return lab || sheet || null;
-  if (tpl === 'tarjetas') return sheet || null; // nunca a la de etiquetas
+  if (tpl === 'envio' || tpl === 'oficial' || tpl === 'mesa' || tpl === 'paquete150') return lab || sheet || null;
+  if (tpl === 'tarjetas') return sheet || null; // la hoja A4 va a la de folios
+  if (tpl === 'tarjeta1') return lab || sheet || null; // v13.10: tarjetas sueltas → impresora de etiquetas
   // v11.6: código del paquete y tarjeta de gracias (50 × 50): mejor una de etiquetas con ese papel; si no, la de etiquetas
   if (tpl === 'paquete' || tpl === 'gracias') {
     const sq = on.find(p => p.label && (p.papers || []).some(x => Math.abs(x.wmm - 50) <= 4 && Math.abs(x.hmm - 50) <= 4));
     return sq || lab || sheet || null;
   }
-  return sheet || lab || null;
+  return lab || sheet || null; // v13.10: por defecto, casi todo sale por la impresora de etiquetas
 }
 const dpiOf = p => (p && p.label ? 203 : 300);
 // ¿Cabe la etiqueta en el papel de esa impresora o es de folios (A4)? En A4 se colocan varias por hoja.
@@ -273,12 +278,44 @@ export function draw(tpl, d, dpi, size) {
     if (src) { const sc = Math.min(c.width / src.width, c.height / src.height), w = src.width * sc, hh = src.height * sc; g.drawImage(src, (c.width - w) / 2, (c.height - hh) / 2, w, hh); }
     else T('Falta la etiqueta oficial', m, m, W - 2 * m, 12, 700, 2);
   } else if (tpl === 'paquete') {
-    const cap = 12, qs = Math.min(W - 2 * m, H - cap - m);
+    const cap = d.cuenta ? 15.5 : 12, qs = Math.min(W - 2 * m, H - cap - m);
     qr(g, d.qr, ((W - qs) / 2) * k, (m - 1.5) * k, qs * k);
     g.textAlign = 'center';
     g.font = F(W < 45 ? 7.5 : 9, 800); g.fillText(d.codigo || '', (W / 2) * k, (H - cap + 0.5) * k);
     g.font = F(W < 45 ? 6 : 7, 500); g.fillText(fit(g, ['Nº ' + (d.numero || ''), d.cliente || ''].filter(Boolean).join(' · '), (W - 2 * m) * k), (W / 2) * k, (H - cap + 5) * k);
+    if (d.cuenta) { g.font = F(W < 45 ? 6 : 7, 800); g.fillText(fit(g, d.cuenta, (W - 2 * m) * k), (W / 2) * k, (H - cap + 9) * k); } // v14.1: cuenta de venta
     g.textAlign = 'left';
+  } else if (tpl === 'paquete150') {
+    // ── mitad de arriba: GRACIAS (logo, título, texto y firma, ajustados al hueco) ──
+    const mid = H * 0.41, cw = W - 2 * m - 4;
+    let y = m + 1;
+    if (d.logoImg && d.logoImg.width) { const lh = 13, lw = Math.min(cw, d.logoImg.width / d.logoImg.height * lh); g.drawImage(d.logoImg, ((W - lw) / 2) * k, y * k, lw * k, (lw / (d.logoImg.width / d.logoImg.height)) * k); y += lw / (d.logoImg.width / d.logoImg.height) + 2; }
+    const gd = Object.assign({ titulo: '¡Gracias!', texto: '', firma: '' }, d.gracias || {});
+    let sz = 1.9; for (; sz > 0.6; sz -= 0.05) { if (centered(g, F, k, gd, y, cw, W, sz, true) <= mid - 4) break; }
+    const alto = centered(g, F, k, gd, y, cw, W, sz, true) - y; centered(g, F, k, gd, y + Math.max(0, (mid - 2 - y - alto) / 2), cw, W, sz, false);
+    g.setLineDash([1.2 * k, 1.2 * k]); line(g, m * k, (mid + 1) * k, (W - m) * k, (mid + 1) * k, 0.3 * k); g.setLineDash([]);
+    // ── mitad de abajo: SOLO para el equipo ──
+    let yb = mid + 3;
+    g.fillRect(m * k, yb * k, (W - 2 * m) * k, 10 * k); g.fillStyle = '#fff';
+    g.font = F(d.conjunto ? 13 : 16, 800); g.fillText(fit(g, (d.conjunto ? 'ENVÍO CONJUNTO Nº ' : 'PEDIDO Nº ') + (d.numero || ''), (W - 2 * m - 4) * k), (m + 2) * k, (yb + 2) * k);
+    g.fillStyle = '#000'; yb += 12;
+    const qs = 42; qr(g, d.qr, m * k, yb * k, qs * k);
+    const xr = m + qs + 3, wr = W - xr - m;
+    let yr = yb + 1;
+    const fila = (et, v, pt, wt) => { if (!v) return; g.font = F(6.5, 600); g.fillText(et.toUpperCase(), xr * k, yr * k); yr += 2.8; yr = T(v, xr, yr, wr, pt || 10, wt || 700, 2) + 1.6; };
+    fila('Código', d.codigo, 10, 800);
+    fila('Cliente', d.cliente);
+    fila('Enviar antes de', d.limite, 11, 800);
+    fila('Transporte', [d.transportista, d.seguimiento].filter(Boolean).join(' · '), 8.5, 700);
+    if (d.cuenta) fila('Vendido en la cuenta', d.cuenta, 10, 800); else fila('Plataforma', d.canal, 9, 600); // v14.1: varias cuentas de Vinted/Wallapop
+    yb += qs + 2;
+    line(g, m * k, yb * k, (W - m) * k, yb * k, 0.3 * k); yb += 1.8;
+    g.font = F(6.5, 600); g.fillText('QUÉ VA DENTRO', m * k, yb * k); yb += 3;
+    const ls = (d.lineas || []).slice(0, 5);
+    ls.forEach((l, i) => { if (yb < H - 12) yb = T('☐ ' + l, m, yb, W - 2 * m, ls.length > 3 ? 9 : 10.5, 700, i === ls.length - 1 ? 2 : 1) + 0.6; });
+    if ((d.lineas || []).length > 5) yb = T('… y ' + (d.lineas.length - 5) + ' más', m, yb, W - 2 * m, 8, 600, 1);
+    if (d.nota && yb < H - 9) T('📝 ' + d.nota, m, yb + 0.8, W - 2 * m, 8, 500, 2);
+    g.textAlign = 'center'; g.font = F(6, 500); g.fillText('Uso interno · la dirección va en la etiqueta de la plataforma', (W / 2) * k, (H - m - 1.5) * k); g.textAlign = 'left';
   } else if (tpl === 'gracias') {
     let y = m - 0.5;
     const cw = W - 2 * m;

@@ -1,8 +1,10 @@
 // ================= Arranque, navegación y estructura =================
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
 import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes } from './store.js';
+import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
 import { desktop } from './desktop.js';
 import { BAMBU } from './bambu.js';
+import { menuNav, editarMenu } from './menuorden.js';
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
 import { startChat, CHAT } from './chat.js';
@@ -12,7 +14,10 @@ const CL = window.CL;
 const VIEWS = {
   inicio: () => import('./views/home.js'),
   hoy: () => import('./views/hoy.js'),
-  tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller
+  tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller (v13.10: fuera del menú; sigue en #/tv)
+  estudio: () => import('./views/estudio.js'), // v13.10: 📸 Estudio de fotos
+  mitienda: () => import('./views/mitienda.js'), // v13.10: acceso directo para difundir la tienda web
+  rapidas: () => import('./views/rapidas.js'), // v13.10: respuestas rápidas (manual del equipo)
   pedidos: () => import('./views/pedidos.js'),
   clientes: () => import('./views/clientes.js'),
   descanso: () => import('./views/descanso.js'), // v13.3: juego para los ratos de descanso
@@ -41,17 +46,21 @@ const VIEWS = {
   informes: () => import('./views/informes.js'),
   notificaciones: () => import('./views/notificaciones.js'),
   pedidosweb: () => import('./views/pedidosweb.js'),
+  bandeja: () => import('./views/bandeja.js'), // v14.1: correos de todas las cuentas de Vinted, Wallapop…
   config: () => import('./views/config.js')
 };
 export const NAV = [
   { k: 'inicio', t: 'Inicio', i: 'home' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
-  { k: 'tv', t: 'Pantalla TV del taller', i: 'play', p: 'pedidos.ver' }, // v12.3
+  { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
+  { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes)
+  { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas
   { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje
   { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
+  { k: 'rapidas', t: 'Respuestas rápidas 💬', i: 'msg' }, // v13.10: manual para contestar a los clientes
   { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13
   { k: 'descanso', t: 'Descanso 🎮', i: 'play' }, // v13.3: juego para el rato de descanso
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
@@ -112,6 +121,8 @@ async function route() {
     clear(content);
     current = { name, view: mod.render(content, params) || {}, params };
     window.scrollTo(0, 0);
+    entrada(content); // v14.0: el contenido entra suave
+    if (!route._inau && debeInaugurar()) { route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full')) inauguracion({ ir: go }); }, 700); }
   } catch (e) {
     console.error(e);
     mount(content, h('div.card', h('h3', 'No se pudo abrir esta sección'), h('p.muted', String(e.message || e)), btn('Reintentar', () => location.reload(), { cls: 'primary' })));
@@ -139,6 +150,7 @@ function accountMenu(anchor) {
     wsInfo().lista.length > 1 ? h('div.acct-ws', h('div.tiny.muted', 'Espacio de trabajo'), wsInfo().lista.map(w => h('button' + (w.id === S.ws ? '.on' : ''), { onclick: () => { m.remove(); changeWs(w.id); } }, h('span.ws-mark.' + (w.tema || 'principal')), w.nombre, w.id === S.ws ? ' ✓' : ''))) : null,
     h('button', { onclick: () => { m.remove(); go('config/perfil'); } }, icon('user', 's'), 'Mi perfil'),
     h('button', { onclick: () => { m.remove(); go('config'); } }, icon('settings', 's'), 'Configuración'),
+    h('button.acct-ui', { onclick: () => { m.remove(); const n = aplicarUI(!uiNueva()); toast(n ? '✨ Interfaz nueva' : '🗂️ Interfaz clásica', 'ok', 2500); } }, icon('sparkles', 's'), uiNueva() ? 'Volver a la interfaz clásica' : 'Usar la interfaz nueva 14.0'),
     h('button.danger', { onclick: async () => { m.remove(); await logout(); start(); } }, icon('logout', 's'), 'Cerrar sesión'));
   document.body.appendChild(m);
   setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
@@ -207,21 +219,52 @@ function startNovaWatch() {
   setTimeout(tick, 8000);
 }
 
+// ================= v13.10 · LA PANTALLA NO SE MUEVE AL SINCRONIZAR =================
+// Mientras escribes en un campo (ficha de un pedido, formulario…) los datos nuevos que llegan del servidor NO repintan la
+// pantalla: se guardan y se aplican en cuanto sales del campo, sin perder lo escrito. Al repintar se conserva el scroll.
+const EDITABLE = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=file]):not([type=range]):not([type=search]), textarea, select, [contenteditable="true"], [contenteditable=""]';
+// «A medias» = has escrito en un campo y aún no lo has confirmado (Enter, salir del campo o elegir en la lista).
+let aMedias = null, vistaPendiente = false;
+document.addEventListener('input', e => { const t = e.target; if (t && t.matches && t.matches(EDITABLE) && t.type !== 'number' || (t && t.tagName === 'TEXTAREA')) aMedias = t; }, true);
+document.addEventListener('change', e => { if (e.target === aMedias) aMedias = null; }, true);
+// v14.0: Enviar con Intro (comentario, chat…) también confirma lo escrito: la pantalla se actualiza al momento
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target === aMedias && e.target.tagName === 'INPUT') setTimeout(() => { if (aMedias === e.target) aMedias = null; if (vistaPendiente && !editandoAhora()) repintarVista(); }, 0); }, true);
+export function editandoAhora() {
+  const a = document.activeElement;
+  return !!(aMedias && a === aMedias && aMedias.isConnected && String(aMedias.value || aMedias.textContent || '').trim() !== '' && a.closest('.drawer, .content, .modal') && !a.closest('.topbar, .quickbar, .inp-icon, .palette'));
+}
+function repintarVista() {
+  if (!current.view || !current.view.update) return;
+  if (editandoAhora() && !current.view.guardaLoEscrito) { vistaPendiente = true; return; } // las vistas que ya conservan lo escrito se actualizan al momento
+  vistaPendiente = false;
+  const se = document.scrollingElement, y = se ? se.scrollTop : 0;
+  const cajas = [...document.querySelectorAll('.drawer, .drawer .drawer-b, .content .scroll, .modal-b')].map(el => [el, el.scrollTop]);
+  current.view.update();
+  if (se && se.scrollTop !== y) se.scrollTop = y;
+  cajas.forEach(([el, t]) => { if (el.isConnected && el.scrollTop !== t) el.scrollTop = t; });
+}
+document.addEventListener('focusout', () => setTimeout(() => { if (vistaPendiente && !editandoAhora()) repintarVista(); }, 350), true);
+setInterval(() => { if (vistaPendiente && !editandoAhora()) repintarVista(); }, 2000);
+
 function refreshShell() {
   if (!shell) return;
   const d = S.cfg ? dash() : null;
-  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, ia: S.novaPend || 0, pedidosweb: can('pedidos.ver') ? pwPendientes() : 0 } : {};
+  const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, ia: S.novaPend || 0, pedidosweb: can('pedidos.ver') ? pwPendientes() : 0, bandeja: can('pedidos.ver') ? (S.t.correosPlat || []).filter(r => r.estado !== 'hecho').length : 0 } : {};
   // v11: solo se redibuja el menú si ha cambiado algo (antes se rehacía en cada sincronización y parpadeaba)
-  const navSig = JSON.stringify([counts, S.perms, S.ws]);
+  const navSig = JSON.stringify([counts, S.perms, S.ws, S.cfg && S.cfg.menu]);
+  const visible = n => (!n.p || can(n.p)) && (!n.d || desktop.on);
   if (shell.navSig !== navSig) { shell.navSig = navSig;
-  mount(shell.nav, NAV.filter(n => n.sep || ((!n.p || can(n.p)) && (!n.d || desktop.on))).map(n => n.sep ? [h('div.sep'), n.t ? h('div.grp', n.t) : null] :
-    h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null))); }
+  // v13.10: el administrador ordena y oculta los apartados del menú a su gusto (para todo el equipo)
+  const lista = menuNav(NAV).filter(n => n.sep || visible(n)).filter((n, i, a) => !(n.sep && (!a[i + 1] || a[i + 1].sep)));
+  mount(shell.nav, lista.map(n => n.sep ? [h('div.sep'), n.t ? h('div.grp', n.t) : null] :
+    h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null)),
+    can('config.editar') ? h('button.nav-orden', { type: 'button', title: 'Cambiar el orden del menú u ocultar apartados', onclick: e => { e.stopPropagation(); closeNav(); editarMenu(NAV, visible, refreshShell); } }, '↕️ Ordenar el menú') : null); }
   const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
   if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
   // v11.5: barra de acceso rápido · v11.7: «Cámaras» solo en el PC y si hay Bambu Lab vinculadas (nunca botones vacíos)
   const emq = S.cfg ? (S.t.pedidos || []).filter(o => CL.phaseOf(S.cfg.pedidos, o.estado) === 'empaquetar').length : 0;
-  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], desktop.on && BAMBU.list.length ? ['camaras', 'Cámaras', 'camera', 'taller.ver'] : null, ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
+  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], desktop.on && BAMBU.list.length ? ['camaras', 'Cámaras', 'camera', 'taller.ver'] : null, ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], S.cfg && S.cfg.tienda && S.cfg.tienda.url ? ['mitienda', 'Mi tienda', 'store', 'productos.ver'] : null, ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
   const qSig = JSON.stringify([QB.map(x => x[0]), emq]);
   if (shell.quick && shell.qSig !== qSig) { shell.qSig = qSig; mount(shell.quick, QB.map(x => h('a', { href: '#/' + x[0], dataset: { k: x[0] }, title: x[1] }, icon(x[2], 's'), h('span.t', x[1]), x[4] ? h('span.count', String(x[4])) : null))); }
   markNav(parseHash().name);
@@ -325,7 +368,8 @@ export function accionesPaleta() {
     nav('Descanso: jugar un rato (Fusiona bobinas)', 'play', 'descanso', '', 'juego 2048 jugar descanso entretenimiento'),
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
     fn('Modo taller (botones grandes)', 'play', () => { try { localStorage.setItem('cd.operario', '1'); } catch (e) { } document.body.classList.add('operario'); go('hoy'); }, 'pedidos.ver', 'operario tablet'),
-    nav('Pantalla TV del taller', 'play', 'tv', 'pedidos.ver', 'televisión monitor panel pared'),
+    nav('Biouvision (editor de fotos)', 'camera', 'estudio', 'productos.ver', 'foto editar retocar mejorar imagen estudio cara piel filtros fondo'),
+    nav('Respuestas rápidas', 'msg', 'rapidas', '', 'whatsapp instagram correo contestar mensaje cliente manual plantilla'),
     nav('Escanear paquete', 'qr', 'escanear/camara', 'pedidos.ver', 'qr cámara lector empaquetar'),
     nav('Ir a Embalaje', 'box', 'embalaje', 'pedidos.ver', 'cajas paquete'),
     nav('Ir a Stock', 'box', 'stock', 'productos.ver', 'existencias inventario'),
@@ -339,6 +383,8 @@ export function accionesPaleta() {
     fn('Celebrar pedidos nuevos: cartel y confeti (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().on; m.guardarPrefs({ on: v }); toast(v ? '🎉 Celebración de pedidos nuevos activada' : 'Celebración de pedidos nuevos apagada'); }), 'pedidos.ver', 'pedido nuevo confeti cartel celebrar'),
     fn('Sonido al entrar un pedido nuevo (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().sonido; m.guardarPrefs({ sonido: v }); if (v) m.sonar(); toast(v ? '🔔 Sonido de pedido nuevo activado' : 'Sonido de pedido nuevo apagado'); }), 'pedidos.ver', 'pedido nuevo sonido campana'),
     fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),
+    fn(uiNueva() ? 'Interfaz clásica (la de antes)' : 'Interfaz nueva 14.0', 'sparkles', () => { const n = aplicarUI(!uiNueva()); toast(n ? '✨ Interfaz nueva' : '🗂️ Interfaz clásica', 'ok', 2500); }, '', 'aspecto diseño antes nueva vieja'),
+    fn('Ver la inauguración de la 14.0', 'sparkles', () => inauguracion({ ir: go }), '', 'estreno cinta fiesta novedades'),
     fn('Tema oscuro / claro', 'sparkles', () => { const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
     fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),
     fn('Cerrar sesión', 'logout', async () => { await logout(); start(); }, '', 'salir')
@@ -463,7 +509,7 @@ export function applyTheme(t) {
 // ---------- Arranque ----------
 let unsub = null;
 export async function start() {
-  applyTheme();
+  applyTheme(); aplicarUI(); instalarEfectos();
   await loadLocal();
   // v10.6: avisar al programa del PC de que la app arranca bien (confirma la actualización)
   if (desktop.on && !start._ready) { start._ready = true; desktop.ready(); desktop.anterior().then(r => { if (r && r.aviso) { toast('⚠️ ' + r.aviso, 'warn', 15000); desktop.avisoVisto(); } }).catch(() => { }); }
@@ -484,7 +530,7 @@ export async function start() {
   applyTheme();
   buildShell();
   onStatus(() => updateSync());
-  if (!unsub) unsub = on(debounce(() => { if (!S.me || !shell) return; /* v12.2: tras cerrar sesión no se repinta nada (daba errores) */ refreshShell(); if (current.view && current.view.update) current.view.update(); }, 60));
+  if (!unsub) unsub = on(debounce(() => { if (!S.me || !shell) return; /* v12.2: tras cerrar sesión no se repinta nada (daba errores) */ refreshShell(); repintarVista(); }, 60));
   route();
   window.__appStarted = true;
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }

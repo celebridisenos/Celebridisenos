@@ -150,6 +150,6 @@ export function metaCard(go, abrirTarjeta) {
     rec.length ? h('div.rec-row', rec.map(x => h('div.rec', h('span.ic', x[0]), h('div', h('b', x[2]), h('div.tiny.muted', x[1] + ' · ' + x[3]))))) : null,
     h('div.row.wrap', { style: { gap: '8px', marginTop: '10px' } },
       h('button.btn.sm', { onclick: () => abrirTarjeta() }, '📸 Tarjeta para redes'),
-      can('pedidos.ver') ? h('button.btn.sm', { onclick: () => go('tv') }, '📺 Pantalla TV del taller') : null,
+      can('productos.ver') ? h('button.btn.sm', { onclick: () => go('estudio') }, '📸 Biouvision') : null, // v13.10: en lugar de la Pantalla TV
       h('button.btn.sm.ghost', { onclick: () => confeti(), title: 'Solo por diversión' }, '🎊')));
 }
