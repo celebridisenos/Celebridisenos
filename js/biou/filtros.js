@@ -30,7 +30,13 @@ export async function carpetaRecursos() {
   const g = await desktop.getConfig('biou.recursos'); if (g) return g;
   try { // se busca «RECURSOS» subiendo desde la carpeta de las copias (…\CELEBRIDISENOS\00_SISTEMA\…)
     const info = await desktop.info(); let p = String((info && info.backupDir) || '');
-    for (let i = 0; i < 5 && p; i++) { p = padre(p); try { const l = await desktop.list(p); const r = (l.entries || []).find(x => x.type === 'dir' && /^recursos$/i.test(x.name)); if (r) return r.path; } catch (e) { } }
+    const busca = async q => { try { const l = await desktop.list(q); const r = (l.entries || []).find(x => x.type === 'dir' && /^recursos$/i.test(x.name)); return r ? r.path : ''; } catch (e) { return ''; } };
+    for (let i = 0; i < 5 && p; i++) {
+      p = padre(p); const r = await busca(p); if (r) return r;
+      // v15.0: las copias están en …\AppData\Local\CelebriDisenos: la carpeta del negocio suele estar en el Escritorio
+      const s = sep(p);
+      for (const esc of ['Desktop', 'Escritorio', 'OneDrive' + s + 'Desktop', 'OneDrive' + s + 'Escritorio']) { const r2 = await busca(p + s + esc + s + 'CELEBRIDISENOS'); if (r2) return r2; }
+    }
   } catch (e) { }
   return '';
 }
