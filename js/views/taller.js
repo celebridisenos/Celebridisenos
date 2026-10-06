@@ -342,7 +342,7 @@ export function finishDialog(j, estado) {
     h('div.form', field(ok ? 'Gramos usados' : 'Gramos gastados en el intento', grams, ok ? 'Los del laminador; corrígelo si hiciste cambios.' : 'Aproximado: lo que llegó a imprimir.'), field('De qué bobina', bob)),
     rateSeg, badBox,
     stockRow,
-    ok && o && !others.length && PRE_FAB[phase(o)] ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "' + (CL.stateOfPhase(S.cfg.pedidos, 'postpro') || 'Postprocesado') + '"') : null,
+    ok && o && !others.length && PRE_FAB[phase(o)] ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "' + (CL.stateOfPhase(S.cfg.pedidos, 'postpro') || 'Acabado') + '"') : null,
     ok && o && others.length ? h('p.tiny.muted', 'Al pedido nº ' + o.numero + ' aún le quedan ' + others.length + ' impresión(es).') : null,
     !ok ? h('label.check.small', again, 'Volver a ponerla la primera de la cola') : null),
     close => [btn('Cancelar', close), btn(ok ? 'Guardar' : 'Guardar fallo', async () => {

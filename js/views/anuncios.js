@@ -24,8 +24,12 @@ export function render(el, params) {
   const pick = sel([{ v: '', t: '— Elige un producto —' }].concat(prods.map(p => ({ v: p.id, t: p.nombre + ' · ' + (p.sku || p.id) }))), '');
   const plat = sel(PLATS.map(([v, t]) => ({ v, t })), acfg().plataforma || 'etsy');
   mount(el, h('div.page-head', h('div', h('h1', '🪄 Anuncios con IA'), h('div.muted.small', 'Prepara anuncios listos para Etsy, Wallapop o Vinted con los datos reales del producto. Nunca inventa: lo que falta te lo pregunta.'))),
-    can('productos.editar') ? h('div.card', h('h3', 'CREAR ANUNCIO CON IA'), h('div.row.wrap', { style: { gap: '10px' } }, h('div.grow', { style: { minWidth: '260px' } }, pick), plat,
-      btn('Empezar', () => { if (!pick.value) return toast('Elige un producto', 'warn'); go('anuncios/' + pick.value + '/' + plat.value); }, { cls: 'primary', icon: 'sparkles' }))) : null,
+    // v13.10: lo sencillo primero — una pregunta y sale una descripción corta
+    h('div.card.dq-card', h('div.row.wrap', { style: { gap: '10px', alignItems: 'center' } }, h('div.grow', h('h3', { style: { margin: 0 } }, '✨ Descripción rápida'), h('p.small.muted', { style: { margin: '2px 0 0' } }, '¿Qué vas a vender? Escríbelo (y añade la foto si quieres) y sale una descripción corta al momento.')),
+      btn('✨ Crear descripción', () => import('../descripcion.js').then(D => D.rapida()), { cls: 'primary' }))),
+    (() => { const box = h('div', { style: { marginTop: '12px' } }); import('../consejos.js').then(C => box.append(C.tarjetaConsejo())); return box; })(), // v13.10: consejos por plataforma
+    can('productos.editar') ? h('details.more', h('summary', 'Asistente completo por plataforma (avanzado)'), h('div.in', h('div.card', h('h3', 'CREAR ANUNCIO CON IA'), h('div.row.wrap', { style: { gap: '10px' } }, h('div.grow', { style: { minWidth: '260px' } }, pick), plat,
+      btn('Empezar', () => { if (!pick.value) return toast('Elige un producto', 'warn'); go('anuncios/' + pick.value + '/' + plat.value); }, { cls: 'primary', icon: 'sparkles' }))))) : null,
     list.length ? h('div.table-wrap', { style: { marginTop: '14px' } }, h('table.t', h('thead', h('tr', h('th', 'Producto'), h('th', 'Plataforma'), h('th', 'Estado'), h('th.hide-m', 'Título'), h('th.hide-m', 'Versión'), h('th.hide-m', 'Publicado'))),
       h('tbody', list.slice().sort((a, b) => String(b.actualizado).localeCompare(String(a.actualizado))).map(a => h('tr', { onclick: () => go('anuncios/' + a.productoId + '/' + a.plataforma), style: { cursor: 'pointer' } },
         h('td.bold', a.producto), h('td', (PLATS.find(x => x[0] === a.plataforma) || [0, a.plataforma])[1]), h('td', pill(a.estado, EST_CLS[estOf(a)])), h('td.hide-m.small', a.titulo), h('td.hide-m', 'v' + a.version), h('td.hide-m.small', a.publicado ? fdt(a.publicado) : '—')))))) :

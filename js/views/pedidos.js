@@ -5,6 +5,9 @@ import { go, handleError, requestAccess } from '../app.js';
 import { filesSection, filesOf } from '../files.js';
 import * as EV from '../envio.js';
 import * as ENV from '../envases.js';
+import { miniPedido } from '../fotopedido.js'; // v13.10: foto de lo que pidió el cliente
+import * as COL from '../colores.js'; // v14.1: selector de colores
+import { cuentaSelect, cuentasVenta } from '../cuentas.js'; // v14.1: desde qué cuenta se vendió
 
 const CL = window.CL;
 // v11: los filtros van por FASE (no por nombre de estado) y lo terminado hace +30 días se archiva solo
@@ -16,7 +19,7 @@ const PRESETS = [
   { k: 'reservas', t: 'Reservas', f: o => ph(o) === 'reserva' },
   { k: 'fabricar', t: 'Por imprimir', f: o => ph(o) === 'confirmado' },
   { k: 'fabricando', t: 'Imprimiendo', f: o => ph(o) === 'impresion' },
-  { k: 'postpro', t: 'Postprocesado', f: o => ph(o) === 'postpro' },
+  { k: 'postpro', t: 'Acabado', f: o => ph(o) === 'postpro' },
   { k: 'empaquetar', t: 'Empaquetar', f: o => ph(o) === 'empaquetar' },
   { k: 'enviar', t: 'Por enviar', f: o => ph(o) === 'listo' },
   { k: 'enviados', t: 'Enviados', cls: 'ok', f: o => ph(o) === 'enviado' },
@@ -68,7 +71,7 @@ export function render(el, params) {
     const pr = PRESETS.find(p => p.k === st.preset) || PRESETS[0];
     return S.t.pedidos.map(o => ({ o, t: timing(o) })).filter(({ o, t }) => {
       if (!pr.f(o, t)) return false;
-      if (st.q && !CL.matches([o.numero, o.cliente, o.producto, o.seguimiento, o.notas, o.color, o.personalizacion, o.canal, o.envio, o.responsable].join(' '), st.q.replace(/^#/, ''))) return false;
+      if (st.q && !CL.matches([o.numero, o.cliente, o.producto, o.seguimiento, o.notas, o.color, o.personalizacion, o.canal, o.cuenta, o.envio, o.responsable].join(' '), st.q.replace(/^#/, ''))) return false;
       if (st.estado && o.estado !== st.estado) return false;
       if (st.canal && o.canal !== st.canal) return false;
       if (st.resp === '__none' ? !!o.responsable : (st.resp && o.responsable !== st.resp)) return false;
@@ -117,22 +120,26 @@ export function render(el, params) {
     const resumen = items => { const c = {}; items.forEach(({ o }) => { c[o.estado] = (c[o.estado] || 0) + 1; }); return Object.keys(c).map(k => pill((c[k] > 1 ? c[k] + ' · ' : '') + k, '', stateColor(k))); };
     const urgente = items => items.map(x => x.t).filter(t => t.abierto && t.limite).sort((a, b) => a.limite.localeCompare(b.limite))[0];
     const mRow = ({ o, t }, hijo) => h('div.item' + (hijo ? '.cli-hijo' : ''), { onclick: () => go('pedidos/' + o.id) },
+      miniPedido(o, 46),
       h('div.grow', h('div.row', h('b', 'nº ' + o.numero), hijo ? null : h('span.ellipsis.grow', o.cliente), o.prioridad === 'Urgente' ? pill('Urgente', 'bad') : null),
-        h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto),
+        h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null, o.cuenta ? h('span.cv-mini', ' · ' + o.cuenta) : null),
         h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t))),
       h('div.bold', eur(CL.orderTotal(o))));
     const tRow = ({ o, t }, hijo) => h('tr' + (hijo ? '.cli-hijo' : ''), { onclick: () => go('pedidos/' + o.id) },
       h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
       h('td.nowrap', fdate(o.fecha)), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
-      h('td', h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto)),
+      h('td', h('div.row.fp-prod', { style: { gap: '8px', alignItems: 'center', flexWrap: 'nowrap' } }, miniPedido(o, 34), h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null))),
       h('td', pill(o.estado, '', stateColor(o.estado))), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
-      h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—')));
+      h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—'), o.cuenta && o.cuenta.split(' · ')[1] ? h('div.tiny.muted', o.cuenta.split(' · ')[1]) : null));
     const cliTitle = g => (g.items[0].o.cliente || '—');
+    // v13.10: «Un paquete, un QR»: junta los pedidos abiertos del cliente en un envío conjunto e imprime UN solo QR para todos
+    const abiertosG = g => g.items.map(x => x.o).filter(o => ['reserva', 'confirmado', 'impresion', 'postpro', 'empaquetar', 'listo'].includes(ph(o)) && CL.necesitaEnvio(o));
+    const unQr = g => can('pedidos.editar') && abiertosG(g).length > 1 ? btn('📦 1 paquete · 1 QR', ev => { ev.stopPropagation(); unPaquete(abiertosG(g)); }, { cls: 'sm', title: 'Juntar sus pedidos en un solo paquete con un solo QR' }) : null;
     const body = mobile
       ? h('div.list.boxed', shownG.map(g => g.items.length === 1 ? mRow(g.items[0]) : [
           h('div.item.cli-grupo', { onclick: () => toggle(g.k), 'aria-expanded': String(abierto(g.k)) },
             h('div.grow', h('div.row', h('span', abierto(g.k) ? '▾' : '▸'), h('b.ellipsis.grow', '👤 ' + cliTitle(g)), h('span.cli-n', String(g.items.length))),
-              h('div.row.wrap', { style: { marginTop: '4px', gap: '6px' } }, resumen(g.items), urgente(g.items) ? dueBadge(urgente(g.items)) : null)),
+              h('div.row.wrap', { style: { marginTop: '4px', gap: '6px' } }, resumen(g.items), urgente(g.items) ? dueBadge(urgente(g.items)) : null, unQr(g))),
             h('div.bold', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0)))),
           abierto(g.k) ? g.items.map(x => mRow(x, true)) : null]))
       : h('div.table-wrap', h('table.t', h('thead', h('tr', ['Nº', 'Fecha', 'Cliente', 'Producto', 'Estado', 'Plazo', 'Importe', 'Responsable', 'Canal'].map(x => h('th', x)))),
@@ -140,12 +147,12 @@ export function render(el, params) {
             h('tr.cli-grupo', { onclick: () => toggle(g.k), 'aria-expanded': String(abierto(g.k)) },
               h('td.nowrap', abierto(g.k) ? '▾' : '▸'), h('td', ''),
               h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, '👤 ' + cliTitle(g), h('span.cli-n', String(g.items.length)))),
-              h('td.small.muted', g.items.length + ' pedidos · pulsa para verlos'),
+              h('td.small.muted', g.items.length + ' pedidos · pulsa para verlos ', unQr(g)),
               h('td', h('div.row.wrap', { style: { gap: '4px' } }, resumen(g.items))), h('td', urgente(g.items) ? dueBadge(urgente(g.items)) : null),
               h('td.nowrap', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0))), h('td', ''), h('td', '')),
             abierto(g.k) ? g.items.map(x => tRow(x, true)) : null]))));
     mount(listBox, h('div.row.small.muted', { style: { margin: '0 0 8px' } }, h('span', rows.length + (rows.length === 1 ? ' pedido' : ' pedidos')), can('informes.ver') ? h('span', '· ' + eur(total)) : null,
-        ['enviar', 'empaquetar'].includes(st.preset) && rows.length ? btn('Imprimir etiquetas (' + rows.length + ')', () => printLabels(rows.map(x => x.o)), { cls: 'sm ghost', icon: 'printer' }) : null),
+        ['enviar', 'empaquetar'].includes(st.preset) && rows.length ? btn('Imprimir etiquetas (' + rows.length + ')', () => EV.etiquetasEnvio(rows.map(x => x.o)), { cls: 'sm ghost', icon: 'printer' }) : null),
       body, grupos.length > st.limit ? h('div.pager', btn('Mostrar más (' + (grupos.length - st.limit) + ')', () => { st.limit += 100; drawList(); })) : null);
   }
   let openId = null, dr = null;
@@ -208,7 +215,7 @@ export function orderDrawer(id, onClose) {
       if (!tabs.some(x => x[0] === tab)) tab = 'resumen';
       const body = h('div');
       mount(d,
-        h('div.drawer-h', h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
+        h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
           btn('', closeAll, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
         h('div.drawer-b.col', { style: { gap: '14px' } },
           h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k)))),
@@ -228,7 +235,7 @@ export function orderDrawer(id, onClose) {
           body,
           h('div.row.wrap', { style: { marginTop: '10px', borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             editable ? btn('Editar', () => orderForm(o), { icon: 'edit' }) : null,
-            btn('Etiqueta propia', () => labelDialog(o), { icon: 'printer', title: 'Etiqueta de dirección hecha por el programa (no la oficial de la plataforma)' }),
+            !t.cancelado ? btn('🏷️ Etiqueta de envío', () => EV.etiquetaEnvio(o, draw), { title: 'La etiqueta que adjuntaste (Vinted, Wallapop, Correos…), tal cual' }) : null,
             btn('Mensaje', () => messageDialog(o), { icon: 'msg' }),
             can('facturas.emitir') ? btn(o.factura ? 'Factura ' + o.factura : 'Factura', () => import('./facturas.js').then(m => m.invoiceForm(o)), { icon: 'file' }) : null,
             h('span.grow'),
@@ -237,6 +244,7 @@ export function orderDrawer(id, onClose) {
               can('taller.editar') && t.abierto && !t.enviado ? { t: 'Imprimir en 3D', icon: 'cube', on: () => import('./taller.js').then(m => m.jobForm(null, o)) } : null,
               can('pedidos.crear') ? { t: 'Duplicar', icon: 'copy', on: () => orderForm(Object.assign({}, o, { id: '', numero: '', fecha: '', estado: '', seguimiento: '', fechaEnvio: '', fechaEntrega: '', incidencia: '' }), true) } : null,
               can('pedidos.editar') ? { t: o.regalo && o.regalo.token ? 'Regalo con QR ✓' : 'Regalo con QR', icon: 'gift', on: () => import('../regalo.js').then(m => m.giftDialog(o)) } : null,
+              editable ? { t: '🎥 Prueba de empaquetado (vídeo)', icon: 'camera', on: () => import('./embalaje.js').then(E => E.captureSaleProof(o, { suelta: true })) } : null, // v14.1: cuando quieras, sin obligar
               { t: 'Etiqueta QR del pedido', icon: 'printer', on: () => import('../labels.js').then(L => L.labelDialog('qr', [L.dataFor('qr', { tipo: 'pedido', id: o.id, titulo: 'Pedido nº ' + o.numero })])) },
               can('pedidos.borrar') ? { t: 'Borrar', icon: 'trash', danger: true, on: () => delOrder(o, closeAll) } : { t: 'Borrar (pedir permiso)', icon: 'lock', on: () => requestAccess('pedidos.borrar', 'pedidos', 'Borrar pedido nº ' + o.numero) }
             ]))));
@@ -254,9 +262,9 @@ const TABS = {
       fact('Cliente', c ? h('a', { href: '#/clientes/' + c.id }, o.cliente) : na(o.cliente)),
       fact('Producto', o.productoId && byId('productos', o.productoId) ? h('a', { href: '#/productos/' + o.productoId }, o.producto) : na(o.producto)),
       fact('Cantidad', na(o.cantidad)), fact('Precio unidad', eur(o.precio)), fact('Total', h('b', eur(CL.orderTotal(o)))),
-      fact('Canal / tienda', na(o.canal)), fact('Responsable', na(o.responsable, 'Sin asignar')), fact('Prioridad', o.prioridad || 'Normal')),
+      fact('Canal / tienda', na(o.canal)), o.cuenta ? fact('Cuenta de venta', h('b', o.cuenta)) : null, fact('Responsable', na(o.responsable, 'Sin asignar')), fact('Prioridad', o.prioridad || 'Normal')),
       h('h4', { style: { margin: '16px 0 8px' } }, 'Personalización'),
-      h('dl.kv', h('dt', 'Color'), h('dd', na(o.color)), h('dt', 'Personalización'), h('dd', na(o.personalizacion))),
+      h('dl.kv', h('dt', 'Color'), h('dd', o.color ? h('span', COL.muestras(o.color), ' ', o.color) : na(o.color)), h('dt', 'Personalización'), h('dd', na(o.personalizacion))),
       o.incidencia ? h('div.card.flat', { style: { background: 'var(--bad-soft)', marginTop: '12px' } }, h('b.bad-t', '⚠️ Incidencia'), h('p', o.incidencia)) : null,
       h('h4', { style: { margin: '16px 0 8px' } }, 'Notas'), o.notas ? h('p', { style: { whiteSpace: 'pre-wrap' } }, o.notas) : h('p.na', 'Sin notas'),
       cs ? h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row', h('b', 'Sobre ' + c.nombre), h('span.tiny.muted', cs.pedidos + ' pedidos · ' + eur(cs.gasto))), h('div.tags', { style: { marginTop: '6px' } }, cs.etiquetas.map(e => pill(e.i + ' ' + e.t, 'brand')))) : null);
@@ -376,7 +384,7 @@ export async function changeState(o, estado, extra) {
     o = byId('pedidos', o.id) || o;
     if (EV.statusOf(o, 'paquete').estado !== 'Impreso') {
       const g = EV.grupoDe(o);
-      if (!await confirmDlg('Bobina 50 × 50 mm', 'Coloca la bobina de 50 × 50 mm. Se imprimirá el QR interno ' + (g.length > 1 ? 'del envío conjunto (nº ' + CL.numerosGrupo(g) + ')' : 'de este pedido') + '.', 'Bobina puesta')) return false;
+      if (!await EV.bobinaPaquete('Se imprimirá el QR interno ' + (g.length > 1 ? 'del envío conjunto (nº ' + CL.numerosGrupo(g) + ')' : 'de este pedido') + '.')) return false;
       try { const r = await EV.printOne(o, 'paquete'); if (!r || r.estado !== 'Impreso') return false; }
       catch (e) { toast('No se pudo imprimir el QR interno: ' + e.message, 'bad', 8000); return false; }
     }
@@ -393,7 +401,7 @@ export async function changeState(o, estado, extra) {
     if (atras.length && !await confirmDlg('Envío conjunto sin terminar', 'En este paquete también va ' + atras.map(p => 'el nº ' + p.numero + ' (' + p.estado + ')').join(', ') + '. ¿Cerrar el paquete igualmente?', 'Sí, cerrar el paquete')) return false;
   }
   // Cualquier acceso (Hoy, escáner, ficha o cambio manual) guarda la PRUEBA DE EMPAQUETADO antes de cerrar (una por paquete).
-  if (cierra && editor && !pruebaLista) {
+  if (cierra && editor && !pruebaLista && (S.cfg.embalaje || {}).pedirPrueba !== false) { // v14.1: se ofrece, no se exige («Seguir sin vídeo»)
     const EM = await import('./embalaje.js');
     if (!await EM.captureSaleProof(o)) return false;
   }
@@ -564,7 +572,7 @@ function stockHint(name, o) {
 }
 
 // ---------- Formulario (nuevo / editar) ----------
-export function orderForm(o, duplicate) {
+export function orderForm(o, duplicate, opts = {}) {
   const isNew = !o || !o.id;
   o = o || {};
   const cfg = S.cfg.pedidos;
@@ -579,7 +587,8 @@ export function orderForm(o, duplicate) {
     plazoDias: inp({ type: 'number', min: 0, max: 365, value: o.plazoDias ?? cfg.plazoDias }),
     prioridad: sel(['Normal', 'Urgente'], o.prioridad || 'Normal'),
     responsable: sel([{ v: '', t: 'Sin asignar' }].concat(S.t.usuarios.filter(u => u.activo).map(u => ({ v: u.nombre, t: u.nombre }))), o.responsable || ''),
-    color: inp({ value: o.color || '', placeholder: 'Ej.: rosa pastel' }),
+    color: { value: o.color || '' }, // v14.1: lo rellena el selector de colores
+    cuenta: cuentaSelect(o.cuenta || '', o.canal || ''),
     personalizacion: area({ value: o.personalizacion || '', placeholder: 'Nombre grabado, medidas, dedicatoria…', style: { minHeight: '64px' } }),
     notas: area({ value: o.notas || '', style: { minHeight: '64px' } }),
     numero: inp({ value: isNew ? '' : o.numero || '', placeholder: 'Automático' }),
@@ -590,6 +599,11 @@ export function orderForm(o, duplicate) {
     obsEnvio: area({ value: o.obsEnvio || '', maxlength: 500, placeholder: 'Ej.: entregar por la tarde · frágil', style: { minHeight: '48px' } }),
     entregaEstimada: inp({ type: 'date', value: o.entregaEstimada || '' })
   };
+  const prodDe = () => S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value)) || null;
+  const colSel = COL.selector({ valor: o.color || '', producto: prodDe(), cantidad: () => Number(f.cantidad.value) || 1, alCambiarCantidad: n => { f.cantidad.value = n; f.cantidad.dispatchEvent(new Event('input')); }, onChange: t => { f.color.value = t; } });
+  f.producto.addEventListener('change', () => colSel.setProducto(prodDe()));
+  // al elegir la cuenta, el canal se pone solo (Vinted, Wallapop…)
+  f.cuenta.addEventListener('change', () => { const c = cuentasVenta().find(x => x.id === f.cuenta.selectedOptions[0]?.dataset.id); if (c && (S.cfg.pedidos.canales || []).includes(c.plataforma)) { f.canal.value = c.plataforma; f.canal.dispatchEvent(new Event('input')); } });
   const limitTxt = h('span.small.muted');
   const clientInfo = h('div.small.muted');
   const costs = can('productos.costes') ? costsEditor(o) : null;
@@ -607,11 +621,14 @@ export function orderForm(o, duplicate) {
     if (p && !f.precio.value) { const calc = S.t.calculadora.find(c => c.nombre === p.nombre); const pr = p.precio || (calc && calc.precioVenta) || ''; if (pr) f.precio.value = pr; }
   };
   // ---- Asistente de precio: coste, beneficio, margen y descuento con los datos reales ----
+  // v13.9/13.10: EMBALAJE DEL PEDIDO al principio: lo que cuesta se suma al precio recomendado
+  const envW = ENV.widget(o, { onChange: () => { if (typeof updAssist === 'function') updAssist(); } });
   const assist = h('div.price-assist');
   const updAssist = () => {
     if (!f.producto.value.trim()) { mount(assist, null); return; }
     const p = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value));
-    const a = CL.orderAssist({ id: o.id, producto: f.producto.value, productoId: p ? p.id : '', cliente: f.cliente.value, cantidad: f.cantidad.value, precio: f.precio.value }, S.t, S.cfg, S.hoy);
+    const ev0 = envW.value();
+    const a = CL.orderAssist({ id: o.id, producto: f.producto.value, productoId: p ? p.id : '', cliente: f.cliente.value, cantidad: f.cantidad.value, precio: f.precio.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy);
     const costs = can('productos.costes');
     const pc = x => x === null || x === undefined ? '—' : Math.round(x * 100) + ' %';
     const box = (l, v, cls) => h('div.pi-k' + (cls ? '.' + cls : ''), h('span.l', l), h('span.v', v));
@@ -633,6 +650,7 @@ export function orderForm(o, duplicate) {
           price ? h('i.cur.' + (a.sugerencia ? a.sugerencia.nivel : ''), { style: { left: pos(price) }, title: 'Precio acordado' }) : null),
         h('div.lbls', costs && a.minimo ? h('span', { style: { left: pos(a.minimo) } }, 'mín. ' + e0(a.minimo)) : null, h('span.b', { style: { left: 'calc((' + pos(rg[0]) + ' + ' + pos(rg[1]) + ') / 2)' } }, e0(rg[0]) + ' – ' + e0(rg[1])))) : null,
       a.sugerencia ? h('div.pi-tip.' + a.sugerencia.nivel, a.sugerencia.nivel === 'ok' ? '✓ ' : a.sugerencia.nivel === 'bad' ? '⛔ ' : '💡 ', costs || a.sugerencia.nivel !== 'bad' ? a.sugerencia.texto : 'Precio muy bajo para este producto.') : !costs || a.coste !== null ? null : h('div.pi-tip.warn', 'Este producto no tiene costes guardados: añádelos para saber el beneficio.'),
+      a.embalaje ? h('div.tiny', '📦 Embalaje: ' + a.embalaje.lineas.map(l => l.nombre + (l.unidad === 'm' ? ' ' + String(l.cantidad).replace('.', ',') + ' m' : '')).join(' + ') + ' = ' + eur(a.embalaje.total) + ' · ya está sumado al coste y al recomendado') : null,
       a.anteriorCliente ? h('div.tiny.muted', 'Este cliente pagó ' + eur(a.anteriorCliente) + ' la última vez.') : a.anterior ? h('div.tiny.muted', 'Último precio de venta: ' + eur(a.anterior) + ' (' + a.ventasPrevias + ' ventas).') : null,
       a.notas.map(n => h('div.tiny', '💡 ' + n)),
       costs ? a.avisos.filter(x => !/margen bajo/i.test(x)).map(n => h('div.tiny.warn-t', n)) : null,
@@ -647,28 +665,29 @@ export function orderForm(o, duplicate) {
   f.cliente.addEventListener('input', () => { updClient(); updAssist(); }); f.producto.addEventListener('change', () => { updPrice(); updAssist(); });
   [f.producto, f.cantidad, f.precio].forEach(x => x.addEventListener('input', updAssist));
   updLimit(); updClient();
-  const envW = ENV.widget(o); // v13.9: EMBALAJE DEL PEDIDO (caja / sobre / bolsa + materiales)
+
   const msg = h('p.bad-t');
   const labelFile = h('input', { type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp' });
   const body = h('div.col', dlC, dlP,
-    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full', assist),
-      field('Canal / tienda', f.canal), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
-    h('div.card.flat', { style: { margin: '4px 0' } }, envW.el),
-    h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Color', f.color), h('div'), field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
+    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full.card.flat', { style: { margin: '2px 0' } }, envW.el), h('div.full', assist),
+      field('Cuenta de venta', f.cuenta, cuentasVenta().length ? 'Desde qué cuenta lo vendiste: sale en la etiqueta del paquete.' : 'Añade tus cuentas (Vinted, Wallapop…) en Configuración → Mis cuentas de venta.'), field('Canal / tienda', f.canal),
+      h('div.full', h('div.lbl', '🎨 Color'), colSel.el), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
+    h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
     h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada), field('Dirección de envío (este pedido)', f.direccionEnvio, 'Solo para este paquete. La ficha del cliente no cambia.'), field('Observaciones del envío', f.obsEnvio))),
     h('details.more', { open: isNew }, h('summary', 'Etiqueta de envío'), h('div.in', isNew
       ? h('div.col', { style: { gap: '6px' } }, labelFile, h('p.tiny.muted', 'Opcional: la etiqueta oficial que te da Vinted, InPost, Correos… (PDF o foto). Si aún no la tienes, la adjuntas después desde el pedido o al empaquetar. Nunca se inventa.'))
       : EV.labelRow(o, () => { }))),
     costs ? h('details.more', h('summary', 'Costes reales del pedido (envío, comisión, caja…)'), h('div.in', costs.el)) : null,
     msg);
-  const m = modal(isNew ? 'Nuevo pedido' : 'Editar pedido nº ' + o.numero, body, close => [btn('Cancelar', close), btn(isNew ? 'Crear pedido' : 'Guardar cambios', async (ev) => {
+  let otroMas = false; // v14.1: «Crear y añadir otro producto» (mismo cliente, misma cuenta y mismo envío)
+  const m = modal(isNew ? 'Nuevo pedido' : 'Editar pedido nº ' + o.numero, body, close => [btn('Cancelar', close), isNew ? btn('➕ Crear y añadir otro producto', ev => { otroMas = true; ev.currentTarget.nextSibling.click(); }, { cls: 'ghost', title: 'Otro producto para el mismo cliente (luego van en un solo paquete)' }) : null, btn(isNew ? 'Crear pedido' : 'Guardar cambios', async (ev) => {
     msg.textContent = '';
     const datos = {};
     Object.keys(f).forEach(k => { let v = f[k].value; if (typeof v === 'string') v = v.trim(); if (['cantidad', 'precio', 'plazoDias'].includes(k) && v !== '') v = Number(v); datos[k] = v; });
-    if (!datos.cliente) return msg.textContent = 'Indica el cliente.';
-    if (!datos.producto) return msg.textContent = 'Indica el producto.';
-    if (!(datos.cantidad > 0)) return msg.textContent = 'La cantidad debe ser mayor que 0.';
-    const envErr = envW.error(); if (envErr) { envW.el.scrollIntoView({ block: 'center' }); return msg.textContent = envErr; }
+    if (!datos.cliente) { otroMas = false; return msg.textContent = 'Indica el cliente.'; }
+    if (!datos.producto) { otroMas = false; return msg.textContent = 'Indica el producto.'; }
+    if (!(datos.cantidad > 0)) { otroMas = false; return msg.textContent = 'La cantidad debe ser mayor que 0.'; }
+    const envErr = envW.error(); if (envErr) { otroMas = false; envW.el.scrollIntoView({ block: 'center' }); return msg.textContent = envErr; }
     if (!datos.numero) delete datos.numero;
     if (costs) Object.assign(datos, costs.value());
     const b = ev.target.closest('button'); b.disabled = true;
@@ -687,9 +706,12 @@ export function orderForm(o, duplicate) {
         if (r && r.id) { upsertLocal('pedidos', r); emit(); }
         toast(r && r.queued ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : 'Pedido nº ' + r.numero + ' creado', r && r.queued ? 'warn' : 'ok', 6000, r && r.id ? { t: 'Abrir', on: () => go('pedidos/' + id) } : null);
         if (r && r.id) setTimeout(() => profitWarn(byId('pedidos', id)), 1200);
-        if (lf && r && r.id && !r.queued) EV.attachFile(byId('pedidos', id) || r, lf, { transportista: datos.envio || '' }).then(() => toast('🏷️ Etiqueta de envío adjuntada', 'ok')).catch(e => toast('El pedido se ha creado, pero la etiqueta no se pudo adjuntar: ' + e.message + '. Adjúntala desde el pedido.', 'warn', 9000));
+        if (lf && r && r.id && !r.queued) EV.leerEtiqueta(lf, lf.name).then(L => EV.attachFile(byId('pedidos', id) || r, lf, { transportista: datos.envio || L.transportista || '', seguimiento: datos.seguimiento ? '' : (L.seguimientos[0] || '') }))
+          .then(() => toast('🏷️ Etiqueta de envío adjuntada', 'ok', 9000, { t: '🖨️ Imprimir ya', on: () => EV.printOne(byId('pedidos', id), 'oficial').catch(e => toast(e.message, 'bad')) })).catch(e => toast('El pedido se ha creado, pero la etiqueta no se pudo adjuntar: ' + e.message + '. Adjúntala desde el pedido.', 'warn', 9000));
         else if (lf) toast('Sin conexión: adjunta la etiqueta desde el pedido cuando vuelva la conexión.', 'warn', 8000);
         if (location.hash.startsWith('#/pedidos/nuevo')) go('pedidos');
+        if (otroMas) { const base = {}; ['cliente', 'canal', 'cuenta', 'envio', 'direccionEnvio', 'obsEnvio', 'fecha', 'plazoDias', 'prioridad', 'responsable'].forEach(k => { if (datos[k] !== undefined && datos[k] !== '') base[k] = datos[k]; }); setTimeout(() => orderForm(base, true, { otro: true }), 250); }
+        if (opts.alCrear && r && r.id) opts.alCrear(r);
       } else {
         if (envW.changed()) Object.assign(datos, ENV.datosPedido(envW.value(), o)); // (solo si se ha cambiado)
         const ch = {}; Object.keys(datos).forEach(k => { const a = datos[k], b0 = o[k]; if (typeof a === 'object' ? JSON.stringify(a || []) !== JSON.stringify(b0 || []) : String(a ?? '') !== String(b0 ?? '')) ch[k] = a; });
@@ -700,4 +722,18 @@ export function orderForm(o, duplicate) {
   }, { cls: 'primary' })], { size: 'wide' });
   updAssist();
   setTimeout(() => { if (!m.el.contains(document.activeElement) || document.activeElement === f.cliente && !f.cliente.value) (o.cliente ? f.producto : f.cliente).focus(); }, 50);
+}
+
+// v13.10 · Un cliente con varios pedidos → un solo paquete y un solo QR (con todos los números). Si ya hay un QR impreso, se reutiliza.
+export async function unPaquete(lista) {
+  const ords = lista.map(o => byId('pedidos', o.id) || o);
+  const yaQr = ords.find(o => EV.statusOf(o, 'paquete').estado === 'Impreso');
+  const pr = yaQr ? EV.principalDe(yaQr) : ords.slice().sort((a, b) => String(a.numero).localeCompare(String(b.numero), 'es', { numeric: true }))[0];
+  const g = await EV.juntar(pr, ords.filter(o => o.id !== pr.id));
+  const p0 = byId('pedidos', g[0].id) || g[0];
+  if (EV.statusOf(p0, 'paquete').estado === 'Impreso') { toast('📦 Ya tenían su QR: ahora el mismo QR vale para los ' + g.length + ' pedidos (nº ' + CL.numerosGrupo(g) + ').', 'ok', 7000); return g; }
+  if (!await EV.bobinaPaquete('Se imprimirá UN solo QR para los ' + g.length + ' pedidos de ' + (p0.cliente || 'este cliente') + ' (nº ' + CL.numerosGrupo(g) + ').')) return g;
+  if (EV.formatoPaquete() === 'largo') toast('🏷️ Una sola etiqueta (100 × 150) para los ' + g.length + ' pedidos de ' + (p0.cliente || 'este cliente') + ' (nº ' + CL.numerosGrupo(g) + ')', 'ok', 6000);
+  try { await EV.printOne(p0, 'paquete'); } catch (e) { toast('No se pudo imprimir el QR: ' + e.message, 'bad', 8000); }
+  return g;
 }

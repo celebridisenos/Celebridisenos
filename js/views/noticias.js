@@ -21,9 +21,17 @@ export function render(el, params) {
   search.addEventListener('input', debounce(() => { st.q = search.value; drawFeed(); }, 150));
   const fTipo = sel([{ v: '', t: 'Todas' }].concat(TIPOS), ''); fTipo.addEventListener('change', () => { st.tipo = fTipo.value; drawFeed(); });
   const feed = h('div.col', { style: { gap: '14px' } });
-  el.append(h('div.page-head', h('h1', 'Noticias'), can('noticias.publicar') ? btn('Publicar', () => postForm(), { cls: 'primary', icon: 'plus' }) : null),
-    h('div.row.wrap', { style: { marginBottom: '14px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fTipo)),
+  // v13.10: dos pestañas — 🌍 Actualidad (titulares reales de Google Noticias por temas) y 👥 Del equipo (el tablón de siempre)
+  const actBox = h('div.act'), equipoBox = h('div.not-equipo');
+  let tab = (() => { try { return localStorage.getItem('cd.noticias.tab') || 'actualidad'; } catch (e) { return 'actualidad'; } })();
+  const tabs = h('div.seg.not-tabs');
+  const pubBtn = can('noticias.publicar') ? btn('Publicar', () => postForm(), { cls: 'primary', icon: 'plus' }) : null;
+  const ponTab = k => { tab = k; try { localStorage.setItem('cd.noticias.tab', k); } catch (e) { } mount(tabs, [['actualidad', '🌍 Actualidad'], ['equipo', '👥 Del equipo']].map(([v, t]) => h('button' + (tab === v ? '.on' : ''), { type: 'button', 'data-tab': v, onclick: () => ponTab(v) }, t)));
+    actBox.style.display = tab === 'actualidad' ? '' : 'none'; equipoBox.style.display = tab === 'equipo' ? '' : 'none'; if (pubBtn) pubBtn.style.display = tab === 'equipo' ? '' : 'none'; if (tab === 'actualidad') actualidad(actBox); };
+  equipoBox.append(h('div.row.wrap', { style: { marginBottom: '14px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fTipo)),
     h('div', { style: { maxWidth: '760px' } }, feed));
+  el.append(h('div.page-head', h('h1', 'Noticias'), pubBtn), tabs, actBox, equipoBox);
+  ponTab(tab);
   function drawFeed() {
     const now = new Date().toISOString();
     const list = S.t.noticias.filter(n => (!st.tipo || n.tipo === st.tipo) && (!st.q || CL.matches(n.titulo + ' ' + n.texto + ' ' + n.etiquetas + ' ' + n.autor, st.q)))
@@ -57,6 +65,8 @@ export function render(el, params) {
   function applyParams(p) {
     const ps = (p || []).filter(x => x && !x.startsWith('?'));
     const id = ps[0] || '';
+    if (id === 'actualidad' || id === 'equipo') { ponTab(id); return; }
+    if (id && tab !== 'equipo') ponTab('equipo'); // un enlace a una noticia del equipo
     if (id === 'nueva') { history.replaceState(null, '', '#/noticias'); postForm(); }
     else if (id) { st.focus = id; st.comment = ps[1] || ''; }
     drawFeed();
@@ -65,7 +75,7 @@ export function render(el, params) {
   // al abrir Noticias, marcamos como leídas sus notificaciones
   const unread = S.t.notificaciones.filter(n => !n.leida && (n.tipo === 'noticia' || n.tipo === 'comentario' || n.tipo === 'mencion')).map(n => n.id);
   if (unread.length) api('notificaciones.leer', { ids: unread }).then(() => { unread.forEach(id => { const n = byId('notificaciones', id); if (n) n.leida = true; }); emit(); }).catch(() => { });
-  return { params: applyParams, update: drawFeed };
+  return { params: applyParams, update: drawFeed, guardaLoEscrito: true }; // v14.0: este tablón ya conserva el comentario a medias y el cursor al actualizarse
 }
 
 function postSig(n, now, focus) {
@@ -175,4 +185,30 @@ export function postForm(n) {
         close(); toast(datos.publicarEn && datos.publicarEn > new Date().toISOString() ? 'Noticia programada' : 'Publicada 🎉', 'ok');
       } catch (e) { msg.textContent = e.message; b.disabled = false; b.textContent = 'Publicar'; handleError(e); }
     }, { cls: 'primary' })], { size: 'wide' });
+}
+
+// ---------- v13.10 · 🌍 ACTUALIDAD: titulares reales por temas (política, deporte, moda, entretenimiento, arte…) ----------
+let actCat = (() => { try { return localStorage.getItem('cd.noticias.cat') || 'portada'; } catch (e) { return 'portada'; } })();
+const actMem = new Map();
+async function actualidad(box, recargar) {
+  if (box.dataset.cargando === '1') return;
+  const temasDef = [['portada', 'Portada'], ['politica', 'Política'], ['deporte', 'Deporte'], ['moda', 'Moda'], ['entretenimiento', 'Entretenimiento'], ['arte', 'Arte'], ['impresion3d', 'Impresión 3D']];
+  const ICO = { portada: '🗞️', politica: '🏛️', deporte: '⚽', moda: '👗', entretenimiento: '🎬', arte: '🎨', impresion3d: '🖨️' };
+  const chips = h('div.row.wrap.act-chips', { style: { gap: '6px', margin: '10px 0' } }, temasDef.map(([k, t]) => h('button.chip' + (actCat === k ? '.on' : ''), { type: 'button', 'data-cat': k, onclick: () => { actCat = k; try { localStorage.setItem('cd.noticias.cat', k); } catch (e) { } actualidad(box); } }, (ICO[k] || '') + ' ' + t)),
+    h('span.grow'), btn('↻ Actualizar', () => actualidad(box, true), { cls: 'sm ghost' }));
+  const lista = h('div.act-lista');
+  mount(box, chips, lista);
+  const pinta = r => {
+    if (!r.items.length) return mount(lista, h('p.muted', 'Ahora mismo no hay titulares de este tema.'));
+    const abrir = u => import('../desktop.js').then(D => D.desktop.on ? D.desktop.openUrl(u) : window.open(u, '_blank', 'noopener')).catch(() => window.open(u, '_blank', 'noopener'));
+    mount(lista, h('div.tiny.muted', { style: { marginBottom: '6px' } }, 'Google Noticias · actualizado ' + ago(r.actualizado)), r.items.map(x => h('a.card.flat.act-item', { href: x.enlace, target: '_blank', rel: 'noopener', onclick: e => { e.preventDefault(); abrir(x.enlace); } },
+      h('div.act-t', x.titulo), h('div.tiny.muted', [x.fuente, x.fecha ? ago(x.fecha) : ''].filter(Boolean).join(' · ')))));
+  };
+  const mem = actMem.get(actCat);
+  if (mem && !recargar && Date.now() - mem.t < 10 * 60000) return pinta(mem.r);
+  mount(lista, h('div.skeleton', { style: { height: '64px', marginBottom: '8px' } }), h('div.skeleton', { style: { height: '64px', marginBottom: '8px' } }), h('div.skeleton', { style: { height: '64px' } }));
+  box.dataset.cargando = '1';
+  try { const r = await api('actualidad.lista', { cat: actCat, recargar: !!recargar }, { quiet: true, timeout: 30000 }); actMem.set(actCat, { t: Date.now(), r }); pinta(r); }
+  catch (e) { mount(lista, h('div.card.flat', h('p', '📡 ' + (e.code === 'NOT_FOUND' || /desconocida|Acción/i.test(e.message) ? 'Actualiza el servidor (Servidor.gs de la versión 13.10) para ver las noticias de actualidad.' : e.message)), btn('Reintentar', () => actualidad(box, true), { cls: 'sm' }))); }
+  finally { box.dataset.cargando = ''; }
 }

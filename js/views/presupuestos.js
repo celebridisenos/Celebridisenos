@@ -99,17 +99,27 @@ function priceHelper(onUse) {
     costePintado: inp({ type: 'number', min: 0, step: 0.5, value: 0 }), gasto1: sel([''].concat((S.t.gastos || []).map(x => x.nombre)), ''), plat: sel([{ v: 'general', t: 'Venta directa / WhatsApp / Wallapop' }, { v: 'vinted', t: 'Vinted' }, { v: 'etsy', t: 'Etsy' }], 'general') };
   const out = h('div.small');
   let rec = null;
+  // v13.10: ¿cómo lo envías? (sobre / caja / bolsa) → su coste se suma al precio recomendado
+  const sc = CL.simpleCfg((S.cfg.embalaje || {}).simple), envSt = { tipo: '', cinta: true };
+  const envBox = h('div.pz-envio');
+  const envCoste = () => envSt.tipo === 'nada' ? 0 : envSt.tipo ? n(sc.precioEnvase) + (envSt.cinta ? n(sc.cinta) : 0) : null;
+  const drawEnv = () => mount(envBox, h('div.lbl', { style: { fontWeight: 700 } }, '📦 ¿Cómo lo envías?'),
+    h('div.row.wrap', { style: { gap: '6px', marginTop: '4px' } }, [['sobre', '✉️ Sobre'], ['caja', '📦 Caja'], ['bolsa', '🛍️ Bolsa'], ['nada', 'Sin embalaje']].map(([k, t]) =>
+      h('button.chip' + (envSt.tipo === k ? '.on' : ''), { type: 'button', 'data-tipo': k, onclick: () => { envSt.tipo = envSt.tipo === k ? '' : k; drawEnv(); calc(); } }, t + (k !== 'nada' ? ' · ' + eur(sc.precioEnvase) : '')))),
+    envSt.tipo && envSt.tipo !== 'nada' ? h('label.check', { style: { marginTop: '4px' } }, h('input', { type: 'checkbox', checked: envSt.cinta, onchange: e => { envSt.cinta = e.target.checked; calc(); } }), '🧻 Con cinta (' + eur(sc.cinta) + ')') : null);
   const calc = () => {
     const c = { gramos: n(f.gramos.value), horas: n(f.horas.value), horasMO: n(f.horasMO.value), pintado: n(f.costePintado.value) > 0 ? 'Sí' : 'No', costePintado: n(f.costePintado.value), gasto1: f.gasto1.value };
+    const ec = envCoste(); if (ec !== null) c.embalaje = ec;
     if (!c.gramos && !c.horas && !c.horasMO) { mount(out, h('span.muted', 'Rellena gramos y horas.')); rec = null; return; }
     const r = CL.prices(c, pp, gastos);
     rec = r.recomendado[f.plat.value]; const min = r.minimo[f.plat.value];
     mount(out, h('div.profit', h('span.l', 'Coste de fabricación (con IVA)'), h('span.v', eur(r.desglose.costeTotal)), h('span.l', 'Precio recomendado'), h('b.v', eur(rec)), h('span.l', 'Precio mínimo (no bajes de aquí)'), h('span.v', eur(min))),
-      h('p.tiny.muted', 'Filamento ' + eur(r.desglose.filamento) + ' · luz ' + eur(r.desglose.luz) + ' · mano de obra ' + eur(r.desglose.manoObra) + (r.desglose.gastosExtra ? ' · extras ' + eur(r.desglose.gastosExtra) : '') + ' · margen ' + Math.round(n(pp.margen) * 100) + ' %'));
+      h('p.tiny.muted', 'Filamento ' + eur(r.desglose.filamento) + ' · luz ' + eur(r.desglose.luz) + ' · mano de obra ' + eur(r.desglose.manoObra) + (r.desglose.gastosExtra ? ' · extras ' + eur(r.desglose.gastosExtra) : '') + ' · embalaje ' + eur(r.desglose.embalaje) + ' · margen ' + Math.round(n(pp.margen) * 100) + ' %'),
+      envSt.tipo && envSt.tipo !== 'nada' ? h('p.tiny.pz-env-ok', '📦 ' + ({ sobre: 'Sobre', caja: 'Caja', bolsa: 'Bolsa' })[envSt.tipo] + ' ' + eur(sc.precioEnvase) + (envSt.cinta ? ' + cinta ' + eur(sc.cinta) : '') + ' = ' + eur(envCoste()) + ' · ya está sumado al precio recomendado') : null);
   };
   Object.values(f).forEach(x => x.addEventListener('input', calc));
-  calc();
-  modal('🧮 Calcular precio de la pieza', h('div.col', h('div.form', field('Gramos de filamento', f.gramos), field('Horas de impresión', f.horas), field('Horas de mano de obra', f.horasMO, 'Preparar, lijar, montar…'), field('Pintado (€)', f.costePintado), field('Gasto extra', f.gasto1), field('Dónde se vende', f.plat)), out),
+  drawEnv(); calc();
+  modal('🧮 Calcular precio de la pieza', h('div.col', envBox, h('div.form', field('Gramos de filamento', f.gramos), field('Horas de impresión', f.horas), field('Horas de mano de obra', f.horasMO, 'Preparar, lijar, montar…'), field('Pintado (€)', f.costePintado), field('Gasto extra', f.gasto1), field('Dónde se vende', f.plat)), out),
     close => [btn('Cancelar', close), btn('Usar este precio', () => { if (!rec) return toast('Rellena gramos y horas', 'warn'); onUse(rec, { gramos: n(f.gramos.value), horas: n(f.horas.value), horasMO: n(f.horasMO.value) }); close(); }, { cls: 'primary', icon: 'check' })]);
 }
 

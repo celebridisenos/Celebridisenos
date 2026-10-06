@@ -5,9 +5,10 @@
 //   Pasar a producción, Completar, Cancelar. Cada cambio se publica en la tienda al momento y el cliente lo ve.
 // · Abrir un pedido NUEVO lo marca «En revisión» (el cliente ve que lo estamos mirando).
 import { h, mount, btn, modal, drawer, toast, eur, fdt, ago, pill, empty, inp, area, debounce, confirmDlg, icon, copyText } from '../ui.js';
-import { S, can, api, pull, pwFilas, upsertLocal, emit } from '../store.js';
+import { S, can, api, pull, pwFilas, upsertLocal, removeLocal, emit } from '../store.js';
 import { go, handleError } from '../app.js';
 import { sonidoActivo, sonidoPedidoWeb } from '../popups.js';
+import { miniPedido } from '../fotopedido.js'; // v13.10: foto de cada producto pedido
 
 const CL = window.CL;
 const COLOR = { nuevo: '#e0457b', en_revision: '#f59e0b', aprobado: '#10b981', en_espera: '#8b5cf6', procesando: '#3b82f6', completado: '#64748b', rechazado: '#ef4444', cancelado: '#94a3b8' };
@@ -23,7 +24,7 @@ const FILTROS = [
   { k: 'cerrados', t: 'Rechazados / cancelados', f: r => r.efectivo === 'rechazado' || r.efectivo === 'cancelado' },
   { k: 'todos', t: 'Todos', f: () => true }
 ];
-const COM_NOMBRE = { recibido: 'Solicitud recibida', aprobado: 'Pedido aprobado', en_espera: 'En espera', rechazado: 'Rechazado', cancelado: 'Cancelado' };
+const COM_NOMBRE = { recibido: 'Solicitud recibida', aprobado: 'Pedido aprobado', en_espera: 'En espera', enviado: '🚚 En camino (con seguimiento)', rechazado: 'Rechazado', cancelado: 'Cancelado' };
 export const estadoPill = e => { const x = h('span.pw-estado', { 'data-estado': e }, (ICONO[e] || '') + ' ' + (CL.PW_NOMBRE[e] || e).toUpperCase()); x.style.setProperty('--c', COLOR[e] || '#888'); return x; };
 const prods = r => (r.lineas || []).map(l => l.cant + ' × ' + l.nombre).join(', ');
 async function abrirUrl(url) { try { const { desktop } = await import('../desktop.js'); if (desktop.on) return desktop.openUrl(url); } catch (e) { } window.open(url, '_blank', 'noopener'); }
@@ -34,9 +35,10 @@ export function render(el, params) {
   const search = inp({ type: 'search', placeholder: 'Buscar por nº W-…, cliente, email, teléfono o producto…', 'aria-label': 'Buscar pedidos web' });
   search.addEventListener('input', debounce(() => { st.q = search.value; drawList(); }, 120));
   const chips = h('div.seg.pw-filtros'), listBox = h('div'), barra = h('div.pw-barra');
+  const emailBox = h('div.pw-email'); // v13.10: emails a los clientes (cómo activarlos y prueba)
   el.append(h('div.page-head', h('div.grow', h('h1', 'Pedidos web'), h('p.muted.small', 'Solicitudes de la tienda. Respóndelas en 24–48 horas: el cliente ve al momento lo que decidas.')),
     btn('Traer ahora', traer, { icon: 'refresh', title: 'Comprobar si hay pedidos nuevos en la tienda' })),
-    barra, h('div.row.wrap', { style: { margin: '10px 0' } }, h('div.inp-icon.grow', icon('search', 's'), search)), chips, listBox);
+    barra, emailBox, h('div.row.wrap', { style: { margin: '10px 0' } }, h('div.inp-icon.grow', icon('search', 's'), search)), chips, listBox);
 
   async function traer(ev) {
     const b = ev && ev.currentTarget; if (b) b.disabled = true;
@@ -47,7 +49,28 @@ export function render(el, params) {
     try { estado = await api('pedidosWeb.estado', { urlPrograma: localStorage.getItem('cd.server') || '' }, { quiet: true, timeout: 60000 }); } catch (e) { estado = { error: e.message || String(e) }; }
     drawBarra();
   }
+  function drawEmail() {
+    if (!estado || estado.error || !estado.email) return mount(emailBox);
+    const ok = estado.email.activo && estado.email.permiso;
+    const probar = can('pedidos.editar') ? btn('✉️ Mandarme un email de prueba', async ev => {
+      const b = ev.currentTarget; b.disabled = true;
+      try { const r = await api('pedidosWeb.probarEmail', {}, { timeout: 60000 }); toast('✉️ Email de prueba enviado a ' + r.a + '. Mira tu bandeja (y la carpeta de spam).', 'ok', 8000); }
+      catch (e) { handleError(e); } finally { b.disabled = false; }
+    }, { cls: 'sm' + (ok ? ' ghost' : '') }) : null;
+    if (ok) return mount(emailBox, h('div.row.wrap.small', { style: { gap: '8px', alignItems: 'center', margin: '6px 0' } }, h('span.ok-t', '✅ Tus clientes reciben un email al hacer el pedido, al aprobarlo y cuando sale el paquete (con su número de seguimiento y un botón «Ver mi pedido»).'), probar));
+    mount(emailBox, h('div.card.flat.pw-email-off', { style: { borderColor: 'var(--warn, #f59e0b)', margin: '8px 0' } },
+      h('b', '✉️ Tus clientes todavía NO reciben emails de su pedido'),
+      !estado.email.activo ? h('p.small', 'Están apagados. Pulsa «Emails: sí» arriba para encenderlos.') : h('div.small',
+        h('p', { style: { margin: '4px 0' } }, 'Falta darle permiso al programa para enviar emails desde tu cuenta de Google. Es una sola vez (3 minutos):'),
+        h('ol', { style: { margin: '0 0 6px', paddingLeft: '20px' } },
+          h('li', 'En script.google.com abre el proyecto → ⚙️ Configuración del proyecto → marca «Mostrar el archivo de manifiesto appsscript.json». Abre appsscript.json, bórralo y pega el appsscript.json de la carpeta de la versión → Ctrl+S.'),
+          h('li', 'Arriba, en la lista de funciones, elige «activarEmails» → Ejecutar → acepta los permisos de Google (enviar correo como tú).'),
+          h('li', 'Implementar → Gestionar implementaciones → ✏️ → Versión: «Nueva versión» → Implementar.')),
+        h('p.tiny.muted', { style: { margin: 0 } }, 'Después pulsa «Mandarme un email de prueba». Google deja enviar unos 100 emails al día en cuentas gratuitas.')),
+      probar));
+  }
   function drawBarra() {
+    drawEmail();
     if (!estado) return mount(barra, h('span.tiny.muted', 'Comprobando la conexión con la tienda…'));
     if (estado.error) return mount(barra, h('span.pw-ind.bad', '⚠️ ' + estado.error));
     const tgF = (estado.telegram.ultimos || []).filter(x => !x.ok).slice(-1)[0];
@@ -124,7 +147,7 @@ function ficha(id, onClose) {
             r.direccion && r.direccion !== '•••' ? h('div', '🏠 ' + r.direccion) : null,
             r.clienteId ? h('a.tiny', { href: '#/clientes/' + r.clienteId }, 'Ver ficha del cliente →') : null),
           h('section.card', h('h3', '📦 Qué ha pedido'),
-            h('div.pw-lineas', (r.lineas || []).map(l => h('div.row', h('span.grow', l.cant + ' × ' + l.nombre + (l.variante && Object.keys(l.variante).length ? ' (' + Object.entries(l.variante).map(([k, v]) => k + ': ' + v).join(', ') + ')' : '')), h('b', eur(l.total))))),
+            h('div.pw-lineas', (r.lineas || []).map(l => h('div.row', { style: { gap: '8px', alignItems: 'center' } }, miniPedido({ productoId: l.id || l.productoId, producto: l.nombre }, 40), h('span.grow', l.cant + ' × ' + l.nombre + (l.variante && Object.keys(l.variante).length ? ' (' + Object.entries(l.variante).map(([k, v]) => k + ': ' + v).join(', ') + ')' : '')), h('b', eur(l.total))))),
             h('div.row', { style: { borderTop: '1px solid var(--line)', paddingTop: '8px', marginTop: '6px' } }, h('span.grow', '🚚 ' + (r.envio || 'Envío')), h('b', 'Total ' + eur(r.total))),
             h('div', '💶 ' + r.metodo), r.nota ? h('div.pw-nota', '📝 Nota del cliente: ' + r.nota) : null,
             r.lineasProg.length ? h('div.tiny', 'En Pedidos: ', r.lineasProg.map((o, i) => [i ? ' · ' : '', h('a', { href: '#/pedidos/' + o.id }, 'nº ' + o.numero + ' (' + o.estado + ')')])) : null),
@@ -136,7 +159,22 @@ function ficha(id, onClose) {
                 c && !c.ok && editar && c.motivo !== 'antiguo' ? btn('Reenviar', async () => { try { const x = await api('pedidosWeb.reenviar', { id, clave: k }); upsertLocal('pedidosWeb', x.row); emit(); toast(x.comunicacion.ok ? 'Email enviado' : 'No se pudo: ' + x.comunicacion.motivo, x.comunicacion.ok ? 'ok' : 'warn', 6000); } catch (er) { handleError(er); } }, { cls: 'sm ghost' }) : null);
             })),
           h('section.card', h('h3', '🕒 Historial'), h('ol.pw-hist', (r.historial || []).slice().reverse().map(x => h('li', h('b', CL.PW_NOMBRE[x.estado] || x.estado), ' · ', fdt(x.en), ' · ', x.por, x.nota ? h('div.tiny.muted', x.nota) : null)))),
-          editar ? notaInterna(r) : null));
+          editar ? notaInterna(r) : null,
+          // v13.10: borrar del todo un pedido web terminado (cancelado o rechazado) y sus líneas → a la Papelera
+          can('pedidos.borrar') && ['cancelado', 'rechazado'].includes(e) ? h('section.card.pw-borrar', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } },
+            h('span.grow.small', '🗑️ Quitarlo de la lista con todo su contenido (' + (r.lineasProg.length ? r.lineasProg.length + (r.lineasProg.length === 1 ? ' pedido' : ' pedidos') + ' en Pedidos' : 'sin pedidos') + '). Va a la Papelera: se puede recuperar.'),
+            btn('Borrar pedido web', async () => {
+              if (!await confirmDlg('Borrar ' + r.id, 'Se borra el pedido web y ' + (r.lineasProg.length ? 'sus ' + r.lineasProg.length + ' pedido(s) en Pedidos' : 'su ficha') + '. Todo va a la Papelera (se puede recuperar). El cliente sigue viendo en la web que está ' + (CL.PW_NOMBRE[e] || e).toLowerCase() + '.', 'Borrar', true)) return;
+              try {
+                const x = await api('pedidosWeb.borrar', { id }); removeLocal('pedidosWeb', id); (x.pedidos || []).forEach(pid => removeLocal('pedidos', pid)); emit(); toast('🗑️ ' + id + ' borrado (está en la Papelera)', 'ok'); closeAll();
+                // v14.1: si al cliente ya no le queda ninguna venta, se ofrece borrar también su ficha y su historial
+                const cli = (S.t.clientes || []).find(c => c.id === r.clienteId || CL.norm(c.nombre) === CL.norm(r.cliente));
+                if (cli && can('clientes.borrar') && !S.t.pedidos.some(o => (o.clienteId === cli.id || CL.norm(o.cliente) === CL.norm(cli.nombre)) && !CL.stateOf(S.cfg.pedidos, o.estado).cancelled)) {
+                  const C = await import('./clientes.js'); await C.delClient(cli, {}, null);
+                }
+              }
+              catch (err) { handleError(err); }
+            }, { cls: 'danger sm' }))) : null));
     };
     const notaInterna = r => { const ta = area({ rows: 2, placeholder: 'Nota interna (no la ve el cliente)', value: r.nota || '' }); return h('section.card', h('h3', '🗒️ Nota del equipo'), ta, h('div.row', { style: { marginTop: '6px' } }, btn('Guardar nota', async () => { try { const x = await api('pedidosWeb.nota', { id, nota: ta.value }); upsertLocal('pedidosWeb', x); emit(); toast('Nota guardada', 'ok'); } catch (er) { handleError(er); } }, { cls: 'sm' }))); };
     async function accion(k) {

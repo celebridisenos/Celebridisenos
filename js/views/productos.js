@@ -100,7 +100,17 @@ const PTABS = {
   },
   // v10: textos listos para Vinted, Wallapop, Etsy, Instagram y TikTok + documento Word
   venta(el, p) {
+    // v13.10: primero lo sencillo — 3 descripciones CORTAS; los textos largos por plataforma quedan plegados
+    const corto = h('div.col.dq-lista', { style: { gap: '8px' } });
+    let semilla = Date.now();
+    const cortas = () => import('../descripcion.js').then(D => { semilla += 7919; mount(corto, D.generar(p.nombre, { color: p.color ? CL.norm(p.color) : '' }, 3, semilla).map(txt => h('div.dq-op', h('p', txt), h('div.row.wrap', { style: { gap: '6px' } },
+      btn('Copiar', () => { copyText(txt); toast('Copiada', 'ok'); }, { cls: 'sm', icon: 'copy' }),
+      can('productos.editar') ? btn('Usar como descripción', async () => { try { await mutate('productos.guardar', { id: p.id, datos: { descripcion: txt } }, { label: 'Descripción', tables: ['productos'], optimistic: tt => { const x = tt.productos.find(y => y.id === p.id); if (x) x.descripcion = txt; } }); emit(); toast('✅ Descripción guardada', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm primary' }) : null)))); });
     const box = h('div.col', { style: { gap: '12px' } });
+    mount(el, h('div.card.flat', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b.grow', '✨ Descripción corta'), btn('🔁 Otras', cortas, { cls: 'sm ghost' }),
+      btn('Con foto o IA…', () => import('../descripcion.js').then(D => D.rapida({ texto: p.nombre, producto: p })), { cls: 'sm ghost' })), corto),
+      h('details.more', { style: { marginTop: '10px' } }, h('summary', 'Textos largos por plataforma (Vinted, Wallapop, Etsy, Instagram, TikTok)'), h('div.in', box)));
+    cortas();
     const make = async () => {
       mount(box, h('p.muted', 'Preparando textos…'));
       const d = await generate(p);
@@ -116,7 +126,7 @@ const PTABS = {
         block('Vinted', d.vinted), block('Wallapop', d.wallapop), block('Etsy', d.etsy, [['Materiales', d.etsy.materiales], ['Variaciones', d.etsy.variaciones], ['SKU', p.sku || p.id]]),
         block('Instagram', d.instagram), block('TikTok', d.tiktok));
     };
-    mount(el, box); make();
+    make();
   },
   archivos(el, p) {
     const local = h('div');
@@ -203,8 +213,10 @@ function stockCard(p) {
 async function view3DLocal(path, name) {
   const c = h('canvas.stl-view');
   const info = h('p.small.muted', 'Cargando…');
-  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar')), close => [btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
-  try { const v = viewer(c, await parse3D(await desktop.file(path), name)); info.textContent = v.dims.map(x => x.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos'; }
+  const sim = h('div.row.wrap', { style: { gap: '6px' } });
+  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim), close => [btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
+  try { const pos = await parse3D(await desktop.file(path), name), v = viewer(c, pos); info.textContent = v.dims.map(x => x.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos';
+    mount(sim, btn('▶️ Ver cómo se imprime', () => import('../simulacion.js').then(SM => SM.simularImpresion(pos, { nombre: name })), { cls: 'primary sm' })); }
   catch (e) { info.textContent = 'No se pudo mostrar: ' + e.message; }
 }
 
@@ -400,7 +412,7 @@ export function productWizard(p) {
     const bar = h('div.wiz-steps', titles.map((t, i) => h('div.st' + (i === step ? '.on' : i < step ? '.done' : ''))));
     if (step === 0) mount(body, bar, h('h3', titles[0]), h('datalist', { id: 'dl-pcat' }, cats.map(c => h('option', { value: c }))), h('datalist', { id: 'dl-psub' }, subs.map(c => h('option', { value: c }))),
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
-        field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano, 'Largo × ancho × alto: sirve para elegir la caja'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full')),
+        field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano, 'Largo × ancho × alto: sirve para elegir la caja'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full', btn('✨ Crear descripción corta', () => import('../descripcion.js').then(D => D.rapida({ texto: f.nombre.value, onUsar: txt => { f.descripcion.value = txt; } })), { cls: 'sm ghost' }))),
       can('stock.mover') || can('productos.editar') ? skBox : null,
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),

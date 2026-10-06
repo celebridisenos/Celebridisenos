@@ -1,6 +1,6 @@
 // ================= Clientes: seguimiento del cliente y sus pedidos =================
 import { h, mount, icon, btn, modal, drawer, toast, eur, fdate, ago, pill, dueBadge, empty, field, inp, sel, area, debounce, confirmDlg, uid, avatar, na, sw } from '../ui.js';
-import { S, can, mutate, byId, upsertLocal, removeLocal, emit, clientStats, timing, stateColor } from '../store.js';
+import { S, can, mutate, byId, upsertLocal, removeLocal, emit, clientStats, timing, stateColor, pwFilas } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { filesSection, filesOf } from '../files.js';
 import { orderForm } from './pedidos.js';
@@ -163,10 +163,19 @@ async function saveClient(c, ch) {
     return true;
   } catch (e) { handleError(e, 'clientes'); return false; }
 }
-async function delClient(c, s, done) {
-  if (s.pedidos || S.t.pedidos.some(o => o.clienteId === c.id)) return toast('No se puede borrar: tiene pedidos. Así no se pierde su historial.', 'warn');
-  if (!await confirmDlg('Borrar cliente', 'Se moverá a la papelera. ¿Seguro?', 'Borrar', true)) return;
-  try { await mutate('clientes.borrar', { id: c.id }, { onlineOnly: true }); removeLocal('clientes', c.id); emit(); toast('Cliente en la papelera', 'ok'); done(); } catch (e) { handleError(e, 'clientes'); }
+// v14.1: un cliente que solo tiene pedidos CANCELADOS (p. ej. canceló en la web) se borra con todo su historial (todo a la Papelera)
+export async function delClient(c, s, done) {
+  const suyos = S.t.pedidos.filter(o => o.clienteId === c.id || CL.norm(o.cliente) === CL.norm(c.nombre));
+  const vivos = suyos.filter(o => !CL.stateOf(S.cfg.pedidos, o.estado).cancelled);
+  if (vivos.length) return toast('No se puede borrar: tiene ' + vivos.length + (vivos.length === 1 ? ' pedido que no está cancelado' : ' pedidos que no están cancelados') + ' (son ventas). Cancélalos antes si de verdad no valen.', 'warn', 7000);
+  const web = (S.t.pedidosWeb ? pwFilas() : []).filter(w => (w.clienteId === c.id || CL.norm(w.cliente) === CL.norm(c.nombre)) && ['cancelado', 'rechazado'].includes(w.efectivo)).length;
+  const txt = suyos.length || web ? 'Se borra «' + c.nombre + '» con todo su historial: ' + [suyos.length ? suyos.length + (suyos.length === 1 ? ' pedido cancelado' : ' pedidos cancelados') : '', web ? web + (web === 1 ? ' pedido web cancelado' : ' pedidos web cancelados') : ''].filter(Boolean).join(' y ') + '. Todo va a la Papelera (se puede recuperar).' : 'Se moverá a la papelera. ¿Seguro?';
+  if (!await confirmDlg('Borrar cliente', txt, 'Borrar', true)) return false;
+  try {
+    const r = await mutate('clientes.borrar', { id: c.id, conCancelados: true }, { onlineOnly: true });
+    removeLocal('clientes', c.id); ((r && r.pedidos) || []).forEach(id => removeLocal('pedidos', id)); ((r && r.pedidosWeb) || []).forEach(id => removeLocal('pedidosWeb', id));
+    emit(); toast('🗑️ Cliente borrado' + (suyos.length ? ' con su historial' : '') + ' (está en la Papelera)', 'ok'); done && done(); return true;
+  } catch (e) { handleError(e, 'clientes'); return false; }
 }
 
 export function clientForm(c, openExtra) {

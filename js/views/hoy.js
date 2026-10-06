@@ -8,6 +8,7 @@ import { bambuLine } from './centro_impresion.js';
 import { S, can, byId, timing, stateColor, mutate, upsertLocal, emit } from '../store.js';
 import { go, handleError } from '../app.js';
 import { problemasEtiquetas, textoProblema, reintentar } from '../autoimpresion.js';
+import * as E from '../envio.js';
 import { botonVoz } from '../voz.js';
 
 const CL = window.CL;
@@ -44,11 +45,12 @@ export function render(el) {
     const toPrep = ordersT.filter(x => ph(x.o) === 'postpro' || ph(x.o) === 'empaquetar').sort(byLimit); // v11.4: + «Empaquetar»
     const toShip = ordersT.filter(x => ph(x.o) === 'listo').sort(byLimit);
     const issues = ordersT.filter(x => x.o.incidencia);
+    const encAtascados = can('pedidos.ver') ? E.encargosPendientes().filter(x => x.min > 10) : []; // v14.1: encargos al PC del taller que no salen
     const labelProbs = problemasEtiquetas(); // v12.1: «Etiqueta no impresa — motivo» (nunca se finge que se imprimió)
     const edit = can('pedidos.editar'), tall = can('taller.editar');
 
     mount(head, h('div.grow', h('h1', isOp() ? '🛠️ Taller · hoy' : 'Hoy'), h('p.small.muted', { style: { margin: '2px 0 0' } }, new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + toPrint.length + ' por imprimir · ' + toPrep.length + ' por preparar · ' + toShip.length + ' por enviar')),
-      botonVoz(), btn('Pantalla TV', () => go('tv'), { cls: 'ghost', icon: 'play', title: 'Pantalla para la tele o tablet del taller' }),
+      botonVoz(), btn('Biouvision', () => go('estudio'), { cls: 'ghost', icon: 'camera', title: 'Editor de fotos: retocar, filtros y fondo' }),
       btn(isOp() ? 'Salir del modo taller' : 'Modo taller', () => { setOp(!isOp()); draw(); }, { icon: isOp() ? 'x' : 'play', cls: isOp() ? '' : 'primary' }));
 
     // ---- Impresoras, filamento reservado e incidencias ----
@@ -83,7 +85,10 @@ export function render(el) {
         h('span.grow.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + r.primero.id) }, h('b', 'nº ' + r.primero.numero), ' · ' + (r.primero.cliente || '') + ' · ' + CL.s(r.metodo) + ' · ',
           r.vencida ? h('span.bad-t', 'ya caducó') : h('span', 'caduca en ' + Math.max(1, Math.round(r.horas)) + ' h')),
         can('pedidos.editar') ? btn('Recordar por WhatsApp', () => import('../envio.js').then(E => E.messageDialog(r.primero, 'wa_recordatorio')), { cls: 'sm primary', icon: 'msg' }) : null))) : null;
-    mount(top, reservasBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
+    const encBox = encAtascados.length ? h('div.card.flat.hoy-encargos', { role: 'alert', style: { borderLeft: '4px solid var(--warn, #e9a400)' } },
+      h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🖨️ ' + encAtascados.length + ' etiqueta' + (encAtascados.length > 1 ? 's' : '') + ' esperando al PC del taller'), h('span.small', '¿Está encendido el programa del PC?')),
+      encAtascados.slice(0, 6).map(x => h('div.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + x.o.id) }, h('b', 'nº ' + x.o.numero), ' · ' + (x.o.cliente || '') + ' — ' + (E.PRINT_TIPOS[x.r.tipo] || { t: x.r.tipoTxt }).t + ' · hace ' + Math.round(x.min) + ' min' + (x.r.usuario ? ' (la mandó ' + x.r.usuario + ')' : '')))) : null;
+    mount(top, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
         h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🏷️ ' + labelProbs.length + ' etiqueta' + (labelProbs.length > 1 ? 's' : '') + ' sin imprimir'), edit ? btn('Reintentar', () => reintentar().then(draw), { cls: 'sm', icon: 'printer' }) : null),
         labelProbs.slice(0, 6).map(p => h('div.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + p.o.id) }, h('b', 'nº ' + p.o.numero), ' · ' + (p.o.cliente || '') + ' — ' + textoProblema(p)))) : null,
       T.rateBlock ? T.rateBlock(tall) : null, prs.length ? h('div.hoy-prs', prCards) : null, // v11.4: avisos de la Bambu y «¿Cómo salió?»
@@ -118,8 +123,8 @@ export function render(el) {
       ph(x.o) === 'empaquetar' ? btn('📦 Embalaje', () => import('./embalaje.js').then(E => E.packPanel(x.o.id)), { cls: 'sm' }) : null,
       edit ? btn(ph(x.o) === 'empaquetar' ? 'Paquete hecho' : 'Listo para envío', () => P.changeState(x.o, CL.stateOfPhase(S.cfg.pedidos, 'listo')), { cls: 'primary', icon: 'check' }) : null],
       ph(x.o) === 'empaquetar' ? h('span.tiny.muted', '📦 ' + x.o.estado) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por preparar.');
-    const shipCol = [toShip.length > 1 ? btn('Imprimir todas las etiquetas (' + toShip.length + ')', () => P.printLabels(toShip.map(x => x.o)), { cls: 'sm', icon: 'printer' }) : null,
-      toShip.length ? toShip.map(x => card(x, [btn('Etiqueta', () => P.labelDialog(x.o), { icon: 'printer' }), edit ? btn('Enviado', () => P.shipDialog(x.o), { cls: 'primary', icon: 'truck' }) : null], x.o.envio ? h('span.tiny.muted', x.o.envio) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por enviar.')];
+    const shipCol = [toShip.length > 1 ? btn('Imprimir todas las etiquetas (' + toShip.length + ')', () => import('../envio.js').then(E => E.etiquetasEnvio(toShip.map(x => x.o))), { cls: 'sm', icon: 'printer' }) : null,
+      toShip.length ? toShip.map(x => card(x, [btn('🏷️ Etiqueta', () => import('../envio.js').then(E => E.etiquetaEnvio(x.o))), edit ? btn('Enviado', () => P.shipDialog(x.o), { cls: 'primary', icon: 'truck' }) : null], x.o.envio ? h('span.tiny.muted', x.o.envio) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por enviar.')];
     const col = (ic, t, cnt, kids, k) => h('section.hoy-col', h('div.hoy-col-h', h('span.ic', ic), h('h2.grow', t), h('span.cnt', String(cnt)), btn('', () => go('pedidos/?f=' + k), { cls: 'ghost icon sm', icon: 'external', title: 'Ver en Pedidos' })), h('div.hoy-list', kids));
     mount(cols, col('🖨️', 'Imprimir', toPrint.length, printCol, 'fabricar'), col('🧽', 'Preparar y empaquetar', toPrep.length, prepCol, 'empaquetar'), col('📦', 'Enviar', toShip.length, shipCol, 'enviar'));
     if (!S.t.pedidos.length) mount(cols, h('div.card', empty('truck', 'Aún no hay pedidos', 'Cuando entren aparecerán aquí, ordenados por urgencia.')));

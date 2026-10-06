@@ -7,6 +7,7 @@ import { h, mount, btn, modal, toast, eur, empty, field, inp, area, sel, pill, c
 import { S, can, api, upsertLocal, emit, byId, pull, mutate, on } from '../store.js';
 import { handleError, requestAccess, go } from '../app.js';
 import * as E from '../envio.js';
+import { miniPedido } from '../fotopedido.js';
 import { FUENTES_TARJETA, DISENO_DEF, resetCardBg } from '../labels.js';
 
 const CL = window.CL;
@@ -34,7 +35,7 @@ export function render(el, params) {
   const body = h('div'), tabs = h('div.tabs');
   el.append(h('div.page-head', h('div', h('h1', '📦 Embalaje'), h('div.muted.small', 'Prepara cada paquete desde aquí: caja, packaging, peso, etiquetas, trabajo adicional y costes. El packaging se calcula solo.')),
     h('div.row', btn('Escanear paquete', () => go('escanear'), { icon: 'qr' }), btn('QR para mi mesa', () => import('./escanear.js').then(m => m.mesaDialog()), { icon: 'printer', cls: 'ghost' }))), tabs, body);
-  const T = { pedidos: 'Para empaquetar', cajas: 'Cajas', config: 'Packaging (consumos y precios)', tarjeta: 'Tarjeta y mensajes', perdidas: 'Pérdidas de impresión' };
+  const T = { pedidos: 'Para empaquetar', cajas: 'Cajas', config: 'Precio del embalaje', tarjeta: 'Tarjeta y mensajes', perdidas: 'Pérdidas de impresión' };
   const draw = () => {
     mount(tabs, Object.keys(T).map(k => h('button' + (tab === k ? '.on' : ''), { onclick: () => { tab = k; history.replaceState(null, '', '#/embalaje/' + k); draw(); } }, T[k] + (k === 'perdidas' && fallosPend().length ? ' (' + fallosPend().length + ')' : ''))));
     (VIEWS[tab] || drawOrders)(body);
@@ -52,7 +53,7 @@ function drawOrders(el) {
   const card = o => {
     const c = CL.orderCosts(o, packData(), cfg()), p = CL.productOf(o, packData());
     return h('div.card', { style: { cursor: 'pointer' }, onclick: () => packPanel(o.id) },
-      h('div.row', h('b.grow', 'Nº ' + o.numero + ' · ' + o.cliente), pill(o.estado, '', (cfg().pedidos.estados.find(s => s.k === o.estado) || {}).c)),
+      h('div.row', { style: { gap: '10px', alignItems: 'center' } }, miniPedido(o, 56), h('b.grow', 'Nº ' + o.numero + ' · ' + o.cliente), pill(o.estado, '', (cfg().pedidos.estados.find(s => s.k === o.estado) || {}).c)),
       h('div.small', (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto),
       h('div.tiny.muted', [c.embalaje.caja ? '📦 ' + c.embalaje.caja : '📦 sin caja', c.pesos.total !== null ? '⚖️ ' + gTxt(c.pesos.total) : (p && p.pesoG ? '⚖️ pieza ' + gTxt(p.pesoG) + ' + embalaje ¿?' : '⚖️ peso pendiente'),
         verCostes() ? '🧾 packaging ' + eur(c.embalaje.coste) : null].filter(Boolean).join(' · ')),
@@ -62,7 +63,7 @@ function drawOrders(el) {
     low.length ? h('div.card.flat', { style: { borderColor: 'var(--warn)', marginBottom: '12px' } }, h('b', '📦 Quedan pocas cajas: '), low.map(m => m.nombre + ' (' + m.stock + ')').join(' · '), ' ', btn('Ver cajas', () => go('embalaje/cajas'), { cls: 'sm' })) : null,
     h('h3', 'Para empaquetar (' + now.length + ')'),
     now.length ? h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' } }, now.map(card)) : empty('box', 'Nada para empaquetar', 'Cuando un pedido pase a «Empaquetar», aparecerá aquí con su caja y su packaging calculados.'),
-    next.length ? h('div', h('h3', { style: { marginTop: '18px' } }, 'Próximos (en postprocesado: ' + next.length + ')'), h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' } }, next.map(card))) : null,
+    next.length ? h('div', h('h3', { style: { marginTop: '18px' } }, 'Próximos (en acabado: ' + next.length + ')'), h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' } }, next.map(card))) : null,
     done.length ? h('div', h('h3', { style: { marginTop: '18px' } }, 'Cerrados hoy (' + done.length + ')'), h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' } }, done.map(card))) : null);
 }
 
@@ -82,9 +83,9 @@ export function packPanel(id) {
     const fact = (l, v) => h('div.fact', h('div.l', l), h('div.v', v));
     mount(box,
       E.prepareBanner(o, draw),
-      sec('PRODUCTO', h('div.facts', fact('Producto', (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto),
+      sec('PRODUCTO', h('div.row', { style: { gap: '14px', alignItems: 'flex-start' } }, miniPedido(o, 120, 'grande'), h('div.facts.grow', fact('Producto', (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto),
         fact('Peso del producto (la pieza)', c.pesos.producto !== null ? gTxt(c.pesos.producto) + (Number(o.cantidad) > 1 ? ' × ' + o.cantidad + ' = ' + gTxt(c.pesos.productoTotal) : '') : h('span.warn-t', 'PENDIENTE: apúntalo en la ficha del producto')),
-        fact('Medidas', dims ? dims.map(x => String(x).replace('.', ',')).join(' × ') + ' cm' : h('span.warn-t', 'PENDIENTE: «Tamaño» en la ficha')))),
+        fact('Medidas', dims ? dims.map(x => String(x).replace('.', ',')).join(' × ') + ' cm' : h('span.warn-t', 'PENDIENTE: «Tamaño» en la ficha'))))),
       sec('CAJA', packed ? h('div', '📦 ', h('b', o.embalaje.snap ? o.embalaje.snap.caja || '—' : '—'), o.embalaje.cajaDescontada ? h('span.small.muted', ' · descontada del stock' + (o.embalaje.cajaQueda !== '' && o.embalaje.cajaQueda !== undefined ? ' (quedan ' + o.embalaje.cajaQueda + ')' : '')) : null)
         : h('div.col', { style: { gap: '6px' } },
           opts.length ? opts.slice(0, 4).map((x, i) => h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } },
@@ -114,7 +115,7 @@ export function packPanel(id) {
         can('pedidos.editar') && !packed ? btn('✅ Paquete hecho → ' + (CL.stateOfPhase(cfg().pedidos, 'listo') || 'Listo para envío'), async () => { if (await closePack(o)) { draw(); } }, { cls: 'primary' }) : null,
         packed && can('pedidos.editar') && ph(o) === 'listo' ? btn('🚚 Preparado para enviar', () => E.sendCheck(o, draw), { cls: 'primary' }) : null,
         packed && can('pedidos.editar') ? btn('Rehacer el embalaje', () => redoDialog(o, draw), { cls: 'ghost' }) : null,
-        btn('Etiqueta de dirección propia', () => import('./pedidos.js').then(P => P.labelDialog(o)), { icon: 'printer', cls: 'ghost' }),
+        btn('🏷️ Etiqueta de envío', () => E.etiquetaEnvio(o, draw), { cls: 'ghost' }),
         h('span.grow'), btn('Abrir el pedido', () => { m && m.close(); go('pedidos/' + o.id); }, { cls: 'ghost' })));
   };
   draw();
@@ -132,7 +133,8 @@ async function setPack(o, choice) {
 }
 async function changeTo(o, estado) { const P = await import('./pedidos.js'); return P.changeState(o, estado); }
 // ---------- v13.8 · PRUEBA DE EMPAQUETADO ----------
-// Antes de cerrar el paquete: instrucciones de lo que suelen pedir las plataformas, un vídeo corto (obligatorio) y fotos (opcionales).
+// Antes de cerrar el paquete: instrucciones de lo que suelen pedir las plataformas, un vídeo corto y fotos. v14.1: TODO OPCIONAL
+// («Seguir sin vídeo» cierra igual); también se puede añadir después desde la ficha del pedido («🎥 Prueba de empaquetado»).
 // Con «Vale, guardar» todo va a la carpeta «PRUEBAS VENTA» del programa y a los archivos de cada pedido del paquete.
 // Cada archivo lleva su nombre para que no se mezcle nada: PRUEBA_VENTA_Pedido-1001_Ana-Lopez_2026-10-05_12-30_video-empaquetado.mp4
 export const PRUEBA_PASOS = [
@@ -151,7 +153,7 @@ export function pruebaNombre(grupo, cuando, que, ext) {
     d.getFullYear() + '-' + dos(d.getMonth() + 1) + '-' + dos(d.getDate()) + '_' + dos(d.getHours()) + '-' + dos(d.getMinutes()) + '_' + que + '.' + (ext || 'mp4');
 }
 const extDe = (f, def) => ((String(f.name || '').match(/\.([a-z0-9]{2,5})$/i) || [, ''])[1] || (String(f.type || '').split('/')[1] || def).replace('quicktime', 'mov').replace('jpeg', 'jpg')).toLowerCase();
-export function captureSaleProof(o) {
+export function captureSaleProof(o, opts = {}) {
   return new Promise(resolve => {
     let settled = false, saving = false;
     const finish = v => { if (!settled) { settled = true; resolve(v); } };
@@ -167,7 +169,7 @@ export function captureSaleProof(o) {
       mount(lista, video ? h('div.item', { style: { cursor: 'default' } }, h('span', '🎥'), h('span.grow.small', h('b', 'Vídeo'), h('div.tiny.muted', pruebaNombre(grupo(), new Date(), 'video-empaquetado', extDe(video, 'mp4')))), btn('Quitar', () => { video = null; draw(); }, { cls: 'sm ghost' })) : null,
         fotos.map((f, i) => h('div.item', { style: { cursor: 'default' } }, h('span', '📷'), h('span.grow.small', h('b', 'Foto ' + (i + 1)), h('div.tiny.muted', pruebaNombre(grupo(), new Date(), 'foto-' + (i + 1), extDe(f, 'jpg')))), btn('Quitar', () => { fotos.splice(i, 1); draw(); }, { cls: 'sm ghost' }))));
       ok.disabled = !video || saving;
-      if (!saving) status.textContent = video ? 'Revisa y pulsa «Vale, guardar».' : 'Falta el vídeo: es obligatorio para cerrar el paquete.';
+      if (!saving) status.textContent = video ? 'Revisa y pulsa «Vale, guardar».' : opts.suelta ? 'Graba o elige el vídeo del empaquetado.' : 'El vídeo es opcional: si no lo grabas, pulsa «Seguir sin vídeo».';
     };
     pickV.onchange = () => {
       const f = pickV.files && pickV.files[0]; pickV.value = '';
@@ -182,22 +184,34 @@ export function captureSaleProof(o) {
       const cuando = new Date(), g = grupo(), F = await import('../files.js');
       const files = [new File([video], pruebaNombre(g, cuando, 'video-empaquetado', extDe(video, 'mp4')), { type: video.type || 'video/mp4', lastModified: video.lastModified })]
         .concat(fotos.map((f, i) => new File([f], pruebaNombre(g, cuando, 'foto-' + (i + 1), extDe(f, 'jpg')), { type: f.type || 'image/jpeg', lastModified: f.lastModified })));
+      // v13.10: la ventana se cierra AL MOMENTO y el vídeo se sube detrás (con su barrita); puedes seguir trabajando.
+      // El pedido se cierra cuando la prueba está guardada. Si falla, vuelve a abrirse la ventana con tu vídeo.
+      dialog.close();
+      const chip = h('div.subida-chip', { role: 'status' }, h('span.subida-t', '🎥 Subiendo la prueba…'), h('span.subida-bar', h('i')));
+      document.body.append(chip);
+      const pinta = (t, pc) => { chip.querySelector('.subida-t').textContent = t; chip.querySelector('.subida-bar i').style.width = Math.round(pc) + '%'; };
       try {
-        let n = 0;
+        let n = 0; const tot = files.length * g.length;
         for (const f of files) {
           for (const p of g) {
-            status.textContent = 'Guardando ' + (++n) + ' de ' + files.length * g.length + '… (no cierres esta ventana)';
-            await F.uploadFile(f, { entidad: 'pedidos', entidadId: p.id, rutaLocal: 'PRUEBAS VENTA', original: true });
+            const i0 = n++;
+            pinta('🎥 Subiendo la prueba nº ' + nums + ' · ' + n + ' de ' + tot, i0 / tot * 100);
+            await F.uploadFile(f, { entidad: 'pedidos', entidadId: p.id, rutaLocal: 'PRUEBAS VENTA', original: true }, x => { const fr = typeof x === 'number' ? x : x && x.total ? x.loaded / x.total : 0; pinta('🎥 Subiendo la prueba nº ' + nums + ' · ' + n + ' de ' + tot, (i0 + Math.min(1, fr || 0)) / tot * 100); });
           }
         }
-        status.textContent = '✓ Guardado en «PRUEBAS VENTA».';
+        chip.remove();
         toast('🎥 Prueba de empaquetado guardada en «PRUEBAS VENTA» (' + files.length + (files.length === 1 ? ' archivo' : ' archivos') + ')', 'ok', 6000);
-        finish(true); dialog.close();
-      } catch (e) { saving = false; status.textContent = 'No se pudo guardar: ' + e.message + ' Comprueba la conexión y vuelve a pulsar «Vale, guardar».'; draw(); }
+        finish(true);
+      } catch (e) {
+        chip.remove(); saving = false;
+        toast('No se pudo subir la prueba: ' + e.message + ' Vuelve a pulsar «Vale, guardar».', 'bad', 9000);
+        dialog = modal(dialogTitle, body, dialogFoot, { size: 'narrow', onclose: () => { if (!saving) finish(false); } });
+        status.textContent = 'No se pudo guardar: ' + e.message + ' Comprueba la conexión y vuelve a pulsar «Vale, guardar».'; draw();
+      }
     }
     const nums = grupo().map(p => p.numero).join(' + ');
     const body = h('div.col.prueba-venta', { style: { gap: '10px' } },
-      h('p', h('b', 'Antes de cerrar el paquete, graba un vídeo corto. Es tu prueba si el comprador reclama.')),
+      h('p', h('b', opts.suelta ? 'Vídeo del empaquetado: es tu prueba si el comprador reclama.' : 'Si quieres, graba un vídeo corto antes de cerrar el paquete. Es tu prueba si el comprador reclama (no es obligatorio).')),
       grupo().length > 1 ? h('p.small', '📦 Envío conjunto: un solo vídeo para los pedidos nº ' + nums + '.') : null,
       h('div.lbl', 'Qué suelen pedir las plataformas'),
       h('ol.prueba-pasos', PRUEBA_PASOS.map(x => h('li', x))),
@@ -205,7 +219,10 @@ export function captureSaleProof(o) {
       h('div.row.wrap', { style: { gap: '8px' } }, btn('🎥 Grabar o elegir vídeo', () => pickV.click(), { cls: 'primary' }), btn('📷 Añadir fotos (opcional)', () => pickF.click())),
       lista, status, pickV, pickF);
     draw();
-    dialog = modal('🎥 Prueba de empaquetado · ' + (grupo().length > 1 ? 'envío conjunto nº ' + nums : 'pedido nº ' + o.numero), body, close => [btn('Cancelar', () => { if (saving) return; close(); finish(false); }), h('span.grow'), ok], { size: 'narrow', onclose: () => finish(false) });
+    const dialogTitle = '🎥 Prueba de empaquetado · ' + (grupo().length > 1 ? 'envío conjunto nº ' + nums : 'pedido nº ' + o.numero);
+    const sinVideo = opts.suelta ? null : btn('Seguir sin vídeo', () => { if (saving) return; finish(true); dialog.close(); }, { cls: 'ghost prueba-sin' });
+    const dialogFoot = close => [btn('Cancelar', () => { if (saving) return; close(); finish(false); }), h('span.grow'), sinVideo, ok];
+    dialog = modal(dialogTitle, body, dialogFoot, { size: 'narrow', onclose: () => { if (!saving) finish(false); } });
   });
 }
 // Cierra el paquete: pide prueba por pedido, pregunta trabajo adicional y pasa a «Listo para envío».
@@ -337,7 +354,7 @@ function drawConfig(el) {
   const editCost = can('costes.editar'), editCfg = can('config.editar');
   const margen = inp({ type: 'number', min: 0, max: 10, step: 0.5, value: ec().margenProteccion ?? '', style: { width: '90px' } });
   const aviso = inp({ type: 'number', min: 0, max: 100, step: 1, value: ec().avisoCajas ?? '', style: { width: '90px' } });
-  const askT = h('input', { type: 'checkbox', checked: ec().preguntarTrabajo !== false }), askP = h('input', { type: 'checkbox', checked: ec().preguntarPerdidas !== false });
+  const askT = h('input', { type: 'checkbox', checked: ec().preguntarTrabajo !== false }), askP = h('input', { type: 'checkbox', checked: ec().preguntarPerdidas !== false }), askV = h('input', { type: 'checkbox', checked: ec().pedirPrueba !== false, 'aria-label': 'Ofrecer la prueba de vídeo' });
   let stdBox = h('div');
   if (std) {
     const lineas = JSON.parse(JSON.stringify(std.lineas || []));
@@ -359,7 +376,17 @@ function drawConfig(el) {
     recalc();
   } else stdBox = h('div.card', h('h3', 'No hay embalaje estándar'), h('p.small.muted', 'Crea un embalaje en Materiales y costes → Embalajes y márcalo como estándar, o carga tus precios en Materiales.'),
     editCost && embs.length ? h('div.row.wrap', embs.map(e => btn('Usar «' + e.nombre + '» como estándar', () => call('embalajes.guardar', { id: e.id, datos: { predeterminado: 'Sí' } }, 'Embalaje estándar elegido').catch(() => { }), { cls: 'sm' }))) : null);
+  // v13.10: lo SENCILLO primero (lo mismo que en Stock → Envases); el sistema antiguo de consumos queda plegado en «Avanzado»
+  const sc = CL.simpleCfg(ec().simple), mm = id => byId('materiales', id), pm = id => { const v = CL.porMetro(mm(id)); return v === null ? '—' : eur(v) + '/m'; };
+  const ej = 1 * sc.precioEnvase + 0.5 * (CL.porMetro(mm(sc.kraftId)) || 0) + 0.3 * (CL.porMetro(mm(sc.marronId)) || 0) + sc.cinta;
+  const fila = (ic, t, v) => h('div.item', { style: { cursor: 'default' } }, h('span', ic), h('span.grow', t), h('b', v));
   mount(el,
+    h('div.card.emb-simple', h('h3', { style: { marginTop: 0 } }, '📦 Lo que cuesta el embalaje de un pedido'),
+      h('div.list', fila('📦✉️🛍️', 'Caja, sobre o bolsa (la que elijas en el pedido)', eur(sc.precioEnvase) + ' cada una'), fila('🟤', 'Papel kraft (los metros que uses)', pm(sc.kraftId)), fila('🟫', 'Papel marrón (los metros que uses)', pm(sc.marronId)), fila('🧻', 'Cinta (si la usas)', eur(sc.cinta) + ' por pedido')),
+      h('p.small', { style: { margin: '10px 0 4px' } }, h('b', 'Ejemplo: '), 'caja + 0,5 m de kraft + 0,3 m de papel marrón + cinta = ', h('b', eur(Math.round(ej * 100) / 100))),
+      h('p.small.muted', { style: { margin: 0 } }, 'Se suma solo en cada pedido (y en su precio recomendado). Las cantidades y los precios se cambian en Stock.'),
+      h('div.row', { style: { marginTop: '10px' } }, btn('Ir a Stock → Envases', () => go('stock/?ver=envases'), { cls: 'primary sm' }))),
+    h('details.more.emb-avanzado', { style: { marginTop: '12px' } }, h('summary', 'Avanzado: embalaje estándar con consumos (sistema antiguo, para pedidos sin caja/sobre/bolsa elegidos)'), h('div.in',
     h('p.small.muted', 'No hace falta medir cada centímetro: los consumos son ESTIMADOS y los cambias cuando sepas que gastas más o menos. Tus precios reales mandan sobre cualquier estimación.'),
     stdBox,
     h('div.card', { style: { marginTop: '12px' } }, h('h3', 'Precios y rollos (tus datos)'),
@@ -368,11 +395,11 @@ function drawConfig(el) {
           h('td.bold', m.nombre), h('td', m.precio === '' || m.precio === undefined ? h('span.warn-t', 'PENDIENTE') : eur(m.precio)),
           h('td', m.cantidad === '' || m.cantidad === undefined ? h('span.warn-t', 'PENDIENTE') : String(m.cantidad).replace('.', ',') + ' ' + ((CL.UNITS[CL.unitKey(m.unidad) || 'ud'] || {}).t || ''), ' ', m.estadoCantidad && m.estadoCantidad !== 'confirmado' ? conf(m.estadoCantidad) : null),
           h('td.hide-m', m.pesoG ? m.pesoG + ' g' : '¿?'), h('td', c.coste === null ? '—' : (Math.round(c.coste * 10000) / 10000).toLocaleString('es-ES') + ' €/' + c.unidadTxt),
-          h('td.hide-m', m.proveedor || '—'), h('td.hide-m', m.actualizado ? fdate(String(m.actualizado).slice(0, 10)) : '—'), h('td', editCost ? h('span.tiny.muted', 'editar') : null)); }))))),
+          h('td.hide-m', m.proveedor || '—'), h('td.hide-m', m.actualizado ? fdate(String(m.actualizado).slice(0, 10)) : '—'), h('td', editCost ? h('span.tiny.muted', 'editar') : null)); }))))))),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', 'Opciones'),
       h('div.form', field('Protección por lado al elegir caja (cm)', margen, 'ESTIMACIÓN: holgura para papel y burbuja'), field('Aviso de stock bajo de cajas', aviso, 'Para las cajas sin su propio aviso')),
-      h('label.check', askT, 'Preguntar «¿Has realizado trabajo adicional?» al cerrar el paquete'), h('label.check', askP, 'Ofrecer incluir pérdidas de impresión pendientes'),
-      editCfg ? btn('Guardar opciones', () => call('config.guardar', { clave: 'embalaje', valor: Object.assign({}, ec(), { margenProteccion: Number(margen.value) || 0, avisoCajas: Number(aviso.value) || 0, preguntarTrabajo: askT.checked, preguntarPerdidas: askP.checked }) }, 'Opciones guardadas').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { }), { cls: 'primary' }) : h('p.tiny.muted', 'Solo una administradora puede cambiarlo.')));
+      h('label.check', askT, 'Preguntar «¿Has realizado trabajo adicional?» al cerrar el paquete'), h('label.check', askP, 'Ofrecer incluir pérdidas de impresión pendientes'), h('label.check', askV, '🎥 Ofrecer la prueba de vídeo al cerrar el paquete (opcional: siempre se puede seguir sin vídeo, o grabarla luego desde el pedido)'),
+      editCfg ? btn('Guardar opciones', () => call('config.guardar', { clave: 'embalaje', valor: Object.assign({}, ec(), { margenProteccion: Number(margen.value) || 0, avisoCajas: Number(aviso.value) || 0, preguntarTrabajo: askT.checked, preguntarPerdidas: askP.checked, pedirPrueba: askV.checked }) }, 'Opciones guardadas').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { }), { cls: 'primary' }) : h('p.tiny.muted', 'Solo una administradora puede cambiarlo.')));
 }
 
 // ---------- Pérdidas de impresión ----------
@@ -495,7 +522,9 @@ function drawCard(el) {
     return h('div.card.flat', h('div.row', t, editCfg ? btn('', () => { msgs.splice(i, 1); drawMsgs(); }, { cls: 'sm ghost icon', icon: 'trash', title: 'Quitar' }) : null), x);
   }), editCfg ? btn('Añadir mensaje', () => { msgs.push({ k: 'm' + Date.now().toString(36), t: 'Mensaje nuevo', texto: '¡Hola {cliente}! ' }); drawMsgs(); }, { cls: 'sm', icon: 'plus' }) : null);
   drawMsgs();
-  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, autoAlEscanear: auto.checked, autoImprimir: autoImp.checked, mensajes: msgs, formas, contorno: contorno.checked } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
+  // v13.10: la etiqueta del paquete en la MISMA bobina que la de envío (sin cambiar de rollo) o la antigua de 50 × 50
+  const fmtPq = sel([{ v: 'largo', t: 'Larga 100 × 150 (misma bobina que la de envío): arriba «gracias», abajo QR e info · recomendado' }, { v: 'pequeno', t: 'Pequeña 50 × 50 (bobina aparte)' }], (c0.formatoPaquete === 'pequeno') ? 'pequeno' : 'largo', { 'aria-label': 'Formato de la etiqueta del paquete' });
+  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, formatoPaquete: fmtPq.value, autoAlEscanear: auto.checked, autoImprimir: autoImp.checked, mensajes: msgs, formas, contorno: contorno.checked } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
   mount(el,
     h('div.card', h('h3', '💌 Tarjetas de agradecimiento'),
       h('p.small.muted', 'Tarjeta UNIVERSAL: sin el nombre del cliente, sirve para todos los pedidos. Así se imprimen varias juntas en una hoja A4 de papel fotográfico y se recortan.'),
@@ -516,7 +545,8 @@ function drawCard(el) {
       editCfg ? h('p.tiny.muted', 'Pulsa «Guardar» abajo para que la forma quede para todo el equipo.') : null),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Imprimir hojas de tarjetas'), h('div', { id: 'card-print' })),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '📦 Qué va con cada paquete'),
-      ck('paquete', 'Código del paquete 50 × 50 (QR + CEB-…) para escanearlo'), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
+      ck('paquete', 'Etiqueta del paquete con su QR (CEB-…) para escanearlo'),
+      h('label.row', { style: { gap: '8px', alignItems: 'center', margin: '2px 0 8px 26px' } }, h('span.small', 'Formato:'), fmtPq), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
       h('label.check', autoImp, 'Imprimir solo lo que falte cuando un pedido llegue a «Empaquetar» (programa del PC; si falla, avisa)'),
       h('label.check', auto, 'Al escanear un pedido en «Empaquetar», imprimir solo lo que falte'),
       h('p.tiny.muted', 'La etiqueta oficial (Vinted, Correos, InPost…) se imprime siempre que esté adjunta. Nada se imprime dos veces: para otra copia está «Reimprimir», que queda apuntado.')),
@@ -530,15 +560,20 @@ function drawCard(el) {
 // Imprimir hojas de tarjetas: impresora de folios/fotos, calidad máxima que dice SU controlador, papel fotográfico
 async function cardPrintBox(el, getCard) {
   const L = await import('../labels.js'), D = await import('../desktop.js');
-  const hojas = inp({ type: 'number', min: 1, max: 20, value: 1, style: { width: '80px' } });
+  const hojas = inp({ type: 'number', min: 1, max: 200, value: 1, style: { width: '80px' } });
   const calidad = sel([{ v: 300, t: 'Alta (300 ppp) · recomendada' }, { v: 600, t: 'Máxima (600 ppp) · más lenta' }], 300);
-  const info = h('div.small'), out = h('div');
-  let prSel = null;
+  const info = h('div.small'), out = h('div'), nLbl = h('span', 'Hojas');
+  let prSel = null, esEtiqueta = () => false;
   if (D.desktop.on) {
-    const list = L.realPrinters(await L.printers()), t = await L.targetFor('tarjetas');
-    prSel = sel(list.filter(p => !p.label).map(p => ({ v: p.name, t: p.name + (p.offline ? ' · DESCONECTADA' : '') })), t.pr ? t.pr.name : '');
+    // v13.10: también la impresora de ETIQUETAS (una tarjeta por etiqueta). Va primero: es la que más se usa.
+    const list = L.realPrinters(await L.printers()), t = await L.targetFor('tarjeta1');
+    const ord = list.filter(p => p.label).concat(list.filter(p => !p.label));
+    prSel = sel(ord.map(p => ({ v: p.name, t: (p.label ? '🏷️ ' : '🖨️ ') + p.name + (p.label ? ' · etiquetas (1 tarjeta por etiqueta)' : ' · folios A4') + (p.offline ? ' · DESCONECTADA' : '') })), t.pr ? t.pr.name : '');
+    esEtiqueta = () => { const p = list.find(x => x.name === prSel.value); return !!(p && p.label); };
     const caps = async () => {
-      if (!prSel.value) { mount(info, h('span.warn-t', 'No hay ninguna impresora de folios/fotos en este ordenador.')); return; }
+      if (!prSel.value) { mount(info, h('span.warn-t', 'No hay ninguna impresora en este ordenador.')); return; }
+      nLbl.textContent = esEtiqueta() ? 'Tarjetas (una por etiqueta)' : 'Hojas A4';
+      if (esEtiqueta()) { mount(info, h('div.small', '🏷️ Sale una tarjeta en cada etiqueta, a su tamaño real. Pon en la impresora un rollo de etiquetas de ese tamaño (o mayor).')); return; }
       mount(info, h('span.muted', 'Leyendo lo que puede hacer la impresora…'));
       try {
         const c = await D.desktop.printerCaps(prSel.value);
@@ -548,11 +583,17 @@ async function cardPrintBox(el, getCard) {
       } catch (e) { mount(info, h('span.warn-t', 'No se pudo leer la impresora: ' + e.message)); }
     };
     prSel.onchange = caps; caps();
-  } else mount(info, h('p.small.muted', 'En el móvil se crea un PDF A4 a tamaño real: imprímelo al 100 % (sin «Ajustar a la página») en papel fotográfico.'));
-  mount(el, h('div.form', prSel ? field('Impresora', prSel) : null, field('Hojas', hojas), field('Calidad', calidad)), info,
+  } else {
+    // v13.10: en el móvil también se elige: etiquetas (Bluetooth o PDF del tamaño de la tarjeta) u hoja A4
+    prSel = sel([{ v: 'etiqueta', t: '🏷️ Impresora de etiquetas (una tarjeta por etiqueta)' }, { v: 'hoja', t: '🖨️ Hoja A4 (PDF a tamaño real)' }], 'etiqueta', { 'aria-label': 'Imprimir en' });
+    esEtiqueta = () => prSel.value === 'etiqueta';
+    const upd = () => { nLbl.textContent = esEtiqueta() ? 'Tarjetas (una por etiqueta)' : 'Hojas A4'; mount(info, h('p.small.muted', esEtiqueta() ? 'Si tienes la impresora de etiquetas por Bluetooth configurada, sale directa; si no, un PDF con cada tarjeta a su tamaño real.' : 'Se crea un PDF A4 a tamaño real: imprímelo al 100 % (sin «Ajustar a la página») en papel fotográfico.')); };
+    prSel.onchange = upd; upd();
+  }
+  mount(el, h('div.form', prSel ? field('Impresora', prSel) : null, h('label.field', h('span.lbl', nLbl), hojas), field('Calidad', calidad)), info,
     h('div.row', { style: { marginTop: '8px' } }, btn('🖨️ IMPRIMIR TARJETAS', async ev => {
       const b = ev.target.closest('button'); b.disabled = true;
-      try { const d = getCard(); const r = await E.printCardSheets(d, { hojas: hojas.value, dpi: Number(calidad.value), printer: prSel && prSel.value }); mount(out, h('p.small.ok-t', r.how === 'printer' ? '✓ Enviado a ' + r.printer : '✓ PDF listo')); }
+      try { const d = getCard(); const pn = D.desktop.on && prSel ? prSel.value : undefined; const r = esEtiqueta() ? await E.printCardLabels(d, { copias: hojas.value, printer: pn }) : await E.printCardSheets(d, { hojas: hojas.value, dpi: Number(calidad.value), printer: pn }); mount(out, h('p.small.ok-t', r.how === 'printer' ? '✓ Enviado a ' + r.printer : '✓ PDF listo')); }
       catch (e) { toast('No se pudo imprimir: ' + e.message, 'bad', 8000); } b.disabled = false;
     }, { cls: 'primary' })), out);
 }

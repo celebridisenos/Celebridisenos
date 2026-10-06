@@ -6,6 +6,7 @@ import { h, mount, btn, toast, empty, pill, inp, fdt } from '../ui.js';
 import { S, can, api, byId, upsertLocal, emit, on } from '../store.js';
 import { go, handleError } from '../app.js';
 import * as E from '../envio.js';
+import { miniPedido } from '../fotopedido.js';
 import { qrSvg } from '../qr.js';
 import * as L from '../labels.js';
 import { modal } from '../ui.js';
@@ -187,7 +188,7 @@ function showOrder(o, extra, el, fresh) {
   // v13.8.1: pedido CANCELADO → pantalla en ROJO, vibración larga y sonido de error. No se puede empaquetar ni enviar.
   if (ph === 'cancelado') {
     const cc = h('div.scan-card.scan-cancelado',
-      h('div.scan-big', '⛔'), h('h2.scan-cancel-t', 'CANCELADO'),
+      h('div.scan-big', '⛔'), h('h2.scan-cancel-t', 'CANCELADO'), h('div.fp-scan', miniPedido(o, 110)),
       h('p', h('b', 'Nº ' + o.numero), ' · ' + (o.cliente || '') + ' · ' + (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + (o.producto || '')),
       h('p', 'Este pedido está cancelado. No lo empaquetes ni lo envíes.'),
       o.incidencia ? h('p.small', '⚠️ ' + o.incidencia) : null,
@@ -202,6 +203,7 @@ function showOrder(o, extra, el, fresh) {
     h('div.scan-head', h('b', 'Nº ' + o.numero), o.codigo ? h('code', o.codigo) : null, h('span.grow'), pill(o.estado, '', st.c)),
     row('👤', 'Cliente', o.cliente || '—'),
     row('📍', 'Dirección', hidden ? '🔒 sin permiso para verla' : dir || h('span.warn-t', 'no está guardada')),
+    h('div.fp-scan', miniPedido(o, 150, 'grande')), // v13.10: la foto de lo que pidió, para comprobar que metes lo correcto
     row('📦', 'Producto', (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto),
     row('🎨', 'Color', o.color || h('span.muted', 'sin indicar')),
     row('📅', 'Cuándo se envía', when, t.nivel === 'late' ? 'late' : t.nivel === 'today' ? 'today' : ''),

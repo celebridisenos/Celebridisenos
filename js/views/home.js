@@ -49,7 +49,7 @@ function greet() {
   return (hr < 6 ? 'Buenas noches' : hr < 14 ? 'Buenos días' : hr < 21 ? 'Buenas tardes' : 'Buenas noches') + ', ' + S.me.nombre.split(' ')[0];
 }
 
-let frasesLoaded = false, fraseOff = 0;
+let frasesLoaded = false, fraseOff = 0, consejoEl = null;
 function draw(root) {
   const d = dash();
   const hoyTxt = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -57,12 +57,14 @@ function draw(root) {
   const gameOn = !(S.cfg.gamificacion && S.cfg.gamificacion.activa === false);
   const mods = p.order.filter(k => !p.hidden.includes(k)).map(k => MODS.find(m => m.k === k)).filter(m => m && (!m.p || can(m.p)) && (gameOn || !['juego', 'motivacion'].includes(m.k)));
   if (gameOn) setTimeout(checkLevelUp, 1200);
-  if (!frasesLoaded) { frasesLoaded = true; loadFrases().then(() => draw(root)); }
+  // v14.0: al llegar las frases se cambia SOLO la tarjeta de motivación (antes se redibujaba todo el Inicio: parpadeo)
+  if (!frasesLoaded) { frasesLoaded = true; loadFrases().then(() => { const old = root.querySelector('.card.motiv'); if (!old) return; const nu = MOD_FNS.motivacion(dash()); if (nu) old.replaceWith(nu); }); }
   mount(root,
     h('div.page-head', h('div', h('h1', greet()), h('div.muted', hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1))), h('div.right.row',
       can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),
     mods.some(m => m.k === 'kpis') ? kpiStrip(d) : null,
+    can('productos.ver') ? (consejoEl || (consejoEl = (() => { const box = h('div.cj-home'); import('../consejos.js').then(C => box.append(C.tarjetaConsejo())); return box; })())) : null, // v13.10: 💡 consejo del día para vender más
     mods.some(m => m.k === 'camaras') ? homeCameras() : null,
     mods.some(m => m.k === 'celebrity') ? MOD_FNS.celebrity(d) : null,
     mods.some(m => m.k === 'motivacion') ? MOD_FNS.motivacion(d) : null,

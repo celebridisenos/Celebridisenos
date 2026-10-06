@@ -1,5 +1,6 @@
 // ================= Configuración: todo lo ajustable, sin tocar código =================
 import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText } from '../ui.js';
+import * as UI14 from '../ui14.js';
 import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHashes, checkNewPassword, user } from '../store.js';
 import { rolePicker } from '../roles.js';
 import { iaPanel } from '../ai/models.js';
@@ -40,7 +41,8 @@ const SECTIONS = [
   { g: 'Conexiones' },
   { k: 'automatizaciones', t: 'Automatizaciones (reglas de avisos)', i: 'sparkles', p: 'config.editar' },
   { k: 'avisos', t: 'Telegram y avisos', i: 'bell', p: 'config.editar' },
-  { k: 'plataformas', t: 'Avisos de Wallapop y plataformas', i: 'bell', p: 'config.editar' }, // v12.2
+  { k: 'cuentas', t: 'Mis cuentas de venta', i: 'store', p: 'config.editar' }, // v14.1: varias cuentas de Vinted, Wallapop…
+  { k: 'plataformas', t: 'Correos de Vinted, Wallapop… (bandeja)', i: 'bell', p: 'config.editar' }, // v12.2 · v14.1
   { k: 'redes', t: 'Redes (TikTok, Instagram…)', i: 'calendar' },
   { k: 'github', t: 'GitHub y actualizaciones', i: 'download' },
   { g: 'Sistema' },
@@ -123,6 +125,11 @@ const SEC = {
       return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span.grow', p.name), h('span.small', '→'), x, h('span.small', 'mm'), h('span.small', '↓'), y, h('span.small', 'mm'),
         btn('Hoja de prueba', async () => { await L.saveLabelCfg(c); L.printLabels('qr', [{ qr: 'CelebriDisenos-calibracion', titulo: 'Debe medir 40 × 40 mm' }], { printer: p.name }); }, { cls: 'sm ghost', icon: 'printer' }));
     });
+    // v14.1: desde el móvil o el portátil (sin impresora de etiquetas), ¿dónde salen?
+    const E = await import('../envio.js');
+    const dsel = sel([{ v: '', t: 'Preguntar cada vez' }, { v: 'taller', t: '🖨️ En el PC del taller' }, { v: 'aqui', t: '📄 Aquí (PDF)' }], E.destinoGuardado());
+    dsel.onchange = () => { E.guardarDestino(dsel.value); toast('Guardado en este aparato', 'ok'); };
+    b.append(card('Imprimir desde este aparato', h('p.small.muted', 'Cuando este aparato no tiene impresora de etiquetas, las etiquetas pueden salir por el PC del taller (el programa del PC tiene que estar abierto) o aquí en PDF.'), field('Las etiquetas salen…', dsel)));
     b.append(card('Plantillas', h('p.small.muted', 'Tamaño de cada etiqueta e impresora. "Automática": envíos a la impresora de etiquetas 10×15; si no hay, a la de folios a tamaño real (varias por hoja).'), h('div.list.boxed', rows)),
       desktop.on && list.length ? card('Calibración', h('p.small.muted', 'Si la etiqueta sale desplazada, corrige aquí los milímetros (→ derecha, ↓ abajo) e imprime la hoja de prueba: el cuadrado debe medir exactamente 40 × 40 mm.'), h('div.list.boxed', offs)) : null,
       btn('Guardar', async () => { await L.saveLabelCfg(c); toast('Impresoras y etiquetas guardadas en este ' + (desktop.on ? 'ordenador' : 'dispositivo'), 'ok'); }, { cls: 'primary' }));
@@ -178,6 +185,7 @@ const SEC = {
     b.append(card(null, h('div.row', avatar(u, 'l'), h('div', h('h3', u.nombre), h('div.muted', u.usuario + ' · ' + roleName(u.rol)))),
       h('div.form', field('Nombre que ven los demás', nombre), field('Mi color', color)), btn('Guardar', async () => { try { const r = await api('usuarios.editar', { id: u.id, nombre: nombre.value.trim(), color: color.value }); Object.assign(S.me, r); emit(); toast('Perfil guardado', 'ok'); } catch (e) { handleError(e); } }, { cls: 'primary' })),
       card('Apariencia', tema, h('p.small.muted', 'Cada persona elige su tema; se aplica en todos sus dispositivos.')),
+      card('Interfaz (este aparato)', uiElegir()),
       card(null, foto.el),
       card('Cambiar contraseña', h('div.form', field('Contraseña actual', p1), h('div'), field('Nueva contraseña', p2, 'Mínimo 6 caracteres'), field('Repite la nueva', p3)),
         btn('Cambiar contraseña', async () => { const er = checkNewPassword(p2.value, p3.value); if (er) return toast(er, 'bad'); try { const act = await passHashes(p1.value); await api('usuarios.editar', Object.assign({ id: u.id }, await passHashes(p2.value), { phActual: act.ph, ph3Actual: act.ph3, passwordActual: p1.value })); p1.value = p2.value = p3.value = ''; toast('Contraseña cambiada', 'ok'); } catch (e) { toast(e.message, 'bad'); } })),
@@ -499,6 +507,11 @@ const SEC = {
       resumenCard(c));
   },
   // v12.2: Wallapop, Vinted… no tienen API para vendedores, pero SIEMPRE mandan un email de aviso. Aquí se leen (solo lectura) y saltan al programa.
+  cuentas(b) { // v14.1
+    import('../cuentas.js').then(CV => b.append(
+      card('Mis cuentas de venta', h('p.small.muted', 'Apunta cada cuenta desde la que vendes (por ejemplo dos de Vinted y una de Wallapop). Al crear un pedido eliges desde cuál lo vendiste y sale en la ficha, en la lista y en la etiqueta interna del paquete. Si pones el correo de cada cuenta, la bandeja de correos sabrá de qué cuenta es cada aviso.'), CV.editorCuentas()),
+      card(null, h('p.small', '📬 ¿Quieres que los avisos de todas estas cuentas (ventas, mensajes, ofertas) lleguen al programa? Ve a ', h('a', { href: '#/config/plataformas' }, 'Correos de Vinted, Wallapop… (bandeja)'), '.'))));
+  },
   async plataformas(b) {
     let st;
     try { st = await api('plataformas.estado', {}); } catch (e) { b.append(h('p.bad-t', e.message)); return; }
@@ -529,9 +542,10 @@ const SEC = {
         h('div.row.wrap', btn('+ Otra plataforma', () => { c.reglas.push({ id: 'p' + (c.reglas.length + 1), nombre: 'Otra', remitente: '', emoji: '🔔', activa: true }); dibuja(); }, { cls: 'sm ghost' }),
           btn('Guardar', async () => { try { const r = await api('plataformas.guardar', { valor: c }); Object.assign(c, r.config); dibuja(); await pull(); pinta(Object.assign({}, st, { config: r.config, disparador: r.disparador, error: r.error })); st.config = r.config; st.disparador = r.disparador; toast('Guardado', 'ok'); } catch (e) { handleError(e); } }, { cls: 'primary' }),
           btn('Revisar ahora', async ev => { const bt = ev.target.closest('button'); bt.disabled = true; try { const r = await api('plataformas.revisar', {}); const s2 = await api('plataformas.estado', {}); st = s2; pinta(s2); toast(r.error ? 'No se pudo revisar' : (r.nuevos ? r.nuevos + ' aviso(s) nuevo(s)' : 'Nada nuevo en el correo'), r.error ? 'bad' : 'ok'); await pull(); } catch (e) { handleError(e); } bt.disabled = false; }, { icon: 'refresh' })), info),
-      card('Cómo activarlo (una sola vez)',
+      guiaCuentas(st),
+      card('Paso 1 · Dar permiso al programa para leer el Gmail (una sola vez)',
         h('ol.small', { style: { paddingLeft: '18px', lineHeight: 1.7 } },
-          h('li', 'En Wallapop/Vinted, deja activados los avisos por email (Ajustes > Notificaciones) con el correo de Gmail que usa este programa.'),
+          h('li', 'En cada cuenta de Wallapop/Vinted, deja activados los avisos por email (Ajustes > Notificaciones).'),
           h('li', 'Entra en Apps Script (el proyecto del servidor), abre «Configuración del proyecto», marca «Mostrar el archivo appsscript.json» y sustituye su contenido por el archivo ', h('b', 'appsscript_con_correo.json'), ' de la carpeta del servidor. Después pega el nuevo Servidor.gs.'),
           h('li', 'Elige la función ', h('b', 'autorizarCorreo'), ', pulsa Ejecutar y acepta el permiso de Google (solo lectura de Gmail).'),
           h('li', 'Vuelve aquí, activa el interruptor y pulsa Guardar. Pulsa «Revisar ahora» para comprobar que no da error.')),
@@ -768,4 +782,52 @@ export async function appsCard(redes) {
   }
   draw();
   return card('Aplicaciones de este PC', box);
+}
+
+// v14.0 · elegir entre la interfaz NUEVA (14.0) y la CLÁSICA (la de antes); y volver a ver la inauguración
+function uiElegir() {
+  const caja = h('div');
+  const pinta = () => {
+    const n = UI14.uiNueva();
+    mount(caja, h('div.ui-elegir',
+      h('button.ui-op' + (n ? '.on' : ''), { type: 'button', 'data-ui': 'nueva', onclick: () => { UI14.aplicarUI(true); pinta(); } }, h('span.ui-mini.nueva'), h('b', '✨ Nueva (14.0)'), h('span.tiny.muted', 'Colores vivos, cristal, animaciones suaves. Usa un poco más la tarjeta gráfica.')),
+      h('button.ui-op' + (!n ? '.on' : ''), { type: 'button', 'data-ui': 'clasica', onclick: () => { UI14.aplicarUI(false); pinta(); } }, h('span.ui-mini.clasica'), h('b', '🗂️ Clásica'), h('span.tiny.muted', 'La de siempre: más sencilla y ligera (va mejor en ordenadores o móviles antiguos).'))),
+      h('div.row.wrap', { style: { gap: '8px', marginTop: '10px' } }, btn('🎀 Volver a ver la inauguración', () => UI14.inauguracion({ ir: r => { location.hash = '#/' + r; }, alCerrar: pinta }), { cls: 'sm ghost' })),
+      h('p.tiny.muted', 'Solo cambia el aspecto; todo sigue en el mismo sitio. Se guarda en este aparato (móvil y PC pueden tener una distinta).'));
+  };
+  pinta(); return caja;
+}
+
+// v14.1 · Guía para juntar TODAS las cuentas (varias de Vinted, de Wallapop…) en el Gmail del programa
+function guiaCuentas(st) {
+  const correo = st.correoServidor || '(el Gmail con el que instalaste el servidor)';
+  const cuentas = (S.cfg.cuentasVenta || []).filter(c => c.correo);
+  const llegan = c => (S.t.correosPlat || []).some(r => r.correoCuenta === c.correo || r.cuenta === c.plataforma + ' · ' + c.nombre);
+  const esGmail = e => /@(gmail|googlemail)\.com$/i.test(e);
+  const enlaceAjustes = e => esGmail(e) ? 'https://mail.google.com/mail/u/?authuser=' + encodeURIComponent(e) + '#settings/fwdandpop' : /@(hotmail|outlook|live)\./i.test(e) ? 'https://outlook.live.com/mail/0/options/mail/forwarding' : '';
+  const DE = 'vinted.com OR wallapop.com OR etsy.com OR ebay.com OR ebay.es';
+  const abrir = u => () => { try { window.open(u, '_blank', 'noopener'); } catch (e) { } };
+  const paso = (n, ...k) => h('div.bz-paso', h('b.n', String(n)), h('div.grow', ...k));
+  const conf = (st.confirmaciones || []).filter(x => x.codigo || x.enlace);
+  return card('📬 Juntar TODAS tus cuentas en la bandeja (paso a paso)',
+    h('p.small', 'Tienes varias cuentas de Vinted y Wallapop, cada una con su correo. Cada correo REENVÍA solo los avisos de esas plataformas al Gmail del programa, y el programa los enseña juntos en ', h('a', { href: '#/bandeja' }, '📬 Bandeja de ventas'), ', diciendo de qué cuenta es cada uno.'),
+    paso(1, h('div', 'El Gmail del programa es: ', h('b.bz-cuenta', correo), ' ', btn('Copiar', () => copyText(st.correoServidor || ''), { cls: 'sm ghost' })), h('div.tiny.muted', 'Ahí deben llegar los avisos de todas las cuentas.')),
+    paso(2, h('div', 'Apunta tus cuentas (plataforma, nombre y su correo) en ', h('a', { href: '#/config/cuentas' }, 'Mis cuentas de venta'), '.'),
+      cuentas.length ? h('div.tiny.muted', cuentas.length + (cuentas.length === 1 ? ' cuenta con correo apuntada.' : ' cuentas con correo apuntadas.')) : h('div.tiny.warn-t', 'Aún no hay cuentas con su correo.')),
+    paso(3, h('div', h('b', 'En el Gmail de CADA cuenta'), ' (una vez):'),
+      h('ol.small', { style: { paddingLeft: '18px', lineHeight: 1.7, margin: '4px 0' } },
+        h('li', 'Entra en ', h('b', 'Configuración (⚙️) → Ver todos los ajustes → Reenvío y correo POP/IMAP'), '.'),
+        h('li', 'Pulsa ', h('b', 'Añadir una dirección de reenvío'), ', escribe el Gmail del programa y acepta.'),
+        h('li', 'Google manda un código de confirmación al Gmail del programa: ', h('b', 'te sale aquí abajo'), ' (no hace falta abrir ese Gmail). Escríbelo donde lo pide y pulsa ', h('b', 'Verificar'), '.'),
+        h('li', 'Ahora, para que solo se reenvíen los avisos de las plataformas (y no tus correos personales): en la barra de búsqueda de Gmail pulsa ', h('b', 'Mostrar opciones de búsqueda'), ', en ', h('b', 'De'), ' pega ', h('code', DE), ' ', btn('Copiar', () => copyText(DE), { cls: 'sm ghost' }), ', pulsa ', h('b', 'Crear filtro'), ', marca ', h('b', 'Reenviarlo a'), ', elige el Gmail del programa y pulsa ', h('b', 'Crear filtro'), '.')),
+      h('div.tiny.muted', 'En Hotmail/Outlook: Configuración → Correo → Reenvío (o una Regla con «De» vinted.com…). En otros correos busca «reenvío automático».'),
+      cuentas.length ? h('div.list', { style: { marginTop: '6px' } }, cuentas.map(c => h('div.item', { style: { cursor: 'default', flexWrap: 'wrap', gap: '8px' } },
+        h('span.grow', h('b', c.plataforma + ' · ' + c.nombre), ' ', h('span.tiny.muted', c.correo)),
+        llegan(c) ? h('span.ok-t.small', '✓ Ya llegan sus avisos') : h('span.tiny.muted', 'Aún no ha llegado nada'),
+        enlaceAjustes(c.correo) ? btn('Abrir sus ajustes de reenvío', abrir(enlaceAjustes(c.correo)), { cls: 'sm' }) : null))) : null),
+    paso(4, h('div', h('b', 'Códigos de confirmación recibidos'), ' (de los últimos 7 días)'),
+      conf.length ? conf.map(x => h('div.row.wrap', { style: { gap: '10px', alignItems: 'center', marginTop: '6px' } }, h('span.small', 'Para ', h('b', x.cuenta || '¿?'), ':'), x.codigo ? h('span.bz-codigo', x.codigo) : null,
+        x.codigo ? btn('Copiar', () => copyText(x.codigo), { cls: 'sm ghost' }) : null, x.enlace ? btn('Confirmar con el enlace de Google', abrir(x.enlace), { cls: 'sm' }) : null))
+        : h('div.tiny.muted', 'Todavía no ha llegado ninguno. Cuando hagas el paso 3, pulsa «Revisar ahora» y aparecerá aquí.')),
+    paso(5, 'Enciende el interruptor de arriba, pulsa Guardar y luego «Revisar ahora». Los avisos nuevos irán llegando a la Bandeja cada 5 minutos.'));
 }
