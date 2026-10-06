@@ -108,6 +108,7 @@ const SEC = {
     const CI = await import('./centro_impresion.js');
     const c = await CI.render(b, L, () => (reload ? reload() : SEC_RELOAD()));
     const list = L.realPrinters(await L.printers());
+    const PLm = await import('../plantillas.js');
     const rows = Object.keys(L.TEMPLATES).map(k => {
       const t = L.TEMPLATES[k], s = L.sizeOf(k, c), auto = L.pickPrinter(k, list, Object.assign({}, c, { impresora: {} }));
       const pr = sel([{ v: '', t: 'Automática' + (auto ? ' (' + auto.name + ')' : '') }].concat(list.map(p => ({ v: p.name, t: p.name }))), (c.impresora || {})[k] || '');
@@ -115,7 +116,11 @@ const SEC = {
       pr.onchange = () => { c.impresora = c.impresora || {}; if (pr.value) c.impresora[k] = pr.value; else delete c.impresora[k]; };
       const sz = () => { c.tam = c.tam || {}; c.tam[k] = { w: Number(w.value) || t.w, h: Number(hh.value) || t.h }; };
       w.onchange = sz; hh.onchange = sz;
-      return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('div.grow', { style: { minWidth: '180px' } }, h('b', t.t), h('div.tiny.muted', t.d)), h('div.row', w, '×', hh, h('span.small', 'mm')), desktop.on ? h('div', { style: { minWidth: '220px' } }, pr) : null);
+      // v15.0: diseño propio (editor visual) de las etiquetas que se pueden diseñar
+      const PLa = PLm.EDITABLES.includes(k) ? PLm.activa(k) : null;
+      const dis = PLm.EDITABLES.includes(k) ? h('div.row.wrap', PLa ? pill('✏️ ' + PLa.nombre, 'brand') : h('span.tiny.muted', 'Diseño de siempre'),
+        btn('Editar diseño', async () => { const ED = await import('./editor_etiqueta.js'); if (await ED.abrirEditor(k)) (reload ? reload() : SEC_RELOAD()); }, { cls: 'sm ghost', icon: 'edit' })) : null;
+      return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('div.grow', { style: { minWidth: '180px' } }, h('b', t.t), h('div.tiny.muted', t.d), dis), h('div.row', w, '×', hh, h('span.small', 'mm')), desktop.on ? h('div', { style: { minWidth: '220px' } }, pr) : null);
     });
     const offs = list.map(p => {
       const a = (c.ajuste || {})[p.name] || {};
@@ -510,7 +515,8 @@ const SEC = {
   cuentas(b) { // v14.1
     import('../cuentas.js').then(CV => b.append(
       card('Mis cuentas de venta', h('p.small.muted', 'Apunta cada cuenta desde la que vendes (por ejemplo dos de Vinted y una de Wallapop). Al crear un pedido eliges desde cuál lo vendiste y sale en la ficha, en la lista y en la etiqueta interna del paquete. Si pones el correo de cada cuenta, la bandeja de correos sabrá de qué cuenta es cada aviso.'), CV.editorCuentas()),
-      card(null, h('p.small', '📬 ¿Quieres que los avisos de todas estas cuentas (ventas, mensajes, ofertas) lleguen al programa? Ve a ', h('a', { href: '#/config/plataformas' }, 'Correos de Vinted, Wallapop… (bandeja)'), '.'))));
+      card(null, h('p.small', '📬 ¿Quieres que los avisos de todas estas cuentas (ventas, mensajes, ofertas) lleguen al programa?'),
+        btn('📬 Conectar una cuenta paso a paso', async () => { const AC = await import('../asistente_correo.js'); if (await AC.abrirAsistenteCorreo()) { b.replaceChildren(); SEC.cuentas(b); } }, { cls: 'primary' }))));
   },
   async plataformas(b) {
     let st;
@@ -536,6 +542,10 @@ const SEC = {
     dibuja();
     const act = h('label.check', sw(!!c.activo, v => { c.activo = v; }), 'Leer los emails de aviso y convertirlos en notificaciones');
     const dias = sel([1, 2, 3, 7, 14].map(n => ({ v: n, t: 'Últimos ' + n + (n === 1 ? ' día' : ' días') })), String(c.dias)); dias.onchange = () => { c.dias = Number(dias.value); };
+    // v15.1 · el asistente de 4 pasos va lo primero: es lo más fácil
+    const AC = await import('../asistente_correo.js');
+    b.append(card('🧙 Conectar una cuenta (lo más fácil)', h('p.ac-grande', 'Te lleva paso a paso: plataforma → correo → reenvío → código → ✅ conectada. Sin contraseñas.'),
+      h('div.ac-entrada', btn('📬 Conectar una cuenta paso a paso', async () => { const ok = await AC.abrirAsistenteCorreo(); if (ok) { await pull().catch(() => { }); b.replaceChildren(); SEC.plataformas(b); } }, { cls: 'primary' }))));
     b.append(
       card('Avisos de Wallapop, Vinted, Etsy, eBay…', h('p.small.muted', 'Estas plataformas no dejan que otros programas lean sus mensajes, pero siempre te mandan un email («tienes un mensaje», «han reservado tu artículo»). El programa lee esos emails de tu Gmail y te avisa al instante en la campana, en una ventanita y en Telegram.'),
         act, h('div.form', field('Buscar en el correo', dias)), h('h4', 'Plataformas'), reglas,

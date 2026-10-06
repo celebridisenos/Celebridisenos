@@ -1,5 +1,5 @@
 // ================= Noticias: el tablón interno del equipo =================
-import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, debounce, confirmDlg, uid, avatar, sw } from '../ui.js';
+import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, debounce, confirmDlg, uid, avatar, sw, copyText } from '../ui.js';
 import { S, can, mutate, api, byId, upsertLocal, removeLocal, emit } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { dropZone, gallery, filesOf, mediaFeed } from '../files.js';
@@ -27,7 +27,7 @@ export function render(el, params) {
   const tabs = h('div.seg.not-tabs');
   const pubBtn = can('noticias.publicar') ? btn('Publicar', () => postForm(), { cls: 'primary', icon: 'plus' }) : null;
   const ponTab = k => { tab = k; try { localStorage.setItem('cd.noticias.tab', k); } catch (e) { } mount(tabs, [['actualidad', '🌍 Actualidad'], ['equipo', '👥 Del equipo']].map(([v, t]) => h('button' + (tab === v ? '.on' : ''), { type: 'button', 'data-tab': v, onclick: () => ponTab(v) }, t)));
-    actBox.style.display = tab === 'actualidad' ? '' : 'none'; equipoBox.style.display = tab === 'equipo' ? '' : 'none'; if (pubBtn) pubBtn.style.display = tab === 'equipo' ? '' : 'none'; if (tab === 'actualidad') actualidad(actBox); };
+    actBox.style.display = tab === 'actualidad' ? '' : 'none'; equipoBox.style.display = tab === 'equipo' ? '' : 'none'; if (tab !== 'actualidad') { callar(); actBox.classList.remove('tk-full'); document.body.classList.remove('tk-abierto'); } if (pubBtn) pubBtn.style.display = tab === 'equipo' ? '' : 'none'; if (tab === 'actualidad') actualidad(actBox); };
   equipoBox.append(h('div.row.wrap', { style: { marginBottom: '14px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fTipo)),
     h('div', { style: { maxWidth: '760px' } }, feed));
   el.append(h('div.page-head', h('h1', 'Noticias'), pubBtn), tabs, actBox, equipoBox);
@@ -75,7 +75,7 @@ export function render(el, params) {
   // al abrir Noticias, marcamos como leídas sus notificaciones
   const unread = S.t.notificaciones.filter(n => !n.leida && (n.tipo === 'noticia' || n.tipo === 'comentario' || n.tipo === 'mencion')).map(n => n.id);
   if (unread.length) api('notificaciones.leer', { ids: unread }).then(() => { unread.forEach(id => { const n = byId('notificaciones', id); if (n) n.leida = true; }); emit(); }).catch(() => { });
-  return { params: applyParams, update: drawFeed, guardaLoEscrito: true }; // v14.0: este tablón ya conserva el comentario a medias y el cursor al actualizarse
+  return { params: applyParams, update: drawFeed, guardaLoEscrito: true, destroy: () => { callar(); document.body.classList.remove('tk-abierto'); if (actTeclas) { document.removeEventListener('keydown', actTeclas); actTeclas = null; } } }; // v14.0: este tablón ya conserva el comentario a medias y el cursor al actualizarse
 }
 
 function postSig(n, now, focus) {
@@ -187,28 +187,82 @@ export function postForm(n) {
     }, { cls: 'primary' })], { size: 'wide' });
 }
 
-// ---------- v13.10 · 🌍 ACTUALIDAD: titulares reales por temas (política, deporte, moda, entretenimiento, arte…) ----------
+// ---------- v13.10 · 🌍 ACTUALIDAD: noticias reales por temas (política, deporte, moda, entretenimiento, arte…) ----------
+// v15.3 · 📱 TIPO TIKTOK: una noticia por pantalla, con su FOTO detrás y el texto encima. Se pasa con el dedo (o la rueda / ↓ ↑),
+// y cada una se puede ESCUCHAR en voz alta 🔊, guardar ❤️, compartir 📤 o abrir entera ↗.
 let actCat = (() => { try { return localStorage.getItem('cd.noticias.cat') || 'portada'; } catch (e) { return 'portada'; } })();
 const actMem = new Map();
+const ACT_ICO = { portada: '🗞️', politica: '🏛️', deporte: '⚽', moda: '👗', entretenimiento: '🎬', arte: '🎨', impresion3d: '🖨️', guardadas: '❤️' };
+const ACT_COLOR = { portada: ['#1e3a8a', '#7c3aed'], politica: ['#334155', '#0f766e'], deporte: ['#065f46', '#16a34a'], moda: ['#9d174d', '#f472b6'], entretenimiento: ['#7c2d12', '#f59e0b'], arte: ['#4c1d95', '#db2777'], impresion3d: ['#0e7490', '#7c3aed'], guardadas: ['#9f1239', '#f43f5e'] };
+const guardadas = () => { try { return JSON.parse(localStorage.getItem('cd.noticias.guardadas') || '[]'); } catch (e) { return []; } };
+const ponGuardadas = l => { try { localStorage.setItem('cd.noticias.guardadas', JSON.stringify(l.slice(0, 100))); } catch (e) { } };
+let actTeclas = null, actHabla = null;
+function callar() { try { speechSynthesis.cancel(); } catch (e) { } if (actHabla) { actHabla.classList.remove('on'); actHabla = null; } }
+function escuchar(x, b) {
+  if (!('speechSynthesis' in window)) return toast('Este aparato no sabe leer en voz alta.', 'warn');
+  const era = actHabla === b; callar(); if (era) return;
+  const u = new SpeechSynthesisUtterance(x.titulo + '. ' + (x.resumen || ''));
+  u.lang = 'es-ES'; u.rate = 0.95;
+  const v = speechSynthesis.getVoices().find(v => /^es(-|_)ES/i.test(v.lang)) || speechSynthesis.getVoices().find(v => /^es/i.test(v.lang)); if (v) u.voice = v;
+  u.onend = u.onerror = () => { if (actHabla === b) callar(); };
+  actHabla = b; b.classList.add('on'); speechSynthesis.speak(u);
+}
 async function actualidad(box, recargar) {
   if (box.dataset.cargando === '1') return;
-  const temasDef = [['portada', 'Portada'], ['politica', 'Política'], ['deporte', 'Deporte'], ['moda', 'Moda'], ['entretenimiento', 'Entretenimiento'], ['arte', 'Arte'], ['impresion3d', 'Impresión 3D']];
-  const ICO = { portada: '🗞️', politica: '🏛️', deporte: '⚽', moda: '👗', entretenimiento: '🎬', arte: '🎨', impresion3d: '🖨️' };
-  const chips = h('div.row.wrap.act-chips', { style: { gap: '6px', margin: '10px 0' } }, temasDef.map(([k, t]) => h('button.chip' + (actCat === k ? '.on' : ''), { type: 'button', 'data-cat': k, onclick: () => { actCat = k; try { localStorage.setItem('cd.noticias.cat', k); } catch (e) { } actualidad(box); } }, (ICO[k] || '') + ' ' + t)),
-    h('span.grow'), btn('↻ Actualizar', () => actualidad(box, true), { cls: 'sm ghost' }));
-  const lista = h('div.act-lista');
+  callar();
+  const temasDef = [['portada', 'Portada'], ['politica', 'Política'], ['deporte', 'Deporte'], ['moda', 'Moda'], ['entretenimiento', 'Entretenimiento'], ['arte', 'Arte'], ['impresion3d', 'Impresión 3D'], ['guardadas', 'Guardadas']];
+  const chips = h('div.act-chips', temasDef.map(([k, t]) => h('button.chip' + (actCat === k ? '.on' : ''), { type: 'button', 'data-cat': k, onclick: () => { actCat = k; try { localStorage.setItem('cd.noticias.cat', k); } catch (e) { } actualidad(box); } }, (ACT_ICO[k] || '') + ' ' + t)),
+    btn('↻', () => actualidad(box, true), { cls: 'sm ghost act-recargar', title: 'Actualizar las noticias' }),
+    btn('⛶', () => { box.classList.toggle('tk-full'); document.body.classList.toggle('tk-abierto', box.classList.contains('tk-full')); }, { cls: 'sm ghost act-full', title: 'Pantalla completa' }));
+  const lista = h('div.act-lista.tk', { tabindex: '0', 'aria-label': 'Noticias: desliza hacia arriba para ver la siguiente' });
   mount(box, chips, lista);
-  const pinta = r => {
-    if (!r.items.length) return mount(lista, h('p.muted', 'Ahora mismo no hay titulares de este tema.'));
-    const abrir = u => import('../desktop.js').then(D => D.desktop.on ? D.desktop.openUrl(u) : window.open(u, '_blank', 'noopener')).catch(() => window.open(u, '_blank', 'noopener'));
-    mount(lista, h('div.tiny.muted', { style: { marginBottom: '6px' } }, 'Google Noticias · actualizado ' + ago(r.actualizado)), r.items.map(x => h('a.card.flat.act-item', { href: x.enlace, target: '_blank', rel: 'noopener', onclick: e => { e.preventDefault(); abrir(x.enlace); } },
-      h('div.act-t', x.titulo), h('div.tiny.muted', [x.fuente, x.fecha ? ago(x.fecha) : ''].filter(Boolean).join(' · ')))));
+  if (actTeclas) document.removeEventListener('keydown', actTeclas);
+  actTeclas = e => {
+    if (!lista.isConnected) { document.removeEventListener('keydown', actTeclas); actTeclas = null; callar(); document.body.classList.remove('tk-abierto'); return; }
+    if (box.style.display === 'none' || e.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'Escape' && box.classList.contains('tk-full')) { box.classList.remove('tk-full'); document.body.classList.remove('tk-abierto'); return; }
+    const d = e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'k' ? -1 : 0;
+    if (!d) return; e.preventDefault();
+    lista.scrollBy({ top: d * lista.clientHeight, behavior: 'smooth' });
   };
+  document.addEventListener('keydown', actTeclas);
+  const abrir = u => import('../desktop.js').then(D => D.desktop.on ? D.desktop.openUrl(u) : window.open(u, '_blank', 'noopener')).catch(() => window.open(u, '_blank', 'noopener'));
+  const tarjeta = (x, i, r) => {
+    const [c1, c2] = ACT_COLOR[x.cat || actCat] || ACT_COLOR.portada;
+    const fondo = h('div.tk-fondo', { style: { background: 'linear-gradient(160deg,' + c1 + ',' + c2 + ')' } }, h('span.tk-emoji', ACT_ICO[x.cat || actCat] || '📰'));
+    if (x.imagen) {
+      const f = h('img.tk-foto', { src: x.imagen, alt: '', loading: i < 2 ? 'eager' : 'lazy', referrerpolicy: 'no-referrer', decoding: 'async' });
+      const bg = h('img.tk-borroso', { src: x.imagen, alt: '', loading: i < 2 ? 'eager' : 'lazy', referrerpolicy: 'no-referrer', 'aria-hidden': 'true' });
+      f.onerror = () => { f.remove(); bg.remove(); };
+      fondo.append(bg, f);
+    }
+    const g = guardadas(), esta = g.some(y => y.enlace === x.enlace);
+    const bG = h('button.tk-acc' + (esta ? '.on' : ''), { type: 'button', title: 'Guardar', 'aria-label': 'Guardar', onclick: () => { let l = guardadas(); const ya = l.some(y => y.enlace === x.enlace); l = ya ? l.filter(y => y.enlace !== x.enlace) : [Object.assign({ cat: x.cat || actCat }, x)].concat(l); ponGuardadas(l); bG.classList.toggle('on', !ya); bG.firstChild.textContent = !ya ? '❤️' : '🤍'; toast(ya ? 'Quitada de guardadas' : '❤️ Guardada', 'ok', 1500); } }, h('span', esta ? '❤️' : '🤍'), h('small', 'Guardar'));
+    const bV = h('button.tk-acc.tk-voz', { type: 'button', title: 'Escuchar', 'aria-label': 'Escuchar en voz alta', onclick: () => escuchar(x, bV) }, h('span', '🔊'), h('small', 'Escuchar'));
+    const bC = h('button.tk-acc', { type: 'button', title: 'Compartir', 'aria-label': 'Compartir', onclick: async () => { try { if (navigator.share) await navigator.share({ title: x.titulo, url: x.enlace }); else copyText(x.titulo + '\n' + x.enlace); } catch (e) { } } }, h('span', '📤'), h('small', 'Compartir'));
+    const bA = h('button.tk-acc', { type: 'button', title: 'Leer entera', 'aria-label': 'Abrir la noticia entera', onclick: () => abrir(x.enlace) }, h('span', '↗'), h('small', 'Abrir'));
+    return h('article.act-item.tk-card', { 'data-i': i, 'data-enlace': x.enlace },
+      fondo, h('div.tk-sombra'),
+      h('div.tk-txt',
+        h('div.tk-fuente', [x.fuente, x.fecha ? ago(x.fecha) : ''].filter(Boolean).join(' · ')),
+        h('h2.act-t', x.titulo),
+        x.resumen ? h('p.tk-resumen', x.resumen) : null,
+        h('button.tk-leer', { type: 'button', onclick: () => abrir(x.enlace) }, 'Leer la noticia entera ↗')),
+      h('div.tk-acciones', bG, bV, bC, bA),
+      i === 0 && r.items.length > 1 ? h('div.tk-pista', '⬆️ Desliza para ver la siguiente') : null,
+      h('div.tk-num', (i + 1) + ' / ' + r.items.length));
+  };
+  const pinta = r => {
+    if (!r.items.length) return mount(lista, h('div.tk-card.tk-vacia', h('div.tk-txt', h('h2', actCat === 'guardadas' ? '❤️ Aún no has guardado ninguna noticia' : 'Ahora mismo no hay noticias de este tema.'), actCat === 'guardadas' ? h('p.tk-resumen', 'Pulsa 🤍 Guardar en una noticia y aparecerá aquí.') : null)));
+    mount(lista, r.items.map((x, i) => tarjeta(x, i, r)));
+    lista.scrollTop = 0;
+  };
+  if (actCat === 'guardadas') return pinta({ items: guardadas() });
   const mem = actMem.get(actCat);
   if (mem && !recargar && Date.now() - mem.t < 10 * 60000) return pinta(mem.r);
-  mount(lista, h('div.skeleton', { style: { height: '64px', marginBottom: '8px' } }), h('div.skeleton', { style: { height: '64px', marginBottom: '8px' } }), h('div.skeleton', { style: { height: '64px' } }));
+  mount(lista, h('div.tk-card.tk-cargando', h('div.tk-txt', h('div.skeleton', { style: { height: '34px', width: '80%', marginBottom: '12px' } }), h('div.skeleton', { style: { height: '18px', width: '95%', marginBottom: '8px' } }), h('div.skeleton', { style: { height: '18px', width: '70%' } }))));
   box.dataset.cargando = '1';
-  try { const r = await api('actualidad.lista', { cat: actCat, recargar: !!recargar }, { quiet: true, timeout: 30000 }); actMem.set(actCat, { t: Date.now(), r }); pinta(r); }
-  catch (e) { mount(lista, h('div.card.flat', h('p', '📡 ' + (e.code === 'NOT_FOUND' || /desconocida|Acción/i.test(e.message) ? 'Actualiza el servidor (Servidor.gs de la versión 13.10) para ver las noticias de actualidad.' : e.message)), btn('Reintentar', () => actualidad(box, true), { cls: 'sm' }))); }
+  try { const r = await api('actualidad.lista', { cat: actCat, recargar: !!recargar }, { quiet: true, timeout: 40000 }); actMem.set(actCat, { t: Date.now(), r }); pinta(r); }
+  catch (e) { mount(lista, h('div.tk-card.tk-vacia', h('div.tk-txt', h('h2', '📡 ' + (e.code === 'NOT_FOUND' || /desconocida|Acción/i.test(e.message) ? 'Actualiza el servidor (Servidor.gs) para ver las noticias.' : e.message)), btn('Reintentar', () => actualidad(box, true), { cls: 'primary' })))); }
   finally { box.dataset.cargando = ''; }
 }

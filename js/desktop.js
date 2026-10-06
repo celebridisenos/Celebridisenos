@@ -90,6 +90,29 @@ export const desktop = {
     }
     if (buf.trim()) { try { onChunk(JSON.parse(buf)); } catch (e) { } }
   },
+  // v15.2 · motor de fotos del PC (Python de EDITOR_VIDEO): fondo con IA y caras con ojos, nariz y boca
+  motorEstado: forzar => call('motor/estado' + (forzar ? '?forzar=1' : '')),
+  motorFondo: (blob, modelo, calidad) => call('motor/fondo' + (modelo || calidad ? '?' + q({ modelo: modelo || '', calidad: calidad || '' }) : ''), { method: 'POST', body: blob }),
+  motorCaras: blob => call('motor/caras', { method: 'POST', body: blob }),
+  motorDescargar: id => call('motor/descargar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  motorBorrar: id => call('motor/borrar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  // v15.4 · Biouvision: restaurar fotos antiguas hasta 4K (en segundo plano, con avance) y paquetes de motores
+  motorDescargarGrupo: grupo => call('motor/descargar', { method: 'POST', body: JSON.stringify({ Grupo: grupo }) }),
+  motorRestaurar: fd => call('motor/restaurar', { method: 'POST', body: fd }),
+  motorRestaurarEstado: id => call('motor/restaurar/estado?' + q({ id })),
+  motorRestaurarFoto: async (id, cual) => (await call('motor/restaurar/foto?' + q({ id, cual: cual || '' }))).blob(),
+  motorRestaurarCancelar: id => call('motor/restaurar/cancelar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  motorDanos: fd => call('motor/danos', { method: 'POST', body: fd }),
+  // v15.4: abrir otra ventana del programa: Biouvision (app propia) o el programa en una pantalla (p. ej. '#/instagram')
+  ventana: (que, ruta) => call('ventana', { method: 'POST', body: JSON.stringify({ Que: que || '', Ruta: ruta || '' }) }),
+  // v15.3 · Reels con Remotion (el de EDITOR_VIDEO): estado, encargar el vídeo, seguirlo y recogerlo
+  reelsEstado: () => call('reels/estado'),
+  reelsRender: fd => call('reels/render', { method: 'POST', body: fd }),
+  reelsTrabajo: id => call('reels/estado?' + q({ id })),
+  reelsVideo: async id => (await call('reels/video?' + q({ id }))).blob(),
+  reelsCancelar: id => call('reels/cancelar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  reelsNavegador: () => call('reels/navegador', { method: 'POST' }),
+  reelsMusica: extra => call('reels/musica' + (extra ? '?' + q({ extra }) : '')),
   // ---- Apps instaladas (TikTok, Instagram…) ----
   // Internet para Celebrity (limitado y registrado)
   webBuscar: q => call('web/buscar?' + q({ q })),

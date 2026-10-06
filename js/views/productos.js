@@ -73,6 +73,9 @@ function productDrawer(id, onClose) {
             can('pedidos.crear') ? btn('Nuevo pedido', () => import('./pedidos.js').then(m => m.orderForm({ producto: p.nombre, productoId: p.id, precio: p.precio })), { icon: 'plus', cls: 'sm' }) : null,
             btn('Etiqueta', () => productLabel(p), { icon: 'printer', cls: 'sm' }),
             btn('Anuncio con IA', () => { closeAll(); go('anuncios/' + p.id + '/' + ((S.cfg.anuncios && S.cfg.anuncios.plataforma) || 'etsy')); }, { icon: 'sparkles', cls: 'sm' }),
+            // v15.3 · en un clic: el Reel del producto o su publicación de Instagram (fotos + texto con IA)
+            btn('🎬 Hacer un Reel', () => { closeAll(); go('reels/producto/' + p.id); }, { cls: 'sm prod-reel' }),
+            can('redes.ver') ? btn('📸 A Instagram', () => { closeAll(); go('instagram/producto/' + p.id); }, { cls: 'sm prod-ig' }) : null,
             desktop.on && can('config.ver') ? btn('Publicar con CelebryNova', () => import('./celebrynova.js').then(m => m.publishWithNova(p, modal, go)), { icon: 'send', cls: 'sm' }) : null,
             can('productos.editar') ? btn('Editar', () => productWizard(p), { icon: 'edit', cls: 'sm' }) : null,
             can('productos.borrar') ? btn('Borrar', () => delProduct(p, closeAll), { cls: 'danger sm', icon: 'trash' }) : null)));

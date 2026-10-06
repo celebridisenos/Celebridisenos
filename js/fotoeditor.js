@@ -3,6 +3,7 @@
 // brillo, contraste, color, calidez, «Mejorar» automático y tamaño/formato de salida. Todo ocurre en este dispositivo: la foto
 // no sale a ningún servicio externo y la ORIGINAL nunca se modifica (se crea una copia nueva).
 import { h, btn, modal, toast, sel } from './ui.js';
+import { historial, teclasDeshacer } from './biou/pro.js'; // v15.2: deshacer / rehacer
 
 // ---------- Proceso de imagen (puro: se puede probar sin pantalla) ----------
 export const DEF_ADJ = { brillo: 0, contraste: 0, saturacion: 0, calidez: 0 };
@@ -91,7 +92,27 @@ export async function editPhoto(file, opts = {}) {
       st.crop = box ? { x: b.x / dw, y: b.y / dh, w: b.w / dw, h: b.h / dh } : null;
       const cw = Math.round((st.crop ? st.crop.w : 1) * tcv.width), ch = Math.round((st.crop ? st.crop.h : 1) * tcv.height), sc = st.max && Math.max(cw, ch) > st.max ? st.max / Math.max(cw, ch) : 1;
       info.textContent = 'Original ' + src.width + ' × ' + src.height + ' → resultado ' + Math.round(cw * sc) + ' × ' + Math.round(ch * sc) + ' px';
+      clearTimeout(tA); tA = setTimeout(apunta, 350);
     };
+    // v15.2 · ↶ Deshacer / ↷ Rehacer (Ctrl+Z / Ctrl+Y): cada cambio es un paso
+    let tA = 0;
+    const foto = () => ({ rot: st.rot, flip: st.flip, adj: Object.assign({}, st.adj), levels: st.levels, ratio: st.ratio, fmt: st.fmt, max: st.max, box: box ? Object.assign({}, box) : null });
+    const bU = btn('↶ Deshacer', () => deshacer(), { cls: 'sm', title: 'Deshacer (Ctrl+Z)' }), bR = btn('↷ Rehacer', () => rehacer(), { cls: 'sm', title: 'Rehacer (Ctrl+Y)' });
+    bU.setAttribute('aria-label', 'Deshacer'); bR.setAttribute('aria-label', 'Rehacer'); bU.disabled = bR.disabled = true;
+    const hist = historial(e => { bU.disabled = !e.atras; bR.disabled = !e.adelante; });
+    const apunta = () => { clearTimeout(tA); hist.apuntar(foto()); };
+    const vuelve = s2 => {
+      if (!s2) return;
+      const geo = s2.rot !== st.rot || s2.flip !== st.flip;
+      Object.assign(st, { rot: s2.rot, flip: s2.flip, adj: Object.assign({}, s2.adj), levels: s2.levels, ratio: s2.ratio, fmt: s2.fmt, max: s2.max });
+      if (geo) fit();
+      box = s2.box;
+      sliders.forEach(x => { const i = x.querySelector('input'); i.value = st.adj[i.dataset.k] || 0; });
+      ratioSel.value = (PROP.find(([v]) => Number(v) === st.ratio && st.ratio) || [''])[0]; fmtSel.value = st.fmt; maxSel.value = String(st.max);
+      paint(); clearTimeout(tA);
+    };
+    const deshacer = () => { apunta(); vuelve(hist.atras()); }, rehacer = () => { apunta(); vuelve(hist.adelante()); };
+    const quitaTeclas = teclasDeshacer(deshacer, rehacer);
     const redraw = () => { fit(); box = null; paint(); };
     // ----- recorte con el ratón/dedo -----
     const pt = e => { const r = stage.getBoundingClientRect(); return { x: Math.min(dw, Math.max(0, e.clientX - r.left)), y: Math.min(dh, Math.max(0, e.clientY - r.top)) }; };
@@ -127,6 +148,7 @@ export async function editPhoto(file, opts = {}) {
     const maxSel = sel(MAXES.map(([v, t]) => ({ v, t })), String(st.max), { 'aria-label': 'Tamaño', onchange: () => { st.max = Number(maxSel.value); paint(); } });
     const body = h('div.col.fe', { style: { gap: '10px' } },
       opts.aviso ? h('p.small.muted', opts.aviso) : null,
+      h('div.row', { style: { gap: '6px', justifyContent: 'center' } }, bU, bR),
       h('div.fe-wrap', stage),
       h('div.row.wrap', { style: { gap: '6px', justifyContent: 'center' } },
         btn('Girar ⟲', () => { st.rot--; redraw(); }, { cls: 'sm', title: 'Girar a la izquierda' }), btn('Girar ⟳', () => { st.rot++; redraw(); }, { cls: 'sm', title: 'Girar a la derecha' }), btn('Voltear ⇋', () => { st.flip = !st.flip; redraw(); }, { cls: 'sm' }),
@@ -138,7 +160,7 @@ export async function editPhoto(file, opts = {}) {
         btn('Deshacer ajustes', () => { resetAdj(); paint(); }, { cls: 'sm ghost' })),
       h('div.row.wrap', { style: { gap: '8px', justifyContent: 'center' } }, fmtSel, maxSel), info);
     let done = false;
-    const fin = v => { if (!done) { done = true; resolve(v); } };
+    const fin = v => { quitaTeclas(); clearTimeout(tA); if (!done) { done = true; resolve(v); } };
     const m = modal(opts.titulo || 'Editar foto', body, close => [
       btn(opts.omitir || 'Cancelar', () => { fin(null); close(); }),
       btn(opts.aceptar || 'Usar esta foto', async ev => {
@@ -151,6 +173,6 @@ export async function editPhoto(file, opts = {}) {
           close();
         } catch (e) { toast(e.message, 'bad'); b.disabled = false; }
       }, { cls: 'primary', icon: 'image' })], { size: 'wide', sticky: false, onclose: () => fin(null) });
-    redraw();
+    redraw(); hist.vaciar(foto());
   });
 }

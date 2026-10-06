@@ -90,9 +90,79 @@ export function componer(cv, m, fondo) {
     g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill(); g.restore();
   }
   // el producto, recortado con la máscara
-  const prod = document.createElement('canvas'); prod.width = W; prod.height = H; const gp = prod.getContext('2d');
-  gp.drawImage(cv, 0, 0); gp.globalCompositeOperation = 'destination-in'; gp.drawImage(lienzoMascara(m, W, H, fondo.suave), 0, 0);
+  const mc = lienzoMascara(m, W, H, fondo.suave);
+  const prod = document.createElement('canvas'); prod.width = W; prod.height = H; const gp = prod.getContext('2d', { willReadFrequently: true });
+  gp.drawImage(cv, 0, 0);
+  if (fondo.halo !== false && fondo.tipo !== 'desenfocado') bordeSinHalo(gp, mc, W, H); // v15.4
+  gp.globalCompositeOperation = 'destination-in'; gp.drawImage(mc, 0, 0);
   g.drawImage(prod, 0, 0);
   return out;
+}
+
+// ---------- v15.4 · Bordes sin halo ----------
+// En el pelo y en los bordes suaves el color de la foto mezcla el producto con el fondo viejo: al ponerlo sobre otro fondo
+// queda un cerco claro u oscuro. Se calcula el color propio del producto en ese borde con el método rápido de Forte y
+// Pitié (2021, «blur fusion»): dos pasadas de promedio (una amplia y otra fina). Solo cambian los píxeles del borde.
+function caja(src, W, H, r, out, tmp) { // media en un cuadrado de lado 2r+1 (borde repetido), en dos pasadas
+  const n = 2 * r + 1;
+  for (let y = 0; y < H; y++) {
+    const o = y * W; let s = 0;
+    for (let x = -r; x <= r; x++) s += src[o + (x < 0 ? 0 : x >= W ? W - 1 : x)];
+    for (let x = 0; x < W; x++) { tmp[o + x] = s / n; const xa = x + r + 1, xq = x - r; s += src[o + (xa >= W ? W - 1 : xa)] - src[o + (xq < 0 ? 0 : xq)]; }
+  }
+  const col = new Float64Array(W);
+  for (let y = -r; y <= r; y++) { const o = (y < 0 ? 0 : y >= H ? H - 1 : y) * W; for (let x = 0; x < W; x++) col[x] += tmp[o + x]; }
+  for (let y = 0; y < H; y++) {
+    const o = y * W, ya = y + r + 1, yq = y - r, oa = (ya >= H ? H - 1 : ya) * W, oq = (yq < 0 ? 0 : yq) * W;
+    for (let x = 0; x < W; x++) { out[o + x] = col[x] / n; col[x] += tmp[oa + x] - tmp[oq + x]; }
+  }
+  return out;
+}
+// d: RGBA (se cambia en el sitio, solo donde 0 < alfa < 1); A: alfa 0..1
+export function sinHalo(d, A, W, H) {
+  const N = W * H, L = Math.max(W, H), r1 = Math.max(4, Math.round(90 * L / 1024)), r2 = Math.max(1, Math.round(6 * L / 1024));
+  const tmp = new Float32Array(N), bA1 = caja(A, W, H, r1, new Float32Array(N), tmp), bA2 = caja(A, W, H, r2, new Float32Array(N), tmp);
+  const I = new Float32Array(N), X = new Float32Array(N), bF = new Float32Array(N), bB = new Float32Array(N), F1 = new Float32Array(N);
+  for (let c = 0; c < 3; c++) {
+    for (let p = 0; p < N; p++) I[p] = d[p * 4 + c] / 255;
+    for (let p = 0; p < N; p++) X[p] = I[p] * A[p]; caja(X, W, H, r1, bF, tmp);
+    for (let p = 0; p < N; p++) X[p] = I[p] * (1 - A[p]); caja(X, W, H, r1, bB, tmp);
+    for (let p = 0; p < N; p++) {
+      const a = A[p], f = bF[p] / (bA1[p] + 1e-5), b = bB[p] / (1 - bA1[p] + 1e-5), v = f + a * (I[p] - a * f - (1 - a) * b);
+      bB[p] = b; F1[p] = v < 0 ? 0 : v > 1 ? 1 : v;
+    }
+    for (let p = 0; p < N; p++) X[p] = F1[p] * A[p]; caja(X, W, H, r2, bF, tmp);
+    for (let p = 0; p < N; p++) X[p] = bB[p] * (1 - A[p]); caja(X, W, H, r2, F1, tmp);
+    for (let p = 0; p < N; p++) {
+      const a = A[p]; if (a <= 0.01 || a >= 0.99) continue;
+      const f = bF[p] / (bA2[p] + 1e-5), b = F1[p] / (1 - bA2[p] + 1e-5), v = f + a * (I[p] - a * f - (1 - a) * b);
+      d[p * 4 + c] = (v < 0 ? 0 : v > 1 ? 1 : v) * 255;
+    }
+  }
+}
+function bordeSinHalo(gp, mc, W, H) {
+  try {
+    const Af = mc.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+    let hay = 0; for (let i = 3; i < Af.length; i += 4) if (Af[i] > 3 && Af[i] < 252 && ++hay > 30) break;
+    if (hay <= 30) return; // borde duro: no hace falta
+    const k = Math.min(1, Math.sqrt(3e6 / (W * H))), w = Math.max(1, Math.round(W * k)), h = Math.max(1, Math.round(H * k));
+    let fuente = gp.canvas, alfa = Af;
+    if (k < 1) { // fotos grandes: se calcula a 3 megapíxeles y se aplica al borde real
+      const s = document.createElement('canvas'); s.width = w; s.height = h; const gs = s.getContext('2d', { willReadFrequently: true });
+      gs.drawImage(gp.canvas, 0, 0, w, h); fuente = s;
+      const s2 = document.createElement('canvas'); s2.width = w; s2.height = h; const g2 = s2.getContext('2d', { willReadFrequently: true });
+      g2.drawImage(mc, 0, 0, w, h); alfa = g2.getImageData(0, 0, w, h).data;
+    }
+    const im = fuente.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h), A = new Float32Array(w * h);
+    for (let p = 0; p < A.length; p++) A[p] = alfa[p * 4 + 3] / 255;
+    sinHalo(im.data, A, w, h);
+    if (k === 1) { gp.putImageData(im, 0, 0); return; }
+    const s3 = document.createElement('canvas'); s3.width = w; s3.height = h; s3.getContext('2d').putImageData(im, 0, 0);
+    const gr = document.createElement('canvas'); gr.width = W; gr.height = H; const gg = gr.getContext('2d', { willReadFrequently: true });
+    gg.imageSmoothingQuality = 'high'; gg.drawImage(s3, 0, 0, W, H);
+    const F = gg.getImageData(0, 0, W, H).data, O = gp.getImageData(0, 0, W, H), o = O.data;
+    for (let i = 0; i < o.length; i += 4) { const a = Af[i + 3]; if (a > 3 && a < 252) { o[i] = F[i]; o[i + 1] = F[i + 1]; o[i + 2] = F[i + 2]; } }
+    gp.putImageData(O, 0, 0);
+  } catch (e) { console.warn('Bordes sin halo', e.message); } // sin memoria: se queda como siempre
 }
 export const FONDOS = [['original', 'Original'], ['banco', '🖼️ Banco de fondos'], ['blanco', '⬜ Blanco'], ['color', '🎨 Color'], ['degradado', '🌅 Degradado'], ['desenfocado', '🌫️ Desenfocado'], ['transparente', '🔲 Transparente (PNG)'], ['foto', '🖼️ Foto…']];

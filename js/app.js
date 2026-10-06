@@ -16,6 +16,7 @@ const VIEWS = {
   hoy: () => import('./views/hoy.js'),
   tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller (v13.10: fuera del menú; sigue en #/tv)
   estudio: () => import('./views/estudio.js'), // v13.10: 📸 Estudio de fotos
+  reels: () => import('./views/reels.js'), // v15.3: 🎬 Reels con Remotion (el vídeo lo hace el PC)
   mitienda: () => import('./views/mitienda.js'), // v13.10: acceso directo para difundir la tienda web
   rapidas: () => import('./views/rapidas.js'), // v13.10: respuestas rápidas (manual del equipo)
   pedidos: () => import('./views/pedidos.js'),
@@ -38,6 +39,8 @@ const VIEWS = {
   tareas: () => import('./views/tareas.js'),
   noticias: () => import('./views/noticias.js'),
   redes: () => import('./views/redes.js'),
+  instagram: () => import('./views/instagram.js'), // v15.3: 📸 Instagram Studio VIP (API oficial de Meta)
+  centroia: () => import('./views/centroia.js'), // v15.3: 🧠 Centro de IA (semáforo, biblioteca, prompts, descargas)
   archivos: () => import('./views/archivos.js'),
   ia: () => import('./views/ia.js'),
   nova: () => Promise.resolve({ render: () => { location.hash = '#/ia/operar'; return {}; } }), // v11.5: CelebryNova vive dentro de Celeby Nova
@@ -53,6 +56,7 @@ export const NAV = [
   { k: 'inicio', t: 'Inicio', i: 'home' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
   { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»
+  { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
   { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes)
@@ -77,9 +81,11 @@ export const NAV = [
   { sep: true, t: 'Equipo' },
   { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' },
   { k: 'noticias', t: 'Noticias', i: 'news', p: 'noticias.ver' },
+  { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3
   { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
   { k: 'archivos', t: 'Archivos', i: 'folder', p: 'archivos.ver' },
-  { k: 'ia', t: 'Celeby Nova', i: 'sparkles', p: 'ia.usar' }, // v11.5: Celebrity + CelebryNova en un solo asistente
+  { k: 'ia', t: 'Celeby Nova', i: 'sparkles', p: 'ia.usar' },
+  { k: 'centroia', t: 'Centro de IA 🧠', i: 'sparkles' }, // v15.3 // v11.5: Celebrity + CelebryNova en un solo asistente
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
   { sep: true },
   { k: 'config', t: 'Configuración', i: 'settings' },
@@ -369,6 +375,11 @@ export function accionesPaleta() {
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
     fn('Modo taller (botones grandes)', 'play', () => { try { localStorage.setItem('cd.operario', '1'); } catch (e) { } document.body.classList.add('operario'); go('hoy'); }, 'pedidos.ver', 'operario tablet'),
     nav('Biouvision (editor de fotos)', 'camera', 'estudio', 'productos.ver', 'foto editar retocar mejorar imagen estudio cara piel filtros fondo'),
+    fn('Biouvision: restaurar fotos antiguas hasta 4K (app propia)', 'sparkles', () => import('./views/estudio.js').then(m => m.abrirBiouvision('#/restaurar')), '', 'foto antigua vieja restaurar reparar arañazos 4k ampliar color abuela 1890 biouvision'),
+    fn('Biouvision: quitar el fondo de una foto (app propia)', 'sparkles', () => import('./views/estudio.js').then(m => m.abrirBiouvision('#/fondo')), '', 'quitar fondo recortar transparente png biouvision birefnet'),
+    nav('Reels: hacer un vídeo de un producto', 'play', 'reels', 'productos.ver', 'reel video vídeo instagram tiktok remotion animación anuncio'),
+    nav('Centro de IA: ver si todo funciona (🟢🟡🔴), biblioteca, prompts y descargas', 'sparkles', 'centroia', '', 'ia diagnostico estado semaforo solucionar biblioteca medios fotos videos prompt descargar modelos remotion'),
+    nav('Instagram Studio: crear, programar y ver estadísticas', 'camera', 'instagram', 'redes.ver', 'instagram publicar post carrusel historia reel programar hashtags estadisticas feed'),
     nav('Respuestas rápidas', 'msg', 'rapidas', '', 'whatsapp instagram correo contestar mensaje cliente manual plantilla'),
     nav('Escanear paquete', 'qr', 'escanear/camara', 'pedidos.ver', 'qr cámara lector empaquetar'),
     nav('Ir a Embalaje', 'box', 'embalaje', 'pedidos.ver', 'cajas paquete'),
@@ -407,7 +418,7 @@ export function palette(initial) {
     const ac = (a, grp) => ({ grp, ic: a.ic, t: a.t, sub: a.sub || '', path: a.path, fn: a.fn });
     if (modoAcc) {
       const t = q.value.trim().slice(1).trim();
-      todas.filter(a => !t || CL.matches(a.t + ' ' + a.kw, t)).slice(0, 30).forEach(a => items.push(ac(a, 'Acciones')));
+      todas.filter(a => !t || CL.matches(a.t + ' ' + a.kw, t)).slice(0, t ? 30 : 100).forEach(a => items.push(ac(a, 'Acciones')));
     } else if (s.length >= 1) {
       todas.filter(a => s.length >= 2 && CL.matches(a.t + ' ' + a.kw, s)).slice(0, 4).forEach(a => items.push(ac(a, 'Acciones')));
       const add = (grp, ic, t, sub, path) => items.push({ grp, ic, t, sub, path });
@@ -535,7 +546,7 @@ export async function start() {
   window.__appStarted = true;
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
-  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); });
+  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }); });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); setTimeout(warmUp, 6000); }
 }

@@ -425,10 +425,12 @@ export async function previewDialog(o, tipo) {
   const L = await import('./labels.js');
   if (tipo === 'paquete' && !o.codigo) { try { o = await ensureCode(o); } catch (e) { return toast(e.message, 'bad'); } }
   const b = await buildFor(o, tipo, L), s = L.sizeOf(b.tpl, await L.labelCfg());
+  await L.prepararPlantilla(b.tpl); // v15.0: diseño propio (logo en alta, letras)
   const cv = L.draw(b.tpl, b.data, 300, s); cv.className = 'lbl-canvas'; cv.style.width = Math.round(s.w * 4) + 'px'; cv.style.maxWidth = '100%';
   const faltan = tipo === 'gracias' ? b.data.faltan : [];
   modal(PRINT_TIPOS[tipo].t + ' · ' + s.w + ' × ' + s.h + ' mm', h('div.col', h('div.lbl-prev', cv), faltan.length ? h('p.small.warn-t', 'Falta: ' + faltan.join(', ')) : null,
     tipo === 'gracias' ? h('p.tiny.muted', 'El texto se cambia en Embalaje → Tarjeta y mensajes.') : null), close => [btn('Cerrar', close),
+    ['envio', 'paquete150', 'paquete'].includes(b.tpl) ? btn('Editar diseño', async () => { close(); const ED = await import('./views/editor_etiqueta.js'); await ED.abrirEditor(b.tpl, { datos: b.data }); previewDialog(o, tipo); }, { icon: 'edit', cls: 'ghost' }) : null,
     btn('Ver PDF', () => { const pages = [{ canvas: L.draw(b.tpl, b.data, 300, s), wmm: s.w, hmm: s.h }]; import('./pdfview.js').then(PV => PV.showPdf({ blob: L.pdfFromCanvases(pages), pages, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero, fileName: tipo + '_pedido_' + o.numero })); }, { icon: 'file' })], { size: 'narrow' });
 }
 export async function officialPreview(o) {
@@ -496,13 +498,13 @@ export function attachDialog(o, after, opts = {}) {
     fi, prev, info, recBtns, h('div.form', field('Página del PDF', pagSel), field('Transportista', tr), field('Nº de seguimiento', seg, o.seguimiento ? 'Ya tiene: ' + o.seguimiento + ' (no se cambia)' : 'Solo si es el de la etiqueta')), sug),
   close => [btn('Cancelar', close), btn('Adjuntar', async ev => {
     if (!file) return toast('Elige el archivo de la etiqueta', 'warn');
-    const bt = ev.target.closest('button'); bt.disabled = true;
+    const bt = ev.target.closest('button'), t0 = bt.innerHTML; bt.disabled = true; bt.textContent = '⏳ Adjuntando…';
     try {
       await attachFile(o, file, { transportista: tr.value || o.envio || '', seguimiento: seg.value.trim(), paginas: pagSel.options.length, pagina: Number(pagSel.value) || 1, recorte: rec || undefined });
       close(); after && after();
       if (opts.imprimir) { toast('🏷️ Etiqueta oficial adjuntada: se imprime tal cual', 'ok'); printOne(byId('pedidos', o.id) || o, 'oficial').then(() => after && after()).catch(e => toast(e.message, 'bad')); }
       else toast('🏷️ Etiqueta oficial adjuntada', 'ok', 8000, can('pedidos.editar') ? { t: '🖨️ Imprimir ahora', on: () => printOne(byId('pedidos', o.id) || o, 'oficial').catch(e => toast(e.message, 'bad')) } : null);
-    } catch (e) { toast(e.message, 'bad', 8000); bt.disabled = false; }
+    } catch (e) { toast(e.message, 'bad', 8000); bt.disabled = false; bt.innerHTML = t0; }
   }, { cls: 'primary', icon: 'upload' })], { size: 'wide' });
 }
 
@@ -635,9 +637,26 @@ export function conjuntoBlock(o, redraw) {
       CL.phaseOf(S.cfg.pedidos, p.estado) === 'cancelado' ? pill('⛔ CANCELADO: no lo metas', 'bad') : null,
       edit ? btn('Separar', () => separar(p).then(() => redraw && redraw()), { cls: 'sm ghost' }) : null))));
 }
+// v15.3 · ⚡ La etiqueta va al servidor en UN solo viaje (antes eran 3 seguidos: empezar subida, trozo y adjuntar).
+// Lo ya preparado en la vista previa (la página dibujada) se reutiliza: imprimirla después es inmediato.
+const ETIQUETA_UN_VIAJE = 6 * 1048576;
+function recordarLocal(file, archivoId) {
+  const loc = 'local:' + file.name + ':' + file.size;
+  for (const [k, v] of [...pageCache]) if (k.startsWith(loc + ':')) pageCache.set(archivoId + k.slice(loc.length), v);
+}
 export async function attachFile(o, file, extra = {}) {
   const F = await import('./files.js');
+  if (file.size <= ETIQUETA_UN_VIAJE) {
+    try {
+      const [datos, miniatura] = await Promise.all([F.aBase64(file), /^image\//.test(file.type || '') ? F.makeThumb(file, 'foto') : Promise.resolve('')]);
+      const r = await api('pedidos.adjuntarEtiqueta', Object.assign({ id: o.id, nombre: file.name, mime: file.type || '', datos, miniatura: miniatura || '', transportista: o.envio || '' }, extra), { timeout: 120000 });
+      if (r.archivo) { upsertLocal('archivos', r.archivo); F.recordarBlob(r.archivo.id, file); recordarLocal(file, r.archivo.id); }
+      upsertLocal('pedidos', r.pedido); emit();
+      return r.pedido;
+    } catch (e) { if (!/Acción desconocida/.test(e.message || '')) throw e; } // servidor sin actualizar: como antes
+  }
   const a = await F.uploadFile(file, { entidad: 'pedidos', entidadId: o.id, original: true });
+  F.recordarBlob(a.id, file); recordarLocal(file, a.id);
   const r = await api('pedidos.etiquetaOficial', Object.assign({ id: o.id, archivoId: a.id, transportista: o.envio || '' }, extra));
   upsertLocal('pedidos', r); emit();
   return r;

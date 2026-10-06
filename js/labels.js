@@ -11,6 +11,7 @@ import { desktop } from './desktop.js';
 import { qrPlan, qrPlanFixed } from './qr.js';
 import * as RP from './rawprint.js';
 import { appUrl, emisor } from './print.js';
+import * as PL from './plantillas.js';
 
 const CL = window.CL;
 export const TEMPLATES = {
@@ -223,6 +224,9 @@ export function draw(tpl, d, dpi, size) {
   // v13.5: forma de la plantilla (o la que venga en los datos). El contenido se dibuja en el hueco seguro de la forma.
   const forma = d && d.__inner ? 'rect' : (d && SHAPES[d.forma] ? d.forma : formaDe(tpl));
   if (forma !== 'rect' && SHAPED.includes(tpl)) return shapeCanvas(tpl, forma, Object.assign({ contorno: contornoOn() }, d), dpi, size || TEMPLATES[tpl]);
+  // v15.0: si el equipo eligió un DISEÑO PROPIO como predeterminado para esta etiqueta, se dibuja con él (editor visual).
+  // Sin diseño predeterminado, todo sigue exactamente igual que antes.
+  if (!(d && d.__sinPlantilla) && PL.EDITABLES.includes(tpl)) { const P = PL.activa(tpl); if (P) return PL.dibujar(P, d || {}, dpi, size || TEMPLATES[tpl]); }
   const s = size || TEMPLATES[tpl], { c, g, k, F } = mk(s.w, s.h, dpi);
   if (d && d.__transparente) { g.clearRect(0, 0, c.width, c.height); g.fillStyle = '#000'; }
   g.__k = k;
@@ -449,6 +453,7 @@ export async function targetFor(tpl, printerName) {
 // Envía a la impresora (PC) o crea el PDF de tamaño exacto (móvil). build(dpi, size) → [canvas]. Lanza el error si falla.
 export async function sendLabel(tpl, build, opts = {}) {
   const t = await targetFor(tpl, opts.printer), s = t.size, dpi = t.dpi;
+  await prepararPlantilla(tpl); // v15.0: logo y letras del diseño propio, cargados antes de dibujar
   const canv = await build(dpi, s);
   if (t.pr && t.pr.raw) {
     // v13.2: directo por Bluetooth (sin controlador de Windows). PC → puerto COM; móvil Android → Web Bluetooth
@@ -483,6 +488,9 @@ export async function sendLabel(tpl, build, opts = {}) {
 }
 export { pdfFromCanvases };
 
+// v15.0: deja cargado lo que necesita el diseño propio de esa etiqueta (logo en alta, letras de RECURSOS)
+export const prepararPlantilla = tpl => PL.preparar(tpl).catch(() => null);
+
 // ---------- Diálogo único: vista previa a tamaño real + IMPRIMIR ETIQUETA ----------
 export async function labelDialog(tpl, datas, opts = {}) {
   datas = Array.isArray(datas) ? datas : [datas];
@@ -502,18 +510,27 @@ export async function labelDialog(tpl, datas, opts = {}) {
     if (real.checked) { cv.style.width = s.w + 'mm'; cv.style.height = s.h + 'mm'; } else { cv.style.width = '100%'; cv.style.height = 'auto'; cv.style.maxWidth = Math.round(s.w * 3.2) + 'px'; }
     mount(box, h('div.lbl-ruler', { style: real.checked ? { width: s.w + 'mm' } : {} }, h('span', s.w + ' mm')), cv);
     const sheet = isSheet(pr, s);
-    info.textContent = s.w + ' × ' + s.h + ' mm · escala 100 % · márgenes 0 mm · ' + dpi + ' ppp' + (pr ? ' · ' + (sheet ? 'en folio A4 a tamaño real (' + Math.max(1, Math.floor(205 / (s.w + 4))) * Math.max(1, Math.floor(291 / (s.h + 4))) + ' por hoja)' : 'papel ' + s.w + ' × ' + s.h + ' mm') : ' · PDF de tamaño exacto') + (datas.length > 1 ? ' · ' + datas.length + ' etiquetas' : '') + (formaDe(cur) !== 'rect' ? ' · forma: ' + SHAPES[formaDe(cur)].t.toLowerCase() + ' (Embalaje → Tarjeta y mensajes)' : '');
+    const pl = PL.EDITABLES.includes(cur) ? PL.activa(cur) : null;
+    if (bEdit) bEdit.style.display = PL.EDITABLES.includes(cur) ? '' : 'none';
+    info.textContent = (pl ? '✏️ Diseño: ' + pl.nombre + ' · ' : '') + s.w + ' × ' + s.h + ' mm · escala 100 % · márgenes 0 mm · ' + dpi + ' ppp' + (pr ? ' · ' + (sheet ? 'en folio A4 a tamaño real (' + Math.max(1, Math.floor(205 / (s.w + 4))) * Math.max(1, Math.floor(291 / (s.h + 4))) + ' por hoja)' : 'papel ' + s.w + ' × ' + s.h + ' mm') : ' · PDF de tamaño exacto') + (datas.length > 1 ? ' · ' + datas.length + ' etiquetas' : '') + (formaDe(cur) !== 'rect' ? ' · forma: ' + SHAPES[formaDe(cur)].t.toLowerCase() + ' (Embalaje → Tarjeta y mensajes)' : '');
     cv.dataset.forma = formaDe(cur); cutPreview(cv, formaDe(cur), s.w);
   };
   if (prSel) { const p = pickPrinter(cur, list, c); if (p) prSel.value = p.name; prSel.onchange = refresh; }
   if (tplSel) tplSel.onchange = () => { cur = tplSel.value; const p = pickPrinter(cur, list, c); if (p && prSel) prSel.value = p.name; refresh(); };
   real.onchange = refresh;
+  // v15.0: «Editar diseño» abre el editor visual con estos mismos datos; al volver, la vista previa se actualiza
+  const bEdit = btn('Editar diseño', async () => {
+    const ED = await import('./views/editor_etiqueta.js');
+    await ED.abrirEditor(cur, { datos: opts.dataFor ? opts.dataFor(cur) : datas[0] });
+    await prepararPlantilla(cur); refresh();
+  }, { icon: 'edit', cls: 'ghost', title: 'Mover el logo, los textos y los códigos, cambiar letras y tamaños…' });
+  for (const k of choices) await prepararPlantilla(k);
   const m = modal('Etiqueta' + (datas.length > 1 ? 's (' + datas.length + ')' : '') + ' · ' + TEMPLATES[cur].t, h('div.col',
     tplSel ? field('Plantilla', tplSel) : null,
     box, h('label.check.small', real, 'Ver a tamaño real en pantalla'), info,
     h('div.form', prSel ? field('Impresora', prSel, 'Elegida sola. Se recuerda en este PC.') : h('p.small.muted.full', desktop.on ? 'No se encuentran impresoras en Windows.' : 'En el móvil se crea un PDF con el tamaño exacto de la etiqueta.'), field('Copias', copies)),
     opts.aviso ? h('p.small.warn-t', opts.aviso) : null),
-  close => [btn('Cerrar', close), btn('IMPRIMIR ETIQUETA', async ev => {
+  close => [btn('Cerrar', close), bEdit, btn('IMPRIMIR ETIQUETA', async ev => {
     const b = ev.target.closest('button'); b.disabled = true;
     try {
       if (prSel && prSel.value) { c.impresora = c.impresora || {}; c.impresora[cur] = prSel.value; await saveLabelCfg(c); }

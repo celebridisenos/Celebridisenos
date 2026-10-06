@@ -19,7 +19,10 @@ export function render(el, params) {
   const raiz = h('div.bz');
   el.append(h('div.page-head', h('div', h('h1', '📬 Bandeja de ventas'), h('div.muted.small', 'Los correos de todas tus cuentas de Vinted, Wallapop… juntos')),
     h('div.right.row', can('config.editar') ? btn('↻ Revisar ahora', async ev => { const b = ev.currentTarget; b.disabled = true; try { const r = await api('plataformas.revisar', {}); await pull(); toast(r.error ? '⚠️ ' + r.error : r.nuevos ? r.nuevos + ' correo(s) nuevo(s)' : 'Nada nuevo en el correo', r.error ? 'bad' : 'ok', 6000); } catch (e) { toast(e.message, 'bad'); } b.disabled = false; }, { cls: 'ghost' }) : null,
+      can('config.editar') ? btn('➕ Conectar una cuenta', () => asistente(), { cls: 'primary' }) : null,
       can('config.editar') ? btn('⚙️ Configurar', () => go('config/plataformas'), { cls: 'ghost' }) : null)), raiz);
+  // v15.1 · asistente de 4 pasos (siguiente → terminado)
+  const asistente = async () => { const AC = await import('../asistente_correo.js'); if (await AC.abrirAsistenteCorreo()) { await pull().catch(() => { }); pinta(); } };
   const marcar = async (r, estado, pedidoId) => {
     try { const x = await api('correos.marcar', { id: r.id, estado, pedidoId }); upsertLocal('correosPlat', x.row); emit(); }
     catch (e) { toast(e.message, 'bad'); }
@@ -41,7 +44,7 @@ export function render(el, params) {
     mount(raiz,
       !cfgP.activo ? h('div.card.bz-off', h('h3', '📭 La bandeja aún no está encendida'),
         h('p.small', 'Para que lleguen aquí los avisos de todas tus cuentas (ventas, mensajes, ofertas…) hay que hacerlo una vez: cada cuenta reenvía sus correos de Vinted/Wallapop al Gmail del programa, y el programa los lee solo cada 5 minutos.'),
-        can('config.editar') ? btn('Configurarlo paso a paso', () => go('config/plataformas'), { cls: 'primary' }) : h('p.small.muted', 'Pídeselo a quien administra el programa.')) : null,
+        can('config.editar') ? btn('📬 Conectar una cuenta paso a paso', () => asistente(), { cls: 'primary' }) : h('p.small.muted', 'Pídeselo a quien administra el programa.')) : null,
       h('div.bz-filtros', TIPOS.map(([k, t]) => { const n = todos.filter(r => r.estado !== 'hecho' && (k === 'todo' || r.tipo === k)).length;
         return h('button.chip' + (filtro === k ? '.on' : ''), { type: 'button', 'data-tipo': k, onclick: () => { filtro = k; pinta(); } }, t, n ? h('span.c', String(n)) : null); }),
         cuentas.length > 1 ? cuentaSel : null,

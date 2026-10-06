@@ -176,6 +176,7 @@ export function scanFail(el, title, text) { mount(el, h('div.scan-card.scan-bad'
 // ---------- La ficha: SOLO lo que hace falta para preparar el paquete. Se puede escanear las veces que haga falta. ----------
 function showOrder(o, extra, el, fresh) {
   if (!o) { scanFail(el, 'Este pedido ya no existe', ''); return; }
+  const sigueOk = !fresh && el.dataset.id === o.id && !!el.querySelector('.scan-card.scan-ok'); // v15.2: al refrescarse los datos, la ficha sigue en verde
   el.dataset.id = o.id;
   const ph = CL.phaseOf(cfg().pedidos, o.estado), t = CL.orderTiming(o, cfg().pedidos, S.hoy);
   const cli = o.clienteId ? byId('clientes', o.clienteId) : null, xc = extra && extra.cliente;
@@ -231,7 +232,7 @@ function showOrder(o, extra, el, fresh) {
     h('details.scan-more', { open: wasOpen }, h('summary', 'Etiquetas, impresión y más'),
       E.printBlock(o, { redraw }),
       h('div.row.wrap', { style: { gap: '8px' } }, btn('📦 Abrir el embalaje', () => import('./embalaje.js').then(EM => EM.packPanel(o.id))), btn('Abrir el pedido', () => go('pedidos/' + o.id), { cls: 'ghost' }))));
-  if (fresh) flash(card, true);
+  if (fresh) flash(card, true); else if (sigueOk) card.classList.add('scan-ok');
   // opcional (Embalaje → Tarjeta y mensajes): al escanear un pedido en «Empaquetar» se imprime lo que falta
   if (fresh && edit && ph === 'empaquetar' && (cfg().envio || {}).autoAlEscanear && E.pendingOf(o).length) E.printPending(o).then(redraw).catch(e => handleError(e));
 }

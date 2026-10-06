@@ -260,6 +260,9 @@ function blobToB64(blob) {
 
 // Descarga un archivo de Drive (por trozos) y devuelve un Blob
 const blobCache = new Map();
+// v15.3: lo que se acaba de subir desde este aparato se recuerda: así no se vuelve a descargar para verlo o imprimirlo
+export function recordarBlob(id, blob) { if (id && blob && blob.size < 60 * 1048576) blobCache.set(id, blob); }
+export const aBase64 = blob => blobToB64(blob);
 export async function fetchFile(a, onProgress) {
   if (blobCache.has(a.id)) return blobCache.get(a.id);
   if (!a.driveId && a.rutaLocal && desktop.on) { const b = new Blob([await desktop.file(a.rutaLocal)], { type: a.mime || '' }); blobCache.set(a.id, b); return b; }
