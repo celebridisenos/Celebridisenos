@@ -1,0 +1,22 @@
+{
+  "name": "Biouvision · fotos con IA",
+  "short_name": "Biouvision",
+  "description": "Restaura fotos antiguas hasta 4K, quita fondos y retoca. De CelebriDiseños.",
+  "lang": "es",
+  "id": "./biouvision.html",
+  "start_url": "./biouvision.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07060d",
+  "theme_color": "#0b0918",
+  "orientation": "any",
+  "icons": [
+    { "src": "icons/biouvision-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/biouvision-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/biouvision-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Restaurar una foto antigua", "url": "./biouvision.html#restaurar", "icons": [{ "src": "icons/biouvision-192.png", "sizes": "192x192" }] },
+    { "name": "Quitar el fondo", "url": "./biouvision.html#fondo", "icons": [{ "src": "icons/biouvision-192.png", "sizes": "192x192" }] }
+  ]
+}

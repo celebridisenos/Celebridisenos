@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es" data-theme="biouvision">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0918">
+<meta name="description" content="Biouvision · Restaura fotos antiguas hasta 4K, quita fondos y retoca con IA. De CelebriDiseños.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Biouvision">
+<title>Biouvision</title>
+<link rel="manifest" href="biouvision.webmanifest">
+<link rel="icon" href="icons/biouvision-32.png">
+<link rel="apple-touch-icon" href="icons/biouvision-180.png">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/biouvision.css">
+<!--HOST-->
+<script src="js/logic.js"></script>
+<script src="js/listing.js"></script>
+<script type="module" src="js/biouvision/app.js"></script>
+</head>
+<body class="bv-body">
+<div class="bv-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div id="bv"><div class="bv-cargando"><img src="icons/biouvision.svg" width="120" height="120" alt=""><p>Abriendo Biouvision…</p></div></div>
+<noscript>Biouvision necesita JavaScript.</noscript>
+<script>
+  setTimeout(function () { if (!window.__bvStarted) { var d = document.getElementById('bv'); if (d && /Abriendo/.test(d.textContent)) d.innerHTML = '<div class="bv-cargando"><h2>No se pudo abrir</h2><p>Actualiza el navegador (Chrome, Edge o Safari recientes) o recarga la página.</p><button class="btn primary" onclick="location.reload()">Recargar</button></div>'; } }, 15000);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
+</script>
+</body>
+</html>
