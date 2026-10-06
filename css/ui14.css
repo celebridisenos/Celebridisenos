@@ -1,0 +1,321 @@
+/* =====================================================================================================================
+   CelebriDiseños 14.0 · «INAUGURACIÓN» — la interfaz nueva
+   Todo va bajo html.ui14: si quitas esa clase (Configuración → Mi perfil → Interfaz → Clásica) vuelve la de siempre.
+   Usa los colores del tema de cada persona (claro, rosa, oscuro, Adriana, BIO), así que combina con todos.
+   Más gráfica: fondo «aurora» animado, cristal esmerilado, profundidad, brillos que siguen al ratón y micro-animaciones.
+   ===================================================================================================================== */
+html.ui14 {
+  --u-a: var(--brand);
+  --u-b: #ec4899;
+  --u-c: #06b6d4;
+  --u-glass: color-mix(in srgb, var(--surface) 66%, transparent);
+  --u-glass-2: color-mix(in srgb, var(--surface) 52%, transparent);
+  --u-edge: color-mix(in srgb, #ffffff 60%, transparent);
+  --u-edge-2: color-mix(in srgb, var(--line) 70%, transparent);
+  --u-ring: color-mix(in srgb, var(--brand) 55%, transparent);
+  --u-glow: 0 10px 30px -10px color-mix(in srgb, var(--brand) 55%, transparent);
+  --u-shadow: 0 1px 1px rgba(20, 10, 40, .04), 0 8px 24px -6px rgba(40, 20, 80, .14), 0 24px 48px -24px rgba(40, 20, 80, .18);
+  --u-shadow-h: 0 2px 2px rgba(20, 10, 40, .05), 0 18px 40px -10px rgba(60, 20, 120, .26), 0 30px 60px -30px rgba(60, 20, 120, .3);
+  --radius: 16px; --radius-s: 11px; --radius-l: 24px;
+}
+html.ui14[data-theme="oscuro"], html.ui14[data-theme="bio"] {
+  --u-edge: color-mix(in srgb, #ffffff 9%, transparent);
+  --u-glass: color-mix(in srgb, var(--surface) 70%, transparent);
+  --u-glass-2: color-mix(in srgb, var(--surface) 55%, transparent);
+  --u-shadow: 0 1px 1px rgba(0, 0, 0, .3), 0 10px 30px -8px rgba(0, 0, 0, .55);
+  --u-shadow-h: 0 2px 2px rgba(0, 0, 0, .35), 0 20px 50px -12px rgba(0, 0, 0, .7), 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+html.ui14[data-theme="bio"] { --u-b: #2563eb; --u-c: #22d3ee; }
+html.ui14[data-theme="rosa"], html.ui14[data-theme="adriana"] { --u-b: #f472b6; --u-c: #a78bfa; }
+
+/* ---------- Fondo aurora (3 manchas de color que se mueven despacio) + cuadrícula de puntos ---------- */
+html.ui14 body { background: var(--bg); }
+html.ui14 body::before {
+  content: ''; position: fixed; inset: -20vmax; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(38vmax 38vmax at 18% 22%, color-mix(in srgb, var(--u-a) 42%, transparent), transparent 62%),
+    radial-gradient(34vmax 34vmax at 82% 18%, color-mix(in srgb, var(--u-b) 34%, transparent), transparent 62%),
+    radial-gradient(40vmax 40vmax at 60% 92%, color-mix(in srgb, var(--u-c) 30%, transparent), transparent 62%);
+  animation: u14aurora 26s ease-in-out infinite alternate; will-change: transform;
+}
+html.ui14 body::after {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .5;
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.2px); background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%);
+}
+@keyframes u14aurora {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  33% { transform: translate3d(4vmax, -3vmax, 0) rotate(8deg) scale(1.06); }
+  66% { transform: translate3d(-3vmax, 3vmax, 0) rotate(-6deg) scale(.97); }
+  100% { transform: translate3d(2vmax, 2vmax, 0) rotate(4deg) scale(1.04); }
+}
+html.ui14 .shell, html.ui14 .main { background: transparent; }
+
+/* ---------- Barra de arriba: una «isla» flotante de cristal ---------- */
+html.ui14 .topbar {
+  top: 10px; margin: 10px 16px 0; border-radius: 20px; padding: 0 14px;
+  background: var(--u-glass-2); backdrop-filter: saturate(1.8) blur(18px); -webkit-backdrop-filter: saturate(1.8) blur(18px);
+  border: 1px solid var(--u-edge-2); box-shadow: inset 0 1px 0 var(--u-edge), 0 14px 34px -18px rgba(40, 20, 80, .45);
+}
+html.ui14 .search-btn { border-radius: 14px; background: var(--u-glass); border-color: var(--u-edge-2); box-shadow: inset 0 1px 0 var(--u-edge); transition: box-shadow .2s, border-color .2s, transform .2s; }
+html.ui14 .search-btn:hover { border-color: var(--u-ring); box-shadow: var(--u-glow), inset 0 1px 0 var(--u-edge); transform: translateY(-1px); }
+html.ui14 .quickbar a { border-radius: 10px; transition: background .2s, color .2s, transform .15s; }
+html.ui14 .quickbar a:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--brand) 10%, transparent); }
+html.ui14 .quickbar a.on { color: #fff; background: linear-gradient(135deg, var(--u-a), color-mix(in srgb, var(--u-a) 45%, var(--u-b))); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--brand) 85%, transparent); }
+html.ui14 .me-chip { background: var(--u-glass); border-color: var(--u-edge-2); box-shadow: inset 0 1px 0 var(--u-edge); }
+
+/* ---------- Menú lateral: noche violeta con estrellas, letras claras y la sección activa que brilla ---------- */
+html.ui14 .sidebar {
+  --s-bg: color-mix(in srgb, var(--brand) 22%, #10081f);
+  color: #efe9ff; border-right: 0;
+  background:
+    radial-gradient(1.2px 1.2px at 20% 12%, rgba(255, 255, 255, .7), transparent 60%), radial-gradient(1px 1px at 72% 28%, rgba(255, 255, 255, .55), transparent 60%),
+    radial-gradient(1.4px 1.4px at 38% 64%, rgba(255, 255, 255, .5), transparent 60%), radial-gradient(1px 1px at 84% 82%, rgba(255, 255, 255, .6), transparent 60%),
+    radial-gradient(1.2px 1.2px at 12% 90%, rgba(255, 255, 255, .45), transparent 60%),
+    radial-gradient(420px 300px at 0% 0%, color-mix(in srgb, var(--u-b) 38%, transparent), transparent 70%),
+    radial-gradient(380px 380px at 100% 100%, color-mix(in srgb, var(--u-c) 26%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--s-bg), color-mix(in srgb, var(--u-b) 14%, #12071f));
+  box-shadow: 18px 0 50px -24px rgba(20, 6, 50, .6);
+}
+html.ui14[data-theme="bio"] .sidebar { --s-bg: #071318; }
+html.ui14 .sidebar .brand b { color: #fff; }
+html.ui14 .sidebar .brand small, html.ui14 .sidebar .nav .grp, html.ui14 .sidebar .nav-grp { color: rgba(233, 222, 255, .55); }
+html.ui14 .sidebar .btn.ghost { color: rgba(255, 255, 255, .75); }
+html.ui14 .sidebar .btn.ghost:hover { background: rgba(255, 255, 255, .1); }
+html.ui14 .sidebar .nav .sep { background: rgba(255, 255, 255, .1); }
+html.ui14 .brand .logo { border-radius: 14px; box-shadow: 0 0 0 2px rgba(255, 255, 255, .15), 0 8px 22px -6px color-mix(in srgb, var(--u-b) 80%, transparent); }
+html.ui14 .nav a { color: rgba(240, 233, 255, .78); border-radius: 13px; transition: background .2s, color .2s, transform .2s; }
+html.ui14 .nav a:hover { color: #fff; transform: translateX(4px); background: rgba(255, 255, 255, .08); }
+html.ui14 .nav a svg { transition: transform .3s cubic-bezier(.3, 1.6, .5, 1); opacity: .9; }
+html.ui14 .nav a:hover svg { transform: scale(1.2) rotate(-8deg); }
+html.ui14 .nav a.on {
+  color: #fff; font-weight: 700;
+  background: linear-gradient(110deg, var(--u-a), color-mix(in srgb, var(--u-a) 40%, var(--u-b)));
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--u-b) 70%, transparent), inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+html.ui14 .nav a.on::after { content: ''; position: absolute; right: 12px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px #fff, 0 0 20px var(--u-b); }
+html.ui14 .nav a .count { box-shadow: 0 0 0 2px rgba(0, 0, 0, .15); }
+html.ui14 .nav a .count.soft { background: rgba(255, 255, 255, .14); color: #fff; }
+html.ui14 .sidebar .me:hover { background: rgba(255, 255, 255, .08); }
+html.ui14 .sidebar .me { color: #fff; }
+html.ui14 .sidebar .me .muted, html.ui14 .sidebar .me small { color: rgba(233, 222, 255, .6); }
+html.ui14 .sidebar .ws-switch button, html.ui14 .sidebar .nav-orden { color: rgba(240, 233, 255, .8); }
+html.ui14 .sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .18); border: 3px solid transparent; background-clip: padding-box; }
+html.ui14 .scrim { background: rgba(15, 8, 30, .35); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+
+/* ---------- Cabecera de cada pantalla: un «cartel» de color con el título en grande ---------- */
+html.ui14 .content > .page-head, html.ui14 .content > div > .page-head:first-child {
+  position: relative; overflow: hidden; isolation: isolate; padding: 20px 24px; border-radius: 24px; margin-bottom: 20px; color: #fff;
+  background:
+    radial-gradient(420px 220px at 92% -10%, color-mix(in srgb, var(--u-c) 55%, transparent), transparent 70%),
+    radial-gradient(380px 260px at 0% 120%, color-mix(in srgb, var(--u-b) 60%, transparent), transparent 70%),
+    linear-gradient(120deg, var(--u-a), color-mix(in srgb, var(--u-a) 55%, var(--u-b)));
+  box-shadow: 0 22px 44px -22px color-mix(in srgb, var(--brand) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+html.ui14 .content > .page-head::before, html.ui14 .content > div > .page-head:first-child::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .5;
+  background: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .35) 1px, transparent 1.4px) 0 0 / 18px 18px;
+  mask-image: linear-gradient(90deg, transparent 30%, #000); -webkit-mask-image: linear-gradient(90deg, transparent 30%, #000);
+}
+html.ui14 .content > .page-head::after, html.ui14 .content > div > .page-head:first-child::after {
+  content: ''; position: absolute; top: -50%; bottom: -50%; left: -30%; width: 22%; z-index: -1; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .22), transparent); transform: rotate(14deg); animation: u14destello 7s ease-in-out infinite;
+}
+@keyframes u14destello { 0%, 55% { left: -30%; } 100% { left: 130%; } }
+html.ui14 .content .page-head h1 { color: #fff; font-size: 30px; font-weight: 850; letter-spacing: -.025em; text-shadow: 0 2px 14px rgba(30, 0, 60, .25); }
+html.ui14 .content .page-head h1 .biou-t { filter: brightness(1.6) saturate(1.2); }
+html.ui14 .content .page-head .muted, html.ui14 .content .page-head .small, html.ui14 .content .page-head .sub, html.ui14 .content .page-head p, html.ui14 .content .page-head .tiny { color: rgba(255, 255, 255, .86) !important; }
+html.ui14 .content .page-head a:not(.btn) { color: #fff; text-decoration: underline; }
+html.ui14 .content .page-head .btn.primary { background: #fff; color: color-mix(in srgb, var(--brand) 80%, #000); box-shadow: 0 10px 24px -10px rgba(20, 0, 50, .55); }
+html.ui14 .content .page-head .btn.primary::after { background: linear-gradient(100deg, transparent, color-mix(in srgb, var(--brand) 25%, transparent), transparent); }
+html.ui14 .content .page-head .btn:not(.primary) { background: rgba(255, 255, 255, .16) !important; border-color: rgba(255, 255, 255, .3) !important; color: #fff !important; box-shadow: none !important; }
+html.ui14 .content .page-head .btn:not(.primary):hover { background: rgba(255, 255, 255, .26) !important; }
+html.ui14 .content .page-head .inp, html.ui14 .content .page-head select, html.ui14 .content .page-head .seg { color: var(--text); }
+html.ui14 .content .page-head .chip { background: rgba(255, 255, 255, .16); border-color: rgba(255, 255, 255, .3); color: #fff; }
+html.ui14 .content .page-head .chip.on { background: #fff; color: var(--brand); }
+html.ui14[data-theme="bio"] .content > .page-head, html.ui14[data-theme="bio"] .content > div > .page-head:first-child { color: #e6fbff; background: radial-gradient(420px 220px at 92% -10%, rgba(34, 211, 238, .35), transparent 70%), linear-gradient(120deg, #0b2a33, #0f1d3a); box-shadow: 0 0 0 1px rgba(34, 211, 238, .25), 0 20px 40px -20px rgba(34, 211, 238, .35); }
+
+/* ---------- Tarjetas: cristal (se ve la aurora detrás), profundidad y brillo que sigue al ratón ---------- */
+html.ui14 .card, html.ui14 .kpi, html.ui14 .kt {
+  background-color: var(--u-glass); border: 1px solid var(--u-edge-2); border-radius: 20px;
+  box-shadow: var(--u-shadow), inset 0 1px 0 var(--u-edge); position: relative;
+  transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s, border-color .3s;
+}
+/* (sin desenfoque detrás de cada tarjeta: con el fondo en movimiento obligaría a recalcularlo sin parar y la app iría más lenta) */
+html.ui14 .card { background-image: radial-gradient(460px circle at var(--mx, -600px) var(--my, -600px), color-mix(in srgb, var(--brand) 10%, transparent), transparent 45%); }
+html.ui14 .card.click:hover, html.ui14 .kpi:hover, html.ui14 .kt:hover { transform: translateY(-4px); box-shadow: var(--u-shadow-h), inset 0 1px 0 var(--u-edge); border-color: var(--u-ring); }
+html.ui14 .card.flat { box-shadow: inset 0 1px 0 var(--u-edge); }
+html.ui14 .card > .card-h h3::before { content: ''; width: 4px; height: 16px; border-radius: 4px; background: linear-gradient(var(--u-a), var(--u-b)); display: inline-block; margin-right: 8px; vertical-align: -2px; }
+/* fichas de números (Inicio y listas) */
+html.ui14 .kt { padding: 14px 16px; overflow: hidden; }
+html.ui14 .kt::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--u-a), var(--u-b), var(--u-c)); opacity: .85; }
+html.ui14 .kt .ki { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; font-size: 20px; margin-bottom: 6px; background: linear-gradient(135deg, color-mix(in srgb, var(--u-a) 22%, transparent), color-mix(in srgb, var(--u-b) 18%, transparent)); box-shadow: inset 0 1px 0 var(--u-edge); }
+html.ui14 .kt .kv { font-size: 28px; letter-spacing: -.02em; }
+html.ui14 .kt:nth-child(6n+2) .ki { background: linear-gradient(135deg, rgba(34, 197, 94, .22), rgba(6, 182, 212, .18)); }
+html.ui14 .kt:nth-child(6n+3) .ki { background: linear-gradient(135deg, rgba(245, 158, 11, .25), rgba(236, 72, 153, .16)); }
+html.ui14 .kt:nth-child(6n+4) .ki { background: linear-gradient(135deg, rgba(59, 130, 246, .22), rgba(124, 58, 237, .18)); }
+html.ui14 .kt:nth-child(6n+5) .ki { background: linear-gradient(135deg, rgba(236, 72, 153, .22), rgba(244, 63, 94, .16)); }
+html.ui14 .kt:nth-child(6n) .ki { background: linear-gradient(135deg, rgba(20, 184, 166, .22), rgba(132, 204, 22, .18)); }
+html.ui14 .kpi .n { font-size: 30px; font-weight: 800; letter-spacing: -.02em; background: linear-gradient(135deg, var(--text), var(--brand)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html.ui14 .kpi.bad .n { background-image: linear-gradient(135deg, var(--bad), #f97316); } html.ui14 .kpi.warn .n { background-image: linear-gradient(135deg, var(--warn), #facc15); } html.ui14 .kpi.ok .n { background-image: linear-gradient(135deg, var(--ok), #2dd4bf); }
+html.ui14 .kpi.on { background: linear-gradient(135deg, color-mix(in srgb, var(--u-a) 16%, var(--surface)), color-mix(in srgb, var(--u-b) 10%, var(--surface))); border-color: var(--u-ring); }
+html.ui14 .kpis.compact .kpi { border-radius: 999px; }
+html.ui14 .kpis.compact .kpi:hover { transform: translateY(-2px); }
+html.ui14 .list .item { border-radius: 12px; transition: background .2s, transform .2s; }
+html.ui14 .list .item:hover { transform: translateX(3px); }
+
+/* ---------- Botones ---------- */
+html.ui14 .btn { border-radius: 12px; transition: transform .15s, box-shadow .2s, background .2s, border-color .2s, filter .2s; }
+html.ui14 .btn:active { transform: scale(.97); }
+html.ui14 .btn:not(.primary):not(.ghost):not(.danger) { background: var(--u-glass); border-color: var(--u-edge-2); box-shadow: inset 0 1px 0 var(--u-edge), 0 1px 2px rgba(20, 10, 40, .06); }
+html.ui14 .btn:not(.primary):not(.ghost):not(.danger):hover { border-color: var(--u-ring); box-shadow: inset 0 1px 0 var(--u-edge), 0 6px 16px -8px color-mix(in srgb, var(--brand) 60%, transparent); }
+html.ui14 .btn.primary {
+  position: relative; overflow: hidden; isolation: isolate; border-color: transparent; color: #fff;
+  background: linear-gradient(120deg, var(--u-a), color-mix(in srgb, var(--u-a) 50%, var(--u-b)) 70%, var(--u-b));
+  background-size: 160% 100%; box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--brand) 85%, transparent), inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+html.ui14[data-theme="bio"] .btn.primary { color: #041014; }
+html.ui14 .btn.primary:hover { background-position: 100% 0; filter: brightness(1.05) saturate(1.1); box-shadow: 0 12px 28px -8px color-mix(in srgb, var(--brand) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .35); }
+html.ui14 .btn.primary::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; z-index: -1; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .45), transparent); transform: skewX(-18deg); transition: left .6s ease; pointer-events: none; }
+html.ui14 .btn.primary:hover::after { left: 130%; }
+html.ui14 .btn.ghost:hover { background: color-mix(in srgb, var(--brand) 9%, transparent); }
+html.ui14 .btn.icon-btn:hover svg { animation: u14bote .5s; }
+@keyframes u14bote { 30% { transform: translateY(-3px) rotate(-8deg); } 60% { transform: translateY(1px) rotate(5deg); } }
+
+/* ---------- Campos, chips, pestañas y selectores ---------- */
+html.ui14 .inp, html.ui14 select.inp, html.ui14 textarea.inp { border-radius: 12px; background: var(--u-glass); border-color: var(--u-edge-2); box-shadow: inset 0 1px 2px rgba(20, 10, 40, .05); transition: border-color .2s, box-shadow .2s, background .2s; }
+html.ui14 .inp:focus { background: var(--surface); border-color: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent), 0 8px 20px -10px color-mix(in srgb, var(--brand) 60%, transparent); }
+html.ui14 .chip { background: var(--u-glass); border-color: var(--u-edge-2); transition: transform .15s, background .2s, border-color .2s, box-shadow .2s; }
+html.ui14 .chip:hover { transform: translateY(-1px); }
+html.ui14 .chip.on { color: #fff; border-color: transparent; background: linear-gradient(120deg, var(--u-a), color-mix(in srgb, var(--u-a) 45%, var(--u-b))); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--brand) 80%, transparent); }
+html.ui14 .chip.on .c { background: rgba(255, 255, 255, .25); color: #fff; }
+html.ui14 .tabs { border-bottom-color: var(--u-edge-2); gap: 4px; }
+html.ui14 .tabs button { border-radius: 10px 10px 0 0; transition: color .2s, background .2s; position: relative; border-bottom: 0; }
+html.ui14 .tabs button::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--u-a), var(--u-b)); transform: scaleX(0); transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+html.ui14 .tabs button:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+html.ui14 .tabs button.on::after { transform: scaleX(1); }
+html.ui14 .seg { background: var(--u-glass-2); border-color: var(--u-edge-2); border-radius: 13px; }
+html.ui14 .seg button { border-radius: 10px; transition: background .2s, color .2s; }
+html.ui14 .seg button.on { background: linear-gradient(120deg, var(--u-a), color-mix(in srgb, var(--u-a) 50%, var(--u-b))); color: #fff; box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--brand) 80%, transparent); }
+html.ui14 .pill { border-radius: 999px; }
+
+/* ---------- Ventanas, cajón lateral, avisos y paleta (Ctrl K) ---------- */
+html.ui14 .overlay { background: rgba(15, 8, 30, .38); backdrop-filter: blur(6px) saturate(1.2); -webkit-backdrop-filter: blur(6px) saturate(1.2); }
+html.ui14 .modal { background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(24px) saturate(1.6); -webkit-backdrop-filter: blur(24px) saturate(1.6); border: 1px solid var(--u-edge-2); box-shadow: 0 40px 100px -30px rgba(30, 10, 70, .55), inset 0 1px 0 var(--u-edge); animation: u14ventana .28s cubic-bezier(.2, .9, .3, 1.2); }
+/* solo se funde (sin moverse ni encoger): así nada cambia de sitio mientras aparece */
+@keyframes u14ventana { from { opacity: 0; filter: blur(6px) saturate(.6); } }
+html.ui14 .modal-h { border-bottom-color: var(--u-edge-2); }
+html.ui14 .modal-f { border-top-color: var(--u-edge-2); }
+html.ui14 .drawer { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: -30px 0 80px -30px rgba(30, 10, 70, .5); border-left: 1px solid var(--u-edge-2); }
+html.ui14 .drawer-h { background: var(--u-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+html.ui14 .toast { border-radius: 16px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 18px 40px -14px rgba(20, 10, 40, .5); animation: u14aviso .35s cubic-bezier(.2, .9, .3, 1.3); }
+html.ui14 .toast.ok { background: linear-gradient(120deg, #16a34a, #0d9488); } html.ui14 .toast.bad { background: linear-gradient(120deg, #dc2626, #db2777); } html.ui14 .toast.warn { background: linear-gradient(120deg, #d97706, #ea580c); }
+@keyframes u14aviso { from { opacity: 0; transform: translateX(30px) scale(.95); } }
+html.ui14 .acct-menu { background: color-mix(in srgb, var(--surface) 86%, transparent); backdrop-filter: blur(20px) saturate(1.6); -webkit-backdrop-filter: blur(20px) saturate(1.6); border-radius: 18px; border: 1px solid var(--u-edge-2); animation: u14ventana .22s ease-out; }
+html.ui14 .palette .it.on, html.ui14 .palette .it:hover { background: linear-gradient(90deg, color-mix(in srgb, var(--u-a) 14%, transparent), transparent); }
+
+/* ---------- Al cambiar de pantalla: el contenido entra suave ---------- */
+html.ui14 .content.entrando > * { animation: u14entra .45s cubic-bezier(.2, .8, .2, 1) both; }
+html.ui14 .content.entrando > *:nth-child(2) { animation-delay: .04s; } html.ui14 .content.entrando > *:nth-child(3) { animation-delay: .08s; } html.ui14 .content.entrando > *:nth-child(n+4) { animation-delay: .12s; }
+@keyframes u14entra { from { opacity: 0; filter: blur(5px); } }
+html.ui14 .skeleton { background: linear-gradient(90deg, var(--u-glass) 0%, color-mix(in srgb, var(--brand) 12%, var(--surface)) 50%, var(--u-glass) 100%); background-size: 200% 100%; animation: u14carga 1.2s linear infinite; border-radius: 14px; }
+@keyframes u14carga { to { background-position: -200% 0; } }
+
+/* ---------- Toque mágico: chispas al pulsar ---------- */
+.u14-chispa { position: fixed; z-index: 9999; width: 8px; height: 8px; border-radius: 50%; pointer-events: none; background: var(--c, #ec4899); box-shadow: 0 0 10px var(--c, #ec4899); animation: u14chispa .6s ease-out forwards; }
+@keyframes u14chispa { to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+
+/* ---------- Barra de abajo del móvil: flotante, de cristal, con burbuja ---------- */
+@media (max-width: 860px) {
+  html.ui14 .tabbar {
+    left: 10px; right: 10px; bottom: calc(8px + env(safe-area-inset-bottom)); border-radius: 22px; padding: 6px 4px;
+    background: var(--u-glass); backdrop-filter: saturate(1.8) blur(22px); -webkit-backdrop-filter: saturate(1.8) blur(22px);
+    border: 1px solid var(--u-edge-2); box-shadow: 0 14px 40px -12px rgba(30, 10, 70, .45), inset 0 1px 0 var(--u-edge);
+  }
+  html.ui14 .tabbar a { border-radius: 16px; transition: color .2s, background .25s, transform .2s; }
+  html.ui14 .tabbar a.on { color: #fff; background: linear-gradient(135deg, var(--u-a), color-mix(in srgb, var(--u-a) 45%, var(--u-b))); box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--brand) 90%, transparent); transform: translateY(-3px); }
+  html.ui14 .fab { border-radius: 20px; background: linear-gradient(135deg, var(--u-a), var(--u-b)); color: #fff; bottom: calc(84px + env(safe-area-inset-bottom)); box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--brand) 90%, transparent); }
+  html.ui14 .fab::before { content: ''; position: absolute; inset: -6px; border-radius: 24px; border: 2px solid color-mix(in srgb, var(--brand) 50%, transparent); animation: u14halo 2.4s ease-out infinite; }
+  html.ui14 .content { padding-bottom: 110px; }
+  html.ui14 .page-head h1 { font-size: 24px; }
+}
+@keyframes u14halo { from { transform: scale(.9); opacity: .9; } to { transform: scale(1.35); opacity: 0; } }
+
+/* ---------- Barras de desplazamiento ---------- */
+html.ui14 ::-webkit-scrollbar { width: 11px; height: 11px; }
+html.ui14 ::-webkit-scrollbar-thumb { background: linear-gradient(var(--u-a), var(--u-b)); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+html.ui14 ::-webkit-scrollbar-track { background: transparent; }
+html.ui14 ::selection { background: color-mix(in srgb, var(--brand) 30%, transparent); }
+
+/* ---------- Pantallas que no deben llevar adornos (modo taller, TV, impresión) ---------- */
+html.ui14 body.operario::before, html.ui14 body.tv-on::before { animation: none; }
+/* en las pantallas con animación propia (Estantería 3D, juegos, Biouvision) el fondo se queda quieto para que vayan fluidas */
+html.ui14 body[data-view="estanteria"]::before, html.ui14 body[data-view="descanso"]::before, html.ui14 body[data-view="estudio"]::before, html.ui14 body[data-view="camaras"]::before { animation: none; }
+@media print { html.ui14 body::before, html.ui14 body::after { display: none; } html.ui14 .card { background: #fff; box-shadow: none; } }
+/* Quien prefiere menos movimiento (ajuste del sistema): sin animaciones, se queda el aspecto */
+@media (prefers-reduced-motion: reduce) {
+  html.ui14 body::before, html.ui14 .page-head h1, html.ui14 .fab::before { animation: none; }
+  html.ui14 .content.entrando > *, html.ui14 .modal, html.ui14 .toast { animation: none; }
+}
+
+/* =====================================================================================================================
+   LA INAUGURACIÓN (pantalla que sale una vez al llegar la 14.0): cinta roja, tijeras, confeti y el «antes y después»
+   ===================================================================================================================== */
+.inau { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; color: #fff; font-family: var(--font); }
+.inau-velo { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, rgba(30, 10, 60, .55), rgba(8, 4, 20, .82)); backdrop-filter: grayscale(.5) blur(1.5px); -webkit-backdrop-filter: grayscale(.5) blur(1.5px); transition: opacity 1.2s ease; }
+.inau.cortada .inau-velo { opacity: 0; }
+.inau-focos { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.inau-focos i { position: absolute; top: -20%; width: 34vw; height: 140%; background: linear-gradient(180deg, rgba(255, 240, 200, .28), transparent 70%); filter: blur(8px); transform-origin: 50% 0; animation: inauFoco 6s ease-in-out infinite alternate; }
+.inau-focos i:nth-child(1) { left: 6%; transform: rotate(18deg); } .inau-focos i:nth-child(2) { left: 33%; animation-delay: -2s; } .inau-focos i:nth-child(3) { right: 6%; transform: rotate(-18deg); animation-delay: -4s; }
+@keyframes inauFoco { 50% { transform: rotate(-10deg); opacity: .6; } }
+.inau.cortada .inau-focos { opacity: 0; transition: opacity 1s; }
+.inau-caja { position: relative; text-align: center; padding: 20px; max-width: 760px; transition: opacity .6s, transform .6s; }
+.inau.cortada .inau-caja { opacity: 0; transform: scale(.94); pointer-events: none; }
+.inau-sello { display: inline-block; font-size: 13px; letter-spacing: .3em; text-transform: uppercase; padding: 6px 14px; border: 1px solid rgba(255, 255, 255, .4); border-radius: 999px; background: rgba(255, 255, 255, .08); }
+.inau h1 { font-size: clamp(30px, 6vw, 64px); line-height: 1.02; margin: 16px 0 10px; font-weight: 900; letter-spacing: -.03em; background: linear-gradient(100deg, #fff, #fde68a 40%, #f9a8d4 70%, #fff); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: u14brillo 4s ease-in-out infinite; text-shadow: 0 0 40px rgba(253, 230, 138, .25); }
+.inau p { font-size: 17px; opacity: .92; margin: 0 auto 18px; max-width: 560px; }
+.inau-antes { display: inline-flex; gap: 8px; align-items: center; background: rgba(0, 0, 0, .35); padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+.inau-cinta { position: absolute; left: 0; right: 0; top: 58%; height: 54px; display: flex; pointer-events: auto; cursor: pointer; z-index: 2; }
+.inau-cinta .mitad { flex: 1; background: linear-gradient(180deg, #ef4444, #b91c1c 55%, #ef4444); box-shadow: 0 10px 30px rgba(0, 0, 0, .4), inset 0 3px 0 rgba(255, 255, 255, .3), inset 0 -3px 0 rgba(0, 0, 0, .25); transition: transform 1.4s cubic-bezier(.5, -0.2, .7, .6), opacity 1.4s; }
+.inau-cinta .mitad.izq { transform-origin: 0 50%; } .inau-cinta .mitad.der { transform-origin: 100% 50%; }
+.inau-lazo { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 92px; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .45)); transition: transform 1s cubic-bezier(.6, -0.3, .7, 1), opacity 1s; animation: inauLatido 1.6s ease-in-out infinite; }
+@keyframes inauLatido { 50% { transform: translate(-50%, -50%) scale(1.07); } }
+.inau.cortada .inau-cinta .mitad.izq { transform: rotate(78deg) translateY(30px); opacity: 0; }
+.inau.cortada .inau-cinta .mitad.der { transform: rotate(-78deg) translateY(30px); opacity: 0; }
+.inau.cortada .inau-lazo { transform: translate(-50%, 220%) rotate(40deg); opacity: 0; animation: none; }
+.inau-tijeras { position: absolute; top: calc(58% - 20px); left: -120px; font-size: 80px; z-index: 3; pointer-events: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .4)); }
+.inau.cortada .inau-tijeras { opacity: 0; transform: translateY(80px) rotate(30deg) !important; transition: opacity .6s .2s, transform .8s .2s; }
+.inau.cortando .inau-tijeras { animation: inauTijeras .9s cubic-bezier(.5, 0, .5, 1) forwards; }
+@keyframes inauTijeras { 0% { left: -120px; transform: rotate(0); } 40% { transform: rotate(-12deg); } 60% { transform: rotate(8deg); } 100% { left: calc(50% - 40px); transform: rotate(-10deg); } }
+.inau-cortar { font-size: 20px !important; padding: 16px 30px !important; border-radius: 999px !important; border: 0 !important; color: #3b0764 !important; font-weight: 900 !important; background: linear-gradient(135deg, #fde68a, #f9a8d4) !important; box-shadow: 0 16px 40px -10px rgba(249, 168, 212, .8) !important; cursor: pointer; animation: inauLatido2 1.4s ease-in-out infinite; position: relative; z-index: 4; margin-top: 90px; }
+/* late con un halo de luz (sin cambiar de tamaño: así el botón no se mueve al pulsarlo) */
+@keyframes inauLatido2 { 50% { box-shadow: 0 16px 40px -10px rgba(249, 168, 212, .8), 0 0 0 12px rgba(253, 230, 138, .25); } }
+.inau-fuegos { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+/* después del corte: el cartel «ahora» con el antes / después */
+.inau-final { position: absolute; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(30px); opacity: 0; z-index: 6; width: min(640px, calc(100vw - 24px)); pointer-events: none; transition: opacity .7s .9s, transform .7s .9s cubic-bezier(.2, .9, .3, 1.2); }
+.inau.cortada .inau-final { opacity: 1; transform: translateX(-50%); pointer-events: auto; }
+.inau .inau-final .card { background-color: color-mix(in srgb, var(--surface) 94%, transparent) !important; color: var(--text); padding: 18px 20px; border-radius: 22px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(20px) saturate(1.6); -webkit-backdrop-filter: blur(20px) saturate(1.6); box-shadow: 0 30px 80px -20px rgba(30, 10, 70, .6); }
+.inau-final h2 { font-size: 22px; margin-bottom: 6px; }
+.inau-novedades { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; margin: 10px 0 14px; }
+.inau-novedades button { display: flex; align-items: center; gap: 8px; text-align: left; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; transition: transform .15s, border-color .2s; }
+.inau-novedades button:hover { transform: translateY(-2px); border-color: var(--brand); }
+.inau-novedades button span { font-size: 20px; }
+.inau-comparar { user-select: none; -webkit-user-select: none; touch-action: none; }
+.inau-etiqueta { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); z-index: 3001; padding: 8px 18px; border-radius: 999px; font-weight: 900; letter-spacing: .2em; font-size: 14px; color: #fff; background: #111827; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); pointer-events: none; }
+.inau-etiqueta.ahora { background: linear-gradient(120deg, #7c3aed, #ec4899); }
+/* el cambio de antes a después, con un círculo que se abre (si el navegador sabe hacerlo) */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+html.u14-revelar::view-transition-new(root) { animation: u14circulo 1.3s cubic-bezier(.6, 0, .2, 1) both; }
+@keyframes u14circulo { from { clip-path: circle(0 at var(--rx, 50%) var(--ry, 58%)); } to { clip-path: circle(150vmax at var(--rx, 50%) var(--ry, 58%)); } }
+/* tarjetas para elegir interfaz en Configuración */
+.ui-elegir { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.ui-op { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; padding: 12px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
+.ui-op.on { border-color: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 16%, transparent); }
+.ui-op .ui-mini { width: 100%; height: 74px; border-radius: 10px; position: relative; overflow: hidden; border: 1px solid var(--line); }
+.ui-op .ui-mini.clasica { background: linear-gradient(90deg, #f3f1fa 0 26%, #fff 26%); }
+.ui-op .ui-mini.clasica::after { content: ''; position: absolute; left: 32%; top: 14px; width: 58%; height: 18px; border-radius: 4px; background: #e9e5f5; box-shadow: 0 28px 0 #e9e5f5; }
+.ui-op .ui-mini.nueva { background: radial-gradient(60px 50px at 20% 30%, rgba(124, 58, 237, .55), transparent), radial-gradient(70px 60px at 85% 20%, rgba(236, 72, 153, .5), transparent), radial-gradient(80px 60px at 60% 100%, rgba(6, 182, 212, .45), transparent), #f6f5fb; }
+.ui-op .ui-mini.nueva::after { content: ''; position: absolute; left: 30%; top: 12px; width: 60%; height: 22px; border-radius: 10px; background: rgba(255, 255, 255, .7); box-shadow: 0 30px 0 rgba(255, 255, 255, .7), 0 2px 10px rgba(124, 58, 237, .25); }
+.ui-op .ui-mini.nueva::before { content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 20%; border-radius: 10px; background: rgba(255, 255, 255, .55); box-shadow: inset 0 14px 0 -6px rgba(124, 58, 237, .8); }
+/* con una ventana abierta, el fondo se para (el cristal de la ventana no tiene que recalcularse) */
+html.ui14 body:has(.overlay)::before, html.ui14 body:has(.inau)::before { animation-play-state: paused; }
