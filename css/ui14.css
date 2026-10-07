@@ -319,3 +319,76 @@ html.u14-revelar::view-transition-new(root) { animation: u14circulo 1.3s cubic-b
 .ui-op .ui-mini.nueva::before { content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 20%; border-radius: 10px; background: rgba(255, 255, 255, .55); box-shadow: inset 0 14px 0 -6px rgba(124, 58, 237, .8); }
 /* con una ventana abierta, el fondo se para (el cristal de la ventana no tiene que recalcularse) */
 html.ui14 body:has(.overlay)::before, html.ui14 body:has(.inau)::before { animation-play-state: paused; }
+
+/* ================= v16 · BIO premium LEGIBLE =================
+   El botón principal salía con la letra casi negra sobre fondo transparente (grafito): no se leía.
+   Ahora va lleno en cian con letra casi negra (contraste ≈ 10:1) y los grises suben un punto. */
+:root[data-theme="bio"] { --muted: #9aa8b6; --text-2: #cbd6e0; --line: #2a3642; --line-2: #384756; }
+html.ui14[data-theme="bio"] .btn.primary, :root[data-theme="bio"] .btn.primary {
+  background: linear-gradient(120deg, #22d3ee, #38bdf8); color: #04141a; border: 1px solid transparent; font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, .35), 0 8px 22px -10px rgba(34, 211, 238, .7);
+}
+html.ui14[data-theme="bio"] .btn.primary:hover, :root[data-theme="bio"] .btn.primary:hover { background: linear-gradient(120deg, #67e8f9, #7dd3fc); filter: none; }
+html.ui14[data-theme="bio"] .btn.primary svg, :root[data-theme="bio"] .btn.primary svg { stroke: #04141a; }
+html.ui14[data-theme="bio"] .btn.primary:disabled { opacity: .55; }
+html.ui14[data-theme="bio"] .content .page-head .btn.primary { background: #e6fbff; color: #04333d; box-shadow: 0 10px 24px -12px rgba(34, 211, 238, .8); }
+html.ui14[data-theme="bio"] .content .page-head .btn.primary svg { stroke: #04333d; }
+:root[data-theme="bio"] .hoy-flujo .hf.cero { opacity: .8; }
+:root[data-theme="bio"] .btn.ok-b { color: #6ee7b7; border-color: #34d399; background: rgba(52, 211, 153, .12); }
+:root[data-theme="bio"] .est { color: #fcd34d; border-color: #fbbf24; background: rgba(251, 191, 36, .14); }
+:root[data-theme="bio"] .pill, :root[data-theme="bio"] .chip { color: var(--text); }
+:root[data-theme="bio"] .inp::placeholder { color: #8493a2; }
+
+/* ================= v16 · INTERFAZ MÁS COMPACTA =================
+   Mismo diseño, un punto más recogido: menos margen, tarjetas y cabeceras más bajas, letra de 14 px en ordenador.
+   En pantallas táctiles NO se encogen los botones ni los campos (siguen midiendo 40 px o más para el dedo). */
+.content { padding: 18px; }
+.page-head { margin-bottom: 14px; gap: 10px; }
+html.ui14 .content > .page-head, html.ui14 .content > div > .page-head:first-child { padding: 14px 20px; border-radius: 20px; margin-bottom: 14px; }
+h1 { font-size: 21px; } h2 { font-size: 17.5px; } h3 { font-size: 15px; }
+.card { padding: 13px; }
+.kpi { padding: 11px 13px; gap: 2px; } .kpi .n { font-size: 22px; } .kpi .l { font-size: 12.5px; }
+.kpis.g4 { gap: 8px; margin-bottom: 10px; }
+table.t th { padding: 8px 10px; } table.t td { padding: 8px 10px; }
+.modal-h { padding: 12px 16px; } .modal-b { padding: 14px 16px; } .modal-f { padding: 12px 16px; }
+.tabs { margin-bottom: 10px; } .tabs button { padding: 8px 12px; }
+.hoy-cols { gap: 8px; } .hoy-col { padding: 8px; } .hoy-col-h { padding: 2px 4px 8px; } .hoy-col-h h2 { font-size: 15.5px; } .hoy-card { padding: 8px 10px; gap: 2px; }
+.field { gap: 4px; } .form { gap: 10px 12px; }
+.nav a { padding: 7px 11px; gap: 10px; }
+@media (hover: hover) and (pointer: fine) {
+  body { font-size: 14px; }
+  .btn { padding: 7px 12px; min-height: 36px; } .btn.sm { min-height: 30px; padding: 4px 10px; }
+  .inp, select.inp, textarea.inp { min-height: 38px; padding: 7px 11px; }
+  :root { --topbar: 54px; }
+}
+@media (max-width: 800px) {
+  .content { padding: 12px; }
+  html.ui14 .content > .page-head, html.ui14 .content > div > .page-head:first-child { padding: 12px 14px; border-radius: 16px; margin-bottom: 12px; }
+  h1 { font-size: 19px; } .card { padding: 12px; }
+}
+@media (max-width: 800px) {
+  /* v16: en el móvil el título ocupa su línea entera (antes el texto se partía palabra a palabra junto a los botones) */
+  .page-head > .grow, .page-head > div:first-child { flex: 1 1 100%; }
+  .hoy-flujo { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+  .hoy-flujo .hf { grid-template-columns: 1fr; grid-template-rows: auto auto; padding: 6px 8px; min-height: 48px; row-gap: 0; }
+  .hoy-flujo .hf .ic { display: none; } .hoy-flujo .hf b { font-size: 18px; } .hoy-flujo .hf .t { font-size: 11px; }
+}
+
+/* ================= v16 · HOLOGRAMAS (figura 3D que aparece unos segundos) ================= */
+.holo { position: fixed; right: 26px; bottom: 96px; width: 132px; height: 150px; z-index: 15; cursor: pointer; opacity: 0; animation: holo-in .7s ease forwards; perspective: 520px; -webkit-tap-highlight-color: transparent; }
+.holo.fuera { animation: holo-out .7s ease forwards; }
+.holo-f { width: 132px; height: 132px; transform-style: preserve-3d; animation: holo-giro 7s ease-in-out infinite alternate; will-change: transform; }
+.holo-f.giro { animation: holo-vuelta .55s ease-in-out; }
+.holo-f svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 6px rgba(34, 211, 238, .75)) drop-shadow(0 0 14px rgba(167, 139, 250, .45)); }
+.holo-l { fill: none; stroke: url(#holo-g); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 600; stroke-dashoffset: 600; animation: holo-trazo 1.6s ease-out .15s forwards, holo-parpadeo 3.2s steps(1) 2s infinite; }
+.holo-b { position: absolute; left: 16px; right: 16px; bottom: 2px; height: 16px; border-radius: 50%; background: radial-gradient(closest-side, rgba(34, 211, 238, .55), rgba(167, 139, 250, .22) 60%, transparent); filter: blur(1px); }
+.holo::after { content: ''; position: absolute; inset: 0 0 18px 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .0) 0 3px, rgba(255, 255, 255, .09) 3px 4px); mix-blend-mode: screen; border-radius: 12px; }
+@keyframes holo-in { from { opacity: 0; transform: translateY(14px) scale(.85); } to { opacity: .95; transform: none; } }
+@keyframes holo-out { from { opacity: .95; } to { opacity: 0; transform: translateY(-10px) scale(.9); } }
+@keyframes holo-giro { from { transform: rotateY(-32deg) rotateX(6deg) translateY(0); } to { transform: rotateY(32deg) rotateX(-4deg) translateY(-6px); } }
+@keyframes holo-vuelta { from { transform: rotateY(0) scale(1); } 50% { transform: rotateY(180deg) scale(.8); } to { transform: rotateY(360deg) scale(1); } }
+@keyframes holo-trazo { to { stroke-dashoffset: 0; } }
+@keyframes holo-parpadeo { 0%, 100% { opacity: 1; } 47% { opacity: .55; } 49% { opacity: 1; } 51% { opacity: .7; } 53% { opacity: 1; } }
+@media (max-width: 800px) { .holo { right: auto; left: 12px; bottom: 150px; width: 84px; height: 98px; } .holo-f { width: 84px; height: 84px; } }
+@media (prefers-reduced-motion: reduce) { .holo { display: none; } }
+@media print { .holo { display: none; } }
