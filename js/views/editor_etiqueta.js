@@ -92,6 +92,8 @@ export async function abrirEditor(tpl, opts = {}) {
   const m = modal('✏️ Diseño de la etiqueta · ' + L.TEMPLATES[tpl].t, body, close => [
     btn('Cerrar', close),
     btn('Imprimir prueba', () => prueba(), { icon: 'printer', title: 'Saca una etiqueta con este diseño (aunque no esté guardado)' }),
+    btn('Exportar', () => exportar(), { icon: 'download', title: 'Guardar el diseño como imagen (PNG) o como PDF a tamaño real' }), // v16
+    puedeGuardar ? btn('Duplicar', () => duplicarDiseno(), { icon: 'copy', title: 'Crear otro diseño a partir de este' }) : null,
     puedeGuardar ? btn('Guardar plantilla', () => guardar(false), { icon: 'check' }) : null,
     puedeGuardar ? btn('⭐ Usar como predeterminada', () => guardar(true), { cls: 'primary', title: 'Guarda el diseño y todas las etiquetas nuevas de este tipo salen así' }) : null
   ], { size: 'full', sticky: true, onclose: () => { document.removeEventListener('keydown', teclas); window.removeEventListener('resize', pintar); if (dirty) toast('El diseño no se ha guardado. Al volver a abrir el editor puedes recuperarlo.', 'warn', 7000, { t: 'Recuperar ahora', on: () => abrirEditor(tpl, Object.assign({}, opts, { recuperar: true })) }); fin(); } });
@@ -228,6 +230,8 @@ export async function abrirEditor(tpl, opts = {}) {
     const def = PL.idPredeterminada(tpl);
     mount(side, h('h3', 'Diseño'), field('Nombre', nom), h('div.ee-grid', field('Ancho (mm)', w), field('Alto (mm)', hh), field('Margen (mm)', mg, 'Lo que la impresora no llega a pintar')),
       btn('Ajustar todo al área imprimible', () => editar(() => PL.ajustarArea(P)), { cls: 'sm' }),
+      h('h4', '✨ Estilos'), h('p.tiny.muted', 'Viste el diseño de siempre con un estilo y luego retócalo. Se puede deshacer.'),
+      h('div.row.wrap.ee-estilos', PL.ESTILOS.map(x => btn(x[1], () => { const viejos = PL.ESTILOS.map(e => e[1]); editar(() => { const N = PL.conEstilo(tpl, { w: P.w, h: P.h }, x[0]); P.els = N.els; if (!P.id || /^Mi diseño/.test(P.nombre) || viejos.includes(P.nombre)) P.nombre = N.nombre; selId = null; }); lado(); }, { cls: 'sm' }))),
       h('h4', 'Piezas (' + P.els.length + ')'), h('p.tiny.muted', 'Toca una pieza en la etiqueta o en esta lista. Flechas: mover · Supr: borrar · Ctrl+D: duplicar.'),
       h('div.list.boxed.ee-capas', P.els.slice().reverse().map(e => h('div.item', { onclick: () => { selId = e.id; pintar(); lado(); } }, h('span', ICONO[e.t]), h('span.grow.small', etiquetaDe(e)),
         btn(e.oculto ? '🙈' : '👁', ev => { ev.stopPropagation(); editar(() => { e.oculto = !e.oculto; }); lado(); }, { cls: 'sm ghost icon', title: e.oculto ? 'Mostrar' : 'Ocultar' })))),
@@ -302,6 +306,17 @@ export async function abrirEditor(tpl, opts = {}) {
     return h('div.col', field('Relleno', rel), h('div.ee-grid', num(e, 'borde', 'Borde (mm)', { min: 0, max: 10, step: 0.1 }), num(e, 'radio', 'Esquinas (mm)', { min: 0, max: 50, step: 0.5 })));
   }
 
+  // ---------- v16: duplicar y exportar ----------
+  function duplicarDiseno() { editar(() => { P.id = ''; P.nombre = (P.nombre.replace(/ \(copia\)$/, '') + ' (copia)').slice(0, 50); }); rellenaDisenos(); lado(); toast('Copia lista: cámbiale lo que quieras y pulsa «Guardar plantilla».', 'ok', 6000); }
+  async function exportar() {
+    await PL.preparar(P);
+    const nombre = (P.nombre || 'diseno').replace(/[^\wáéíóúñü -]/gi, '').trim().replace(/\s+/g, '_') || 'diseno';
+    const cv = () => PL.dibujar(P, datos, 300, { w: P.w, h: P.h });
+    modal('Exportar «' + P.nombre + '»', h('p.small', 'Tamaño real: ' + P.w + ' × ' + P.h + ' mm. La imagen sale a 300 puntos por pulgada, lista para imprenta o para enviarla.'), close => [
+      btn('Cancelar', close, { cls: 'ghost' }),
+      btn('Imagen PNG', () => { cv().toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nombre + '.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast('Imagen guardada: ' + nombre + '.png', 'ok'); }, 'image/png'); close(); }, { icon: 'download' }),
+      btn('PDF a tamaño real', async () => { close(); try { const c = cv(), pages = [{ canvas: c, wmm: P.w, hmm: P.h }], PV = await import('../pdfview.js'); await PV.showPdf({ blob: L.pdfFromCanvases(pages), pages, title: P.nombre + ' · ' + P.w + ' × ' + P.h + ' mm', fileName: nombre }); } catch (x) { toast('No se pudo crear el PDF: ' + x.message, 'bad'); } }, { cls: 'primary', icon: 'file' })], { size: 'narrow' });
+  }
   // ---------- imprimir prueba y guardar ----------
   async function prueba() {
     try { await PL.preparar(P); await L.sendLabel(tpl, (d2, s) => [PL.dibujar(P, datos, d2, s)], { title: 'Prueba de diseño · ' + P.nombre, fileName: 'prueba_' + tpl }); }

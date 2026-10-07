@@ -208,7 +208,8 @@ export function costBreakdown(c, extra) {
 function drawEmbs(el) {
   const embs = S.t.embalajes || [];
   mount(el, h('p.small.muted', 'Un embalaje es lo que gastas al enviar: caja + papel + burbuja + cinta + etiqueta… Se suma solo con los precios de Materiales y se elige en la receta de cada producto.'),
-    editor() ? h('div.row', { style: { margin: '10px 0' } }, btn('NUEVO EMBALAJE (plantilla)', () => embForm({ lineas: [] }), { cls: 'primary', icon: 'plus' })) : null,
+    editor() ? h('div.row', { style: { margin: '10px 0' } }, btn('NUEVO EMBALAJE (plantilla)', () => embForm({ lineas: [] }), { cls: 'primary', icon: 'plus' }),
+      ['Pequeño', 'Grande', 'Sobre', 'Bolsa', 'Entrega en mano', 'Personalizado'].some(n => !embs.some(e => CL.norm(e.nombre) === CL.norm(n))) ? btn('Crear las plantillas base', () => call('embalajes.plantillasBase', {}, 'Plantillas creadas').catch(() => { }), { title: 'Pequeño · Estándar · Grande · Sobre · Bolsa · Entrega en mano · Personalizado (solo las que falten)' }) : null) : null, // v16
     embs.length ? h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))' } }, embs.map(e => {
       const c = CL.linesCost(e.lineas || [], data(), pp());
       return h('div.card', { onclick: () => embForm(e), style: { cursor: 'pointer' } }, h('div.row', h('b.grow', (/^s/i.test(String(e.predeterminado || '')) ? '⭐ ' : '') + e.nombre), confPill(c.vacio ? 'pendiente' : c.estado)),
@@ -216,8 +217,13 @@ function drawEmbs(el) {
         h('div', { style: { fontSize: '22px', fontWeight: 700, margin: '6px 0' } }, c.total === null ? h('span.warn-t', 'PENDIENTE') : eur(c.total)),
         h('div.small', c.lineas.map(l => h('div', '• ' + l.nombre + ': ' + (l.coste === null ? 'PENDIENTE' : eur(l.coste)) + (l.estimado ? ' (consumo estimado)' : '')))),
         h('div.tiny.muted', 'Peso: ' + (CL.n(e.pesoMedido) > 0 ? e.pesoMedido + ' g (pesado)' : c.peso === null ? 'PENDIENTE' : c.peso + ' g (calculado)')),
-        e.notas ? h('div.tiny.muted', e.notas) : null);
+        e.notas ? h('div.tiny.muted', e.notas) : null,
+        editor() ? h('div.row', { style: { marginTop: '8px' } }, btn('Duplicar', ev => { ev.stopPropagation(); duplicarEmb(e); }, { cls: 'sm', icon: 'copy', title: 'Crear otro tamaño a partir de este' })) : null); // v16
     })) : empty('box', 'Sin embalajes', 'Crea el primero: por ejemplo «Caja 30×20 estándar» con la caja, 80 cm de papel kraft, 50 cm de burbuja, 20 cm de cinta y 1 etiqueta.', null));
+}
+// v16: otro tamaño en un toque (se abre ya para ajustar lo que cambia)
+async function duplicarEmb(e) {
+  try { const r = await call('embalajes.duplicar', { id: e.id }, 'Duplicado: ajusta lo que cambie'); if (r && r.embalaje) embForm(r.embalaje); } catch (x) { }
 }
 function embForm(e) {
   const isNew = !e.id;

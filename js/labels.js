@@ -130,10 +130,15 @@ export function sizeOf(tpl, c) { const t = TEMPLATES[tpl]; const s = (c && c.tam
 export function pickPrinter(tpl, list, c) {
   const saved = c && c.impresora && c.impresora[tpl];
   if (saved && list.some(p => p.name === saved)) return list.find(p => p.name === saved);
+  // v16: la impresora elegida para esta etiqueta ya no aparece (apagada, desenchufada, sin emparejar): NO se manda a otra.
+  if (saved && list.length) return { name: saved, offline: true, falta: true, label: true, problema: 'No encuentro la impresora «' + saved + '» que elegiste para esta etiqueta. Enciéndela o elige otra en Impresión → Etiquetas. No se ha impreso en ninguna otra.' };
   const v = (c && c.vinculo) || {};
   const real = realPrinters(list), on = real.filter(p => !p.offline);
   const byName = n => n && real.find(p => p.name === n);
-  const lab = byName(v.etiquetas) || on.find(p => p.label && p.label4x6) || on.find(p => p.label);
+  // v16: si la impresora de etiquetas vinculada no aparece, tampoco se cambia a otra
+  if (v.etiquetas && real.length && !byName(v.etiquetas) && tpl !== 'tarjetas') return { name: v.etiquetas, offline: true, falta: true, label: true, problema: 'No encuentro tu impresora de etiquetas «' + v.etiquetas + '». Enciéndela o vuelve a vincularla en Impresión → Etiquetas. No se ha impreso en ninguna otra.' };
+  // v16: una impresora de etiquetas APAGADA sigue siendo la de etiquetas (dará su aviso): antes la etiqueta se iba sola a la de folios
+  const lab = byName(v.etiquetas) || on.find(p => p.label && p.label4x6) || on.find(p => p.label) || real.find(p => p.label && p.label4x6) || real.find(p => p.label);
   const sheet = byName(v.folios) || on.find(p => p.default && !p.label) || on.find(p => !p.label);
   if (tpl === 'envio' || tpl === 'oficial' || tpl === 'mesa' || tpl === 'paquete150') return lab || sheet || null;
   if (tpl === 'tarjetas') return sheet || null; // la hoja A4 va a la de folios
@@ -448,6 +453,7 @@ export async function targetFor(tpl, printerName) {
   const c = await labelCfg(), list = await printers(), s = sizeOf(tpl, c);
   const pr = printerName ? list.find(p => p.name === printerName) : pickPrinter(tpl, list, c);
   const usable = pr && (desktop.on || pr.webbt) ? pr : null;
+  if (pr && pr.falta && !usable) return { c, pr: null, dpi: dpiOf(null), size: s, sheet: false, list };
   return { c, pr: usable, dpi: dpiOf(usable), size: s, sheet: isSheet(pr, s), list };
 }
 // Envía a la impresora (PC) o crea el PDF de tamaño exacto (móvil). build(dpi, size) → [canvas]. Lanza el error si falla.
@@ -468,7 +474,7 @@ export async function sendLabel(tpl, build, opts = {}) {
   }
   if (desktop.on && t.pr) {
     const pr = t.pr, adj = (t.c.ajuste && t.c.ajuste[pr.name]) || {};
-    if (pr.offline) throw new Error('La impresora «' + pr.name + '» está desconectada o apagada.');
+    if (pr.offline) throw new Error(pr.problema || 'La impresora «' + pr.name + '» está desconectada o apagada. No se ha impreso en ninguna otra.');
     const tile = t.sheet && tpl !== 'tarjetas';
     const pages = tile ? sheets(canv, s, dpi).map(cv => ({ cv, w: A4.w, h: A4.h })) : canv.map(cv => ({ cv, w: s.w, h: s.h }));
     for (const p of pages) await desktop.print({ printer: pr.name, png: p.cv.toDataURL('image/png'), wmm: p.w, hmm: p.h, copies: 1, offx: Number(adj.x) || 0, offy: Number(adj.y) || 0, calidad: opts.calidad || '' });

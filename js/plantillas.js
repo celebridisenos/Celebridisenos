@@ -13,7 +13,7 @@ import { desktop } from './desktop.js';
 import { emisor } from './print.js';
 
 // Tipos de etiqueta que se pueden diseñar (las tarjetas de agradecimiento ya tienen su propio diseño en Embalaje)
-export const EDITABLES = ['envio', 'paquete150', 'paquete', 'producto', 'almacen', 'qr'];
+export const EDITABLES = ['envio', 'paquete150', 'paquete', 'producto', 'almacen', 'qr', 'gracias']; // v16: + tarjeta de agradecimiento
 
 // Letras que tiene cualquier Windows y casi cualquier móvil. En el PC se añaden las de RECURSOS\FUENTES.
 export const FUENTES = [
@@ -42,7 +42,8 @@ export const VARS = {
   paquete: [['codigo', 'Código CEB'], ['numero', 'Nº de pedido'], ['cliente', 'Cliente'], ['cuenta', 'Cuenta de venta']],
   producto: [['nombre', 'Producto'], ['sku', 'SKU'], ['precio', 'Precio'], ['extra', 'Material · color · tamaño']],
   almacen: [['ubicacion', 'Ubicación'], ['nombre', 'Producto'], ['sku', 'SKU']],
-  qr: [['titulo', 'Título']]
+  qr: [['titulo', 'Título']],
+  gracias: [['titulo', 'Título'], ['texto', 'Texto de gracias'], ['firma', 'Firma']]
 };
 export const VARS_COMUNES = [['tienda', 'Nombre de la tienda'], ['hoy', 'Fecha de hoy']];
 
@@ -55,7 +56,8 @@ export const EJEMPLO = {
   paquete: { codigo: 'CEB-2026-000123', numero: 1024, cliente: 'Ana', cuenta: 'Vinted · Ana', qr: 'CEB-2026-000123' },
   producto: { nombre: 'Maceta Luna', sku: 'MAC-LUN-01', precio: 12.5, extra: 'PLA · Rosa · M', qr: 'https://celebridisenos.example/#/q/producto/demo' },
   almacen: { ubicacion: 'A-3', nombre: 'Maceta Luna', sku: 'MAC-LUN-01', qr: 'https://celebridisenos.example/#/q/stock/demo' },
-  qr: { titulo: 'Maceta Luna', qr: 'https://celebridisenos.example/#/q/producto/demo' }
+  qr: { titulo: 'Maceta Luna', qr: 'https://celebridisenos.example/#/q/producto/demo' },
+  gracias: { titulo: '¡Gracias por tu compra!', texto: 'Cada pieza está hecha con cariño.\n¡Disfrútala!', firma: 'CelebriDiseños', qr: 'CEB-2026-000123' }
 };
 
 // ---------- Plantillas guardadas (de todo el equipo) ----------
@@ -101,9 +103,10 @@ const BASE = {
   producto: () => [Q(26.5, 3.75, 22.5), T(3, 2.5, 23, 8, '{nombre}', { pt: 8.5, b: 800, lin: 2 }), T(3, 11, 23, 3, '{sku}', { pt: 6.5, b: 500 }), T(3, 14.5, 23, 3, '{extra}', { pt: 6.5 }), T(3, 20, 23, 7, '{precio}', { pt: 13, b: 800, va: 'b' })],
   almacen: () => [C(1, 1, 98, 48, { relleno: 'none', borde: 0.5 }), Q(55, 4, 42), T(4, 3.5, 48, 3.5, 'UBICACIÓN', { pt: 6.5, b: 700 }), T(4, 7, 48, 18, '{ubicacion}', { pt: 20, b: 800, lin: 2 }),
     T(4, 26, 48, 10, '{nombre}', { pt: 9, b: 700, lin: 2 }), T(4, 37, 48, 4, '{sku}', { pt: 7 })],
-  qr: () => [Q(4.5, 1, 31), T(2, 33, 36, 5.5, '{titulo}', { pt: 9, b: 700, al: 'c', lin: 1 })]
+  qr: () => [Q(4.5, 1, 31), T(2, 33, 36, 5.5, '{titulo}', { pt: 9, b: 700, al: 'c', lin: 1 })],
+  gracias: () => [LOGO(10, 2.5, 30, 10), T(2.5, 13.5, 45, 9, '{titulo}', { pt: 11, b: 800, al: 'c', va: 'm', lin: 2 }), T(3, 23, 44, 17, '{texto}', { pt: 7.5, al: 'c', va: 'm' }), T(3, 41.5, 44, 5, '{firma}', { pt: 7.5, b: 700, al: 'c', va: 'm' })]
 };
-const BASE_SIZE = { envio: [100, 150], paquete150: [100, 150], paquete: [50, 50], producto: [50, 30], almacen: [100, 50], qr: [40, 40] };
+const BASE_SIZE = { envio: [100, 150], paquete150: [100, 150], paquete: [50, 50], producto: [50, 30], almacen: [100, 50], qr: [40, 40], gracias: [50, 50] };
 // Plantilla nueva a partir del diseño de siempre, al tamaño de etiqueta que use este aparato
 export function nueva(tpl, size, nombre) {
   const [bw, bh] = BASE_SIZE[tpl] || [100, 150], w = (size && size.w) || bw, hh = (size && size.h) || bh, sx = w / bw, sy = hh / bh;
@@ -116,6 +119,31 @@ export function nueva(tpl, size, nombre) {
   return { id: '', tpl, nombre: nombre || 'Mi diseño', w, h: hh, margen: 1, els };
 }
 const r2 = v => Math.round(v * 100) / 100;
+// ---------- v16 · ESTILOS: el diseño de siempre, vestido de nueve maneras (para empezar rápido y luego retocar) ----------
+// Son reglas fijas (letras, marcos, bandas), no dibujos al azar: salen bien en una impresora térmica en blanco y negro.
+export const ESTILOS = [['minimalista', 'Minimalista'], ['premium', 'Premium'], ['elegante', 'Elegante'], ['moderno', 'Moderno'], ['divertido', 'Divertido'], ['3d', '3D'], ['tecnologico', 'Tecnológico'], ['artesanal', 'Artesanal'], ['lujo', 'Lujo']];
+export function conEstilo(tpl, size, k) {
+  const nombre = (ESTILOS.find(e => e[0] === k) || ['', 'Mi diseño'])[1], P = nueva(tpl, size, nombre);
+  const W = P.w, H = P.h, m = r2(Math.max(1.5, Math.min(W, H) * 0.03));
+  const textos = () => P.els.filter(e => e.t === 'texto'), maxPt = Math.max(1, ...textos().map(e => e.pt));
+  const esTitulo = e => e.pt >= maxPt * 0.75;
+  const letra = (titulo, resto) => textos().forEach(e => { e.f = esTitulo(e) ? titulo : resto; });
+  const sinBandas = () => { P.els = P.els.filter(e => !(e.t === 'caja' && e.relleno !== 'none' && e.h > 2)); textos().forEach(e => { if (e.col === '#ffffff') e.col = '#000000'; }); };
+  const sinMarcos = () => { P.els = P.els.filter(e => !(e.t === 'caja' && e.relleno === 'none')); };
+  const marco = (d, borde, radio) => C(d, d, r2(W - 2 * d), r2(H - 2 * d), { relleno: 'none', borde, radio: radio || 0 });
+  const detras = (...x) => { P.els = x.concat(P.els); };
+  if (k === 'minimalista') { sinBandas(); sinMarcos(); letra('segoe', 'segoe'); textos().forEach(e => { e.b = esTitulo(e) ? 600 : 400; }); }
+  else if (k === 'premium') { sinMarcos(); letra('georgia', 'segoe'); detras(marco(m, 0.6), marco(r2(m + 1.3), 0.2)); }
+  else if (k === 'elegante') { sinBandas(); sinMarcos(); letra('times', 'times'); textos().forEach(e => { if (esTitulo(e)) e.b = 700; }); detras(marco(m, 0.25, 1)); }
+  else if (k === 'moderno') { sinMarcos(); letra('trebuchet', 'trebuchet'); P.els.forEach(e => { if (e.t === 'caja' && e.relleno !== 'none' && e.h > 2) e.radio = 2; }); detras(C(0, 0, W, r2(m * 0.9)), C(0, r2(H - m * 0.9), W, r2(m * 0.9))); }
+  else if (k === 'divertido') { sinMarcos(); letra('verdana', 'verdana'); textos().forEach(e => { if (e.pt === maxPt && /^\{[^}]+\}$/.test(e.texto)) e.texto = '★ ' + e.texto + ' ★'; }); detras(marco(m, 1, 5)); }
+  else if (k === '3d') { sinMarcos(); letra('arialblack', 'arial'); const s = r2(Math.max(1.2, m * 0.7)); detras(C(r2(m + s), r2(m + s), r2(W - 2 * m - s), r2(H - 2 * m - s), { radio: 1.5 }), C(m, m, r2(W - 2 * m - s), r2(H - 2 * m - s), { relleno: '#ffffff', borde: 0.6, radio: 1.5 })); }
+  else if (k === 'tecnologico') { sinMarcos(); letra('consolas', 'consolas'); const l = r2(Math.min(W, H) * 0.12), g = 0.5;
+    [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].forEach(q => { detras(C(r2(q[2] > 0 ? q[0] : q[0] - l), r2(q[3] > 0 ? q[1] : q[1] - g), l, g), C(r2(q[2] > 0 ? q[0] : q[0] - g), r2(q[3] > 0 ? q[1] : q[1] - l), g, l)); }); }
+  else if (k === 'artesanal') { sinBandas(); sinMarcos(); letra('georgia', 'georgia'); detras(marco(m, 0.4, 3)); if (H >= 45) P.els.push(T(m, r2(H - m - 4.2), r2(W - 2 * m), 3.4, '· hecho a mano ·', { pt: 6, al: 'c', va: 'm', f: 'georgia' })); }
+  else if (k === 'lujo') { sinBandas(); sinMarcos(); letra('times', 'times'); textos().forEach(e => { if (esTitulo(e)) e.b = 800; }); detras(marco(m, 0.9), marco(r2(m + 1.6), 0.25)); }
+  return P;
+}
 export const nuevoId = () => 'pl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 // Piezas nuevas que se añaden desde el editor (en el centro de la etiqueta)
 export function pieza(tipo, P) {

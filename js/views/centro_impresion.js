@@ -25,11 +25,34 @@ export function bambuLine(b) {
     !b.conectada && b.problema ? h('div.tiny.warn-t', b.problema) : null);
 }
 
+// v16 · IMPRIMIR DESDE EL MÓVIL: móvil → sistema → PC del taller → impresora. Se explica aquí y se ve si el PC está encendido.
+async function puenteCard(reload) {
+  const E = await import('../envio.js'), { api } = await import('../store.js');
+  const estado = h('div.puente-estado', '…comprobando el PC del taller'), sel = E.destinoGuardado();
+  const pend = E.encargosPendientes();
+  const comprobar = async () => {
+    try { const w = await api('pc.servidor', {}, { quiet: true }); mount(estado, w ? [h('b.ok-t', '🟢 PC del taller encendido'), h('span.small', ' · ' + (w.dispositivo || 'PC') + ' · lo que mandes sale al momento')] : [h('b.bad-t', '🔴 No veo el PC del taller'), h('span.small', ' · enciéndelo y abre el programa CelebriDiseños. Lo que mandes se queda en cola y sale en cuanto se abra.')]); }
+    catch (e) { mount(estado, h('span.small.muted', 'No se pudo comprobar ahora (sin conexión).')); }
+  };
+  comprobar();
+  const paso = (ic, t, s) => h('div.puente-p', h('span.ic', ic), h('b', t), h('span.tiny.muted', s));
+  const elegir = v => { E.guardarDestino(v); toast(v === 'taller' ? 'Este aparato imprimirá siempre por el PC del taller' : v === 'aqui' ? 'Este aparato imprimirá aquí (PDF o Bluetooth)' : 'Preguntará cada vez', 'ok'); reload(); };
+  return card('📱 Imprimir desde este aparato',
+    h('p.small.muted', 'Un navegador de móvil no puede mandar una etiqueta a una impresora del taller por sí solo. Por eso el programa hace de puente: tú pulsas «Imprimir» aquí y la etiqueta sale en el taller.'),
+    h('div.puente', paso('📱', 'Este aparato', 'pulsas Imprimir'), h('span.fl', '→'), paso('☁️', 'El sistema', 'guarda el encargo'), h('span.fl', '→'), paso('🖥️', 'PC del taller', 'con el programa abierto'), h('span.fl', '→'), paso('🖨️', 'Impresora', 'sale la etiqueta')),
+    estado,
+    pend.length ? h('p.small.warn-t', '⏳ ' + pend.length + (pend.length === 1 ? ' etiqueta esperando' : ' etiquetas esperando') + ' al PC del taller.') : null,
+    h('div.lbl', { style: { marginTop: '6px' } }, 'Cuando pulse «Imprimir» en este aparato:'),
+    h('div.seg', [['taller', '🖨️ Siempre en el PC del taller'], ['aqui', '📄 Aquí (PDF o Bluetooth)'], ['', 'Preguntarme']].map(x => h('button' + (sel === x[0] ? '.on' : ''), { type: 'button', onclick: () => elegir(x[0]) }, x[1]))),
+    h('p.tiny.muted', 'No hace falta hacer nada más cada vez: el PC del taller coge solo los encargos mientras su programa esté abierto. Si quieres imprimir sin PC, usa la impresora Bluetooth de abajo.'),
+    h('div.row', btn('Comprobar otra vez', comprobar, { cls: 'sm' })));
+}
 export async function render(b, L, reload) {
   const c = JSON.parse(JSON.stringify(await L.labelCfg()));
   c.vinculo = c.vinculo || {};
   if (!desktop.on) {
     b.append(card('Centro de impresión', h('p.small.muted', 'Abre CelebriDiseños desde el programa del PC para ver las impresoras, su estado y las Bambu Lab. En el móvil las etiquetas salen como PDF con el tamaño exacto (o directas por Bluetooth, si lo configuras abajo).')));
+    b.append(await puenteCard(reload)); // v16: cómo imprime de verdad este aparato
     b.append(btCard(c, async msg => { await L.saveLabelCfg(c); await L.printers(true); toast(msg || 'Guardado en este móvil', 'ok'); reload(); }));
     return c;
   }

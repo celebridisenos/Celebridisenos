@@ -9,6 +9,7 @@ import { S, can, api, mutate, byId, upsertLocal, emit, kv } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { desktop } from '../desktop.js';
 import { historial, teclasDeshacer } from '../biou/pro.js';
+import * as IDEAS from '../ig_ideas.js'; // v16: biblioteca de ideas, formatos, hashtags y keywords
 
 const CL = window.CL;
 const TIPOS = { post: { i: '🖼️', t: 'Post' }, carrusel: { i: '🎠', t: 'Carrusel' }, reel: { i: '🎬', t: 'Reel' }, historia: { i: '⭕', t: 'Historia' } };
@@ -85,17 +86,63 @@ export function render(el, params) {
   }
 
   // ---------- pestañas ----------
-  const TABS = [['crear', '✍️ Crear'], ['calendario', '📅 Calendario'], ['comentarios', '💬 Comentarios'], ['feed', '▦ Mi feed'], ['estadisticas', '📊 Estadísticas']];
+  const TABS = [['crear', '✍️ Crear'], ['ideas', '💡 Ideas y formatos'], ['calendario', '📅 Calendario'], ['comentarios', '💬 Comentarios'], ['feed', '▦ Mi feed'], ['estadisticas', '📊 Estadísticas']];
   let sinContestar = 0;
   const pintaTabs = () => mount(tabs, TABS.map(([v, t]) => h('button' + (tab === v ? '.on' : ''), { type: 'button', 'data-tab': v, onclick: () => ponTab(v) }, t, v === 'comentarios' && sinContestar ? h('span.ig-badge', String(sinContestar)) : null)));
   function ponTab(k) { if (!TABS.some(x => x[0] === k)) k = 'crear'; tab = k; try { localStorage.setItem('cd.ig.tab', k); } catch (e) { } pintaTabs(); pintaTab(); }
   function pintaTab() {
     quitaTeclas(); quitaTeclas = () => { };
     if (tab === 'crear') return pintaCrear();
+    if (tab === 'ideas') return pintaIdeas();
     if (tab === 'calendario') return pintaCalendario();
     if (tab === 'feed') return pintaFeed();
     if (tab === 'comentarios') return pintaComentarios();
     return pintaStats();
+  }
+
+  // =================== 💡 IDEAS Y FORMATOS (v16) ===================
+  // Eliges producto y nivel (Simple · Medio · Pro) y cada formato sale montado: qué fotografiar, el texto y los hashtags.
+  const idea = { prod: '', nivel: 'simple', cat: '', ver: 'ideas' };
+  try { Object.assign(idea, JSON.parse(localStorage.getItem('cd.ig.ideas') || '{}')); } catch (e) { }
+  function pintaIdeas() {
+    const guarda = () => { try { localStorage.setItem('cd.ig.ideas', JSON.stringify(idea)); } catch (e) { } };
+    const prods = (S.t.productos || []).filter(p => !p.eliminado).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+    if (idea.prod && !byId('productos', idea.prod)) idea.prod = '';
+    const p = idea.prod ? byId('productos', idea.prod) : null;
+    const TIPO = { post: '🖼️ Post', carrusel: '🎠 Carrusel', reel: '🎬 Reel', historia: '⭕ Historia' };
+    const prodSel = sel([{ v: '', t: '— Sin producto (texto general) —' }].concat(prods.map(x => ({ v: x.id, t: x.nombre }))), idea.prod, { 'aria-label': 'Producto', onchange: e => { idea.prod = e.target.value; guarda(); pintaIdeas(); } });
+    const usar = g => { const fotos = p ? fotosProducto(p.id).slice(0, 10).map(a => ({ id: a.id, tipo: 'foto', nombre: a.nombre })) : []; tab = 'crear'; abrir(nuevo({ tipo: g.tipo === 'carrusel' && fotos.length < 2 ? 'carrusel' : g.tipo, medios: g.tipo === 'reel' ? [] : (g.tipo === 'carrusel' ? fotos : fotos.slice(0, 1)), texto: g.texto, hashtags: g.hashtags.join(' '), productoId: p ? p.id : '' })); ponTab('crear'); toast('Texto y hashtags puestos. Añade tus fotos y cámbialo a tu gusto.', 'ok', 6000); };
+    const tarjeta = f => { const g = IDEAS.generar(f.k, p, idea.nivel, S.cfg);
+      return h('div.card.ig-idea', h('div.row', h('b.grow', g.titulo), h('span.pill', TIPO[g.tipo] || g.tipo)), h('div.tiny.muted', g.para),
+        h('div.ig-idea-b', h('div.lbl', g.tipo === 'reel' ? 'Qué grabar' : g.tipo === 'carrusel' ? 'Qué va en cada imagen' : 'Qué fotografiar'), h('ol', g.pasos.map(x => h('li', x.replace(/^\d+ · |^Plano \d+ /, '')))),
+          g.foto.length ? h('div.tiny.muted', '📷 ' + g.foto.join(' ')) : null),
+        h('div.ig-idea-t', g.texto), h('div.ig-idea-h', g.hashtags.join(' ')),
+        h('div.row.wrap', { style: { gap: '6px' } }, btn('Usar en Crear', () => usar(g), { cls: 'sm primary' }), btn('Copiar texto', () => copyText(g.texto + '\n\n' + g.hashtags.join(' ')), { cls: 'sm' }))); };
+    const cab = h('div.card.ig-ideas-cab',
+      h('div.row.wrap', { style: { gap: '10px', alignItems: 'flex-end' } }, h('label.rl-campo.grow', h('span', 'Producto'), prodSel),
+        h('div', h('div.lbl', 'Nivel'), h('div.seg', IDEAS.NIVELES.map(n => h('button' + (idea.nivel === n[0] ? '.on' : ''), { type: 'button', title: n[2], onclick: () => { idea.nivel = n[0]; guarda(); pintaIdeas(); } }, n[1]))))),
+      h('p.tiny.muted', (IDEAS.NIVELES.find(n => n[0] === idea.nivel) || [])[2] + '. Los textos son un punto de partida escrito para sonar natural: cámbialos con tus palabras.'),
+      h('div.seg.ig-ver', [['ideas', '💡 Ideas'], ['palabras', '#️⃣ Hashtags y palabras clave'], ['biblioteca', '📚 Composiciones y estructuras']].map(x => h('button' + (idea.ver === x[0] ? '.on' : ''), { type: 'button', onclick: () => { idea.ver = x[0]; guarda(); pintaIdeas(); } }, x[1]))));
+    let contenido;
+    if (idea.ver === 'palabras') {
+      const tags = IDEAS.hashtags(p, S.cfg, 10), kw = IDEAS.keywords(p, S.cfg), lista = (t, xs) => h('div.card', h('h3', t), h('div.row.wrap', { style: { gap: '6px' } }, xs.map(x => h('button.chip', { type: 'button', title: 'Copiar', onclick: () => copyText(x) }, x))));
+      contenido = h('div.col', { style: { gap: '12px' } },
+        !p ? h('p.small.warn-t', 'Elige un producto arriba: los hashtags y las palabras salen de su nombre, su categoría y su color. Sin producto solo puedo darte los generales.') : null,
+        h('div.card', h('h3', '#️⃣ Hashtags (' + tags.length + ')'), h('p.tiny.muted', 'Pocos y del producto: los primeros son los más concretos. Instagram deja 30, pero con 5–10 bien elegidos basta.'), h('div.ig-idea-h', tags.join(' ')), btn('Copiar todos', () => copyText(tags.join(' ')), { cls: 'sm' })),
+        lista('🔎 Palabras clave para el texto', kw.claves), lista('🧭 Lo que la gente busca', kw.busquedas),
+        h('div.card', h('h3', '💡 Para que te encuentren'), h('ul.small', kw.ideas.map(x => h('li', x)))));
+    } else if (idea.ver === 'biblioteca') {
+      const bloque = (t, sub, xs) => h('div.card', h('h3', t), h('p.tiny.muted', sub), h('div.ig-bib', xs.map(x => h('div.ig-bib-i', h('b', x[0]), h('span.small', x[1])))));
+      contenido = h('div.col', { style: { gap: '12px' } }, bloque('📷 Composiciones de foto', 'Doce maneras de colocar la pieza. Alterna dos o tres para que el perfil no se vea repetido.', IDEAS.COMPOSICIONES), bloque('🎠 Estructuras de carrusel', 'El orden de las imágenes. La primera decide si alguien desliza o pasa de largo.', IDEAS.ESTRUCTURAS));
+    } else {
+      const lista = IDEAS.formatos(idea.cat);
+      contenido = h('div',
+        h('div.row.wrap.ig-cats', h('button.chip' + (!idea.cat ? '.on' : ''), { type: 'button', onclick: () => { idea.cat = ''; guarda(); pintaIdeas(); } }, 'Todos (' + IDEAS.formatos().length + ')'), IDEAS.CATEGORIAS.map(c => h('button.chip' + (idea.cat === c[0] ? '.on' : ''), { type: 'button', onclick: () => { idea.cat = c[0]; guarda(); pintaIdeas(); } }, c[1]))),
+        h('div.ig-ideas', lista.map(tarjeta)));
+    }
+    const sc = document.scrollingElement, y = sc ? sc.scrollTop : 0;
+    mount(cuerpo, h('div.ig-ideas-wrap', cab, contenido));
+    if (sc && y) sc.scrollTop = y;
   }
 
   // =================== ✍️ CREAR ===================
@@ -253,10 +300,11 @@ export function render(el, params) {
     } catch (e) { toast(e.message, 'warn', 8000); } finally { b.disabled = false; b.textContent = t0; }
   }
   function sugerirTags() {
-    const prod = st.productoId ? byId('productos', st.productoId) : null, base = ['hechoamano', 'regalospersonalizados', 'impresion3d', 'diseño', 'regalooriginal', 'tiendaonline', 'celebridisenos', 'handmade', 'decoracion', 'ideasregalo'];
-    const deProd = prod ? [prod.categoria, prod.subcategoria, prod.nombre, prod.material, prod.color].filter(Boolean).join(' ').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9ñ]+/).filter(w => w.length > 3) : [];
+    // v16: pocos y del producto real (los mismos de «Ideas y formatos»), no una lista larga de relleno
+    const prod = st.productoId ? byId('productos', st.productoId) : null;
     const ya = new Set((st.hashtags.match(/#[\p{L}\p{N}_]+/gu) || []).map(t => t.toLowerCase()));
-    const nuevas = [...new Set(deProd.concat(base))].map(w => '#' + w).filter(t => !ya.has(t.toLowerCase())).slice(0, Math.max(0, 18 - ya.size));
+    const nuevas = IDEAS.hashtags(prod, S.cfg, 10).filter(t => !ya.has(t.toLowerCase())).slice(0, Math.max(0, 10 - ya.size));
+    if (!nuevas.length) { toast(ya.size >= 10 ? 'Ya tienes ' + ya.size + ' hashtags: con 5–10 bien elegidos es suficiente.' : 'No tengo más hashtags relevantes para este producto.', '', 5000); return; }
     apuntar(); st.hashtags = (st.hashtags + ' ' + nuevas.join(' ')).trim(); cambio(true);
   }
   // Mejor momento: el día y la hora en que tus publicaciones tienen más ❤️ y 💬

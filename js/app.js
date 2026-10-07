@@ -26,6 +26,8 @@ const VIEWS = {
   productos: () => import('./views/productos.js'),
   catalogo: () => import('./views/catalogo.js'),
   gastos: () => import('./views/gastos.js'),
+  ingresos: () => import('./views/ingresos.js'), // v16: lo cobrado, mes a mes
+  inventario: () => import('./views/inventario.js'), // v16: materiales, filamento por color, compra rápida y avisos
   costes: () => import('./views/costes.js'),
   embalaje: () => import('./views/embalaje.js'),
   escanear: () => import('./views/escanear.js'),
@@ -52,41 +54,48 @@ const VIEWS = {
   bandeja: () => import('./views/bandeja.js'), // v14.1: correos de todas las cuentas de Vinted, Wallapop…
   config: () => import('./views/config.js')
 };
+// v16: el menú va por GRUPOS que se pliegan (menos desorden, más lógica). Cada apartado es el mismo de siempre.
 export const NAV = [
   { k: 'inicio', t: 'Inicio', i: 'home' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
-  { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»
-  { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok
+  { sep: true, t: 'Negocio' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
-  { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web
-  { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes)
-  { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas
-  { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje
-  { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector)
+  { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes),
+  { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas,
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
-  { k: 'rapidas', t: 'Respuestas rápidas 💬', i: 'msg' }, // v13.10: manual para contestar a los clientes
-  { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13
-  { k: 'descanso', t: 'Descanso 🎮', i: 'play' }, // v13.3: juego para el rato de descanso
-  { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
-  { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
-  { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
-  { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
-  { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio
-  { k: 'camaras', t: 'Cámaras', i: 'camera', p: 'taller.ver', d: true },
-  { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC)
-  { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
+  { k: 'ingresos', t: 'Ingresos 💶', i: 'euro', p: 'productos.costes' }, // v16,
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
-  { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' },
+  { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
+  { sep: true, t: 'Producción' },
+  { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
+  { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
+  { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
+  { k: 'camaras', t: 'Cámaras', i: 'camera', p: 'taller.ver', d: true },
+  { k: 'inventario', t: 'Inventario y compras', i: 'box', p: 'productos.ver' }, // v16,
+  { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
+  { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
+  { sep: true, t: 'Embalaje y envíos' },
+  { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje,
+  { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector),
+  { sep: true, t: 'Tienda y contenido' },
+  { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web,
+  { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC),
+  { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13,
+  { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3,
+  { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
+  { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
+  { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»,
+  { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
+  { k: 'rapidas', t: 'Respuestas rápidas 💬', i: 'msg' }, // v13.10: manual para contestar a los clientes,
   { sep: true, t: 'Equipo' },
   { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' },
+  { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' },
   { k: 'noticias', t: 'Noticias', i: 'news', p: 'noticias.ver' },
-  { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3
-  { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
   { k: 'archivos', t: 'Archivos', i: 'folder', p: 'archivos.ver' },
   { k: 'ia', t: 'Celeby Nova', i: 'sparkles', p: 'ia.usar' },
-  { k: 'centroia', t: 'Centro de IA 🧠', i: 'sparkles' }, // v15.3 // v11.5: Celebrity + CelebryNova en un solo asistente
-  { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
+  { k: 'centroia', t: 'Centro de IA 🧠', i: 'sparkles' }, // v15.3 // v11.5: Celebrity + CelebryNova en un solo asistente,
+  { k: 'descanso', t: 'Descanso 🎮', i: 'play' }, // v13.3: juego para el rato de descanso,
   { sep: true },
   { k: 'config', t: 'Configuración', i: 'settings' },
   { k: 'estado', t: 'Estado del sistema', i: 'shield', p: 'config.ver' }
@@ -112,6 +121,7 @@ async function route() {
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
   buildShell();
+  navActual = name; if (navCerrados().size) refreshShell(); // v16: si su grupo está plegado, el apartado abierto se enseña igualmente
   markNav(name);
   if (current.name === name && current.view && current.view.params) { current.view.params(params); return; }
   if (current.view && current.view.destroy) current.view.destroy();
@@ -235,8 +245,19 @@ document.addEventListener('input', e => { const t = e.target; if (t && t.matches
 document.addEventListener('change', e => { if (e.target === aMedias) aMedias = null; }, true);
 // v14.0: Enviar con Intro (comentario, chat…) también confirma lo escrito: la pantalla se actualiza al momento
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target === aMedias && e.target.tagName === 'INPUT') setTimeout(() => { if (aMedias === e.target) aMedias = null; if (vistaPendiente && !editandoAhora()) repintarVista(); }, 0); }, true);
+// v16: con el foco puesto en un campo de la pantalla (aunque esté vacío, o sea un desplegable o una fecha) tampoco se
+// repinta debajo del dedo. Si pasan 20 s sin tocar nada, se deja de esperar. Los buscadores no cuentan (filtran en vivo).
+// Solo cuenta el campo que has tocado TÚ (con el dedo, el ratón o el teclado): si el programa pone el cursor en un campo
+// por su cuenta (p. ej. al abrir una noticia), la pantalla se sigue actualizando con normalidad.
+let ultimoToque = 0, campoTocado = null;
+['input', 'change', 'keydown', 'pointerdown'].forEach(ev => document.addEventListener(ev, e => { const t = e.target; if (t && t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && t.closest('.content, .drawer')) { ultimoToque = Date.now(); campoTocado = t; } }, true));
+function enUnCampo() {
+  const a = document.activeElement;
+  return !!(a && a === campoTocado && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !/^(search|checkbox|radio|button|submit|file)$/.test(a.type || '') && a.closest('.content, .drawer') && !a.closest('.topbar, .quickbar, .inp-icon, .palette') && Date.now() - ultimoToque < 20000);
+}
 export function editandoAhora() {
   const a = document.activeElement;
+  if (enUnCampo()) return true;
   return !!(aMedias && a === aMedias && aMedias.isConnected && String(aMedias.value || aMedias.textContent || '').trim() !== '' && a.closest('.drawer, .content, .modal') && !a.closest('.topbar, .quickbar, .inp-icon, .palette'));
 }
 function repintarVista() {
@@ -245,25 +266,37 @@ function repintarVista() {
   vistaPendiente = false;
   const se = document.scrollingElement, y = se ? se.scrollTop : 0;
   const cajas = [...document.querySelectorAll('.drawer, .drawer .drawer-b, .content .scroll, .modal-b')].map(el => [el, el.scrollTop]);
+  const abiertos = [...document.querySelectorAll('.content details[open] > summary')].map(x => x.textContent); // v16: lo que tenías desplegado sigue desplegado
   current.view.update();
+  if (abiertos.length) document.querySelectorAll('.content details:not([open]) > summary').forEach(x => { if (abiertos.includes(x.textContent)) x.parentElement.open = true; });
   if (se && se.scrollTop !== y) se.scrollTop = y;
   cajas.forEach(([el, t]) => { if (el.isConnected && el.scrollTop !== t) el.scrollTop = t; });
 }
 document.addEventListener('focusout', () => setTimeout(() => { if (vistaPendiente && !editandoAhora()) repintarVista(); }, 350), true);
 setInterval(() => { if (vistaPendiente && !editandoAhora()) repintarVista(); }, 2000);
 
+// v16: grupos del menú plegados (se recuerda en cada aparato)
+let navActual = '';
+function navCerrados() { try { return new Set(JSON.parse(localStorage.getItem('cd.nav.cerrados') || '[]')); } catch (e) { return new Set(); } }
+function navPlegar(g) { const c = navCerrados(); if (c.has(g)) c.delete(g); else c.add(g); try { localStorage.setItem('cd.nav.cerrados', JSON.stringify([...c])); } catch (e) { } refreshShell(); markNav(navActual || current.name); }
 function refreshShell() {
   if (!shell) return;
   const d = S.cfg ? dash() : null;
   const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, ia: S.novaPend || 0, pedidosweb: can('pedidos.ver') ? pwPendientes() : 0, bandeja: can('pedidos.ver') ? (S.t.correosPlat || []).filter(r => r.estado !== 'hecho').length : 0 } : {};
   // v11: solo se redibuja el menú si ha cambiado algo (antes se rehacía en cada sincronización y parpadeaba)
-  const navSig = JSON.stringify([counts, S.perms, S.ws, S.cfg && S.cfg.menu]);
+  const navSig = JSON.stringify([counts, S.perms, S.ws, S.cfg && S.cfg.menu, [...navCerrados()], navActual || current.name]);
   const visible = n => (!n.p || can(n.p)) && (!n.d || desktop.on);
   if (shell.navSig !== navSig) { shell.navSig = navSig;
   // v13.10: el administrador ordena y oculta los apartados del menú a su gusto (para todo el equipo)
   const lista = menuNav(NAV).filter(n => n.sep || visible(n)).filter((n, i, a) => !(n.sep && (!a[i + 1] || a[i + 1].sep)));
-  mount(shell.nav, lista.map(n => n.sep ? [h('div.sep'), n.t ? h('div.grp', n.t) : null] :
-    h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null)),
+  // v16: grupos plegables. Un grupo cerrado enseña la suma de sus avisos; el apartado en el que estás nunca se esconde.
+  const cerr = navCerrados(); let grupo = '';
+  const sumas = {}; lista.forEach(n => { if (n.sep) grupo = n.t || ''; else if (grupo && counts[n.k]) sumas[grupo] = (sumas[grupo] || 0) + counts[n.k]; }); grupo = '';
+  mount(shell.nav, lista.map(n => {
+    if (n.sep) { grupo = n.t || ''; const c = grupo && cerr.has(grupo);
+      return [h('div.sep'), n.t ? h('button.grp.grp-b' + (c ? '.cerrado' : ''), { type: 'button', 'aria-expanded': c ? 'false' : 'true', title: c ? 'Abrir ' + n.t : 'Plegar ' + n.t, onclick: e => { e.stopPropagation(); navPlegar(n.t); } }, h('span.grow', n.t), c && sumas[n.t] ? h('span.count', String(sumas[n.t])) : null, h('span.fl', c ? '▸' : '▾')) : null]; }
+    if (grupo && cerr.has(grupo) && n.k !== (navActual || current.name)) return null;
+    return h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null); }),
     can('config.editar') ? h('button.nav-orden', { type: 'button', title: 'Cambiar el orden del menú u ocultar apartados', onclick: e => { e.stopPropagation(); closeNav(); editarMenu(NAV, visible, refreshShell); } }, '↕️ Ordenar el menú') : null); }
   const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
@@ -392,6 +425,8 @@ export function accionesPaleta() {
     nav('Ir a Estado del sistema', 'shield', 'estado', 'config.ver', 'diagnóstico copia seguridad'),
     fn('Tarjeta de resultados para redes', 'camera', () => import('./tarjeta.js').then(m => m.abrirTarjeta()), 'pedidos.ver', 'instagram imagen compartir resumen'),
     fn('Celebrar pedidos nuevos: cartel y confeti (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().on; m.guardarPrefs({ on: v }); toast(v ? '🎉 Celebración de pedidos nuevos activada' : 'Celebración de pedidos nuevos apagada'); }), 'pedidos.ver', 'pedido nuevo confeti cartel celebrar'),
+    fn('Hologramas 3D: figuras que aparecen unos segundos (sí/no)', 'sparkles', () => import('./hologramas.js').then(m => { const v = m.setHolo(!m.holoOn()); toast(v ? '✨ Hologramas activados' : 'Hologramas apagados en este aparato', 'ok'); }), '', 'holograma figuras 3d animacion efecto rendimiento'),
+    fn('Holograma: enseñar uno ahora', 'sparkles', () => import('./hologramas.js').then(m => m.mostrar()), '', 'holograma figura 3d ver'),
     fn('Sonido al entrar un pedido nuevo (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().sonido; m.guardarPrefs({ sonido: v }); if (v) m.sonar(); toast(v ? '🔔 Sonido de pedido nuevo activado' : 'Sonido de pedido nuevo apagado'); }), 'pedidos.ver', 'pedido nuevo sonido campana'),
     fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),
     fn(uiNueva() ? 'Interfaz clásica (la de antes)' : 'Interfaz nueva 14.0', 'sparkles', () => { const n = aplicarUI(!uiNueva()); toast(n ? '✨ Interfaz nueva' : '🗂️ Interfaz clásica', 'ok', 2500); }, '', 'aspecto diseño antes nueva vieja'),
@@ -546,6 +581,7 @@ export async function start() {
   window.__appStarted = true;
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
+  import('./hologramas.js').then(m => m.iniciar()).catch(() => { }); // v16
   pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }); });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); setTimeout(warmUp, 6000); }

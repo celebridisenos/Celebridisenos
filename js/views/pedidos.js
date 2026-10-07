@@ -23,6 +23,9 @@ const PRESETS = [
   { k: 'empaquetar', t: 'Empaquetar', f: o => ph(o) === 'empaquetar' },
   { k: 'enviar', t: 'Por enviar', f: o => ph(o) === 'listo' },
   { k: 'enviados', t: 'Enviados', cls: 'ok', f: o => ph(o) === 'enviado' },
+  { k: 'completados', t: 'Completados', cls: 'ok', f: o => ph(o) === 'entregado' }, // v16
+  { k: 'porcobrar', t: '💶 Por cobrar', cls: 'warn', f: o => (ph(o) === 'enviado' || ph(o) === 'entregado') && !/^s/i.test(String(o.cobrado || '')) },
+  { k: 'cobrados', t: '💶 Cobrados', cls: 'ok', f: o => /^s/i.test(String(o.cobrado || '')) && ph(o) !== 'cancelado' },
   { k: 'incidencias', t: 'Incidencias', cls: 'warn', f: (o, t) => t.incidencia },
   { k: 'todos', t: 'Todos', f: o => !archived(o) },
   { k: 'archivo', t: 'Archivados', f: o => archived(o) },
@@ -211,14 +214,16 @@ export function orderDrawer(id, onClose) {
       const states = S.cfg.pedidos.estados.filter(s => !s.issue && !s.cancelled);
       const idx = states.findIndex(s => s.k === o.estado);
       const c = byId('clientes', o.clienteId);
+      const cobrado = /^s/i.test(String(o.cobrado || '')); // v16
       const tabs = [['resumen', 'Resumen'], can('productos.costes') ? ['beneficio', 'Beneficio'] : null, ['fechas', 'Fechas'], ['envio', 'Envío'], can('taller.ver') ? ['taller', 'Impresión (' + (S.t.trabajos || []).filter(j => j.pedidoId === o.id && j.estado !== 'Cancelado').length + ')'] : null, ['archivos', 'Archivos (' + filesOf('pedidos', o.id).length + ')'], ['tareas', 'Tareas (' + S.t.tareas.filter(k => k.pedidoId === o.id).length + ')'], ['historial', 'Historial']].filter(Boolean);
       if (!tabs.some(x => x[0] === tab)) tab = 'resumen';
       const body = h('div');
       mount(d,
-        h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
+        h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, cobrado ? pill('💶 Cobrado', 'ok') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
           btn('', closeAll, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
         h('div.drawer-b.col', { style: { gap: '14px' } },
-          h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k)))),
+          h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k))),
+            h('div.fs.fs-cobro' + (cobrado ? '.done' : ''), { title: cobrado ? 'Cobrado el ' + fdate(o.cobradoEn) : 'Todavía sin cobrar' }, h('i'), h('span', '💶 Cobrado'))), // v16
           o.incidencia && t.abierto ? h('div.issue-bar', icon('alert', 's'), h('span.grow', h('b', 'Incidencia: '), o.incidencia), editable ? btn('Resuelta', () => save(o, { incidencia: '' }, 'Incidencia resuelta · nº ' + o.numero), { cls: 'sm', icon: 'check' }) : null) : null,
           t.abierto || t.enviado ? EV.labelRow(o, draw) : null,
           t.abierto || t.enviado ? EV.conjuntoBlock(o, draw) : null, // v13.8: envío conjunto
@@ -227,6 +232,8 @@ export function orderDrawer(id, onClose) {
             nx && !(ph(o) === 'listo' && nx && S.cfg.pedidos.estados.find(s => s.k === nx && s.shipped)) ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
             !t.enviado && !t.cancelado ? btn(ph(o) === 'listo' ? 'Preparado para enviar' : 'Enviar pedido', () => ['listo', 'empaquetar'].includes(ph(o)) ? EV.sendCheck(o) : shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,
             fromStockBtn(o),
+            !t.cancelado ? (cobrado ? btn('💶 Cobrado ✓', () => confirmDlg('¿Quitar el cobro?', 'El pedido nº ' + o.numero + ' dejará de contar en los ingresos de su mes.', 'Quitar cobro', true).then(ok => ok && import('./ingresos.js').then(m => m.cobrarPedido(o, false)).then(draw)), { cls: 'ok-b', title: 'Cobrado el ' + fdate(o.cobradoEn) + '. Pulsa para quitarlo.' })
+              : btn('💶 Marcar cobrado', () => import('./ingresos.js').then(m => m.cobrarPedido(o)).then(draw), { cls: t.enviado ? 'primary' : '', title: 'El importe entra solo en los ingresos del mes' })) : null, // v16
             ['postpro', 'empaquetar', 'listo'].includes(ph(o)) ? btn('📦 Embalaje', () => import('./embalaje.js').then(E => E.packPanel(o.id)), { cls: ph(o) === 'empaquetar' ? 'primary' : '' }) : null,
             btn('Cambiar estado', () => stateDialog(o), { icon: 'refresh' }),
             !o.incidencia && t.abierto ? btn('Incidencia', () => issueDialog(o), { icon: 'alert', cls: 'danger' }) : null)

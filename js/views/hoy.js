@@ -26,6 +26,23 @@ function free(o) {
   return fab - out - held;
 }
 
+// v16 · Avisos de stock: materiales (bajo / crítico / agotado) y filamento por material + color
+export function avisosStock() {
+  const lleno = v => v !== '' && v !== null && v !== undefined && isFinite(Number(v)), out = [];
+  const avisoCajas = n(((S.cfg || {}).embalaje || {}).avisoCajas);
+  (S.t.materiales || []).forEach(m => {
+    if (CL.norm(m.activo) === 'no' || !lleno(m.stock)) return;
+    const st = n(m.stock), min = lleno(m.stockMin) ? n(m.stockMin) : (m.tipo === 'caja' ? avisoCajas : null), cri = lleno(m.stockCritico) ? n(m.stockCritico) : (min === null ? null : Math.floor(min / 2));
+    const nivel = st <= 0 ? 'agotado' : (cri !== null && st <= cri ? 'critico' : (min !== null && st <= min ? 'bajo' : ''));
+    if (nivel && (min !== null || st <= 0 && lleno(m.stockMin))) out.push({ tipo: 'material', id: m.id, nombre: m.nombre, nivel, queda: Math.round(st * 100) / 100, unidad: m.unidad || 'ud' });
+  });
+  const aviso = n(((S.cfg || {}).taller || {}).avisoColorGramos) || 300, g = {};
+  (S.t.bobinas || []).forEach(b => { const k = (b.material || 'PLA') + ' ' + (b.color || ''); g[k] = (g[k] || 0) + Math.max(0, n(b.restante)); });
+  Object.keys(g).forEach(k => { const q = g[k]; if (q <= aviso) out.push({ tipo: 'filamento', id: k, nombre: k, nivel: q <= 0 ? 'agotado' : (q <= aviso / 2 ? 'critico' : 'bajo'), queda: Math.round(q), unidad: 'g' }); });
+  const ord = { agotado: 0, critico: 1, bajo: 2 };
+  return out.sort((a, b) => ord[a.nivel] - ord[b.nivel]);
+}
+
 export function render(el) {
   setOp(isOp());
   const head = h('div.page-head');
@@ -33,7 +50,8 @@ export function render(el) {
   const cols = h('div.hoy-cols');
   el.append(head, top, cols);
   let T = null;
-  const draw = async () => {
+  const draw = () => drawSiCambia(true);
+  const draw0 = async () => {
     T = T || await import('./taller.js');
     const P = await import('./pedidos.js');
     const ordersT = S.t.pedidos.map(o => ({ o, t: timing(o) })).filter(x => x.t.abierto);
@@ -43,6 +61,14 @@ export function render(el) {
     const toPrint = ordersT.filter(x => ph(x.o) === 'confirmado' && !inJob(x.o)).sort(byLimit);
     const printing = ordersT.filter(x => ph(x.o) === 'impresion');
     const toPrep = ordersT.filter(x => ph(x.o) === 'postpro' || ph(x.o) === 'empaquetar').sort(byLimit); // v11.4: + «Empaquetar»
+    // v16: el flujo entero de un vistazo (llega → preparar → imprimir → mesa → empaquetar → enviar → completado → cobrado)
+    const enMesa = toPrep.filter(x => ph(x.o) === 'postpro'), aEmpaquetar = toPrep.filter(x => ph(x.o) === 'empaquetar');
+    const vivos = S.t.pedidos.filter(o => ph(o) !== 'cancelado'), cobrado = o => /^s/i.test(String(o.cobrado || ''));
+    const nuevos = ordersT.filter(x => ph(x.o) === 'reserva').sort(byLimit);
+    const enviados = vivos.filter(o => ph(o) === 'enviado'), completados = vivos.filter(o => ph(o) === 'entregado');
+    const porCobrar = enviados.concat(completados).filter(o => !cobrado(o)).sort((a, b) => String(a.fechaEnvio || a.fecha).localeCompare(String(b.fechaEnvio || b.fecha)));
+    const mesHoy = String(S.hoy || new Date().toISOString()).substring(0, 7), cobradosMes = vivos.filter(o => cobrado(o) && String(o.cobradoEn || '').substring(0, 7) === mesHoy);
+    const totalCobrado = cobradosMes.reduce((a, o) => a + CL.orderTotal(o), 0);
     const toShip = ordersT.filter(x => ph(x.o) === 'listo').sort(byLimit);
     const issues = ordersT.filter(x => x.o.incidencia);
     const encAtascados = can('pedidos.ver') ? E.encargosPendientes().filter(x => x.min > 10) : []; // v14.1: encargos al PC del taller que no salen
@@ -88,7 +114,18 @@ export function render(el) {
     const encBox = encAtascados.length ? h('div.card.flat.hoy-encargos', { role: 'alert', style: { borderLeft: '4px solid var(--warn, #e9a400)' } },
       h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🖨️ ' + encAtascados.length + ' etiqueta' + (encAtascados.length > 1 ? 's' : '') + ' esperando al PC del taller'), h('span.small', '¿Está encendido el programa del PC?')),
       encAtascados.slice(0, 6).map(x => h('div.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + x.o.id) }, h('b', 'nº ' + x.o.numero), ' · ' + (x.o.cliente || '') + ' — ' + (E.PRINT_TIPOS[x.r.tipo] || { t: x.r.tipoTxt }).t + ' · hace ' + Math.round(x.min) + ' min' + (x.r.usuario ? ' (la mandó ' + x.r.usuario + ')' : '')))) : null;
-    mount(top, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
+    const paso = (ic, t, cnt, k, cls, sub) => h('button.hf' + (cnt ? '' : '.cero') + (cls ? '.' + cls : ''), { type: 'button', title: 'Ver en Pedidos', onclick: () => go(k) }, h('span.ic', ic), h('b', String(cnt)), h('span.t', t), sub ? h('span.s', sub) : null);
+    const flujo = h('div.hoy-flujo', { role: 'navigation', 'aria-label': 'Flujo de los pedidos' },
+      paso('📥', 'Por preparar', nuevos.length, 'pedidos/?f=reservas'), paso('🖨️', 'Por imprimir', toPrint.length, 'pedidos/?f=fabricar'), paso('⏳', 'Imprimiendo', printing.length, 'pedidos/?f=fabricando'),
+      paso('🧽', 'En la mesa', enMesa.length, 'pedidos/?f=postpro'), paso('📦', 'Por empaquetar', aEmpaquetar.length, 'pedidos/?f=empaquetar'), paso('🚚', 'Por enviar', toShip.length, 'pedidos/?f=enviar'),
+      paso('✈️', 'Enviados', enviados.length, 'pedidos/?f=enviados'), paso('✅', 'Completados', completados.length, 'pedidos/?f=completados'),
+      paso('💶', 'Por cobrar', porCobrar.length, 'pedidos/?f=porcobrar', porCobrar.length ? 'aviso' : ''),
+      can('productos.costes') ? paso('💰', 'Cobrado este mes', cobradosMes.length, 'ingresos', 'ok', CL.eur2(totalCobrado)) : null);
+    const avisos = avisosStock();
+    const stockBox = avisos.length ? h('div.card.flat.hoy-stock', { role: 'status' },
+      h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', avisos.some(a => a.nivel !== 'bajo') ? '🔴 Material en nivel crítico' : '⚠️ Stock bajo'), h('span.grow'), btn('Ver inventario', () => go('inventario'), { cls: 'sm' })),
+      h('div.row.wrap.hoy-stock-l', avisos.slice(0, 8).map(a => h('span.chip.' + (a.nivel === 'bajo' ? 'warn' : 'bad'), (a.nivel === 'agotado' ? '⛔ ' : a.nivel === 'critico' ? '🔴 ' : '⚠️ ') + a.nombre + ': ' + (a.nivel === 'agotado' ? 'agotado' : a.queda + ' ' + a.unidad))))) : null;
+    mount(top, flujo, stockBox, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
         h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🏷️ ' + labelProbs.length + ' etiqueta' + (labelProbs.length > 1 ? 's' : '') + ' sin imprimir'), edit ? btn('Reintentar', () => reintentar().then(draw), { cls: 'sm', icon: 'printer' }) : null),
         labelProbs.slice(0, 6).map(p => h('div.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + p.o.id) }, h('b', 'nº ' + p.o.numero), ' · ' + (p.o.cliente || '') + ' — ' + textoProblema(p)))) : null,
       T.rateBlock ? T.rateBlock(tall) : null, prs.length ? h('div.hoy-prs', prCards) : null, // v11.4: avisos de la Bambu y «¿Cómo salió?»
@@ -118,18 +155,28 @@ export function render(el) {
         tall ? btn('Mandar a imprimir', () => T.jobForm(null, x.o), { cls: fr ? '' : 'primary', icon: 'cube' }) : null]); }) : h('p.small.muted.hoy-empty', '✅ Nada pendiente de imprimir.'),
       printing.length ? h('div.tiny.muted', { style: { marginTop: '8px' } }, '🖨️ Imprimiéndose ahora: ' + printing.map(x => 'nº ' + x.o.numero).join(', ')) : null];
     const emq = CL.stateOfPhase(S.cfg.pedidos, 'empaquetar');
-    const prepCol = toPrep.length ? toPrep.map(x => card(x, [
+    const prepOf = lista => lista.length ? lista.map(x => card(x, [
       edit && ph(x.o) === 'postpro' && emq ? btn('Empaquetar', () => P.changeState(x.o, emq), { icon: 'box' }) : null,
       ph(x.o) === 'empaquetar' ? btn('📦 Embalaje', () => import('./embalaje.js').then(E => E.packPanel(x.o.id)), { cls: 'sm' }) : null,
       edit ? btn(ph(x.o) === 'empaquetar' ? 'Paquete hecho' : 'Listo para envío', () => P.changeState(x.o, CL.stateOfPhase(S.cfg.pedidos, 'listo')), { cls: 'primary', icon: 'check' }) : null],
-      ph(x.o) === 'empaquetar' ? h('span.tiny.muted', '📦 ' + x.o.estado) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por preparar.');
+      ph(x.o) === 'empaquetar' ? h('span.tiny.muted', '📦 ' + x.o.estado) : null)) : h('p.small.muted.hoy-empty', '✅ Nada aquí.');
+    const entregadoK = CL.stateOfPhase(S.cfg.pedidos, 'entregado');
+    const cobro = o => ({ o, t: timing(o) });
+    const cobrarCol = porCobrar.length ? porCobrar.slice(0, 30).map(o => card(cobro(o), [
+      edit && ph(o) === 'enviado' && entregadoK ? btn('Completado', () => P.changeState(o, entregadoK), { icon: 'check' }) : null,
+      edit ? btn('💶 Cobrado', () => import('./ingresos.js').then(m => m.cobrarPedido(o)), { cls: 'primary' }) : null],
+      h('span.tiny.muted', CL.eur2(CL.orderTotal(o)) + ' · ' + o.estado))) : h('p.small.muted.hoy-empty', '✅ Todo cobrado.');
     const shipCol = [toShip.length > 1 ? btn('Imprimir todas las etiquetas (' + toShip.length + ')', () => import('../envio.js').then(E => E.etiquetasEnvio(toShip.map(x => x.o))), { cls: 'sm', icon: 'printer' }) : null,
       toShip.length ? toShip.map(x => card(x, [btn('🏷️ Etiqueta', () => import('../envio.js').then(E => E.etiquetaEnvio(x.o))), edit ? btn('Enviado', () => P.shipDialog(x.o), { cls: 'primary', icon: 'truck' }) : null], x.o.envio ? h('span.tiny.muted', x.o.envio) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por enviar.')];
     const col = (ic, t, cnt, kids, k) => h('section.hoy-col', h('div.hoy-col-h', h('span.ic', ic), h('h2.grow', t), h('span.cnt', String(cnt)), btn('', () => go('pedidos/?f=' + k), { cls: 'ghost icon sm', icon: 'external', title: 'Ver en Pedidos' })), h('div.hoy-list', kids));
-    mount(cols, col('🖨️', 'Imprimir', toPrint.length, printCol, 'fabricar'), col('🧽', 'Preparar y empaquetar', toPrep.length, prepCol, 'empaquetar'), col('📦', 'Enviar', toShip.length, shipCol, 'enviar'));
+    mount(cols, col('🖨️', 'Imprimir', toPrint.length, printCol, 'fabricar'), col('🧽', 'En la mesa · revisar y acabado', enMesa.length, prepOf(enMesa), 'postpro'), col('📦', 'Empaquetar', aEmpaquetar.length, prepOf(aEmpaquetar), 'empaquetar'),
+      col('🚚', 'Enviar', toShip.length, shipCol, 'enviar'), col('💶', 'Cobrar', porCobrar.length, cobrarCol, 'porcobrar'));
     if (!S.t.pedidos.length) mount(cols, h('div.card', empty('truck', 'Aún no hay pedidos', 'Cuando entren aparecerán aquí, ordenados por urgencia.')));
   };
-  draw();
-  const tick = setInterval(() => { if (document.body.dataset.view === 'hoy') draw(); }, 60000);
-  return { update: draw, destroy: () => { clearInterval(tick); document.body.classList.remove('operario'); } };
+  const firma = () => JSON.stringify([S.t.pedidos.map(o => [o.id, o.estado, o.version, o.cobrado, o.incidencia]), (S.t.trabajos || []).map(j => [j.id, j.estado, j.version]), (S.t.bobinas || []).map(b => [b.id, b.restante]), (S.t.materiales || []).map(m => [m.id, m.stock, m.stockMin, m.stockCritico]), isOp()]);
+  let ultima = '';
+  const drawSiCambia = async forzar => { const f = firma(); if (!forzar && f === ultima) return; ultima = f; const sc = document.scrollingElement, y = sc ? sc.scrollTop : 0; await draw0(); if (sc && y) sc.scrollTop = y; };
+  drawSiCambia(true);
+  const tick = setInterval(() => { if (document.body.dataset.view === 'hoy') drawSiCambia(true); }, 60000);
+  return { update: () => drawSiCambia(false), destroy: () => { clearInterval(tick); document.body.classList.remove('operario'); } };
 }

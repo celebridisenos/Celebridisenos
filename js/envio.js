@@ -332,7 +332,14 @@ export async function printOne(o, tipo, opts = {}) {
     }
   }
   const b = await buildFor(o, tipo, L); // si falta algo (la etiqueta no se puede leer…) no se registra nada
-  const t = await L.targetFor(b.tpl);
+  let t = await L.targetFor(b.tpl);
+  // v16: antes de imprimir a mano se ve QUÉ sale y POR DÓNDE (impresora, etiqueta, tamaño y copias). Nunca por otra impresora sin decirlo.
+  if (t.pr && !opts.auto && !opts.confirmado) {
+    try { await L.printers(true); t = await L.targetFor(b.tpl); } catch (e) { }
+    const elegida = await confirmarImpresion(o, tipo, b.tpl, t, L);
+    if (!elegida) return { estado: 'cancelado' };
+    if (t.pr && elegida !== t.pr.name) { opts = Object.assign({}, opts, { printer: elegida }); t = await L.targetFor(b.tpl, elegida); }
+  }
   let row;
   try {
     row = (await api('impresiones.iniciar', { pedidoId: o.id, tipo, formato: tipo === 'paquete' ? fmtPaquete() : PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', impresora: t.pr ? t.pr.name : 'PDF', dispositivo: S.device || '' })).impresion;
@@ -344,11 +351,12 @@ export async function printOne(o, tipo, opts = {}) {
   upsertLocal('impresiones', row); emit();
   const answer = async (ok, error, impresora) => { try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '' }); upsertLocal('impresiones', r.impresion); emit(); return r.impresion; } catch (e) { return null; } };
   try {
-    const res = await L.sendLabel(b.tpl, (dpi, s) => [L.draw(b.tpl, b.data, dpi, s)], { silent: true, wait: true, fileName: tipo + '_pedido_' + o.numero, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero }); // v13.5: con PDF se espera a cerrar el visor
-    if (res.how === 'printer') { await answer(true, '', res.printer); return { estado: 'Impreso', impresora: res.printer }; }
+    const res = await L.sendLabel(b.tpl, (dpi, s) => [L.draw(b.tpl, b.data, dpi, s)], { silent: true, wait: true, printer: opts.printer || '', fileName: tipo + '_pedido_' + o.numero, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero }); // v13.5: con PDF se espera a cerrar el visor
+    if (res.how === 'printer') { await answer(true, '', res.printer); if (!opts.auto) { toast('🖨️ ' + PRINT_TIPOS[tipo].t + ' → ' + res.printer, 'ok', 5000); ofrecerSoporte(o, tipo); } return { estado: 'Impreso', impresora: res.printer }; }
     // en el móvil (PDF) no sabemos si la impresora lo sacó bien: se pregunta
     const okp = await askPrinted(PRINT_TIPOS[tipo].t);
     await answer(okp, okp ? '' : 'No salió bien (PDF)', 'PDF');
+    if (okp && !opts.auto) ofrecerSoporte(o, tipo);
     return { estado: okp ? 'Impreso' : 'Error' };
   } catch (e) {
     await answer(false, e.message, t.pr ? t.pr.name : '');
@@ -356,6 +364,41 @@ export async function printOne(o, tipo, opts = {}) {
     return { estado: 'Error', error: e.message };
   }
 }
+// v16: al imprimir la etiqueta de envío se ofrece la ETIQUETA DE SOPORTE del paquete (gracias + código + QR + pedido + producto + envío)
+function ofrecerSoporte(o, tipo) {
+  if (tipo !== 'oficial' && tipo !== 'propia') return;
+  if (statusOf(o, 'paquete').estado === 'Impreso') return;
+  toast('¿Imprimes también la etiqueta de soporte del paquete?', '', 12000, { t: 'Imprimir etiqueta de soporte', on: () => printOne(o, 'paquete').catch(() => { }) });
+}
+const RECORDADA = 'cd.print.directo.';
+// Devuelve el nombre de la impresora elegida, o '' si se cancela. Si marcaste «no preguntar» para ESA impresora, no pregunta;
+// en cuanto la impresora que toca es otra (o está apagada), vuelve a preguntar.
+function confirmarImpresion(o, tipo, tpl, t, L) {
+  const T = PRINT_TIPOS[tipo], pr = t.pr;
+  let recordada = ''; try { recordada = localStorage.getItem(RECORDADA + tpl) || ''; } catch (e) { }
+  if (recordada && recordada === pr.name && !pr.offline) return Promise.resolve(pr.name);
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    const reales = L.realPrinters(t.list || []), nombres = reales.map(p => p.name); if (!nombres.includes(pr.name)) nombres.unshift(pr.name);
+    const s = sel(nombres.map(n => { const p = reales.find(x => x.name === n); return { v: n, t: n + (p && !p.offline ? '' : ' — apagada o desconectada') + (p && p.label ? ' · etiquetas' : p ? ' · folios' : '') }; }), pr.name);
+    const no = h('input', { type: 'checkbox' }), aviso = h('p.small.bad-t');
+    const pinta = () => { const p = reales.find(x => x.name === s.value); aviso.textContent = !p || p.offline ? ((pr.name === s.value && pr.problema) || 'Esta impresora está apagada o desconectada: enciéndela o elige otra.') : (!p.label && T.f !== 'A4' ? 'Ojo: «' + p.name + '» es de folios, no de etiquetas. La etiqueta saldría en un folio A4.' : ''); };
+    s.addEventListener('change', pinta); pinta();
+    const dato = (k, v) => h('div.imp-dato', h('span', k), h('b', v));
+    modal('🖨️ ¿Imprimir?', h('div.imp-conf',
+      dato('Etiqueta', T.i + ' ' + T.t), dato('Pedido', 'nº ' + o.numero + (o.cliente ? ' · ' + o.cliente : '')),
+      dato('Tamaño', t.size.w + ' × ' + t.size.h + ' mm' + (t.sheet ? ' (en folio A4)' : '')), dato('Copias', String(opts_copias(tipo))),
+      h('div.field', h('label', 'Impresora'), s), aviso,
+      h('label.check.small', no, 'No preguntar más en este aparato mientras salga por esta impresora')),
+      close => [btn('Cancelar', () => { fin(''); close(); }, { cls: 'ghost' }), btn('Imprimir', () => {
+        const p = reales.find(x => x.name === s.value);
+        if (!p || p.offline) { pinta(); return; }
+        try { if (no.checked) localStorage.setItem(RECORDADA + tpl, s.value); else localStorage.removeItem(RECORDADA + tpl); } catch (e) { }
+        fin(s.value); close();
+      }, { cls: 'primary', icon: 'printer' })], { size: 'narrow', onclose: () => fin('') });
+  });
+}
+const opts_copias = () => 1;
 function askPrinted(what) {
   return new Promise(res => {
     let done = false; const fin = v => { if (!done) { done = true; res(v); } };

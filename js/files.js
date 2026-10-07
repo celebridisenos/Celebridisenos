@@ -383,6 +383,7 @@ export function dropZone(tipo, opts = {}) {
       try { await f.slice(0, 1).arrayBuffer(); } catch (e) { it.err = friendlyUploadError(e, f).message; it.state = 'error'; draw(); reportFailure(f, { entidad: opts.entidad, entidadId: opts.entidadId }, Object.assign(new Error(e.message), { code: e.name || 'LECTURA', original: e.message })); continue; }
       try { [it.thumb, it.huella] = await Promise.all([makeThumb(f, tipo), sha256(f)]); } catch (e) { }
       if (tipo === 'stl' && ['stl', '3mf', 'obj'].includes(extOf(f.name))) { try { const r = await thumb3D(await f.arrayBuffer(), f.name); it.dims = r.dims; } catch (e) { it.err = 'El archivo 3D parece dañado: ' + e.message; } }
+      if (opts.onReady && !it.err) { try { opts.onReady(it); } catch (e) { } } // v16: p. ej. medir la pieza al subir el STL / 3MF
       it.state = it.err ? 'error' : 'listo'; draw();
       if (!it.err && opts.entidadId) upload(it, opts.entidad, opts.entidadId);
       opts.onchange && opts.onchange(items);
