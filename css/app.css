@@ -1745,3 +1745,31 @@ body.tk-abierto { overflow: hidden; }
 .nav .grp.grp-b:hover { color: var(--text); background: color-mix(in srgb, var(--brand) 8%, transparent); } .nav .grp.grp-b .fl { font-size: 10px; opacity: .8; } .nav .grp.grp-b.cerrado { padding-bottom: 8px; }
 .nav .grp.grp-b .count { position: static; }
 html.ui14 .sidebar .nav .grp.grp-b { color: rgba(233, 222, 255, .62); } html.ui14 .sidebar .nav .grp.grp-b:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+
+/* v16 · filamento del pedido, revisión automática */
+.fil-linea { margin-top: 6px; } .issue-bar.fil-falta { margin-top: 8px; }
+.hoy-rev:empty { display: none; } .hoy-rev-d { margin-bottom: 10px; }
+.rev-i { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; } .rev-i:hover { background: var(--surface-2); }
+.rev-i .rev-t { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; min-width: 74px; padding-top: 2px; color: var(--muted); }
+.rev-i.incoherencia .rev-t { color: var(--bad); } .rev-i.falta .rev-t { color: var(--warn); }
+.inv-rev { margin-top: 12px; }
+
+/* v16 · biblioteca de plantillas del editor */
+.bib { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.bib-i { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px; cursor: pointer; font: inherit; color: var(--text); text-align: center; }
+.bib-i:hover { border-color: var(--brand); box-shadow: var(--shadow); }
+.bib-mini { width: 100%; height: 120px; object-fit: contain; background: #fff; border-radius: 6px; border: 1px solid var(--line); }
+canvas.bib-mini { width: auto; max-width: 100%; }
+
+/* v16 · medidas con nombre (Ancho · Largo · Alto) y los dos precios del producto */
+.med-ejes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.med-eje { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.med-n { font-weight: 750; font-size: 14px; } .med-c { display: flex; align-items: center; gap: 6px; } .med-c .inp { min-width: 0; font-size: 18px; font-weight: 700; } .med-c .u, .pr2-i .u { color: var(--muted); font-weight: 700; }
+.med-ejes.ficha { margin-top: 10px; } .med-v { font-size: 22px; font-weight: 780; line-height: 1.1; }
+.pr2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.pr2-c { display: flex; flex-direction: column; gap: 3px; border-radius: 14px; padding: 12px 14px; border: 2px solid var(--line); background: var(--surface); min-width: 0; }
+.pr2-c.redes { border-color: color-mix(in srgb, var(--brand) 55%, var(--line)); } .pr2-c.min { border-color: color-mix(in srgb, var(--warn) 60%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
+.pr2-t { font-weight: 780; font-size: 15px; } .pr2-s { font-size: 12px; color: var(--muted); } .pr2-v { font-size: 30px; font-weight: 800; line-height: 1.05; }
+.pr2-i { display: flex; align-items: center; gap: 6px; margin-top: 4px; } .pr2-i .inp { font-size: 22px; font-weight: 780; min-width: 0; }
+.pr2-res { grid-column: 1 / -1; font-size: 14.5px; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); }
+@media (max-width: 520px) { .med-n { font-size: 13px; } .med-v { font-size: 19px; } .pr2-v { font-size: 25px; } }
