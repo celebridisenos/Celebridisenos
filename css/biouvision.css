@@ -291,3 +291,11 @@
   .bv-aurora i, .bv-h1 em, .bv-soltar .ic, .bv-cargando img, .bv-escaneo::before, .bv-escaneo::after, .bv-pasos li.ahora i { animation: none !important; }
   .bv-demo, .bv-tarjeta, .bv-btn { transition: none !important; }
 }
+
+/* v16.1 · ⚡ Turbo (tarjeta gráfica) */
+.bv-turbo { border: 1px solid rgba(250, 204, 21, .35); box-shadow: 0 0 0 1px rgba(250, 204, 21, .08), 0 18px 50px -30px rgba(250, 204, 21, .5); }
+.bv-turbo h3 { background: linear-gradient(90deg, #fde047, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.bv-turbo-tabla { margin-top: 12px; display: grid; gap: 2px; }
+.bv-barra i.bv-barra-sinfin { width: 35%; animation: bvSinfin 1.4s ease-in-out infinite; }
+@keyframes bvSinfin { 0% { transform: translateX(-110%); } 100% { transform: translateX(320%); } }
+@media (prefers-reduced-motion: reduce) { .bv-barra i.bv-barra-sinfin { animation: none; width: 100%; opacity: .5; } }

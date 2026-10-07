@@ -392,3 +392,42 @@ table.t th { padding: 8px 10px; } table.t td { padding: 8px 10px; }
 @media (max-width: 800px) { .holo { right: auto; left: 12px; bottom: 150px; width: 84px; height: 98px; } .holo-f { width: 84px; height: 84px; } }
 @media (prefers-reduced-motion: reduce) { .holo { display: none; } }
 @media print { .holo { display: none; } }
+
+
+/* v16.1 · 🎁 Un regalo */
+.regalo-btn span { display: inline-block; font-size: 20px; animation: regaloLate 1.8s ease-in-out infinite; transform-origin: 50% 80%; }
+@keyframes regaloLate { 0%, 60%, 100% { transform: rotate(0) scale(1); } 70% { transform: rotate(-12deg) scale(1.18); } 80% { transform: rotate(10deg) scale(1.18); } 90% { transform: rotate(-6deg) scale(1.08); } }
+.regalo { text-align: center; }
+.regalo-escena { min-height: 300px; display: grid; place-items: center; }
+.regalo-caja { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 6px; padding: 26px 40px; border-radius: 28px; transition: transform .2s; }
+.regalo-caja:focus-visible { outline: 3px solid var(--pri, #7c3aed); outline-offset: 4px; }
+.regalo-caja .cuerpo { font-size: 128px; line-height: 1; animation: regaloSalta 1.6s ease-in-out infinite; filter: drop-shadow(0 18px 24px rgba(124, 58, 237, .35)); }
+.regalo-caja .tapa { font-size: 44px; margin-bottom: -34px; z-index: 1; transition: transform .6s cubic-bezier(.2, 1.4, .4, 1), opacity .6s; }
+.regalo-caja small { margin-top: 14px; font-size: 15px; opacity: .75; }
+.regalo-caja.abierta .tapa { transform: translateY(-130px) rotate(-28deg) scale(1.3); opacity: 0; }
+.regalo-caja.abierta .cuerpo { animation: regaloAbre .65s ease-in forwards; }
+@keyframes regaloSalta { 0%, 100% { transform: translateY(0) rotate(0); } 45% { transform: translateY(-14px) rotate(-3deg); } 55% { transform: translateY(-14px) rotate(3deg); } }
+@keyframes regaloAbre { 40% { transform: scale(1.25) rotate(6deg); } 100% { transform: scale(.2) rotate(-10deg); opacity: 0; } }
+.regalo-carta { animation: regaloEntra .5s ease-out; }
+@keyframes regaloEntra { from { opacity: 0; transform: translateY(16px) scale(.98); } }
+.regalo-carta h3 { font-size: 26px; margin: 4px 0 16px; background: linear-gradient(90deg, #7c3aed, #db2777, #f59e0b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.regalo-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.regalo-dato { display: grid; gap: 2px; justify-items: center; padding: 16px 10px; border-radius: 18px; background: linear-gradient(160deg, rgba(124, 58, 237, .12), rgba(219, 39, 119, .10)); border: 1px solid rgba(124, 58, 237, .22); }
+.regalo-dato i { font-style: normal; font-size: 30px; }
+.regalo-dato b { font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.regalo-dato span { font-size: 13.5px; opacity: .8; }
+.regalo-linea { margin: 6px 0; font-size: 15.5px; }
+.regalo-vacio { font-size: 17px; margin: 18px 0; }
+.regalo-trae { margin-top: 20px; text-align: left; }
+.regalo-trae h4 { text-align: center; margin: 0 0 10px; font-size: 16px; opacity: .8; }
+.regalo-tres { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.regalo-tres > div { display: grid; gap: 4px; padding: 14px; border-radius: 16px; border: 1px solid var(--line, rgba(0, 0, 0, .1)); background: var(--card, rgba(255, 255, 255, .6)); }
+.regalo-tres i { font-style: normal; font-size: 26px; }
+.regalo-tres span { font-size: 13.5px; opacity: .85; line-height: 1.4; }
+.regalo-nota { margin: 20px auto 16px; max-width: 620px; font-size: 15.5px; line-height: 1.55; font-style: italic; opacity: .9; }
+@media (prefers-reduced-motion: reduce) { .regalo-btn span, .regalo-caja .cuerpo, .regalo-carta { animation: none; } }
+
+/* v16.2 · Bandeja fluida: lo que no está en pantalla no se dibuja, sin transiciones al pasar el ratón */
+.bz-lista { contain: layout style; }
+.bz-item { content-visibility: auto; contain-intrinsic-size: auto 110px; transition: none !important; animation: none !important; }
+.bz-item *, .bz-item .btn { transition: none !important; }
