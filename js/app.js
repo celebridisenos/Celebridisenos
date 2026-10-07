@@ -127,7 +127,7 @@ async function route() {
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
   buildShell();
-  navActual = name; if (navCerrados().size) refreshShell(); // v16: si su grupo está plegado, el apartado abierto se enseña igualmente
+  navActual = name; refreshShell(); // v16: si su grupo está plegado, el apartado abierto se enseña igualmente (y su grupo se abre)
   markNav(name);
   if (current.name === name && current.view && current.view.params) { current.view.params(params); return; }
   // v16.2 · ESTABILIDAD: si ya estás en esta misma pantalla (misma dirección) y has escrito o tocado algo en ella en el último
@@ -218,6 +218,7 @@ function buildShell() {
   const scrim = h('div.scrim', { onclick: () => closeNav() });
   const syncEl = h('button.sync', { title: 'Estado de la sincronización', onclick: () => syncPanel() });
   const bell = h('button.btn.ghost.icon.icon-btn', { title: 'Notificaciones', onclick: () => go('notificaciones') }, icon('bell'));
+  const actB = h('button.btn.ghost.icon.icon-btn.act-top', { title: 'Buscar actualización · v' + APP_VERSION, 'aria-label': 'Buscar actualización', onclick: () => dialogoActualizar() }, '🔄'); // v16.3.3: fijo y a la vista
   const chatB = can('chat.usar') ? h('button.btn.ghost.icon.icon-btn.chat-btn', { title: 'Chat del equipo', 'aria-label': 'Chat', onclick: () => go('chat') }, icon('msg')) : h('span');
   const meDot = h('span.st-dot.on');
   const meBtn = h('button.me-chip', { title: 'Tu cuenta', 'aria-label': 'Tu cuenta', onclick: e => accountMenu(e.currentTarget) });
@@ -226,7 +227,7 @@ function buildShell() {
     h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú', 'aria-label': 'Abrir menú' }, icon('menu')),
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
     quick,
-    h('div.right.row', syncEl, botonRegalo(), chatB, bell, meBtn));
+    h('div.right.row', syncEl, actB, botonRegalo(), chatB, bell, meBtn));
   const banner = h('div');
   const content = h('main.content', { id: 'main' });
   const tabbar = h('nav.tabbar', { 'aria-label': 'Secciones principales' });
@@ -296,8 +297,14 @@ setInterval(() => { if (vistaPendiente && !editandoAhora()) repintarVista(); }, 
 
 // v16: grupos del menú plegados (se recuerda en cada aparato)
 let navActual = '';
-function navCerrados() { try { return new Set(JSON.parse(localStorage.getItem('cd.nav.cerrados') || '[]')); } catch (e) { return new Set(); } }
-function navPlegar(g) { const c = navCerrados(); if (c.has(g)) c.delete(g); else c.add(g); try { localStorage.setItem('cd.nav.cerrados', JSON.stringify([...c])); } catch (e) { } refreshShell(); markNav(navActual || current.name); }
+// v16.3.3 · SUBMENÚS DE VERDAD: cada grupo viene PLEGADO y se abre al tocarlo (el del apartado en el que estás, siempre abierto).
+// Se recuerda en cada aparato qué grupos tienes abiertos. «*» = todos abiertos (botón «Abrir todo»).
+const navGrupos = () => NAV.filter(n => n.sep && n.t).map(n => n.t);
+function navAbiertos() { let l = []; try { l = JSON.parse(localStorage.getItem('cd.nav.abiertos') || '[]'); } catch (e) { } return new Set(l.includes('*') ? navGrupos() : l); }
+function navGuardar(set) { try { localStorage.setItem('cd.nav.abiertos', JSON.stringify(set.size >= navGrupos().length ? ['*'] : [...set])); } catch (e) { } refreshShell(); markNav(navActual || current.name); }
+function navCerrados() { const a = navAbiertos(); return new Set(navGrupos().filter(g => !a.has(g))); }
+function navPlegar(g) { const a = navAbiertos(); if (a.has(g)) a.delete(g); else a.add(g); navGuardar(a); }
+function navTodo() { navGuardar(navAbiertos().size >= navGrupos().length ? new Set() : new Set(navGrupos())); }
 function refreshShell() {
   if (!shell) return;
   const d = S.cfg ? dash() : null;
@@ -316,7 +323,8 @@ function refreshShell() {
       return [h('div.sep'), n.t ? h('button.grp.grp-b' + (c ? '.cerrado' : ''), { type: 'button', 'aria-expanded': c ? 'false' : 'true', title: c ? 'Abrir ' + n.t : 'Plegar ' + n.t, onclick: e => { e.stopPropagation(); navPlegar(n.t); } }, h('span.grow', n.t), c && sumas[n.t] ? h('span.count', String(sumas[n.t])) : null, h('span.fl', c ? '▸' : '▾')) : null]; }
     if (grupo && cerr.has(grupo) && n.k !== (navActual || current.name)) return null;
     return h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null); }),
-    can('config.editar') ? h('button.nav-orden', { type: 'button', title: 'Cambiar el orden del menú u ocultar apartados', onclick: e => { e.stopPropagation(); closeNav(); editarMenu(NAV, visible, refreshShell); } }, '↕️ Ordenar el menú') : null); }
+    can('config.editar') ? h('button.nav-orden', { type: 'button', title: 'Cambiar el orden del menú u ocultar apartados', onclick: e => { e.stopPropagation(); closeNav(); editarMenu(NAV, visible, refreshShell); } }, '↕️ Ordenar el menú') : null,
+    h('button.nav-todo', { type: 'button', title: 'Abrir o plegar todos los grupos del menú', onclick: e => { e.stopPropagation(); navTodo(); } }, navCerrados().size ? '▾ Abrir todo' : '▸ Plegar todo')); }
   const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
   if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }

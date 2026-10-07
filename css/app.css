@@ -1229,8 +1229,8 @@ canvas.lbl-canvas[data-forma]:not([data-forma="rect"]), canvas.shape-prev[data-f
 .mt-ico { font-size: 48px; }
 @media (max-width: 640px) { .mt-qr svg { width: 180px; height: 180px; } .mt-card { justify-content: center; } }
 /* v13.10 · ordenar el menú */
-.nav-orden { display: block; width: calc(100% - 16px); margin: 10px 8px 4px; padding: 7px 10px; border: 1px dashed var(--line, rgba(0,0,0,.18)); border-radius: 10px; background: transparent; color: inherit; opacity: .7; font-size: 13px; cursor: pointer; text-align: left; }
-.nav-orden:hover { opacity: 1; }
+.nav-orden, .nav-todo { display: block; width: calc(100% - 16px); margin: 10px 8px 4px; padding: 7px 10px; border: 1px dashed var(--line, rgba(0,0,0,.18)); border-radius: 10px; background: transparent; color: inherit; opacity: .7; font-size: 13px; cursor: pointer; text-align: left; }
+.nav-orden:hover, .nav-todo:hover { opacity: 1; }
 .mo-lista { display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow: auto; }
 .mo-fila { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--bg2, rgba(0,0,0,.04)); cursor: grab; }
 .mo-fila.oculto { opacity: .5; }
@@ -1941,3 +1941,16 @@ canvas.bib-mini { width: auto; max-width: 100%; }
 .act { display: grid; gap: 10px; } .act-v { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); } .act-v b { font-size: 16px; }
 .act-est { margin: 0; font-size: 15px; line-height: 1.4; } .act-ok { margin: 0; color: var(--ok, #16a34a); font-weight: 600; }
 .act-mal { font-size: 13.5px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); } .act-mal ul { margin: 6px 0; padding-left: 18px; max-height: 180px; overflow: auto; font-family: ui-monospace, monospace; font-size: 12px; }
+
+
+/* v16.3.3 · menú por grupos plegados (submenús), botón de actualizar siempre a la vista */
+.nav .grp.grp-b { font-size: 12.5px; padding: 10px 12px; border-radius: 10px; margin-top: 2px; letter-spacing: .03em; }
+.nav .grp.grp-b:not(.cerrado) { background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--text); }
+html.ui14 .sidebar .nav .grp.grp-b { color: rgba(240, 233, 255, .9); } html.ui14 .sidebar .nav .grp.grp-b:not(.cerrado) { background: rgba(255, 255, 255, .12); color: #fff; }
+.nav .grp.grp-b .fl { font-size: 12px; }
+.nav .grp.grp-b:not(.cerrado) ~ a { margin-left: 0; }
+.sidebar { display: flex; flex-direction: column; } .sidebar .nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.sidebar .nav-act { flex: none; margin-top: 8px; background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-style: solid; }
+html.ui14 .sidebar .nav-act { background: rgba(255, 255, 255, .14); color: #fff; border-color: rgba(255, 255, 255, .35); } html.ui14 .sidebar .nav-act small { color: rgba(255, 255, 255, .75); }
+.sidebar .me { flex: none; }
+.act-top { font-size: 17px; }

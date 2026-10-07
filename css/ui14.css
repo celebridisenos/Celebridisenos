@@ -99,7 +99,7 @@ html.ui14 .nav a .count.soft { background: rgba(255, 255, 255, .14); color: #fff
 html.ui14 .sidebar .me:hover { background: rgba(255, 255, 255, .08); }
 html.ui14 .sidebar .me { color: #fff; }
 html.ui14 .sidebar .me .muted, html.ui14 .sidebar .me small { color: rgba(233, 222, 255, .6); }
-html.ui14 .sidebar .ws-switch button, html.ui14 .sidebar .nav-orden { color: rgba(240, 233, 255, .8); }
+html.ui14 .sidebar .ws-switch button, html.ui14 .sidebar .nav-orden, html.ui14 .sidebar .nav-todo { color: rgba(240, 233, 255, .8); }
 html.ui14 .sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .18); border: 3px solid transparent; background-clip: padding-box; }
 html.ui14 .scrim { background: rgba(15, 8, 30, .35); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 

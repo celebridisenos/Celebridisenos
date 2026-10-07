@@ -273,7 +273,7 @@ export function orderDrawer(id, onClose) {
               can('pedidos.crear') ? { t: 'Duplicar', icon: 'copy', on: () => orderForm(Object.assign({}, o, { id: '', numero: '', fecha: '', estado: '', seguimiento: '', fechaEnvio: '', fechaEntrega: '', incidencia: '' }), true) } : null,
               can('pedidos.editar') ? { t: o.regalo && o.regalo.token ? 'Regalo con QR ✓' : 'Regalo con QR', icon: 'gift', on: () => import('../regalo.js').then(m => m.giftDialog(o)) } : null,
               editable ? { t: '🎥 Prueba de empaquetado (vídeo)', icon: 'camera', on: () => import('./embalaje.js').then(E => E.captureSaleProof(o, { suelta: true })) } : null, // v14.1: cuando quieras, sin obligar
-              { t: 'Etiqueta QR del pedido', icon: 'printer', on: () => import('../labels.js').then(L => L.labelDialog('qr', [L.dataFor('qr', { tipo: 'pedido', id: o.id, titulo: 'Pedido nº ' + o.numero })])) },
+              { t: 'Etiqueta QR del pedido (¡Gracias! + datos)', icon: 'printer', on: () => import('../envio.js').then(EV2 => EV2.printOne(byId('pedidos', o.id) || o, 'paquete')).catch(e => toast('No se pudo imprimir: ' + e.message, 'bad', 8000)) }, // v16.3.3: siempre la grande, no el QR suelto
               can('pedidos.borrar') ? { t: 'Borrar', icon: 'trash', danger: true, on: () => delOrder(o, closeAll) } : { t: 'Borrar (pedir permiso)', icon: 'lock', on: () => requestAccess('pedidos.borrar', 'pedidos', 'Borrar pedido nº ' + o.numero) }
             ]))));
       TABS[tab](body, o, t, c);

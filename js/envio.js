@@ -321,6 +321,21 @@ export function encargosPendientes() {
   return out;
 }
 
+// v16.3.3 · CARRIL RÁPIDO: un encargo que el servidor YA ha reservado para este PC se imprime sin más viajes a Google
+// (antes: enterarse → sincronizar → reservar → imprimir; con Google a 2–3 s por viaje, se iba a medio minuto).
+export async function imprimirTomada(o, row) {
+  const tipo = row.tipo, L = await import('./labels.js');
+  const answer = async (ok, error, impresora) => { try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '' }); upsertLocal('impresiones', r.impresion); emit(); } catch (e) { } };
+  try {
+    o = ownerOf(o, tipo);
+    if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
+    const b = await buildFor(o, tipo, L), t = await L.targetFor(b.tpl);
+    if (!t || !t.pr || t.pr.offline) { await answer(false, 'La impresora está apagada o este PC no tiene impresora para esta etiqueta'); return { estado: 'Error' }; }
+    const res = await L.sendLabel(b.tpl, (dpi, s) => [L.draw(b.tpl, b.data, dpi, s)], { silent: true, wait: true, printer: '', fileName: tipo + '_pedido_' + o.numero, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero });
+    if (res.how === 'printer') { answer(true, '', res.printer); return { estado: 'Impreso', impresora: res.printer }; }
+    await answer(false, 'No salió por la impresora'); return { estado: 'Error' };
+  } catch (e) { await answer(false, e.message || String(e)); return { estado: 'Error', error: e.message }; }
+}
 export async function printOne(o, tipo, opts = {}) {
   o = ownerOf(o, tipo);
   if (tipo === 'gracias' && cardMode() === 'hoja') return (await cardIncluded(o)) ? { estado: 'Impreso' } : { estado: 'omitido' };

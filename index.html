@@ -47,6 +47,9 @@
         var w = reg.installing;
         w && w.addEventListener('statechange', function () {
           if (w.state === 'installed' && navigator.serviceWorker.controller) {
+            // v16.3.3: AUTOMÁTICO. Si no estás escribiendo ni tienes una ventana abierta, se aplica sola en 2 segundos.
+            var a = document.activeElement, ocupado = (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) || document.querySelector('.modal, .drawer');
+            if (!ocupado) { var av = document.createElement('div'); av.className = 'toast'; av.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:400'; av.textContent = '🔄 Actualizando la app…'; document.body.appendChild(av); setTimeout(function () { w.postMessage('skip'); }, 2000); return; }
             var b = document.createElement('div');
             b.className = 'toast'; b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:400';
             b.innerHTML = '<span>Hay una versión nueva de la app.</span> <button class="btn sm primary">Actualizar</button>';

@@ -10,7 +10,7 @@
 //  · si falla NO se finge nada: queda «Etiqueta no impresa — motivo», con reintentos espaciados;
 //  · nunca abre PDFs ni preguntas sin que nadie esté delante: sin impresora real, se avisa y ya;
 //  · «Omitir por ahora» y el interruptor de Embalaje (Tarjeta y mensajes) lo detienen.
-import { S, can, byId, on, api, pull } from './store.js';
+import { S, can, byId, on, api, pull, upsertLocal, emit } from './store.js';
 import { desktop } from './desktop.js';
 import * as E from './envio.js';
 
@@ -131,14 +131,30 @@ export function startAutoPrint() {
   if (!desktop.on || timer) return;
   timer = setInterval(autoTick, 20000);
   unsub = on(() => { clearTimeout(deb); deb = setTimeout(autoTick, 350); }); // en cuanto cambia un pedido (v16.3.2: antes 1,5 s)
-  // v16.3.2 · CARRIL RÁPIDO: cada 3 s una consulta mínima («¿ha cambiado algo en pedidos o impresiones?»); si sí, se sincroniza YA
-  let visto = null, latiendo = false;
+  // v16.3.3 · CARRIL RÁPIDO: cada 2 s una consulta mínima. Si alguien ha encargado una etiqueta desde el móvil o el portátil, el
+  // servidor la RESERVA para este PC en esa misma consulta y aquí se imprime al momento (sin sincronizar ni volver a preguntar).
+  // Si lo que cambia es un pedido (p. ej. pasa a Empaquetar), se sincroniza ya, sin esperar a los 15 s.
+  let visto = null, latiendo = false, puedo = false, tPuedo = 0;
   rapido = setInterval(async () => {
     if (latiendo || !S.ready || !S.me || !S.online || !autoOn() || !leader()) return;
     latiendo = true;
-    try { const r = await api('sys.latido', {}, { quiet: true, timeout: 8000 }), v = r ? r.i + '|' + r.p : null; if (v !== null && visto !== null && v !== visto) { AUTO.rapidas = (AUTO.rapidas || 0) + 1; await pull(); } if (v !== null) visto = v; }
-    catch (e) { } finally { latiendo = false; }
-  }, 3000);
+    try {
+      if (Date.now() - tPuedo > (puedo ? 30000 : 4000)) { tPuedo = Date.now(); try { const L = await import('./labels.js'), t = await L.targetFor('paquete150'); puedo = !!(t && t.pr && !t.pr.offline); } catch (e) { puedo = false; } AUTO.puedo = puedo; }
+      const r = await api('sys.latido', puedo ? { imprimo: true, tipos: ['paquete', 'propia', 'oficial'], dispositivo: S.device || '', impresora: 'PC del taller' } : {}, { quiet: true, timeout: 12000 });
+      if (!r) return;
+      const tomadas = r.tomadas || [], v = r.i + '|' + r.p;
+      if (tomadas.length) {
+        AUTO.rapidas = (AUTO.rapidas || 0) + tomadas.length; AUTO.activo = true; AUTO.ultimo = Date.now();
+        tomadas.forEach(x => upsertLocal('impresiones', x.impresion)); emit();
+        for (const x of tomadas) {
+          let o = byId('pedidos', x.impresion.pedidoId);
+          if (!o) { await pull(); o = byId('pedidos', x.impresion.pedidoId); } // un pedido recién creado en otro aparato
+          if (o) await E.imprimirTomada(o, x.impresion); else api('impresiones.resultado', { id: x.impresion.id, ok: false, error: 'No encuentro el pedido en este PC' }, { quiet: true }).catch(() => { });
+        }
+        visto = null; pull().catch(() => { });
+      } else { if (visto !== null && v !== visto) { AUTO.cambios = (AUTO.cambios || 0) + 1; pull().catch(() => { }); } visto = v; } // la sincronización va por su lado: esta consulta no espera a nadie
+    } catch (e) { } finally { latiendo = false; }
+  }, 2000);
   setTimeout(autoTick, 6000);
 }
 export function stopAutoPrint() { clearInterval(timer); clearInterval(rapido); rapido = null; timer = null; if (unsub) unsub(); unsub = null; }

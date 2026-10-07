@@ -12,9 +12,13 @@ export const menuPersonal = () => { const m = menuCfg(); return !!(m.orden.lengt
 
 // Devuelve la lista para pintar (con separadores solo si el orden es el de siempre)
 export function menuNav(NAV) {
-  const m = menuCfg(), oc = new Set(m.ocultos.filter(k => !NO_OCULTAR.includes(k)));
-  if (!m.orden.length) return NAV.filter(n => n.sep || !oc.has(n.k)).filter((n, i, a) => !(n.sep && (i === a.length - 1 || (a[i + 1] && a[i + 1].sep))));
-  return ordenados(NAV, m.orden).filter(n => !oc.has(n.k));
+  // v16.3.3: los GRUPOS del menú se respetan siempre. Antes, si el menú estaba ordenado a mano (v13.10), salía la lista plana
+  // de siempre y los grupos nuevos no aparecían. Ahora el orden guardado manda DENTRO de cada grupo, y lo oculto sigue oculto.
+  const m = menuCfg(), oc = new Set(m.ocultos.filter(k => !NO_OCULTAR.includes(k))), pos = new Map(m.orden.map((k, i) => [k, i]));
+  const out = []; let grupo = [];
+  const cierra = () => { if (pos.size) grupo = grupo.map((n, i) => [n, i]).sort((a, b) => (pos.has(a[0].k) ? pos.get(a[0].k) : 1e6 + a[1]) - (pos.has(b[0].k) ? pos.get(b[0].k) : 1e6 + b[1])).map(x => x[0]); out.push(...grupo); grupo = []; };
+  NAV.forEach(n => { if (n.sep) { cierra(); out.push(n); } else if (!oc.has(n.k)) grupo.push(n); }); cierra();
+  return out.filter((n, i, a) => !(n.sep && (i === a.length - 1 || (a[i + 1] && a[i + 1].sep))));
 }
 function ordenados(NAV, orden) {
   const items = NAV.filter(n => !n.sep), pos = new Map(orden.map((k, i) => [k, i]));
@@ -57,7 +61,7 @@ export function editarMenu(NAV, visible, alGuardar) {
     } catch (e) { toast(e.message || 'No se pudo guardar', 'bad'); }
   };
   const dlg = modal('↕️ Ordenar el menú',
-    h('div', h('p.small.muted', 'Arrastra los apartados, o usa ▲ ▼, para ponerlos a tu gusto. Con «Ocultar» desaparecen del menú de todo el equipo, pero no se borra nada y siguen funcionando.'), box),
+    h('div', h('p.small.muted', 'Arrastra los apartados, o usa ▲ ▼, para ponerlos a tu gusto. El menú va por grupos (Pedidos, Productos, Producción…): el orden que pongas vale dentro de cada grupo. Con «Ocultar» desaparecen del menú de todo el equipo, pero no se borra nada y siguen funcionando.'), box),
     [btn('Volver al de siempre', () => guardar(true), { cls: 'ghost' }), h('div.grow'), btn('Cancelar', () => dlg.close()), btn('Guardar para todos', () => guardar(false), { cls: 'primary' })], { cls: 'mo-dlg' });
   return dlg;
 }
