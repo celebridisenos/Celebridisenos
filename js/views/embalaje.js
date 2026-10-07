@@ -4,7 +4,7 @@
 // pérdidas de impresión pendientes (solo si lo confirmas) · costes y beneficio.
 // FABRICACIÓN ≠ EMBALAJE ≠ MANO DE OBRA. Peso del producto ≠ peso del embalaje ≠ peso total.
 import { h, mount, btn, modal, toast, eur, empty, field, inp, area, sel, pill, confirmDlg, fdt, fdate } from '../ui.js';
-import { S, can, api, upsertLocal, emit, byId, pull, mutate, on } from '../store.js';
+import { S, can, api, upsertLocal, emit, byId, pull, pullSiHaceFalta, mutate, on } from '../store.js';
 import { handleError, requestAccess, go } from '../app.js';
 import * as E from '../envio.js';
 import { miniPedido } from '../fotopedido.js';
@@ -21,7 +21,7 @@ const g = v => v === null || v === undefined || v === '' ? null : Math.round(Num
 const gTxt = v => g(v) === null ? null : g(v).toLocaleString('es-ES') + ' g';
 const CONF_CLS = { confirmado: 'ok', estimado: 'warn', orientativo: 'warn', revisar: 'bad', pendiente: 'bad', calculado: '', importado: '' };
 const conf = e => pill(CL.CONF_TXT[e] || e || '—', CONF_CLS[e]);
-const call = async (a, d, okMsg) => { try { const r = await api(a, d, { timeout: 120000 }); if (okMsg) toast(okMsg, 'ok'); try { await pull(); } catch (e) { } emit(); return r; } catch (e) { handleError(e); throw e; } };
+const call = async (a, d, okMsg) => { try { const r = await api(a, d, { timeout: 120000 }); if (okMsg) toast(okMsg, 'ok'); try { await pullSiHaceFalta(); } catch (e) { } emit(); return r; } catch (e) { handleError(e); throw e; } }; // v16.1: sin segundo viaje si la respuesta ya trajo los cambios
 const cajas = () => (S.t.materiales || []).filter(m => m.tipo === 'caja' && CL.norm(m.activo) !== 'no');
 const fallosPend = () => (S.t.fallos || []).filter(f => f.estado === 'pendiente' && Number(f.coste) > 0);
 export const isPacked = o => !!(o.embalaje && o.embalaje.hecho);

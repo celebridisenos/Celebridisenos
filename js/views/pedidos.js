@@ -130,7 +130,7 @@ export function render(el, params) {
       h('div.bold', eur(CL.orderTotal(o))));
     const tRow = ({ o, t }, hijo) => h('tr' + (hijo ? '.cli-hijo' : ''), { onclick: () => go('pedidos/' + o.id) },
       h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
-      h('td.nowrap', fdate(o.fecha)), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
+      h('td.nowrap', fdate(o.fecha), horaDe(o) ? h('div.tiny.muted.ped-hora', { title: 'Hora a la que entró el pedido' }, '🕒 ' + horaDe(o)) : null), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
       h('td', h('div.row.fp-prod', { style: { gap: '8px', alignItems: 'center', flexWrap: 'nowrap' } }, miniPedido(o, 34), h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null))),
       h('td', pill(o.estado, '', stateColor(o.estado))), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
       h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—'), o.cuenta && o.cuenta.split(' · ')[1] ? h('div.tiny.muted', o.cuenta.split(' · ')[1]) : null));
@@ -239,7 +239,7 @@ export function orderDrawer(id, onClose) {
       if (!tabs.some(x => x[0] === tab)) tab = 'resumen';
       const body = h('div');
       mount(d,
-        h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, cobrado ? pill('💶 Cobrado', 'ok') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
+        h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), horaDe(o) ? h('div.tiny.muted.ped-entro', { title: 'Cuándo se apuntó este pedido en el programa' }, '🕒 Entró el ' + fdate(diaDe(o)) + ' a las ' + horaDe(o)) : null, h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, cobrado ? pill('💶 Cobrado', 'ok') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
           btn('', closeAll, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
         h('div.drawer-b.col', { style: { gap: '14px' } },
           h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.k + (s.hint ? ' · ' + s.hint : '') }, h('i'), h('span', PASO_FLUJO[s.f] || s.k))),
@@ -336,7 +336,7 @@ const TABS = {
   },
   fechas(el, o, t) {
     mount(el, h('div.facts',
-      fact('Fecha del pedido', o.fecha ? fdate(o.fecha) : na('')), fact('Plazo', o.plazoDias !== '' ? o.plazoDias + ' días' : na('')), fact('Fecha límite', t.limite ? fdate(t.limite) : na('')),
+      fact('Fecha del pedido', o.fecha ? fdate(o.fecha) : na('')), fact('Hora de entrada', horaDe(o) ? '🕒 ' + horaDe(o) + (String(o.creado).substring(0, 10) !== String(o.fecha || '').substring(0, 10) && diaDe(o) ? ' (apuntado el ' + fdate(diaDe(o)) + ')' : '') : na('')), fact('Plazo', o.plazoDias !== '' ? o.plazoDias + ' días' : na('')), fact('Fecha límite', t.limite ? fdate(t.limite) : na('')),
       fact('Días transcurridos', t.transcurridos !== null ? String(t.transcurridos) : na('')), fact('Días restantes', t.restantes !== null ? String(Math.max(t.restantes, 0)) : (t.enviado ? 'Enviado' : na(''))),
       fact('Retraso', t.retraso ? h('b.bad-t', t.retraso + ' días') : 'Ninguno'), fact('Entrega estimada', o.entregaEstimada ? fdate(o.entregaEstimada) : na('')),
       fact('Enviado el', o.fechaEnvio ? fdate(o.fechaEnvio) : na('Aún no')), fact('Entregado el', o.fechaEntrega ? fdate(o.fechaEntrega) : na('Aún no'))),
@@ -397,6 +397,9 @@ async function save(o, changes, label) {
     return true;
   } catch (e) { handleError(e, 'pedidos'); return false; }
 }
+// v16.2 · Registro horario: la hora (de este aparato) a la que se apuntó el pedido en el programa. Sale de «creado», que ya se guardaba.
+export function horaDe(o) { const d = o && o.creado ? new Date(o.creado) : null; return d && !isNaN(d) ? d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''; }
+function diaDe(o) { const d = o && o.creado ? new Date(o.creado) : null; if (!d || isNaN(d)) return ''; const z = x => String(x).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
 // v11.4: al CERRAR el paquete (pasar a «Listo para envío» o más allá desde antes) se pregunta el trabajo adicional
 const PACK_BEFORE = { reserva: 1, confirmado: 1, impresion: 1, postpro: 1, empaquetar: 1 };
 export async function changeState(o, estado, extra) {
@@ -461,13 +464,18 @@ async function applyState(o, estado, extra, quiet) {
   if (st.done && !o.fechaEntrega) ch.fechaEntrega = S.hoy;
   return save(o, ch, 'Estado de nº ' + o.numero + ' → ' + estado);
 }
+// v16.2 · CAMBIAR ESTADO, sencillo (lo pidió la dueña): ocho botones y ya está.
+//   Confirmado · En impresión · En mesa · Empaquetado · Listo · Enviado · Entregado · Cancelado
+// Por dentro siguen siendo los estados de siempre (los datos no cambian): aquí solo se enseñan con su nombre corto.
+export const ESTADOS_SIMPLES = [['confirmado', 'Confirmado', '✅'], ['impresion', 'En impresión', '🖨️'], ['postpro', 'En mesa', '🛠️'], ['empaquetar', 'Empaquetado', '📦'], ['listo', 'Listo', '🏷️'], ['enviado', 'Enviado', '🚚'], ['entregado', 'Entregado', '🏁'], ['cancelado', 'Cancelado', '✖️']];
 export function stateDialog(o) {
-  const groups = { entrada: 'Entrada', produccion: 'Producción', preparacion: 'Preparación', envio: 'Envío', fin: 'Final', incidencia: 'Incidencia' };
-  const m = modal('Cambiar estado · nº ' + o.numero, h('div.col', Object.keys(groups).map(g => {
-    const list = S.cfg.pedidos.estados.filter(s => s.g === g);
-    if (!list.length) return null;
-    return h('div', h('div.lbl', { style: { marginBottom: '6px' } }, groups[g]), h('div.row.wrap', list.map(s => h('button.btn' + (s.k === o.estado ? '.primary' : ''), { onclick: () => { m.close(); if (s.issue) issueDialog(o); else if (s.shipped && !o.seguimiento) shipDialog(o, s.k); else changeState(o, s.k); } }, h('span.pill', { style: { background: 'transparent', padding: 0 } }, h('span.d', { style: { background: s.c } })), s.k))));
-  })), null, { size: 'narrow' });
+  const de = f => S.cfg.pedidos.estados.find(s => s.f === f && !s.issue), actual = ph(o);
+  const ir = s => { m.close(); if (s.issue) issueDialog(o); else if (s.shipped && !o.seguimiento) shipDialog(o, s.k); else changeState(o, s.k); };
+  const otro = !ESTADOS_SIMPLES.some(x => x[0] === actual) ? S.cfg.pedidos.estados.find(s => s.k === o.estado) : null; // (p. ej. «Reservado» de un pedido web sin cobrar)
+  const m = modal('Cambiar estado · nº ' + o.numero, h('div.col',
+    otro ? h('p.small.muted', 'Ahora está en «' + otro.k + '».') : null,
+    h('div.est-simple', ESTADOS_SIMPLES.map(([f, t, ic]) => { const s = de(f); if (!s) return null;
+      return h('button.est-b' + (f === actual ? '.on' : '') + (f === 'cancelado' ? '.cancel' : ''), { type: 'button', 'data-f': f, 'aria-pressed': f === actual ? 'true' : 'false', onclick: () => ir(s) }, h('i', { style: { background: s.c } }), h('span', ic + ' ' + t), f === actual ? h('em', 'ahora') : null); }))), null, { size: 'narrow' });
 }
 // ---------- v13.7 · DATOS DEL ENVÍO ----------
 // Empresa de transporte (se guarda en «envio», el campo de siempre) · Dirección de envío de ESTE pedido (no cambia la ficha del cliente) · Observaciones.

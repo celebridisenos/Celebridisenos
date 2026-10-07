@@ -12,7 +12,6 @@ const CL = window.CL;
 
 const MODS = [
   { k: 'kpis', t: 'Cifras del negocio (ventas, beneficio, pedidos, taller)' },
-  { k: 'camaras', t: 'Cámaras de las impresoras (en el programa del PC)', p: 'taller.ver' },
   { k: 'celebrity', t: 'Celeby Nova: resumen del día y objetivos' },
   { k: 'motivacion', t: 'Motivación del día' },
   { k: 'alertas', t: 'Alertas inteligentes' },
@@ -65,7 +64,7 @@ function draw(root) {
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),
     mods.some(m => m.k === 'kpis') ? kpiStrip(d) : null,
     can('productos.ver') ? (consejoEl || (consejoEl = (() => { const box = h('div.cj-home'); import('../consejos.js').then(C => box.append(C.tarjetaConsejo())); return box; })())) : null, // v13.10: 💡 consejo del día para vender más
-    mods.some(m => m.k === 'camaras') ? homeCameras() : null,
+    // v16.2: la tarjeta de cámaras ya no sale en el inicio (no se usaba)
     mods.some(m => m.k === 'celebrity') ? MOD_FNS.celebrity(d) : null,
     mods.some(m => m.k === 'motivacion') ? MOD_FNS.motivacion(d) : null,
     h('div.grid', { style: { gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', alignItems: 'start' }, class: 'home-grid' },

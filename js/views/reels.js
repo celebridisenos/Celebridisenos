@@ -10,6 +10,8 @@ import { ESTILOS, FORMATOS, TIPOS, MOVS, nuevaEscena, duracion, proyectoDeProduc
 import { reproductor } from '../reels/previa.js';
 import { crearVideo, estadoReels, claveFoto } from '../reels/render.js';
 import { historial, teclasDeshacer } from '../biou/pro.js';
+import { PLANTILLAS, GRUPOS, porClave, proyectoDePlantilla, propuestas, consejo } from '../reels/plantillas.js'; // v16.2: biblioteca de plantillas
+import { estadoWeb } from './tienda.js';
 
 const fmtT = s => (Math.round(s * 10) / 10).toLocaleString('es-ES') + ' s';
 const fotosDe = prodId => (S.t.archivos || []).filter(a => a.entidad === 'productos' && a.entidadId === prodId && (a.tipo === 'foto' || /^image\//.test(a.mime || '')));
@@ -86,6 +88,43 @@ export function render(el, params) {
     const np = proyectoDeProducto(prod, { estilo: estilo || (p && p.estilo) || 'minimal', formato: (p && p.formato) || '9:16', fotos: orden.slice(0, 3).map(a => ({ id: a.id })), guion });
     if (p && p.musica) np.musica = p.musica;
     if (p) { apuntar(); p = np; await cargarImagenes(); pintaPanel(); rep.ir(0); cambio(); } else await abrir(np);
+  }
+  // ---------- v16.2 · plantillas: varias ideas DISTINTAS para el mismo producto ----------
+  let semilla = Date.now() % 100000;
+  const usadasDe = id => { try { return (JSON.parse(localStorage.getItem('cd.reels.usadas') || '{}')[id]) || []; } catch (e) { return []; } };
+  const apuntaUsada = (id, k) => { try { const m = JSON.parse(localStorage.getItem('cd.reels.usadas') || '{}'); m[id] = [k].concat((m[id] || []).filter(x => x !== k)).slice(0, 8); localStorage.setItem('cd.reels.usadas', JSON.stringify(m)); } catch (e) { } };
+  function contexto(prod) { // lo que el programa YA sabe: no se pregunta
+    const w = estadoWeb(prod), t = (S.cfg && S.cfg.tienda) || {}, hoy = new Date().toISOString().slice(0, 10);
+    const oferta = (t.campanas || []).some(c => c.activa && (!c.desde || c.desde <= hoy) && (!c.hasta || c.hasta >= hoy) && (!(c.incluidos || []).length || c.incluidos.includes(prod.id)) && !(c.excluidos || []).includes(prod.id));
+    return { agotado: w.agotado, vuelve: !w.agotado && !!(prod.web && prod.web.agotadoEn), oferta };
+  }
+  async function dePlantilla(id, clave) {
+    const prod = byId('productos', id); if (!prod) return toast('Elige un producto.', 'warn');
+    const fotos = fotosDe(id), prin = prod.fotoId && fotos.find(a => a.id === prod.fotoId), orden = prin ? [prin].concat(fotos.filter(a => a !== prin)) : fotos;
+    const np = proyectoDePlantilla(prod, clave, { formato: (p && p.formato) || '9:16', fotos: orden.slice(0, 3).map(a => ({ id: a.id })), semilla: semilla + usadasDe(id).length * 31 });
+    if (p && p.musica) np.musica = p.musica;
+    apuntaUsada(id, clave);
+    if (p) { apuntar(); p = np; await cargarImagenes(); pintaPanel(); rep.ir(0); cambio(); } else await abrir(np);
+    const T = porClave(clave); toast(T.i + ' Plantilla «' + T.n + '»' + (np.nota ? ' · ' + np.nota : '. Cambia lo que quieras.'), 'ok', np.nota ? 9000 : 3500);
+  }
+  const tarjetaIdea = (T, id, cerrar) => { const c = consejo(T), col = T.col || {}, e = ESTILOS[T.s]; const b = h('button.rl-idea', { type: 'button', 'data-plantilla': T.k, onclick: () => { if (cerrar) cerrar(); dePlantilla(id, T.k); } },
+    h('span.ri-i', T.i), h('span.ri-c', h('b', T.n), h('span', '«' + c.gancho + '»'), h('small', '⏱ ' + c.duracion + ' · 🎵 ' + c.musica)));
+    b.style.setProperty('--ri-f', col.fondo || e.fondo); b.style.setProperty('--ri-t', col.texto || e.texto); b.style.setProperty('--ri-a', col.acento || e.acento); return b; };
+  function todasLasPlantillas(id) {
+    let m = null; const cuerpo = h('div.col', { style: { gap: '4px' } });
+    mount(cuerpo, h('p.small.muted', { style: { marginTop: 0 } }, 'Cada una tiene su orden de escenas, su ritmo, sus colores y sus frases. Toca una y sale el Reel hecho con los datos de tu producto.'),
+      Object.keys(GRUPOS).map(g => h('div.es-sec', h('div.lbl', GRUPOS[g]), h('div.rl-ideas', PLANTILLAS.filter(T => T.g === g).map(T => tarjetaIdea(T, id, () => m && m.close()))))));
+    m = modal('📚 Todas las plantillas (' + PLANTILLAS.length + ')', cuerpo, close => [btn('Cerrar', close)], { size: 'wide', noFocus: true });
+  }
+  function seccionIdeas(box, id) {
+    const prod = id && byId('productos', id);
+    if (!prod) return mount(box, h('p.tiny.muted', 'Elige un producto y te enseño 5 ideas distintas de Reel para él.'));
+    const ctx = contexto(prod), l = propuestas(prod, ctx, 5, semilla, usadasDe(id));
+    mount(box, h('div.lbl', '💡 5 ideas distintas para «' + prod.nombre + '»'),
+      ctx.agotado ? h('p.tiny', '🔴 Está AGOTADO en la web: la primera idea es para avisarlo.') : ctx.oferta ? h('p.tiny', '🔥 Está en una campaña activa: te pongo primero una plantilla de oferta.') : null,
+      h('div.rl-ideas', l.map(T => tarjetaIdea(T, id))),
+      h('div.row.wrap', { style: { gap: '6px', marginTop: '8px' } }, btn('🔄 Otras 5 ideas', () => { semilla += 7919; seccionIdeas(box, id); }, { cls: 'sm rl-otras' }), btn('📚 Ver todas las plantillas', () => todasLasPlantillas(id), { cls: 'sm ghost rl-todas' })),
+      h('p.tiny.muted', { style: { margin: '6px 0 0' } }, 'Tendencias: no copio vídeos ni leo redes de otros (no hay una fuente legal conectada). Son estructuras propias que funcionan en vídeo corto.'));
   }
   async function guardarBorrador() { if (!p) return; try { const l = ((await kv.get('reels.borradores')) || []).filter(x => x.id !== p.id); l.unshift(JSON.parse(JSON.stringify(p, (k, v) => k === 'local' ? undefined : v))); await kv.set('reels.borradores', l.slice(0, 20)); } catch (e) { } }
 
@@ -194,7 +233,8 @@ export function render(el, params) {
     if (!p) return mount(panel, h('p.small.muted', 'Cargando…'));
     const prods = (S.t.productos || []).filter(x => x.activo !== false).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
     const prodSel = sel([{ v: '', t: '— Elige un producto —' }].concat(prods.map(x => ({ v: x.id, t: x.nombre + (fotosDe(x.id).length ? ' · 📸 ' + fotosDe(x.id).length : '') }))), p.productoId || '', { 'aria-label': 'Producto del Reel' });
-    const motor = h('div.rl-motor'), musica = h('div.rl-musica');
+    const motor = h('div.rl-motor'), musica = h('div.rl-musica'), ideas = h('div.rl-ideas-box');
+    prodSel.addEventListener('change', () => seccionIdeas(ideas, prodSel.value));
     const bCrear = btn('🎬 Crear el vídeo', ev => crear(ev.currentTarget), { cls: 'primary rl-crear' });
     const nombre = inp({ value: p.nombre || '', 'aria-label': 'Nombre del Reel', oninput: () => { p.nombre = nombre.value; cambio(); } });
     const cap = area({ value: p.caption || '', rows: 3, 'aria-label': 'Texto para publicar', oninput: () => { p.caption = cap.value; cambio(); } });
@@ -203,8 +243,8 @@ export function render(el, params) {
     mount(panel,
       h('div.es-sec', h('div.lbl', '1 · Producto'), prodSel,
         h('div.row.wrap', { style: { gap: '6px', marginTop: '6px' } },
-          btn('✨ Hacer el Reel de este producto', () => { if (!prodSel.value) return toast('Elige un producto.', 'warn'); deProducto(prodSel.value); }, { cls: 'sm primary rl-deprod' }))),
-      h('div.es-sec', h('div.lbl', '2 · Estilo'), h('div.rl-estilos', Object.entries(ESTILOS).map(([k, e]) => h('button.rl-estilo' + (p.estilo === k ? '.on' : ''), { type: 'button', 'data-estilo': k, style: { background: e.fondo, color: e.texto }, onclick: () => { if (p.estilo === k) return; apuntar(); p.estilo = k; cambio(true); } },
+          btn('✨ Hacer el Reel de este producto', () => { if (!prodSel.value) return toast('Elige un producto.', 'warn'); deProducto(prodSel.value); }, { cls: 'sm primary rl-deprod' })), ideas),
+      h('div.es-sec', h('div.lbl', '2 · Estilo' + (p.plantilla ? ' · plantilla «' + porClave(p.plantilla).n + '»' : '')), h('div.rl-estilos', Object.entries(ESTILOS).map(([k, e]) => h('button.rl-estilo' + (p.estilo === k && !p.colores ? '.on' : ''), { type: 'button', 'data-estilo': k, style: { background: e.fondo, color: e.texto }, onclick: () => { if (p.estilo === k && !p.colores) return; apuntar(); p.estilo = k; p.colores = null; cambio(true); } },
         h('b', { style: { fontFamily: e.fuenteTitulo, color: e.acento } }, e.nombre), h('span', e.d)))),
         h('div.row.wrap', { style: { gap: '6px', marginTop: '8px' } }, Object.entries(FORMATOS).map(([k, f]) => h('button.chip.sm' + (p.formato === k ? '.on' : ''), { type: 'button', 'data-formato': k, title: f.t, onclick: () => { apuntar(); p.formato = k; cambio(true); } }, k)))),
       h('div.es-sec', h('div.lbl', '3 · Guion'), h('div.row.wrap', { style: { gap: '6px' } },
@@ -213,7 +253,7 @@ export function render(el, params) {
       h('div.es-sec', h('div.lbl', '5 · Música'), musica),
       h('div.es-sec', h('div.lbl', '6 · Texto para publicar'), cap, hash, h('div.row', { style: { gap: '6px', marginTop: '6px' } }, btn('📋 Copiar', () => copyText((p.caption || '') + '\n\n' + (p.hashtags || '')), { cls: 'sm ghost' }))),
       h('div.es-sec.rl-final', h('label.rl-campo', h('span', 'Nombre del archivo'), nombre), bCrear, motor));
-    seccionMotor(motor); seccionMusica(musica);
+    seccionMotor(motor); seccionMusica(musica); seccionIdeas(ideas, p.productoId || '');
   }
 
   // ---------- arranque: el borrador de antes, un producto (#/reels/producto/ID) o uno nuevo ----------
@@ -222,7 +262,7 @@ export function render(el, params) {
     let b = null; try { b = ((await kv.get('reels.borradores')) || [])[0]; } catch (e) { }
     await abrir(b && b.escenas ? b : proyectoVacio());
   })();
-  window.__cdReels = { get p() { return p; }, rep, deshacer, rehacer, deProducto };
+  window.__cdReels = { get p() { return p; }, rep, deshacer, rehacer, deProducto, dePlantilla };
   return {
     params: ps => { if (ps && ps[0] === 'producto' && ps[1]) deProducto(ps[1], ps[2]); },
     destroy: () => { rep.destruir(); quitaTeclas(); clearTimeout(tApunte); if (creando) creando.abort(); guardarBorrador(); }

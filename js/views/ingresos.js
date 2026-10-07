@@ -2,7 +2,7 @@
 // Cada pedido que marcas como «Cobrado» entra aquí en el mes en que lo cobras.
 // Todo sale de tus pedidos reales: sin cobros no hay proyección (no se inventan números).
 import { h, mount, btn, eur, empty, toast, fdate, monthName } from '../ui.js';
-import { S, can, api, upsertLocal, emit } from '../store.js';
+import { S, can, api, mutate, upsertLocal, emit } from '../store.js';
 import { handleError, go } from '../app.js';
 
 const hoyMes = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
@@ -78,9 +78,12 @@ const firmaPedidos = () => (S.t.pedidos || []).map(o => o.id + ':' + (o.cobrado 
 // Marcar (o desmarcar) un pedido como cobrado. Se usa desde la ficha del pedido y desde «Hoy en el taller».
 export async function cobrarPedido(o, cobrado = true) {
   try {
-    const r = await api('pedidos.cobrar', { id: o.id, cobrado });
-    upsertLocal('pedidos', r.pedido); emit();
-    toast(cobrado ? '💶 Cobrado: ' + eur(window.CL.orderTotal(r.pedido)) + ' apuntados en ' + mesTxt(String(r.pedido.cobradoEn || hoyMes()).substring(0, 7)) : 'Cobro quitado', 'ok');
+    // v16.1: la pantalla cambia AL INSTANTE; el servidor lo confirma por detrás (y sin conexión queda en cola)
+    const hoy = S.hoy || new Date().toISOString().substring(0, 10);
+    toast(cobrado ? '💶 Cobrado: ' + eur(window.CL.orderTotal(o)) + ' apuntados en ' + mesTxt(hoy.substring(0, 7)) : 'Cobro quitado', 'ok');
+    const r = await mutate('pedidos.cobrar', { id: o.id, cobrado, sinMes: true }, { label: 'Cobro del pedido nº ' + o.numero,
+      optimistic: t => { const x = t.pedidos.find(p => p.id === o.id); if (x) { x.cobrado = cobrado ? 'Sí' : ''; x.cobradoEn = cobrado ? hoy : ''; } } });
+    if (r && r.pedido) { upsertLocal('pedidos', r.pedido); emit(); }
     return r;
   } catch (e) { handleError(e); return null; }
 }

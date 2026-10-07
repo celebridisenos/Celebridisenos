@@ -36,6 +36,8 @@ export async function revision(forzar) {
 }
 export const REV_ICO = { incoherencia: '❗', falta: '❓', estimado: '≈' };
 function pintaRevision(box) {
+  return; // v16.2: fuera de «Hoy» (liaba). Lo que falte por completar está, plegado, en Inventario → «Revisión».
+  // eslint-disable-next-line no-unreachable
   revision().then(r => {
     const n = r.falta + r.incoherencia; if (!n || !box.isConnected) return;
     const urg = r.lista.filter(x => x.nivel !== 'estimado');
@@ -142,7 +144,9 @@ export function render(el) {
     const avisos = avisosStock();
     const stockBox = avisos.length ? h('div.card.flat.hoy-stock', { role: 'status' },
       h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', avisos.some(a => a.nivel !== 'bajo') ? '🔴 Material en nivel crítico' : '⚠️ Stock bajo'), h('span.grow'), btn('Ver inventario', () => go('inventario'), { cls: 'sm' })),
-      h('div.row.wrap.hoy-stock-l', avisos.slice(0, 8).map(a => h('span.chip.' + (a.nivel === 'bajo' ? 'warn' : 'bad'), (a.nivel === 'agotado' ? '⛔ ' : a.nivel === 'critico' ? '🔴 ' : '⚠️ ') + a.nombre + ': ' + (a.nivel === 'agotado' ? 'agotado' : a.queda + ' ' + a.unidad))))) : null;
+      // v16.2: cada aviso es un botón: se toca y se repone (qué · cuántos · cuánto costó)
+      h('div.row.wrap.hoy-stock-l', avisos.slice(0, 8).map(a => h('button.chip.' + (a.nivel === 'bajo' ? 'warn' : 'bad'), { type: 'button', title: 'Reponer ' + a.nombre, onclick: () => import('./inventario.js').then(m => m.compraRapida(a.tipo === 'material' ? { nombre: a.nombre } : { filamento: a.filamento || a.nombre })) },
+        (a.nivel === 'agotado' ? '⛔ ' : a.nivel === 'critico' ? '🔴 ' : '⚠️ ') + a.nombre + ': ' + (a.nivel === 'agotado' ? 'agotado' : a.queda + ' ' + a.unidad), h('b', ' ➕ Reponer'))))) : null;
     const revBox = h('div.hoy-rev'); pintaRevision(revBox);
     mount(top, flujo, stockBox, revBox, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
         h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🏷️ ' + labelProbs.length + ' etiqueta' + (labelProbs.length > 1 ? 's' : '') + ' sin imprimir'), edit ? btn('Reintentar', () => reintentar().then(draw), { cls: 'sm', icon: 'printer' }) : null),

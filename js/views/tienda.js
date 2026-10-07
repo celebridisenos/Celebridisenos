@@ -12,6 +12,12 @@ const CL = window.CL;
 const card = (title, ...kids) => h('div.card.col', title ? h('h3', title) : null, ...kids);
 const T = () => JSON.parse(JSON.stringify((S.cfg && S.cfg.tienda) || {}));
 const web = p => (p && p.web && typeof p.web === 'object' ? p.web : {});
+// v16.2 · Cómo está un producto en la tienda, para verlo sin entrar: publicado · agotado (stock contado a 0) · alguna vez publicado
+export function estadoWeb(p) {
+  const w = web(p), contado = w.stockModo === 'contado';
+  return { publicado: !!w.publicado, antes: !!w.publicadoEn, agotado: !!w.publicado && contado && !(Number(w.stock) > 0), contado, stock: contado ? Math.max(0, Number(w.stock) || 0) : null,
+    cambios: !!w.publicado && String(p.actualizado || '') > String(w.publicadoEn || ''), url: w.url || '' };
+}
 const n = v => { const x = Number(String(v ?? '').replace(',', '.')); return isFinite(x) ? x : 0; };
 const PAISES = [['ES', 'España'], ['PT', 'Portugal'], ['FR', 'Francia'], ['IT', 'Italia'], ['DE', 'Alemania'], ['AD', 'Andorra']];
 
@@ -157,19 +163,30 @@ const SECS = {
         h('div.row.wrap', h('label.check', sw(!!pr.combinable, v => { pr.combinable = v; }), 'Se puede combinar con otra promoción'), h('label.check', sw(!!pr.activa, v => { pr.activa = v; redraw(); }), 'Activa (si tiene valor)')),
         a ? h('div.web-m.' + (a.pendiente ? 'sin_datos' : a.perdida ? 'perdida' : a.bajo || a.sinDatos ? 'bajo' : 'ok'), h('div.small', a.texto), (a.filas || []).length ? h('details', h('summary.tiny', 'Ver producto a producto'), h('div.list', a.filas.map(f => h('div.item', h('span.grow', f.nombre), h('span.small', eur(f.precio) + ' → ' + eur(f.conDescuento)), h('span.tiny', f.texto))))) : null) : null);
     };
+    // v16.2: redibujar SIN que la pantalla salte ni se pierda dónde estabas escribiendo
     const redraw = () => {
+      const se = document.scrollingElement, y = se ? se.scrollTop : 0, act = document.activeElement, campos = () => [...box.querySelectorAll('input, select, textarea')];
+      const idx = act && box.contains(act) ? campos().indexOf(act) : -1, sel0 = idx >= 0 && act.selectionStart != null ? [act.selectionStart, act.selectionEnd] : null;
+      pintarCamp();
+      if (se && se.scrollTop !== y) se.scrollTop = y;
+      if (idx >= 0) { const c = campos()[idx]; if (c) { try { c.focus({ preventScroll: true }); if (sel0 && c.setSelectionRange && /^(text|search|url|tel|password|)$/.test(c.type || '')) c.setSelectionRange(sel0[0], sel0[1]); } catch (e) { } } }
+    };
+    const pintarCamp = () => {
       mount(box,
-        card(null, h('p.small', 'Una ', h('b', 'campaña'), ' dice CUÁNDO y CÓMO se ve la web; una ', h('b', 'promoción'), ' dice el descuento. La web solo se pone «de campaña» si la campaña está ', h('b', 'LISTA'), ', dentro de sus fechas y con una promoción ', h('b', 'activa y con valor'), '. Al terminar, todo vuelve solo a la normalidad.'),
+        card(null, h('p.small', 'Una ', h('b', 'campaña'), ' dice CUÁNDO y CÓMO se ve la web; una ', h('b', 'promoción'), ' dice el descuento. La web solo se pone «de campaña» si la campaña está ', h('b', 'ACTIVADA'), ', dentro de sus fechas y con una promoción ', h('b', 'activa y con valor'), '. Al terminar, todo vuelve solo a la normalidad.'),
           h('p.tiny.muted', 'Nada se activa solo. Celeby Nova puede proponer ideas, pero no publica ni activa promociones. Antes de publicar se comprueba el margen con tus costes reales' + (t.margenMinimo === null || t.margenMinimo === undefined ? ' (no has configurado margen mínimo: solo se avisa de pérdidas).' : ' y tu margen mínimo del ' + Math.round(t.margenMinimo * 100) + ' %.'))),
         ...cs.map(c => {
           const st = CL.campaignState(c), e = EST[st.estado] || EST.inactiva, a = c.aspecto = c.aspecto || {};
           const per = c.tipo === 'periodica', frec = [3, 4, 7].includes(Number(c.cadaDias)) ? String(c.cadaDias) : c.cadaDias ? 'otra' : '';
           return h('div.card.col.web-camp', h('div.row.wrap', h('span', { style: { fontSize: '26px' } }, a.emoji || '✨'), inp({ value: c.nombre, 'aria-label': 'Nombre de la campaña', style: { fontWeight: '800', maxWidth: '260px' }, oninput: ev => { c.nombre = ev.target.value; } }), pill(e[0], e[1]),
               st.estado === 'activa' ? h('span.small', 'hasta ' + fmt(st.hasta)) : st.estado === 'programada' ? h('span.small', 'empieza ' + fmt(st.proxima)) : null, h('span.grow'),
+              btn('Duplicar', () => duplicarCamp(c), { cls: 'ghost sm', icon: 'copy', title: 'Crear otra campaña igual (apagada) para cambiarle el nombre y las fechas' }),
               btn('', async () => { if (await confirmDlg('Quitar campaña', 'Se quita «' + c.nombre + '» y sus promociones (al publicar).', 'Quitar', true)) { cs.splice(cs.indexOf(c), 1); for (let i = ps.length - 1; i >= 0; i--) if (ps[i].campanaId === c.id) ps.splice(i, 1); redraw(); } }, { cls: 'ghost icon sm', icon: 'trash', title: 'Quitar campaña' })),
             field('Descripción', inp({ value: c.descripcion || '', oninput: ev => { c.descripcion = ev.target.value; } })),
-            h('div.row.wrap', h('div.seg.sm', [['borrador', 'Borrador'], ['lista', 'Lista (puede activarse)'], ['pausada', 'Pausada']].map(([k, tx]) => h('button' + (c.estado === k ? '.on' : ''), { type: 'button', onclick: () => { c.estado = k; redraw(); } }, tx))),
-              h('div.seg.sm', [['manual', 'Manual'], ['periodica', 'Periódica']].map(([k, tx]) => h('button' + (c.tipo === k ? '.on' : ''), { type: 'button', onclick: () => { c.tipo = k; redraw(); } }, tx)))),
+            h('div.row.wrap', h('button.camp-sw' + (c.estado === 'lista' ? '.on' : ''), { type: 'button', role: 'switch', 'aria-checked': c.estado === 'lista' ? 'true' : 'false', 'aria-label': 'Campaña ' + c.nombre, onclick: () => alternar(c) }, h('i'), h('b', c.estado === 'lista' ? 'ACTIVADA' : 'DESACTIVADA')),
+              h('span.small.muted', c.estado === 'lista' ? (st.estado === 'activa' ? 'En la web ahora mismo.' : st.estado === 'programada' ? 'Encendida: empezará sola en su fecha.' : st.estado === 'finalizada' ? 'Encendida, pero sus fechas ya pasaron.' : 'Encendida.') : 'Guardada. No se ve en la web hasta que la actives.'),
+              h('span.small', '🧩 ' + afecta(c))),
+            h('div.row.wrap', h('div.seg.sm', [['manual', 'Manual'], ['periodica', 'Periódica']].map(([k, tx]) => h('button' + (c.tipo === k ? '.on' : ''), { type: 'button', onclick: () => { c.tipo = k; redraw(); } }, tx)))),
             per ? h('div.form', field('Primera vez (inicio)', dt(c, 'inicio')), field('Frecuencia', sel([{ v: '', t: '— elige —' }, { v: '3', t: 'Cada 3 días' }, { v: '4', t: 'Cada 4 días' }, { v: '7', t: 'Una vez a la semana' }, { v: 'otra', t: 'Personalizada…' }], frec, { onchange: ev => { c.cadaDias = ev.target.value === 'otra' ? (c.cadaDias || 10) : ev.target.value; redraw(); } })),
                 frec === 'otra' ? field('Cada cuántos días', inp({ type: 'number', min: 1, max: 365, value: c.cadaDias, oninput: ev => { c.cadaDias = n(ev.target.value); } })) : null,
                 field('Duración (horas)', inp({ type: 'number', min: 1, value: c.duracionHoras || '', placeholder: 'p. ej. 24', oninput: ev => { c.duracionHoras = n(ev.target.value); } })), field('Repetir hasta (opcional)', dt(c, 'repetirHasta')))
@@ -186,15 +203,43 @@ const SECS = {
         h('div.row.wrap', btn('📊 Analizar el margen', async () => { try { const r = await api('tienda.promosAnalizar', { campanas: cs, promociones: ps }, { timeout: 60000 }); r.analisis.forEach(x => { analisis[x.id] = x; }); redraw(); } catch (e) { handleError(e); } }, { cls: 'sm' }),
           btn('Guardar y publicar', async ev => publicarCamp(ev, false), { cls: 'primary' })));
     };
+    // v16.2 · ACTIVAR / DESACTIVAR de un toque: cambia el estado y lo publica en la tienda en el momento (no hay que ir a otra pantalla).
+    //  · Activar una campaña manual sin fechas válidas la pone «desde ahora y hasta que la apagues» (como mucho 30 días).
+    //  · Sus promociones con descuento puesto se encienden con ella; sin descuento puesto no hay rebaja (nada se inventa).
+    const afecta = c => { const inc = c.incluidos || [], exc = c.excluidos || [], nn = pubs.filter(p => (!inc.length || inc.includes(p.id)) && !exc.includes(p.id)).length; return nn === pubs.length ? 'Afecta a los ' + nn + ' productos publicados' : 'Afecta a ' + nn + ' de ' + pubs.length + ' productos publicados'; };
+    async function alternar(c) {
+      const antes = JSON.stringify([cs, ps]);
+      if (c.estado === 'lista') c.estado = 'pausada';
+      else {
+        if (c.tipo === 'periodica') { if (!c.inicio || !(n(c.cadaDias) > 0) || !(n(c.duracionHoras) > 0)) return toast('Para activarla pon antes: primera vez, frecuencia y duración (está justo debajo).', 'warn', 7000); }
+        else { const ini = Date.parse(c.inicio), fin = Date.parse(c.fin), ya = Date.now(); if (!isFinite(ini) || !isFinite(fin) || fin <= ini || fin <= ya) { c.inicio = new Date(ya).toISOString(); c.fin = new Date(ya + 30 * 864e5).toISOString(); toast('Sin fechas válidas: queda activada desde AHORA hasta que la apagues (como mucho 30 días). Puedes cambiar las fechas debajo.', '', 8000); } }
+        c.estado = 'lista';
+        const suyas = ps.filter(pr => pr.campanaId === c.id), conValor = suyas.filter(pr => pr.valor !== null && pr.valor !== undefined && pr.valor !== '');
+        conValor.forEach(pr => { pr.activa = true; });
+        if (!conValor.length) toast('La campaña se enciende, pero ninguna de sus promociones tiene el descuento puesto: no habrá rebaja hasta que lo pongas.', 'warn', 9000);
+      }
+      redraw();
+      const ok = await publicarCamp(null, false);
+      if (!ok) { const o = JSON.parse(antes); cs.length = 0; o[0].forEach(x => cs.push(x)); ps.length = 0; o[1].forEach(x => ps.push(x)); redraw(); } // no se publicó: se deja como estaba
+    }
+    function duplicarCamp(c) {
+      const id = 'camp' + Math.random().toString(36).slice(2, 6), copia = JSON.parse(JSON.stringify(c));
+      Object.assign(copia, { id, nombre: (c.nombre + ' (copia)').substring(0, 40), estado: 'borrador' });
+      cs.splice(cs.indexOf(c) + 1, 0, copia);
+      ps.filter(pr => pr.campanaId === c.id).forEach(pr => ps.push(Object.assign(JSON.parse(JSON.stringify(pr)), { id: id + '-' + Math.random().toString(36).slice(2, 7), campanaId: id, activa: false })));
+      redraw(); toast('Campaña duplicada (apagada). Cámbiale el nombre y actívala cuando quieras.', 'ok', 6000);
+    }
     const publicarCamp = async (ev, confirmar) => {
       try {
         const r = await api('tienda.campanasPublicar', { campanas: cs, promociones: ps, confirmar }, { timeout: 90000 });
         S.cfg.tienda = r.tienda; emit();
         toast('Campañas publicadas' + (r.activas.length ? ' · ' + r.activas.length + ' promoción(es) en marcha ahora' : ' · ninguna promoción en marcha ahora'), 'ok', 7000);
         redraw();
+        return true;
       } catch (e) {
         if (e.code === 'MARGEN') { (e.extra && e.extra.analisis || []).forEach(x => { analisis[x.id] = x; }); redraw(); if (await confirmDlg('Revisa el margen antes de publicar', e.message, 'Publicar así (lo decido yo)', true)) return publicarCamp(null, true); }
         else handleError(e);
+        return false;
       }
     };
     b.append(box); redraw();
@@ -220,9 +265,19 @@ const SECS = {
         h('label.check', conf, h('b', 'Confirmo que estos son MIS precios reales'), ' (sin esto, esta opción no aparece en la web)'));
     }));
     drawOps();
+    // v16.2 · ⚡ Pedido urgente: el cliente paga un recargo y tú lo preparas antes. Llega marcado URGENTE.
+    const U = Object.assign({ activo: false, precio: null, dias: 2 }, t.urgente || {});
+    let urgOn = !!U.activo;
+    const urgPrecio = inp({ type: 'number', min: 0, step: '0.5', value: U.precio ?? '', placeholder: 'Ej.: 5', 'aria-label': 'Recargo por urgencia (€)' }), urgDias = inp({ type: 'number', min: 0, max: 60, value: U.dias ?? 2, 'aria-label': 'Días máximos del pedido urgente' });
+    const urgCard = card('⚡ Pedido urgente',
+      h('label.check', sw(urgOn, v => { urgOn = v; }), h('b', 'Ofrecer «Lo necesito urgente» al pagar')),
+      h('div.form', field('Recargo que paga el cliente (€)', urgPrecio, 'Sin precio no se ofrece: el programa no inventa el recargo.'), field('Lo preparas en (días, como máximo)', urgDias, 'Es lo que verá el cliente. 0 = «lo preparamos el primero».')),
+      h('p.tiny.muted', 'El pedido llega con prioridad URGENTE, un aviso aparte y el recargo apuntado como cobrado. El plazo normal de cada producto se pone en su pestaña «Tienda web» («Días de fabricación»).'),
+      btn('Guardar y publicar', async () => { try { if (urgOn && !(n(urgPrecio.value) > 0)) return toast('Pon el recargo en euros para poder ofrecerlo.', 'warn'); await guardar(Object.assign(T(), { urgente: { activo: urgOn, precio: urgPrecio.value === '' ? null : n(urgPrecio.value), dias: n(urgDias.value) } })); } catch (e) { handleError(e); } }, { cls: 'primary' }));
     b.append(card('Dónde envías', h('div.row.wrap', PAISES.map(([c, t]) => h('label.check', h('input', { type: 'checkbox', checked: paises.has(c), onchange: e => { e.target.checked ? paises.add(c) : paises.delete(c); } }), t))),
       h('div.form', field('Envío gratis desde (€)', gratis), field('En la opción', gratisOp)), h('p.tiny.muted', 'El cliente ve el precio del envío ANTES de pagar. Los precios de referencia (Correos 2026, InPost en Packlink) son orientativos: pon los tuyos y confírmalos.')),
       opBox, btn('Guardar y publicar', async () => { try { await guardar(Object.assign(T(), { envios: { paises: [...paises], gratisDesde: n(gratis.value), gratisOpcion: gratisOp.value, opciones: ops } })); } catch (e) { handleError(e); } }, { cls: 'primary' }));
+    b.append(urgCard); // (debajo de los envíos)
   },
 
   textos(b) {
@@ -375,7 +430,15 @@ export function productoWeb(el, p) {
       else handleError(e);
     } finally { if (bt) bt.disabled = false; }
   };
-  mount(el, head,
+  // v16.2 · PUBLICAR arriba, grande. Republicar = el mismo botón: reutiliza fotos, descripción, precio, categoría y todo lo guardado.
+  const ew = estadoWeb(p);
+  const retirar = async () => { if (!await confirmDlg('Retirar de la tienda', 'Deja de verse y venderse en la web. La publicación NO se pierde: se guarda entera y se puede republicar con un botón.', 'Retirar', true)) return; try { await api('tienda.retirar', { productoId: p.id }); toast('Retirado de la tienda. Puedes republicarlo cuando quieras.', 'ok'); pull(); } catch (e) { handleError(e); } };
+  const arriba = h('div.web-top' + (ew.publicado ? '.on' : ''),
+    h('div.grow', h('b', ew.agotado ? '🔴 AGOTADO en la web' : ew.publicado ? '🟢 Publicado en la web' : ew.antes ? '⚪ Retirado de la web' : '⚪ Todavía no está en la web'),
+      h('span', ew.agotado ? 'Sigue publicado y se ve como agotado. Pon unidades abajo y pulsa Actualizar.' : ew.publicado ? (ew.cambios ? 'Has cambiado cosas desde la última vez: pulsa Actualizar.' : 'Todo al día.') : ew.antes ? 'Está guardado tal cual lo dejaste: fotos, texto, precio y categoría.' : 'Revisa el precio y las fotos de abajo y publica.')),
+    btn(ew.publicado ? '⟳ ACTUALIZAR EN LA WEB' : ew.antes ? '🔁 REPUBLICAR' : '🛍️ PUBLICAR EN WEB', publicar, { cls: 'primary web-pub' }),
+    ew.publicado ? btn('Retirar', retirar, { cls: 'ghost danger sm' }) : null);
+  mount(el, head, arriba,
     h('div.card.col', h('h3', 'Precio'), h('div.form', field('Precio en la web (€, IVA incl.)', f.precio), field('Precio mínimo para negociar (€)', f.negMin, 'El asistente de la tienda nunca bajará de aquí. Solo lo sabe el servidor de la tienda; el cliente no lo ve. Vacío = precio fijo.')), mBox, h('p.tiny.muted', 'Los descuentos no se ponen aquí: se crean con una campaña o promoción REAL en Tienda web → ✨ Campañas (y se quitan solas al terminar).')),
     h('div.card.col', h('h3', 'Ficha en la web'), h('div.form', field('Categoría', f.cat), field('Colores a elegir', f.colores)), field('Descripción', f.desc), h('b.small', 'Características'), carBox,
       h('div.row.wrap', h('label.check', sw(destacado, v => { destacado = v; }), '⭐ Destacado'), h('label.check', sw(novedad, v => { novedad = v; }), '✨ Novedad'), h('label.check', sw(personalizable, v => { personalizable = v; }), '🎨 Personalizable'))),
@@ -383,5 +446,6 @@ export function productoWeb(el, p) {
     h('div.card.col', h('h3', 'Fotos (' + elegidas.length + ' elegidas)'), h('p.tiny.muted', 'Pulsa para elegir y ordenar. Se reducen a 1200 px antes de subirlas (la original no cambia).'), fotosBox),
     h('div.card.col', h('h3', '🧊 Vista 3D en la web (opcional)'), h('p.tiny.muted', 'El cliente podrá girar el producto antes de pedirlo. Se usa tu STL real, aligerado para que cargue rápido en el móvil.'), box3d),
     h('div.row.wrap', btn(w.publicado ? 'Actualizar en la tienda' : 'Publicar en la tienda', publicar, { cls: 'primary', icon: 'send' }),
-      w.publicado ? btn('Retirar de la tienda', async () => { if (!await confirmDlg('Retirar de la tienda', 'Deja de verse y venderse en la web. En el programa no cambia nada.', 'Retirar', true)) return; try { await api('tienda.retirar', { productoId: p.id }); toast('Retirado de la tienda', 'ok'); pull(); } catch (e) { handleError(e); } }, { cls: 'ghost danger' }) : null));
+      w.publicado ? btn('Retirar de la tienda', retirar, { cls: 'ghost danger' }) : null));
+  return { publicar };
 }

@@ -6,6 +6,8 @@ import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf } from
 import { desktop } from '../desktop.js';
 import { parse3D, viewer, unzip } from '../stl.js';
 import { medir3D, esArchivo3D, escalar, textoMedidas, EJES, cm } from '../medidas3d.js'; // v16: medidas reales (Ancho · Largo · Alto)
+import { analizar3D } from '../datos3d.js'; // v16.2: gramos, tiempo y material que ya trae el archivo
+import { paletaProducto, descripcionConColores, coloresDeProducto, punto } from '../colores.js'; // v16.2: colores con círculos y en la descripción
 import { accionTxt, resumenDetalle } from './pedidos.js';
 import { generate, asText, docxBlob, docName, PLATAFORMAS } from '../docventa.js';
 import { download, uploadFile } from '../files.js';
@@ -22,26 +24,32 @@ const PLATFORMS = [{ k: 'wallapop', t: 'Wallapop / venta directa' }, { k: 'vinte
 const pretty = s => String(s || '').replace(/^\d+_/, '').replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\S/g, x => x.toUpperCase()).replace(/\bBano\b/g, 'Baño').replace(/\bNinos\b/g, 'Niños').replace(/\bJardin\b/g, 'Jardín').replace(/\bDecoracion\b/g, 'Decoración');
 
 export function render(el, params) {
-  const st = { q: '', cat: '', est: '', limit: 60 };
+  const st = { q: '', cat: '', est: '', limit: 60, web: '' };
   const search = inp({ type: 'search', placeholder: 'Buscar por nombre, ID, color, material…' });
   search.addEventListener('input', debounce(() => { st.q = search.value; drawList(); }, 120));
   const fCat = h('select.inp'), fEst = sel([{ v: '', t: 'Todos los estados' }].concat(STATES), '');
   [fCat, fEst].forEach(x => x.addEventListener('change', () => { st.cat = fCat.value; st.est = fEst.value; drawList(); }));
-  const listBox = h('div');
+  const listBox = h('div'), chipsBox = h('div.row.wrap.prod-filtros', { style: { gap: '6px', marginBottom: '14px' } });
+  // v16.2 · filtros de un toque: cómo está cada producto en la web y en la estantería
+  const FILTROS = [['', 'Todos'], ['pub', '🟢 Publicados'], ['nopub', 'No publicados'], ['ago', '🔴 Agotados'], ['disp', 'Disponibles']];
+  const pasaWeb = (p, ind, k) => { const e = estadoProducto(p, ind); return !k ? true : k === 'pub' ? e.publicado : k === 'nopub' ? !e.publicado : k === 'ago' ? e.agotado : e.disponible !== null && e.disponible > 0; };
+  const pintarChips = ind => mount(chipsBox, FILTROS.map(([k, t]) => h('button.chip' + (st.web === k ? '.on' : ''), { type: 'button', 'data-f': k, onclick: () => { st.web = k; st.limit = 60; drawList(); } }, t, h('span.c', String(S.t.productos.filter(p => pasaWeb(p, ind, k)).length)))));
   el.append(h('div.page-head', h('h1', 'Productos'), can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null),
-    h('div.row.wrap', { style: { marginBottom: '14px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fCat), h('div', { style: { width: '180px' } }, fEst)), listBox);
+    h('div.row.wrap', { style: { marginBottom: '10px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fCat), h('div', { style: { width: '180px' } }, fEst)), chipsBox, listBox);
   function fill() { const k = fCat.value; const cats = [...new Set(S.t.productos.map(p => p.categoria).filter(Boolean))].sort(); mount(fCat, h('option', { value: '' }, 'Todas las categorías'), cats.map(c => h('option', { value: c }, pretty(c)))); fCat.value = k; }
   function drawList() {
-    const rows = S.t.productos.filter(p => (!st.q || CL.matches([p.id, p.sku, p.tallas, p.nombre, p.categoria, p.subcategoria, p.color, p.material, p.descripcion].join(' '), st.q)) && (!st.cat || p.categoria === st.cat) && (!st.est || pState(p.estado) === st.est))
+    const ind = indicadores(); pintarChips(ind);
+    let rows = S.t.productos.filter(p => (!st.q || CL.matches([p.id, p.sku, p.tallas, p.nombre, p.categoria, p.subcategoria, p.color, p.material, p.descripcion].join(' '), st.q)) && (!st.cat || p.categoria === st.cat) && (!st.est || pState(p.estado) === st.est))
       .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.id).localeCompare(String(a.id)));
     if (!S.t.productos.length) return mount(listBox, h('div.card', empty('cube', 'El catálogo está vacío', 'Crea vuestro primer producto con sus fotos, vídeo y STL.', can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null)));
+    if (st.web) rows = rows.filter(p => pasaWeb(p, ind, st.web));
     if (!rows.length) return mount(listBox, h('div.card', empty('search', 'No hay productos con estos filtros')));
     mount(listBox, h('div.gallery', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '14px' } }, rows.slice(0, st.limit).map(p => {
       const foto = p.fotoId ? byId('archivos', p.fotoId) : filesOf('productos', p.id).find(a => a.miniatura);
       return h('div.card.click', { style: { padding: 0, overflow: 'hidden' }, onclick: () => go('productos/' + p.id) },
-        h('div', { style: { aspectRatio: '4/3', background: 'var(--surface-2)', display: 'grid', placeItems: 'center', color: 'var(--muted)' } }, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover' } }) : icon('cube', 'l')),
+        h('div', { style: { aspectRatio: '4/3', background: 'var(--surface-2)', display: 'grid', placeItems: 'center', color: 'var(--muted)', position: 'relative' } }, chipsProducto(p, ind), foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover' } }) : icon('cube', 'l')),
         h('div', { style: { padding: '10px 12px' } }, h('div.bold.ellipsis', p.nombre), h('div.tiny.muted.ellipsis', (p.sku || p.id) + ' · ' + pretty(p.subcategoria || p.categoria)),
-          h('div.row', { style: { marginTop: '6px' } }, pill(pState(p.estado), ST_CLS[pState(p.estado)]), h('span.right', { style: { textAlign: 'right' } }, h('b', p.precio ? eur(p.precio) : ''), (() => { const mn = precioMinDe(p); return mn && p.precio ? h('div.tiny.muted', { title: 'Mínimo regateando' }, '🤝 mín. ' + eur(mn.v)) : null; })()))));
+          h('div.row', { style: { marginTop: '6px' } }, pill(pState(p.estado), ST_CLS[pState(p.estado)]), h('span.right', { style: { textAlign: 'right' } }, h('b', p.precio ? eur(p.precio) : ''))), rentaMini(p)));
     })), rows.length > st.limit ? h('div.pager', btn('Mostrar más', () => { st.limit += 120; drawList(); })) : null);
   }
   let openId = null, dr = null;
@@ -68,7 +76,7 @@ function productDrawer(id, onClose) {
       const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], can('tienda.gestionar') || (p.web && p.web.publicado) ? ['web', '🛍️ Tienda web'] : null, ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
       mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
-        h('div.drawer-b.col', { style: { gap: '14px' } }, h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
+        h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Publicado']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
             can('pedidos.crear') ? btn('Nuevo pedido', () => import('./pedidos.js').then(m => m.orderForm({ producto: p.nombre, productoId: p.id, precio: p.precio })), { icon: 'plus', cls: 'sm' }) : null,
@@ -79,6 +87,7 @@ function productDrawer(id, onClose) {
             can('redes.ver') ? btn('📸 A Instagram', () => { closeAll(); go('instagram/producto/' + p.id); }, { cls: 'sm prod-ig' }) : null,
             desktop.on && can('config.ver') ? btn('Publicar con CelebryNova', () => import('./celebrynova.js').then(m => m.publishWithNova(p, modal, go)), { icon: 'send', cls: 'sm' }) : null,
             can('productos.editar') ? btn('Editar', () => productWizard(p), { icon: 'edit', cls: 'sm' }) : null,
+            can('productos.editar') ? btn('Duplicar', () => duplicar(p, closeAll), { icon: 'copy', cls: 'sm', title: 'Crear un producto parecido con estos mismos datos' }) : null,
             can('productos.borrar') ? btn('Borrar', () => delProduct(p, closeAll), { cls: 'danger sm', icon: 'trash' }) : null)));
       PTABS[tab](body, p, orders);
     };
@@ -92,8 +101,8 @@ const PTABS = {
     mount(el, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', style: { width: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '12px', background: 'var(--surface-2)', cursor: 'pointer' }, onclick: () => openFile(foto) }) : null,
       precioFicha(p), medidasFicha(p),
       h('div.facts', { style: { marginTop: '12px' } }, fact('Categoría', pretty(p.categoria) || na('')), fact('Subcategoría', pretty(p.subcategoria) || na('')), fact('Tipo', p.tipo || na('')),
-        fact('SKU', p.sku || p.id), fact('Tallas', na(p.tallas)), fact('Color', na(p.color)), fact('Material', na(p.material)), !(Number(p.dimX) > 0) ? fact('Tamaño', na(p.tamano)) : null, fact('Peso del producto (la pieza)', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
-      p.descripcion ? h('div', { style: { marginTop: '12px' } }, h('div.lbl', 'Descripción'), h('p', { style: { whiteSpace: 'pre-wrap' } }, p.descripcion)) : null,
+        fact('SKU', p.sku || p.id), fact('📦 Embalaje', nombreEmbalaje(p.embalajeId) || 'Automático (por medidas)'), fact('Tallas', na(p.tallas)), fact('Colores', coloresDeProducto(p).length ? h('span.pcol-ficha', coloresDeProducto(p).map(c => h('span', punto(c, 13), ' ' + c))) : na(p.color)), fact('Material', na(p.material)), !(Number(p.dimX) > 0) ? fact('Tamaño', na(p.tamano)) : null, fact('Peso del producto (la pieza)', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
+      p.descripcion ? h('div', { style: { marginTop: '12px' } }, h('div.row', { style: { alignItems: 'center', gap: '8px' } }, h('div.lbl.grow', 'Descripción'), btn('Copiar', () => copyText(p.descripcion), { cls: 'sm ghost pdesc-copiar', icon: 'copy', title: 'Copiar la descripción (con los colores disponibles) para pegarla en el anuncio' })), h('p.pdesc', { style: { whiteSpace: 'pre-wrap' } }, p.descripcion)) : null,
       h('dl.kv', { style: { marginTop: '12px' } }, h('dt', 'Origen'), h('dd', [p.fuente, p.enlace].filter(Boolean).join(' · ') || h('span.na', 'No disponible')), h('dt', 'Licencia'), h('dd', na(p.licencia)), h('dt', 'Carpeta'), h('dd', p.ruta ? h('span.row', h('span.ellipsis', p.ruta), desktop.on ? btn('Abrir', () => desktop.open(p.ruta).catch(e => toast(e.message, 'bad')), { cls: 'sm', icon: 'folder' }) : null) : h('span.na', 'Sin carpeta')), h('dt', 'Creado por'), h('dd', na(p.creadoPor))),
       stockCard(p));
   },
@@ -110,7 +119,7 @@ const PTABS = {
     let semilla = Date.now();
     const cortas = () => import('../descripcion.js').then(D => { semilla += 7919; mount(corto, D.generar(p.nombre, { color: p.color ? CL.norm(p.color) : '', medidas: textoMedidas(p), personalizable: /personaliz|nombre|inicial/i.test([p.nombre, p.descripcion, p.subcategoria].join(' ')) }, 3, semilla).map(txt => h('div.dq-op', h('p', txt), h('div.row.wrap', { style: { gap: '6px' } },
       btn('Copiar', () => { copyText(txt); toast('Copiada', 'ok'); }, { cls: 'sm', icon: 'copy' }),
-      can('productos.editar') ? btn('Usar como descripción', async () => { try { await mutate('productos.guardar', { id: p.id, datos: { descripcion: txt } }, { label: 'Descripción', tables: ['productos'], optimistic: tt => { const x = tt.productos.find(y => y.id === p.id); if (x) x.descripcion = txt; } }); emit(); toast('✅ Descripción guardada', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm primary' }) : null)))); });
+      can('productos.editar') ? btn('Usar como descripción', async () => { try { await mutate('productos.guardar', { id: p.id, datos: { descripcion: descripcionConColores(txt, p.color) } }, { label: 'Descripción', tables: ['productos'], optimistic: tt => { const x = tt.productos.find(y => y.id === p.id); if (x) x.descripcion = txt; } }); emit(); toast('✅ Descripción guardada', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm primary' }) : null)))); });
     const box = h('div.col', { style: { gap: '12px' } });
     mount(el, h('div.card.flat', h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b.grow', '✨ Descripción corta'), btn('🔁 Otras', cortas, { cls: 'sm ghost' }),
       btn('Con foto o IA…', () => import('../descripcion.js').then(D => D.rapida({ texto: p.nombre, producto: p })), { cls: 'sm ghost' })), corto),
@@ -179,18 +188,100 @@ const PTABS = {
   }
 };
 function fact(l, v) { return h('div.fact', h('div.l', l), h('div.v', v)); }
+// v16.2 · Los embalajes que YA existen (plantillas con su caja, sobre o bolsa del inventario), agrupados por tipo. Nada inventado.
+const TIPO_ENV = { caja: '📦 Caja', sobre: '✉️ Sobre', bolsa: '🛍️ Bolsa' };
+function envaseDe(e) { for (const l of (e.lineas || [])) { const m = (S.t.materiales || []).find(x => x.id === l.materialId); if (m && TIPO_ENV[m.tipo]) return m; } return null; }
+function opcionesEmbalaje() {
+  const lista = (S.t.embalajes || []).filter(e => String(e.activo || '').toLowerCase() !== 'no').map(e => ({ e, m: envaseDe(e) })), orden = ['caja', 'sobre', 'bolsa'];
+  lista.sort((a, b) => (a.m ? orden.indexOf(a.m.tipo) : 9) - (b.m ? orden.indexOf(b.m.tipo) : 9) || String(a.e.nombre).localeCompare(String(b.e.nombre)));
+  return [{ v: '', t: 'Automático: el que le vaya por sus medidas' }].concat(lista.map(({ e, m }) => ({ v: e.id, t: (m ? TIPO_ENV[m.tipo] : '🧰 Otro') + ' · ' + e.nombre + (m ? ' (' + m.nombre + (m.stock !== '' && m.stock !== null && m.stock !== undefined ? ' · quedan ' + m.stock : '') + ')' : '') })));
+}
+function nombreEmbalaje(id) { const e = id ? (S.t.embalajes || []).find(x => x.id === id) : null; if (!e) return ''; const m = envaseDe(e); return (m ? TIPO_ENV[m.tipo] + ' · ' : '') + e.nombre; }
+// ---------- v16.2 · Estado de cada producto de un vistazo: en la web, disponible / agotado y cuántos se han vendido ----------
+function indicadores() {
+  let niveles = null; try { niveles = CL.stockLevels({ productos: S.t.productos, stock: S.t.stock, fabricacion: S.t.fabricacion || [], pedidos: S.t.pedidos, trabajos: S.t.trabajos || [] }, S.cfg.pedidos); } catch (e) { }
+  const vendidos = {}; S.t.pedidos.forEach(o => { if (CL.stateOf(S.cfg.pedidos, o.estado).cancelled) return; const k = o.productoId || CL.norm(o.producto); vendidos[k] = (vendidos[k] || 0) + (Number(o.cantidad) || 1); });
+  return { niveles, vendidos };
+}
+export function estadoProducto(p, ind) {
+  ind = ind || indicadores();
+  const w = p.web && typeof p.web === 'object' ? p.web : {}, lv = ind.niveles ? ind.niveles.of(p.nombre) : null, contado = w.stockModo === 'contado';
+  const controlado = !!(lv && lv.controlado), disp = controlado ? lv.disponible : contado && w.publicado ? Math.max(0, Number(w.stock) || 0) : null;
+  return { publicado: !!w.publicado, antes: !!w.publicadoEn, disponible: disp, agotado: disp !== null && disp <= 0, vendidos: ind.vendidos[p.id] || ind.vendidos[CL.norm(p.nombre)] || 0 };
+}
+function chipsProducto(p, ind) {
+  const e = estadoProducto(p, ind);
+  return h('div.pchips', e.publicado ? h('span.pub', '🟢 Publicado') : h('span.nopub', e.antes ? 'Retirado' : 'No publicado'),
+    e.agotado ? h('span.ago', 'AGOTADO') : e.disponible !== null ? h('span.disp', 'Disponible: ' + e.disponible) : null,
+    e.vendidos ? h('span.ven', 'Vendidos: ' + e.vendidos) : null);
+}
+// La barra de arriba de la ficha: PUBLICAR EN WEB, grande y a la vista. Republicar es UN clic (reutiliza todo lo guardado).
+function barraWeb(p, irAWeb) {
+  if (!can('tienda.gestionar')) return null;
+  const e = estadoProducto(p), tieneTienda = !!(S.cfg.tienda && S.cfg.tienda.url);
+  const unClic = async ev => {
+    const b = ev.target.closest('button'); b.disabled = true;
+    try { const T = await import('./tienda.js'), caja = document.createElement('div'), r = T.productoWeb(caja, p); if (r && r.publicar) await r.publicar(); else irAWeb(); }
+    catch (x) { toast(x.message, 'bad'); } finally { b.disabled = false; }
+  };
+  return h('div.pub-bar' + (e.publicado ? '.on' : ''),
+    h('div.grow', h('b', e.publicado ? (e.agotado ? '🔴 En la web · AGOTADO' : '🟢 Publicado en la web') : e.antes ? '⚪ Retirado de la web' : '⚪ No está en la web'),
+      h('span', [e.disponible !== null ? (e.agotado ? 'Sin unidades' : 'Disponible: ' + e.disponible) : 'Bajo pedido', e.vendidos ? 'Vendidos: ' + e.vendidos : ''].filter(Boolean).join(' · '))),
+    !tieneTienda ? btn('Conectar la tienda', () => go('tienda'), { cls: 'sm' })
+      : e.publicado ? btn('Ver / actualizar', irAWeb, { cls: 'sm' })
+        : e.antes ? btn('🔁 REPUBLICAR', unClic, { cls: 'primary pub-btn', title: 'Vuelve a la web con las mismas fotos, texto, precio y categoría' })
+          : btn('🛍️ PUBLICAR EN WEB', irAWeb, { cls: 'primary pub-btn' }));
+}
+// Duplicar: abre el alta con los datos de este producto (nombre «… (copia)»). Las fotos y el STL no se copian: son de cada producto.
+function duplicar(p, cerrar) {
+  const copia = Object.assign({}, p, { id: '', sku: '', nombre: p.nombre + ' (copia)', fotoId: '', ruta: '', web: null, estado: 'Idea', fecha: '', creado: '', actualizado: '', version: 0, dimArchivo: '' });
+  cerrar(); productWizard(copia, { copiaDe: p });
+}
 // v16 · Lo que hay que ver de un vistazo: a cuánto se publica, hasta dónde se puede bajar, y cuánto mide
 export function precioMinDe(p) {
   if (Number(p.precioMin) > 0) return { v: Number(p.precioMin), tuyo: true };
   const c = (S.t.calculadora || []).find(x => CL.norm(x.nombre) === CL.norm(p.nombre));
   return c && Number(c.precioMinimo) > 0 ? { v: Number(c.precioMinimo), tuyo: false } : null;
 }
+// v16.2 · RENTABILIDAD de un producto, con los datos que YA hay (calculadora + tu mínimo). Nada se inventa:
+//   coste = lo que cuesta fabricarlo (filamento, luz, mano de obra, extras y el embalaje como coste interno)
+//   minimo = el que TÚ has escrito («mínimo regateable»). Nunca se sustituye por un cálculo.
+//   recomendado = el de la calculadora, por canal.
+export function rentabilidad(p) {
+  const c = (S.t.calculadora || []).find(x => CL.norm(x.nombre) === CL.norm(p.nombre));
+  const puede = can('productos.costes') && c && (Number(c.gramos) > 0 || Number(c.horas) > 0);
+  const r = puede ? CL.prices(c, pricingParams(), gastosMap()) : null, r2 = v => Math.round(v * 100) / 100;
+  const coste = r ? r.desglose.costeTotal : null, minimo = Number(p.precioMin) > 0 ? Number(p.precioMin) : null, precio = Number(p.precio) > 0 ? Number(p.precio) : null;
+  return { coste, desglose: r ? r.desglose : null, minimo, precio,
+    ganaMin: coste != null && minimo != null ? r2(minimo - coste) : null,
+    ganaPrecio: coste != null && precio != null ? r2(precio - coste) : null,
+    recomendado: r ? r.recomendado.wallapop : null, ganaRec: r ? r2(r.recomendado.wallapop - coste) : null,
+    canales: r ? PLATFORMS.map(pl => ({ t: pl.t.split(' / ')[0], v: r.recomendado[pl.k] })) : [], sugerido: r ? r.minimo.wallapop : null };
+}
+const gana = v => v == null ? null : h('span.rt-g' + (v < 0 ? '.mal' : v < 0.5 ? '.poco' : ''), (v < 0 ? 'pierdes ' : 'ganas ') + eur(Math.abs(v)));
+// En la tarjeta del listado: tres números y lo que ganas
+function rentaMini(p) {
+  const x = rentabilidad(p);
+  if (x.coste == null && x.minimo == null) return null;
+  return h('div.rt-mini', { title: 'Coste de fabricarlo · tu mínimo · precio recomendado' },
+    x.coste != null ? h('span', h('i', 'Coste'), h('b', eur(x.coste))) : null,
+    h('span' + (x.minimo == null ? '.falta' : ''), h('i', 'Mínimo'), h('b', x.minimo != null ? eur(x.minimo) : '—'), x.ganaMin != null ? h('small' + (x.ganaMin < 0 ? '.mal' : ''), (x.ganaMin >= 0 ? '+' : '−') + eur(Math.abs(x.ganaMin))) : null),
+    x.recomendado != null ? h('span', h('i', 'Recom.'), h('b', eur(x.recomendado)), h('small', '+' + eur(x.ganaRec))) : null);
+}
 function precioFicha(p) {
-  const pv = Number(p.precio) || 0, mn = precioMinDe(p);
-  if (!pv && !mn) return null;
-  return h('div.pr2.ficha', h('div.pr2-c.redes', h('span.pr2-t', '💶 Precio en redes'), h('span.pr2-v', pv ? eur(pv) : '—')),
-    h('div.pr2-c.min', h('span.pr2-t', '🤝 Mínimo regateando'), h('span.pr2-v', mn ? eur(mn.v) : '—'), mn && !mn.tuyo ? h('span.pr2-s', 'calculado por costes') : !mn ? h('span.pr2-s', 'ponlo en Editar → paso 3') : null),
-    pv && mn && mn.v <= pv ? h('div.pr2-res', 'Puedes bajar hasta ', h('b', eur(pv - mn.v)), ' (' + Math.round((pv - mn.v) / pv * 100) + ' %). Por debajo de ', h('b', eur(mn.v)), ' no.') : null);
+  const x = rentabilidad(p);
+  if (!x.precio && x.minimo == null && x.coste == null) return null;
+  const d = x.desglose;
+  return h('div.rt',
+    x.coste != null ? h('div.rt-c.coste', h('span.rt-t', 'ME CUESTA'), h('span.rt-v', eur(x.coste)),
+      h('details.rt-d', h('summary', 'Ver desglose'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Pintado', d.pintado], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (coste interno)', d.embalaje], ['Envío', d.envio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))) : null,
+    h('div.rt-c.min', h('span.rt-t', 'PUEDES BAJAR HASTA'), h('span.rt-v', x.minimo != null ? eur(x.minimo) : '—'),
+      x.minimo != null ? gana(x.ganaMin) : h('span.rt-s', can('productos.editar') ? 'Pon tu mínimo en Editar → paso 3' + (x.sugerido ? ' (por costes, no menos de ' + eur(x.sugerido) + ')' : '') : 'Sin mínimo puesto')),
+    x.precio ? h('div.rt-c.pvp', h('span.rt-t', 'LO PUBLICAS A'), h('span.rt-v', eur(x.precio)), gana(x.ganaPrecio)) : null,
+    x.recomendado != null ? h('div.rt-c.rec', h('span.rt-t', 'RECOMENDADO'), h('span.rt-v', eur(x.recomendado)), gana(x.ganaRec)) : null,
+    x.canales.length ? h('div.rt-can', x.canales.map(c => h('span', c.t + ' ', h('b', eur(c.v))))) : null,
+    x.minimo != null && x.precio && x.minimo > x.precio ? h('div.rt-av', '⚠️ Tu mínimo (' + eur(x.minimo) + ') es más alto que el precio al que lo publicas.') : null,
+    x.minimo != null && x.coste != null && x.minimo < x.coste ? h('div.rt-av', '⚠️ A tu mínimo pierdes dinero: fabricarlo cuesta ' + eur(x.coste) + '.') : null);
 }
 function medidasFicha(p) {
   if (!(Number(p.dimX) > 0)) return null;
@@ -282,6 +373,7 @@ export function priceAssistant(p, costsIn, onPick) {
     out,
     p && can('productos.editar') && !onPick ? h('div.row', btn('Guardar costes', async () => { const { v } = calcNow(); await saveProduct(p, {}, v); }, { cls: 'sm' }), btn('Usar precio de Wallapop', async () => { const { r, v } = calcNow(); await saveProduct(p, { precio: r.recomendado.wallapop }, v); }, { cls: 'primary sm' })) : null);
   wrap.getCosts = () => { const v = {}; Object.keys(f).forEach(k => { v[k] = f[k].value; }); return v; };
+  wrap.setCosts = o => { Object.keys(o || {}).forEach(k => { if (f[k] && o[k] !== undefined && o[k] !== '' && o[k] !== null) f[k].value = o[k]; }); calcNow(); }; // v16.2
   calcNow();
   return wrap;
 }
@@ -333,9 +425,9 @@ async function productFolder(p) {
   await desktop.mkdir(dir);
   return dir;
 }
-export function productWizard(p) {
+export function productWizard(p, opc = {}) {
   if (!can('productos.editar')) return requestAccess('productos.editar', 'productos');
-  const isNew = !p;
+  const isNew = !p || !!opc.copiaDe || !!opc.nuevo; // v16.2: «Duplicar» y el Cotizador abren el alta ya rellena
   p = p || {};
   let step = 0;
   let cats = [...new Set(S.t.productos.map(x => x.categoria).filter(Boolean).concat(['HOGAR', 'ESCRITORIO Y SETUP', 'NAVIDAD', 'HALLOWEEN', 'CELEBRACIONES', 'JUGUETES Y JUEGOS', 'LLAVEROS Y PERSONALIZADOS', 'COCINA Y MESA']))];
@@ -409,6 +501,7 @@ export function productWizard(p) {
     categoria: inp({ value: p.categoria || '', list: 'dl-pcat', placeholder: 'Ej.: HOGAR' }),
     subcategoria: inp({ value: p.subcategoria || '', list: 'dl-psub', placeholder: 'Ej.: Baño' }),
     color: inp({ value: p.color || '' }), tamano: inp({ value: p.tamano || '', placeholder: 'Ej.: 12 × 8 × 5 cm' }),
+    embalajeId: sel(opcionesEmbalaje(), p.embalajeId || ''), // v16.2: caja / sobre / bolsa de ESTE producto (de tu inventario)
     pesoG: inp({ type: 'number', min: 0, step: 1, value: p.pesoG ?? '', placeholder: 'g' }), // v11.4: peso de la PIEZA (sin caja ni embalaje) tallas: inp({ value: p.tallas || '', placeholder: 'Ej.: S, M, L, XL (si tiene)' }),
     material: sel(['', 'PLA', 'PETG', 'TPU', 'ABS', 'Resina', 'Madera', 'Otro'], p.material || 'PLA'),
     plataforma: sel(['', 'Wallapop', 'Vinted', 'Etsy', 'Instagram', 'Tienda física', 'Otro'], p.plataforma || ''),
@@ -418,6 +511,8 @@ export function productWizard(p) {
     descripcion: area({ value: p.descripcion || '', placeholder: 'Texto para el anuncio: medidas, colores disponibles, detalles…' }),
     estado: sel(STATES, pState(p.estado)), precio: inp({ type: 'number', min: 0, step: 0.1, value: p.precio || '' })
   };
+  // v16.2: los colores se eligen con círculos (los de tus bobinas primero) y van solos a la descripción
+  const paleta = paletaProducto({ campo: f.color, bobinas: S.t.bobinas, onChange: l => { f.descripcion.value = descripcionConColores(f.descripcion.value, l); } });
   // v11: stock desde el primer momento (bajo demanda lo normal es 0)
   const lv = p.nombre ? stockLevel(p.nombre) : null;
   const sk = { unidades: inp({ type: 'number', min: 0, step: 1, inputmode: 'numeric', value: lv && lv.controlado ? Math.max(0, lv.fisico) : 0 }), minimo: inp({ type: 'number', min: 0, step: 1, inputmode: 'numeric', value: lv && lv.minimo ? lv.minimo : '', placeholder: 'Sin aviso' }), ubicacion: inp({ value: (lv && lv.ubicacion) || '', placeholder: 'Ej.: Estantería 2 · caja A3' }) };
@@ -454,47 +549,88 @@ export function productWizard(p) {
     const vacio = EJES.every(x => enCm[x[0]].value === ''); f.dimEstado.value = vacio ? '' : 'manual'; if (vacio) f.dimArchivo.value = ''; medUlt = null; pintarMed();
   }));
   // al subir (o sustituir) el archivo 3D se calculan solas
+  // v16.2 · EL ARCHIVO ES LA FUENTE: además de las medidas, se saca todo lo que el STL / 3MF ya sabe (gramos, tiempo,
+  // material…) y se rellena solo. Lo REAL (3MF laminado) manda; lo ESTIMADO solo se pone donde no había nada.
+  let a3d = null;
+  const a3dBox = h('div.a3d');
+  const costesDeArchivo = () => {
+    if (!a3d) return null;
+    const calc = p.id ? S.t.calculadora.find(c => c.nombre === p.nombre) : null, o = {};
+    if (a3d.gramos && (a3d.gramos.real || !(calc && Number(calc.gramos) > 0))) o.gramos = a3d.gramos.v;
+    if (a3d.horas && a3d.horas.real) o.horas = a3d.horas.v;
+    return Object.keys(o).length ? o : null;
+  };
+  function pintarA3d() {
+    if (!a3d) return mount(a3dBox);
+    const A = a3d, L = A.laminado, aj = A.ajustes, et = real => h('em.a3d-e' + (real ? '.real' : ''), real ? 'REAL' : 'ESTIMADO');
+    const dato = (ic, t, v, extra) => h('div.a3d-d', h('i', ic), h('span', h('small', t), h('b', v), extra || null));
+    mount(a3dBox, h('div.a3d-t', '✅ Leído de «' + String(A.archivo).split(/[\\/]/).pop() + '» · no hace falta que lo escribas'),
+      h('div.a3d-g',
+        A.medidas ? dato('📐', 'Medidas', textoMedidas({ dimX: A.medidas.x, dimY: A.medidas.y, dimZ: A.medidas.z })) : null,
+        A.gramos ? dato('⚖️', 'Filamento / peso', String(A.gramos.v).replace('.', ',') + ' g', et(A.gramos.real)) : null,
+        A.horas ? dato('⏱️', 'Tiempo de impresión', A.horas.texto, et(true)) : null,
+        A.material ? dato('🧵', 'Material', A.material + (L && L.filamentos.length > 1 ? ' · ' + L.filamentos.length + ' colores' : ''), A.colores.length ? h('span.a3d-c', A.colores.slice(0, 6).map(c => h('u', { style: { background: c }, title: c }))) : null) : null,
+        aj && (aj.impresora || aj.capa) ? dato('🖨️', 'Preparado para', [aj.impresora, aj.capa ? 'capa ' + String(aj.capa).replace('.', ',') + ' mm' : '', aj.relleno != null ? 'relleno ' + aj.relleno + ' %' : ''].filter(Boolean).join(' · ')) : null),
+      A.gramos ? h('div.tiny.muted', (A.gramos.real ? 'Gramos tomados de ' : 'Gramos ESTIMADOS con ') + A.gramos.de + '.' + (L && L.piezas > 1 ? ' OJO: la bandeja lleva ' + L.piezas + ' piezas; gramos y tiempo son de todas juntas.' : '')) : null,
+      A.notas.map(n => h('div.tiny.muted', '💡 ' + n)));
+  }
   async function medirArchivo(it) {
     if (!it || !it.file || !esArchivo3D(it.file.name)) return;
-    try { const m = await medir3D(await it.file.arrayBuffer(), it.file.name); ponerMed(m, it.file.name); toast('📐 Medidas puestas solas: ' + textoMedidas({ dimX: m.x, dimY: m.y, dimZ: m.z }) + (m.estado === 'revisar' ? ' · revisa la escala' : ''), m.estado === 'revisar' ? 'warn' : 'ok', 6000); }
-    catch (e) { mount(medInfo, h('span.tiny.warn-t', 'No he podido medir «' + it.file.name + '»: ' + e.message + ' Puedes escribir las medidas.')); }
+    try {
+      const A = await analizar3D(await it.file.arrayBuffer(), it.file.name), puesto = [];
+      if (!A.medidas) throw new Error(A.notas[0] || 'archivo no válido');
+      a3d = A; ponerMed(A.medidas, it.file.name); puesto.push('medidas');
+      if (A.gramos && (A.gramos.real || !(Number(f.pesoG.value) > 0))) { f.pesoG.value = Math.round(A.gramos.v); puesto.push('peso'); }
+      if (A.material && (isNew || !f.material.value.trim())) { f.material.value = A.material; puesto.push('material'); }
+      const co = costesDeArchivo();
+      if (co) { if (pa) pa.setCosts(co); puesto.push(co.horas ? 'gramos y tiempo para los costes' : 'gramos para los costes'); }
+      pintarA3d();
+      toast('📦 Puesto solo desde el archivo: ' + puesto.join(', ') + (A.medidas.estado === 'revisar' ? ' · revisa la escala' : ''), A.medidas.estado === 'revisar' ? 'warn' : 'ok', 7000);
+    } catch (e) { mount(medInfo, h('span.tiny.warn-t', 'No he podido leer «' + it.file.name + '»: ' + e.message + ' Puedes escribir las medidas.')); }
   }
   pintarMed();
   // ---- v16: los DOS PRECIOS, claros: el que publicas en redes y lo mínimo que aceptas regateando ----
   f.precioMin = inp({ type: 'number', min: 0, step: 0.1, value: p.precioMin || '', placeholder: 'Ej.: 16' });
   const precioResumen = h('div.pr2-res');
-  let minAuto = !(Number(p.precioMin) > 0), minCalc = null; // mientras no lo escribas tú, el mínimo lo propone el programa
+  let minCalc = null; // v16.2: el mínimo es SOLO el que tú escribes; lo que sale por costes es una sugerencia que no se rellena sola
   function pintarPrecios() {
     const pv = Number(f.precio.value), mn = Number(f.precioMin.value);
     mount(precioResumen, pv > 0 && mn > 0 ? (mn > pv ? h('span.bad-t', '⚠️ El mínimo (' + eur(mn) + ') es más alto que el precio en redes (' + eur(pv) + ').')
-      : [h('span', 'Publicas a ', h('b', eur(pv)), ' · puedes bajar hasta ', h('b', eur(pv - mn)), ' (' + Math.round((pv - mn) / pv * 100) + ' %) · no bajes de ', h('b', eur(mn)), '.'), minCalc && mn < minCalc ? h('div.warn-t', '⚠️ Por debajo de ' + eur(minCalc) + ' casi no ganas con este producto.') : null])
-      : h('span.muted', pv > 0 ? 'Falta el mínimo: cuánto es lo menos que aceptarías.' : 'Pon el precio al que lo publicas y el mínimo que aceptas regateando.'));
+      : [h('span', 'Publicas a ', h('b', eur(pv)), ' · puedes bajar hasta ', h('b', eur(mn)), '.'), minCalc && mn < minCalc ? h('div.tiny.muted', 'Dato: por costes, lo aconsejable sería no bajar de ' + eur(minCalc) + '. Tú decides.') : null])
+      : h('span.muted', pv > 0 ? 'Falta tu mínimo: cuánto es lo menos que aceptarías.' : 'Pon el precio al que lo publicas y el mínimo que aceptas.'),
+      !(mn > 0) && minCalc ? h('div.tiny.muted', 'Sugerencia por costes: ' + eur(minCalc) + ' ', h('button.btn.sm', { type: 'button', onclick: () => { f.precioMin.value = minCalc; pintarPrecios(); } }, 'Usar')) : null);
   }
   f.precio.addEventListener('input', pintarPrecios);
-  f.precioMin.addEventListener('input', () => { minAuto = false; pintarPrecios(); });
+  f.precioMin.addEventListener('input', pintarPrecios);
   const preciosBox = h('div.pr2', h('label.pr2-c.redes', h('span.pr2-t', '💶 Precio en redes'), h('span.pr2-s', 'El que publicas en Vinted, Wallapop, Instagram…'), h('span.pr2-i', f.precio, h('span.u', '€'))),
-    h('label.pr2-c.min', h('span.pr2-t', '🤝 Mínimo regateando'), h('span.pr2-s', 'Lo menos que aceptas si te piden rebaja'), h('span.pr2-i', f.precioMin, h('span.u', '€'))), precioResumen);
+    h('label.pr2-c.min', h('span.pr2-t', '🤝 Mínimo regateable'), h('span.pr2-s', 'El precio más bajo al que lo venderías. Lo decides tú.'), h('span.pr2-i', f.precioMin, h('span.u', '€'))), precioResumen);
   pintarPrecios();
   const zones = { foto: dropZone('foto', { title: 'FOTO', existing: () => p.id ? filesOf('productos', p.id) : [] }), video: dropZone('video', { title: 'VÍDEO', existing: () => p.id ? filesOf('productos', p.id) : [] }), stl: dropZone('stl', { title: 'STL / 3MF', existing: () => p.id ? filesOf('productos', p.id) : [], onReady: medirArchivo }) };
   let pa = null;
+  // v16.2: el Cotizador pasa su archivo: entra en la zona del STL / 3MF como si lo hubieras soltado tú
+  if (opc.archivo) setTimeout(() => { try { const i = zones.stl.el.querySelector('input[type=file]'), dt = new DataTransfer(); dt.items.add(opc.archivo); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { } }, 80);
   const msg = h('p.bad-t');
   const body = h('div');
   const foot = h('div.row', { style: { width: '100%' } });
-  const titles = ['1 · Datos del producto', '2 · Foto, vídeo y STL', '3 · Costes y precio'];
+  const titles = ['1 · Archivo 3D y datos del producto', '2 · Fotos y vídeo', '3 · Costes y precio']; // v16.2: se empieza por el STL / 3MF
   const m = modal(isNew ? 'Nuevo producto' : 'Editar ' + p.nombre, body, foot, { size: 'wide', sticky: true });
   const draw = () => {
     msg.textContent = '';
     const bar = h('div.wiz-steps', titles.map((t, i) => h('div.st' + (i === step ? '.on' : i < step ? '.done' : ''))));
     if (step === 0) mount(body, bar, h('h3', titles[0]), h('datalist', { id: 'dl-pcat' }, cats.map(c => h('option', { value: c }))), h('datalist', { id: 'dl-psub' }, subs.map(c => h('option', { value: c }))),
+      h('div.a3d-sube', h('div.a3d-p', h('b', '① Sube el STL o el 3MF'), h('span', 'Medidas, peso, filamento, material y tiempo se rellenan solos. Tú solo pones el nombre, el precio y lo comercial.')), zones.stl.el), a3dBox,
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
-        field('Color', f.color), field('Material', f.material), medBox, field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full', btn('✨ Crear descripción corta', () => import('../descripcion.js').then(D => D.rapida({ texto: f.nombre.value, onUsar: txt => { f.descripcion.value = txt; } })), { cls: 'sm ghost' }))),
+        h('div.field.pcol-campo', { style: { gridColumn: '1 / -1' } }, h('label', '🎨 Colores disponibles'), paleta, h('details.more', h('summary', 'Escribirlos a mano'), h('div.in', f.color, h('p.tiny.muted', { style: { margin: '4px 0 0' } }, 'Separados por comas: Blanco, Negro, Rosa'))),
+          h('p.tiny.muted', { style: { margin: '4px 0 0' } }, 'Se añaden solos al final de la descripción («Colores disponibles: …»), lista para copiar y pegar en tus anuncios.')),
+        field('Material', f.material), medBox, field('📦 Embalaje de este producto', f.embalajeId, 'Caja, sobre o bolsa de tu inventario. Se pone solo en cada pedido y descuenta el inventario. Es un coste interno: no se le cobra aparte al cliente.', 'full'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full', btn('✨ Crear descripción corta', () => import('../descripcion.js').then(D => D.rapida({ texto: f.nombre.value, onUsar: txt => { f.descripcion.value = txt; } })), { cls: 'sm ghost' }))),
       can('stock.mover') || can('productos.editar') ? skBox : null,
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),
-      h('div.drops', { style: { marginTop: '12px' } }, zones.foto.el, zones.video.el, zones.stl.el), medBox, missingHint(), msg);
+      h('div.drops', { style: { marginTop: '12px' } }, zones.foto.el, zones.video.el), missingHint(), msg);
     if (step === 2) {
-      if (!pa) pa = priceAssistant(p.id ? p : null, null, (v, plat, vals, r) => { f.precio.value = v; const k = (PLATFORMS.find(x => x.t === plat) || {}).k; minCalc = r && k && r.minimo[k] ? r.minimo[k] : null; if (minAuto && minCalc) f.precioMin.value = minCalc; pintarPrecios(); toast('Precio en redes ' + eur(v) + (minAuto && minCalc ? ' · mínimo regateando ' + eur(minCalc) : ''), 'ok'); });
+      if (!pa) pa = priceAssistant(p.id ? p : (opc.copiaDe || null), costesDeArchivo(), (v, plat, vals, r) => { f.precio.value = v; const k = (PLATFORMS.find(x => x.t === plat) || {}).k; minCalc = r && k && r.minimo[k] ? r.minimo[k] : null; pintarPrecios(); toast('Precio en redes ' + eur(v), 'ok'); });
       mount(body, bar, h('h3', titles[2]), h('p.small.muted', 'Rellena lo que sepas: el resto (IVA, margen, luz, mano de obra, comisiones) sale de la Configuración.'),
+        a3d && costesDeArchivo() ? h('div.a3d-n', '📦 Gramos' + (a3d.horas ? ' y tiempo' : '') + ' ya puestos desde «' + String(a3d.archivo).split(/[\\/]/).pop() + '»' + (a3d.gramos && !a3d.gramos.real ? ' (gramos ESTIMADOS: cámbialos si los sabes)' : '') + '.') : null,
         preciosBox, h('details.more', { open: !(Number(f.precio.value) > 0), style: { marginTop: '10px' } }, h('summary', '🧮 ¿No sabes qué precio poner? Que lo calcule el programa'),
           h('div.in', can('productos.costes') ? pa : h('p.muted', '🔒 No tienes permiso para ver costes.'))), msg);
     }
@@ -521,6 +657,7 @@ export function productWizard(p) {
   }
   async function saveAll(ev) {
     const b = ev.target.closest('button'); b.disabled = true; b.textContent = 'Guardando…';
+    f.descripcion.value = descripcionConColores(f.descripcion.value, f.color.value); // v16.2: la lista de colores va siempre en la descripción
     const datos = {}; Object.keys(f).forEach(k => { datos[k] = typeof f[k].value === 'string' ? f[k].value.trim() : f[k].value; });
     if (datos.precio === '') delete datos.precio; else datos.precio = Number(datos.precio);
     if (datos.pesoG !== '') datos.pesoG = Number(datos.pesoG);

@@ -3,7 +3,7 @@
 // coste por g / m / m² / unidad, embalajes, recetas de producto y coste real de cada pieza.
 // PENDIENTE = falta un dato (no se inventa) · ESTIMADO/ORIENTATIVO = no es tu precio real todavía.
 import { h, mount, btn, modal, toast, eur, empty, field, inp, area, sel, pill, confirmDlg, fdt } from '../ui.js';
-import { S, can, api, upsertLocal, emit, byId, pull } from '../store.js';
+import { S, can, api, upsertLocal, emit, byId, pull, pullSiHaceFalta } from '../store.js';
 import { handleError, requestAccess, go } from '../app.js';
 
 const CL = window.CL;
@@ -19,7 +19,7 @@ const CONF_OPTS = CL.CONF.map(k => ({ v: k, t: CL.CONF_TXT[k] + ' · ' + CONF_HE
 const e4 = x => x === null || x === undefined ? '—' : (Math.round(x * 10000) / 10000).toLocaleString('es-ES', { maximumFractionDigits: 4 }) + ' €';
 const editor = () => can('costes.editar');
 const activos = () => (S.t.materiales || []).filter(m => CL.norm(m.activo) !== 'no');
-const after = async r => { try { await pull(); } catch (e) { } emit(); return r; };
+const after = async r => { try { await pullSiHaceFalta(); } catch (e) { } emit(); return r; }; // v16.1: sin segundo viaje si la respuesta ya trajo los cambios
 const call = async (a, d, okMsg) => { try { const r = await api(a, d, { timeout: 120000 }); if (okMsg) toast(okMsg, 'ok'); await after(r); return r; } catch (e) { handleError(e); throw e; } };
 
 // v11.3: estas funciones necesitan el servidor de Google 11.3 o posterior

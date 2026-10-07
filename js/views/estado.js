@@ -1,7 +1,7 @@
 // ================= 🔧 Estado del sistema (centro de diagnóstico) =================
 // Comprueba de verdad cada pieza y dice exactamente qué falla y qué hacer.
 import { h, mount, btn, ago } from '../ui.js';
-import { S, api, kv, can, APP_VERSION } from '../store.js';
+import { S, api, kv, can, APP_VERSION, VEL } from '../store.js';
 import { desktop } from '../desktop.js';
 import { localStatus, invalidateStatus } from '../ai/models.js';
 import { ensureIndex, search, ragStatus, baseDocs } from '../ai/rag.js';
@@ -10,7 +10,20 @@ import { CHAT } from '../chat.js';
 export function render(el) {
   const list = h('div.checklist.diag');
   const sum = h('div');
+  // v16.1 · ⚡ Velocidad: cuánto tarda de verdad cada acción en ESTE aparato (ida y vuelta) y cuánto de eso es el servidor de Google
+  const vel = h('div.card.flat', { style: { marginTop: '14px' } });
+  const seg = ms => (ms / 1000).toFixed(ms < 950 ? 2 : 1).replace('.', ',') + ' s';
+  function pintaVel() {
+    if (!vel.isConnected && vel.childNodes.length) return;
+    const u = VEL.ultimas.slice(-8).reverse();
+    mount(vel, h('b', '⚡ Velocidad en este aparato'),
+      VEL.n ? h('div.small', { style: { margin: '6px 0' } }, 'Media de las últimas ' + VEL.n + ' acciones: ', h('b', seg(VEL.total / VEL.n)), ' de ida y vuelta (de ellos, ' + seg(VEL.servidor / VEL.n) + ' trabajando el servidor de Google; el resto es el viaje por internet).')
+        : h('div.small.muted', { style: { margin: '6px 0' } }, 'Usa el programa un momento y aquí verás cuánto tarda cada acción.'),
+      u.length ? h('div.tiny.muted', u.map(x => x.a + ' ' + seg(x.ms)).join(' · ')) : null,
+      h('div.tiny.muted', { style: { marginTop: '6px' } }, 'Desde la 16.1 cada acción hace un solo viaje al servidor y la pantalla cambia al instante, sin esperar la respuesta.'));
+  }
   el.append(h('div.page-head', h('div', h('h1', '🔧 Estado del sistema'), h('div.muted.small', 'Comprueba cada pieza de CelebriDiseños en este dispositivo y en el servidor.')), h('div.right', btn('Volver a comprobar', run, { cls: 'primary', icon: 'refresh' }))), sum, list);
+  setTimeout(() => { el.append(vel); pintaVel(); }, 0); const tv = setInterval(() => { if (!el.isConnected) return clearInterval(tv); pintaVel(); }, 4000);
   const rows = {};
   function row(k, name) { rows[k] = h('div.ck', h('span.st.wait', '…'), h('div.grow', h('div.bold', name), h('div.tiny.muted', 'Comprobando…'))); list.appendChild(rows[k]); }
   function set(k, st, detail, fix) {

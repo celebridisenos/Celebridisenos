@@ -16,14 +16,14 @@ export function render(el, params) {
     cierra(); const mi = ++token; root.replaceChildren();
     const j = JUEGOS.find(x => x.id === id);
     if (!j) {
-      root.append(h('div.page-head', h('h1', '🎮 Descanso'), h('span.grow'), fichasChip({ texto: true })),
-        h('p.muted.small.dsc-sub', 'Para pasar el rato · no afecta a tus datos · las fichas ⏱ se ganan usando la app'),
+      root.append(h('div.page-head', h('h1', '🎮 Descanso'), h('span.grow')),
+        h('p.muted.small.dsc-sub', 'Para desconectar un rato · no toca nada del negocio'),
         h('div.dsc-grid', JUEGOS.filter(g => !g.oculto).map(g => h('a.dsc-card', { href: '#/descanso/' + g.id, 'data-juego': g.id },
           h('div.dsc-ic', g.emoji), h('div.dsc-ct', h('b', g.titulo), h('span.muted.tiny', g.desc)), g.tag ? h('span.pill.dsc-tag', g.tag) : null))));
       return;
     }
     const caja = h('div.dsc-game', { 'data-juego': j.id });
-    root.append(h('div.page-head.dsc-ghead', h('h1', j.emoji + ' ' + j.titulo), h('span.grow'), j.id !== 'fichas' ? fichasChip() : null, btn('Todos los juegos', () => go('descanso'), { cls: 'ghost', title: 'Volver al menú de juegos' })), caja);
+    root.append(h('div.page-head.dsc-ghead', h('h1', j.emoji + ' ' + j.titulo), h('span.grow'), j.oculto && j.id !== 'fichas' ? fichasChip() : null, btn('Todos los juegos', () => go('descanso'), { cls: 'ghost', title: 'Volver al menú de juegos' })), caja);
     try {
       const m = await j.cargar(); if (mi !== token) return;
       actual = m.render(caja, { api, me: S.me, h, btn, toast, volver: () => go('descanso') }) || {};

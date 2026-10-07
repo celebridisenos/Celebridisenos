@@ -71,7 +71,7 @@ export function render(el, params) {
     try { const r = SEC[s.k](body); if (r && r.then) r.catch(e => body.appendChild(h('p.bad-t', e.message))); } catch (e) { body.appendChild(h('p.bad-t', e.message)); }
   };
   draw();
-  return { params: p => { sec = (p && p[0]) || 'perfil'; draw(); }, update: () => { } };
+  return { params: p => { const s = (p && p[0]) || 'perfil'; if (s === sec) return; /* v16.2: la misma sección no se rehace */ sec = s; draw(); }, update: () => { } };
 }
 
 // v10.8: resumen de la mañana (Telegram y avisos)

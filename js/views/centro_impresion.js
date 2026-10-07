@@ -63,6 +63,14 @@ export async function render(b, L, reload) {
   const real = L.realPrinters(list);
   const dups = list.filter(p => p.duplicadaDe);
   const role = p => p.name === c.vinculo.etiquetas ? 'etiquetas' : p.name === c.vinculo.folios ? 'folios' : '';
+  // v16.2 · Una sola impresora para todo, y las retiradas fuera
+  const fuera = L.retiradas();
+  b.append(card('⭐ La impresora del taller',
+    c.unica ? h('div.imp-unica.on', h('b', '✔ Todo sale por «' + c.unica + '»'), h('span', 'Etiquetas de envío, de soporte, QR y tarjetas. Desde el móvil, la tablet y el portátil también: lo mandan a este PC y sale por ella. Si está apagada se avisa; nunca se imprime por otra.'),
+      h('div.row', btn('Dejar de usar solo una', () => { delete c.unica; save('Ya se pueden usar varias impresoras'); }, { cls: 'sm ghost' })))
+      : h('div.imp-unica', h('b', 'Ahora el programa puede usar varias impresoras'), h('span', 'Pulsa «⭐ Usar SOLO esta» en la tuya (la Svantto) y todo saldrá por ella.')),
+    fuera.length ? h('div.imp-fuera', h('b', '🚫 Retiradas: el programa no imprime nunca por ellas'), fuera.map(p => h('div.row', h('span.grow', p.name), btn('Volver a usarla', () => { c.noUsar = (c.noUsar || []).filter(x => x.toLowerCase() !== p.name.toLowerCase() && x.toLowerCase() !== String(p.duplicadaDe || '').toLowerCase()); save('«' + p.name + '» vuelve a estar disponible'); }, { cls: 'sm ghost' })))) : null,
+    h('p.tiny.muted', 'El día que compres otra impresora: conéctala a Windows, vuelve aquí y aparecerá en la lista de abajo.')));
   b.append(card('🖨️ Impresoras de este ordenador',
     real.length ? h('div.list.boxed', real.map(p => {
       const r = role(p);
@@ -74,6 +82,8 @@ export async function render(b, L, reload) {
           h('div.tiny.muted', 'Papel: ' + ((p.papers || []).slice(0, 5).map(x => x.name).join(', ') || '—')),
           dups.filter(d => d.duplicadaDe === p.name).length ? h('div.tiny.muted', 'También aparece en Windows como «' + dups.filter(d => d.duplicadaDe === p.name).map(d => d.name).join('», «') + '» (es la misma impresora: se usa solo esta).') : null),
         h('div.row.wrap',
+          c.unica !== p.name ? btn('⭐ Usar SOLO esta', () => { L.usarSolo(c, p.name); save('Todo saldrá por «' + p.name + '»'); }, { cls: 'sm primary' }) : pill('⭐ La única que se usa', 'ok'),
+          c.unica !== p.name ? btn('🚫 No usar nunca', async () => { L.retirar(c, p.name); save('«' + p.name + '» retirada: el programa ya no imprime por ella'); }, { cls: 'sm ghost danger', title: 'Desaparece de todo el programa (no se desinstala de Windows)' }) : null,
           r !== 'etiquetas' ? btn('Es mi impresora de etiquetas', () => { c.vinculo.etiquetas = p.name; save('«' + p.name + '» será la de etiquetas'); }, { cls: 'sm ghost' }) : null,
           r !== 'folios' ? btn('Es mi impresora de folios', () => { c.vinculo.folios = p.name; save('«' + p.name + '» será la de folios'); }, { cls: 'sm ghost' }) : null,
           btn('Hoja de prueba', async () => { await L.saveLabelCfg(c); L.printLabels('qr', [{ qr: 'CelebriDisenos-calibracion', titulo: 'Debe medir 40 × 40 mm' }], { printer: p.name }); }, { cls: 'sm', icon: 'printer' }),
