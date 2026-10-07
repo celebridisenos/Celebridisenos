@@ -6,7 +6,8 @@
 // · Cada impresión queda registrada: Pendiente / Enviando / Impreso / Error. Lo ya impreso solo se repite con «Reimprimir».
 // · Mensajes al cliente para copiar y pegar (Vinted, Wallapop, WhatsApp…): lo que falta se avisa, no se rellena.
 import { h, mount, btn, modal, toast, field, inp, area, sel, pill, fdt, copyText, confirmDlg } from './ui.js';
-import { S, api, can, byId, upsertLocal, emit } from './store.js';
+import { S, api, can, byId, upsertLocal, emit, pull } from './store.js';
+import * as PLT from './plantillas.js'; // v16.2: saber si hay un diseño propio puesto
 import { appUrl, emisor } from './print.js';
 
 const CL = window.CL;
@@ -297,14 +298,15 @@ export function elegirDestino(what) {
 }
 async function encargar(o, tipo, opts) {
   let r;
+  if (!opts.silencio && !opts.auto) toast('🖨️ Mandando al PC del taller…', 'ok', 2500); // v16.3.2: respuesta al instante
   try { r = await api('impresiones.encargar', { pedidoId: o.id, tipo, formato: tipo === 'paquete' ? fmtPaquete() : PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', dispositivo: S.device || '' }); }
   catch (e) {
-    if (e.code === 'YA_IMPRESO' && !opts.auto) return reprintDialog(o, tipo, e.message);
+    if (e.code === 'YA_IMPRESO' && !opts.auto) return otraCopia(o, tipo, opts); // v16.2: sale igual, con un aviso corto (sin ventana)
     if (e.code === 'YA_IMPRESO' || e.code === 'EN_CURSO') { if (!opts.auto) toast(e.message, 'warn', 7000); return { estado: 'omitido', motivo: e.message }; }
     throw e;
   }
   upsertLocal('impresiones', r.impresion); emit();
-  if (!opts.silencio) toast('🖨️ ' + PRINT_TIPOS[tipo].t + (r.yaEncargado ? ': ya estaba encargada al PC del taller.' : ': enviada al PC del taller. Sale en cuanto el programa del PC la coja.'), 'ok', 7000);
+  if (!opts.silencio) toast('🖨️ ' + PRINT_TIPOS[tipo].t + (r.yaEncargado ? ': ya estaba encargada al PC del taller.' : ': en el PC del taller. Sale en unos segundos.'), 'ok', 7000);
   return { estado: 'Encargado', impresion: r.impresion };
 }
 // Lo encargado al PC del taller que aún no ha salido (para el bloque de impresión y para «Hoy»)
@@ -346,7 +348,7 @@ export async function printOne(o, tipo, opts = {}) {
   try {
     row = (await api('impresiones.iniciar', { pedidoId: o.id, tipo, formato: tipo === 'paquete' ? fmtPaquete() : PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', impresora: t.pr ? t.pr.name : 'PDF', dispositivo: S.device || '' })).impresion;
   } catch (e) {
-    if (e.code === 'YA_IMPRESO' && !opts.auto) return reprintDialog(o, tipo, e.message);
+    if (e.code === 'YA_IMPRESO' && !opts.auto) return otraCopia(o, tipo, opts); // v16.2: sale igual, con un aviso corto (sin ventana)
     if (e.code === 'YA_IMPRESO' || e.code === 'EN_CURSO') { if (!opts.auto) toast(e.message, 'warn', 7000); return { estado: 'omitido', motivo: e.message }; }
     throw e;
   }
@@ -408,8 +410,18 @@ function askPrinted(what) {
       close => [btn('No / todavía no', () => { fin(false); close(); }, { cls: 'ghost' }), btn('Sí, impreso', () => { fin(true); close(); }, { cls: 'primary' })], { size: 'narrow', onclose: () => fin(false) });
   });
 }
+// v16.2 · Ya estaba impresa (al escanear el QR o al pulsar Imprimir otra vez): NO se pregunta nada. Sale otra copia, con un aviso
+// pequeño que se quita solo, y queda apuntada como reimpresión.
+function otraCopia(o, tipo, opts) {
+  if (opts && opts.reimprimir) return Promise.resolve({ estado: 'Error', error: 'No se pudo sacar otra copia.' }); // (por si el servidor insiste: nunca en bucle)
+  toast('⚠️ Esta etiqueta ya se imprimió: deberías tener una copia. Sale otra igualmente.', 'warn', 5000);
+  return printOne(o, tipo, Object.assign({}, opts, { reimprimir: true, motivo: 'Otra copia (ya estaba impresa)' }));
+}
 // Reimprimir: lo pide la persona, con motivo; queda como copia 2, 3…
 export function reprintDialog(o, tipo, aviso) {
+  // v16.2: la ventana «Reimprimir · Etiqueta de envío oficial» sobraba: otra copia de la etiqueta oficial sale directa
+  // (sigue quedando apuntada como reimpresión, con fecha y quién).
+  if (tipo === 'oficial') return printOne(o, tipo, { reimprimir: true, motivo: 'Otra copia' });
   return new Promise(res => {
     const motivo = sel(['Salió mal / manchada', 'Se ha perdido o roto', 'Hace falta otra copia', 'Otro'].map(x => ({ v: x, t: x })), 'Salió mal / manchada'), otro = inp({ placeholder: 'Escribe el motivo' });
     let done = false; const fin = v => { if (!done) { done = true; res(v); } };
@@ -475,6 +487,8 @@ export async function previewDialog(o, tipo) {
   const faltan = tipo === 'gracias' ? b.data.faltan : [];
   modal(PRINT_TIPOS[tipo].t + ' · ' + s.w + ' × ' + s.h + ' mm', h('div.col', h('div.lbl-prev', cv), faltan.length ? h('p.small.warn-t', 'Falta: ' + faltan.join(', ')) : null,
     tipo === 'gracias' ? h('p.tiny.muted', 'El texto se cambia en Embalaje → Tarjeta y mensajes.') : null), close => [btn('Cerrar', close),
+    // v16.2: si hay un diseño propio puesto, se puede volver al de siempre con un toque (el propio no se borra)
+    ['envio', 'paquete150', 'paquete'].includes(b.tpl) && PLT.activa(b.tpl) && can('config.editar') ? btn('↺ Diseño original', async () => { try { const r = await api('plantillas.predeterminada', { tpl: b.tpl, id: '' }); if (r && r.config) { S.cfg = r.config; emit(); } else await pull(true); toast('Vuelve a salir con el diseño original. Tu diseño sigue guardado en el editor.', 'ok', 6000); close(); previewDialog(o, tipo); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'ghost', title: 'Usar el diseño de siempre' }) : null,
     ['envio', 'paquete150', 'paquete'].includes(b.tpl) ? btn('Editar diseño', async () => { close(); const ED = await import('./views/editor_etiqueta.js'); await ED.abrirEditor(b.tpl, { datos: b.data }); previewDialog(o, tipo); }, { icon: 'edit', cls: 'ghost' }) : null,
     btn('Ver PDF', () => { const pages = [{ canvas: L.draw(b.tpl, b.data, 300, s), wmm: s.w, hmm: s.h }]; import('./pdfview.js').then(PV => PV.showPdf({ blob: L.pdfFromCanvases(pages), pages, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero, fileName: tipo + '_pedido_' + o.numero })); }, { icon: 'file' })], { size: 'narrow' });
 }

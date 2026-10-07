@@ -81,7 +81,12 @@ export function render(el, params) {
   }
   // v11.5: la impresión, en un solo sitio (3D + etiquetas/papel). «Hoy» sigue siendo el acceso rápido del día.
   function drawPaper() { mount(body, h('p.small.muted', 'Impresoras de etiquetas y de folios de este ordenador: estado, tamaños y calibración.')); import('./config.js').then(C => C.printCenter(body, () => { if (st.tab === 'papel') drawPaper(); })); }
-  function draw() { drawTabs(); ({ impresoras: drawPrinters, papel: drawPaper, filamento: drawSpools, compras: drawShop, historial: drawHistory })[st.tab](); }
+  // v16.3.2: la pantalla solo se vuelve a pintar si de verdad ha cambiado algo de lo que enseña (antes se rehacía entera en CADA
+  // sincronización y no dejaba trabajar). La pestaña de etiquetas y papel es de este ordenador: no depende de la sincronización.
+  const firma = () => ['impresoras', 'trabajos', 'bobinas', 'compras'].map(t => (S.t[t] || []).map(r => r.id + ':' + (r.version || '') + (r.actualizado || '') + (r.estado || '') + (r.restante ?? '')).join(',')).join('|') + '|' + (S.t.pedidos || []).map(o => o.id + (o.estado || '') + (o.version || '')).join(',');
+  let ultFirma = '';
+  function draw() { ultFirma = firma(); drawTabs(); ({ impresoras: drawPrinters, papel: drawPaper, filamento: drawSpools, compras: drawShop, historial: drawHistory })[st.tab](); }
+  const alSincronizar = () => { if (st.tab === 'papel') return; if (firma() === ultFirma) return; draw(); };
 
   // ---------- Impresoras ----------
   function drawPrinters() {
@@ -204,8 +209,9 @@ export function render(el, params) {
   }
 
   draw();
-  const timer = setInterval(() => { if (st.tab === 'impresoras' && document.visibilityState === 'visible') drawPrinters(); }, 60000);
-  return { update: draw, params: p => { if (p && p[0] && p[0] !== st.tab) { st.tab = p[0]; draw(); } }, destroy: () => clearInterval(timer) };
+  // cada minuto solo se refresca si hay algo imprimiéndose (el tiempo que queda) y no estás tocando nada
+  const timer = setInterval(() => { if (st.tab === 'impresoras' && document.visibilityState === 'visible' && (S.t.trabajos || []).some(j => /imprim/i.test(j.estado || '')) && !body.contains(document.activeElement) && !document.querySelector('.modal, .drawer')) drawPrinters(); }, 60000);
+  return { update: alSincronizar, params: p => { if (p && p[0] && p[0] !== st.tab) { st.tab = p[0]; draw(); } }, destroy: () => clearInterval(timer) };
 }
 
 // ================= Formularios =================
@@ -342,7 +348,7 @@ export function finishDialog(j, estado) {
     h('div.form', field(ok ? 'Gramos usados' : 'Gramos gastados en el intento', grams, ok ? 'Los del laminador; corrígelo si hiciste cambios.' : 'Aproximado: lo que llegó a imprimir.'), field('De qué bobina', bob)),
     rateSeg, badBox,
     stockRow,
-    ok && o && !others.length && PRE_FAB[phase(o)] ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "' + (CL.stateOfPhase(S.cfg.pedidos, 'postpro') || 'Acabado') + '"') : null,
+    ok && o && !others.length && PRE_FAB[phase(o)] ? h('label.check.small', mark, 'Pasar el pedido nº ' + o.numero + ' a "' + (CL.stateOfPhase(S.cfg.pedidos, 'postpro') || 'En mesa') + '"') : null,
     ok && o && others.length ? h('p.tiny.muted', 'Al pedido nº ' + o.numero + ' aún le quedan ' + others.length + ' impresión(es).') : null,
     !ok ? h('label.check.small', again, 'Volver a ponerla la primera de la cola') : null),
     close => [btn('Cancelar', close), btn(ok ? 'Guardar' : 'Guardar fallo', async () => {

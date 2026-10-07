@@ -114,3 +114,48 @@ export function selector(opts = {}) {
   pinta();
   return { el, value: () => texto(st), setProducto(p) { prod = p; pinta(); }, total };
 }
+
+// ================= v16.2 · COLORES DEL PRODUCTO: se eligen tocando círculos, no escribiendo =================
+// Primero salen los colores de TUS bobinas (las que no están agotadas), con su color de verdad; debajo, los demás.
+// Se guarda como siempre, en el campo «Color» del producto: «Blanco, Negro, Rosa» (así lo entienden pedidos y tienda).
+const partir = t => String(t || '').split(/\s*[,/;]\s*/).map(x => x.trim()).filter(Boolean);
+const unico = l => { const v = new Set(); return l.filter(x => { const k = norm(x); if (!k || v.has(k)) return false; v.add(k); return true; }); };
+export function coloresDeBobinas(bobinas) {
+  const m = new Map();
+  (bobinas || []).forEach(b => { const c = String(b.color || '').trim(), k = norm(c); if (!c || b.estado === 'Agotada' || m.has(k)) return; m.set(k, { c, hex: /^#[0-9a-f]{6}$/i.test(String(b.colorHex || '').trim()) ? String(b.colorHex).trim() : hexDe(c) }); });
+  return [...m.values()].sort((a, b) => a.c.localeCompare(b.c, 'es'));
+}
+// «Blanco, Negro y Rosa»
+export const fraseColores = l => l.length < 2 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1];
+const LINEA_COL = /\n*^[^\S\n]*(?:🎨\s*)?Colores disponibles:.*$/im;
+// Pone (o cambia, o quita) la línea «Colores disponibles: …» al final de la descripción, sin tocar el resto del texto
+export function descripcionConColores(descripcion, colores) {
+  const base = String(descripcion || '').replace(LINEA_COL, '').replace(/\s+$/, ''), l = unico(partir(Array.isArray(colores) ? colores.join(',') : colores));
+  return l.length ? (base ? base + '\n\n' : '') + 'Colores disponibles: ' + fraseColores(l) + '.' : base;
+}
+// opts: { campo (el <input> de Color), bobinas, onChange(lista) } → elemento con los círculos
+export function paletaProducto(opts) {
+  const campo = opts.campo, el = h('div.pcol'); let verTodos = false, otroAbierto = false;
+  const lista = () => unico(partir(campo.value));
+  const pon = l => { campo.value = unico(l).join(', '); pinta(); if (opts.onChange) opts.onChange(lista()); };
+  const alterna = c => { const l = lista(), i = l.findIndex(x => norm(x) === norm(c)); if (i >= 0) l.splice(i, 1); else l.push(c); pon(l); };
+  const circulo = (c, hex) => { const on = lista().some(x => norm(x) === norm(c)); const b = h('button.pcol-c' + (on ? '.on' : ''), { type: 'button', 'data-color': c, title: c, 'aria-pressed': on ? 'true' : 'false', onclick: () => alterna(c) }, h('i' + (hex ? '' : '.sin')), h('span', c)); if (hex) b.firstChild.style.background = fondo(hex); return b; };
+  function pinta() {
+    const bob = coloresDeBobinas(opts.bobinas), enBob = c => bob.some(b => norm(b.c) === norm(c)), sel = lista();
+    const resto = COLORES.filter(c => !enBob(c[0])), propios = sel.filter(c => !enBob(c) && !COLORES.some(x => norm(x[0]) === norm(c)));
+    const otro = inp({ placeholder: 'Otro color (p. ej. verde agua)', 'aria-label': 'Otro color', style: { maxWidth: '220px' } });
+    const mete = () => { const v = otro.value.trim(); otroAbierto = false; if (v) pon(lista().concat(partir(v))); else pinta(); };
+    otro.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); mete(); } });
+    const muchos = resto.length > 12 && bob.length > 0 && !verTodos;
+    el.replaceChildren(
+      h('div.pcol-cab', h('b', sel.length ? sel.length + (sel.length === 1 ? ' color elegido' : ' colores elegidos') : 'Toca los colores en los que lo haces'),
+        bob.length ? btn('Todos los de mis bobinas', () => pon(lista().concat(bob.map(b => b.c))), { cls: 'sm pcol-todos' }) : null, sel.length ? btn('Quitar todos', () => pon([]), { cls: 'sm ghost pcol-nada' }) : null),
+      bob.length ? h('div.pcol-g', h('div.tiny.muted', '🧵 De tus bobinas'), h('div.pcol-l', bob.map(b => circulo(b.c, b.hex)))) : null,
+      h('div.pcol-g', h('div.tiny.muted', bob.length ? 'Más colores' : 'Colores'), h('div.pcol-l', (muchos ? resto.slice(0, 12) : resto).map(c => circulo(c[0], c[1])), propios.map(c => circulo(c, hexDe(c))),
+        muchos ? h('button.pcol-mas', { type: 'button', onclick: () => { verTodos = true; pinta(); } }, '＋ ' + (resto.length - 12) + ' más') : null,
+        otroAbierto ? h('span.row', { style: { gap: '4px' } }, otro, btn('Añadir', mete, { cls: 'sm' })) : h('button.pcol-mas', { type: 'button', onclick: () => { otroAbierto = true; pinta(); setTimeout(() => { const i = el.querySelector('input[aria-label="Otro color"]'); if (i) i.focus(); }, 0); } }, '＋ Otro'))));
+  }
+  campo.addEventListener('input', () => { pinta(); if (opts.onChange) opts.onChange(lista()); });
+  pinta();
+  return el;
+}

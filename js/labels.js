@@ -118,8 +118,33 @@ export async function printers(force) {
       list.push(Object.assign(base, { name: btPrinterName(bt), webbt: true, raw: { lang: bt.lang }, offline: false, problema: '' }));
     }
   }
-  printersCache = list;
+  // v16.2 · UNA SOLA IMPRESORA (Svantto) y la Epson FUERA. Lo que está en «no usar nunca» desaparece de TODO el programa:
+  // no se propone, no se elige sola y no se le puede mandar nada por error (ni desde el móvil, que imprime por este PC).
+  if (desktop.on && list.length && !c._v162) await prepararUnica(list, c);
+  const veto = new Set((c.noUsar || []).map(nrm));
+  retiradasCache = list.filter(p => veto.has(nrm(p.name)) || veto.has(nrm(p.duplicadaDe || '')));
+  printersCache = list.filter(p => !retiradasCache.includes(p));
   return printersCache;
+}
+let retiradasCache = [];
+const nrm = s => String(s || '').trim().toLowerCase();
+export const retiradas = () => retiradasCache.slice();
+// Quita de la configuración cualquier resto de una impresora retirada (vínculos y elecciones por etiqueta)
+export function olvidar(c, nombre) {
+  const k = nrm(nombre);
+  if (c.vinculo) Object.keys(c.vinculo).forEach(x => { if (nrm(c.vinculo[x]) === k) delete c.vinculo[x]; });
+  if (c.impresora) Object.keys(c.impresora).forEach(x => { if (nrm(c.impresora[x]) === k) delete c.impresora[x]; });
+  if (nrm(c.unica) === k) delete c.unica;
+}
+export function retirar(c, nombre) { c.noUsar = [...new Set((c.noUsar || []).concat([nombre]))]; olvidar(c, nombre); }
+export function usarSolo(c, nombre) { c.unica = nombre; c.vinculo = Object.assign({}, c.vinculo, { etiquetas: nombre }); delete c.vinculo.folios; c.impresora = {}; c.noUsar = (c.noUsar || []).filter(x => nrm(x) !== nrm(nombre)); }
+// La primera vez (en cada PC): si hay UNA Svantto, pasa a ser la única; y toda Epson queda retirada. Se puede cambiar en Impresión.
+async function prepararUnica(list, c) {
+  const sv = realPrinters(list).filter(p => /svantto/i.test(p.name)), ep = list.filter(p => /epson/i.test(p.name));
+  ep.forEach(p => retirar(c, p.name));
+  if (sv.length === 1) usarSolo(c, sv[0].name);
+  c._v162 = true;
+  try { await saveLabelCfg(c); } catch (e) { }
 }
 export const btPrinterName = bt => 'Bluetooth · ' + ((bt && bt.nombre) || (bt && bt.port) || 'impresora') + ' (directa)';
 // v11.2: impresoras reales (sin colas duplicadas del mismo aparato ni impresoras virtuales tipo PDF)
@@ -128,6 +153,9 @@ export function sizeOf(tpl, c) { const t = TEMPLATES[tpl]; const s = (c && c.tam
 // Elige la impresora: la guardada para esa plantilla; si no, la que la persona vinculó («Esta es mi impresora
 // de etiquetas / de folios»); si no, una de etiquetas 10×15 para envíos y la de folios para el resto.
 export function pickPrinter(tpl, list, c) {
+  // v16.2: lo retirado no existe; y si hay «impresora única», TODO va a ella (si no está, se avisa: nunca a otra)
+  if (c && c.noUsar && c.noUsar.length) { const veto = new Set(c.noUsar.map(nrm)); list = list.filter(p => !veto.has(nrm(p.name)) && !veto.has(nrm(p.duplicadaDe || ''))); }
+  if (c && c.unica) return list.find(p => p.name === c.unica) || { name: c.unica, offline: true, falta: true, label: true, problema: 'No encuentro la impresora «' + c.unica + '», que es la única que usa el programa. Enciéndela o conéctala. No se ha impreso en ninguna otra.' };
   const saved = c && c.impresora && c.impresora[tpl];
   if (saved && list.some(p => p.name === saved)) return list.find(p => p.name === saved);
   // v16: la impresora elegida para esta etiqueta ya no aparece (apagada, desenchufada, sin emparejar): NO se manda a otra.
@@ -451,7 +479,8 @@ export async function printLabels(tpl, datas, opts = {}) {
 // v11.6: impresora que se usará para una plantilla (con su resolución y si es de folios)
 export async function targetFor(tpl, printerName) {
   const c = await labelCfg(), list = await printers(), s = sizeOf(tpl, c);
-  const pr = printerName ? list.find(p => p.name === printerName) : pickPrinter(tpl, list, c);
+  // v16.2: con impresora única no vale pedir otra por su nombre (un botón antiguo, una elección guardada): manda la única
+  const pr = printerName && !(c.unica && printerName !== c.unica) ? list.find(p => p.name === printerName) : pickPrinter(tpl, list, c);
   const usable = pr && (desktop.on || pr.webbt) ? pr : null;
   if (pr && pr.falta && !usable) return { c, pr: null, dpi: dpiOf(null), size: s, sheet: false, list };
   return { c, pr: usable, dpi: dpiOf(usable), size: s, sheet: isSheet(pr, s), list };

@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '16.0.0';
+export const APP_VERSION = '16.3.2';
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
 export const S = {
@@ -47,7 +47,9 @@ export const kv = {
 // v10.5: cada espacio de trabajo guarda su copia local aparte
 const tk = (k, ws) => ((ws || S.ws) === 'principal' ? k : (ws || S.ws) + '~' + k);
 async function loadTables(ws) {
-  for (const k of TABLES) { const x = await idb('tables', 'readonly', s => s.get(tk(k, ws))).catch(() => null); S.t[k] = x ? x.rows || [] : []; if (x) S.meta[k] = { rev: x.rev, hash: x.hash }; else delete S.meta[k]; }
+  // v16.1: todas a la vez (antes una detrás de otra: se notaba al abrir el programa)
+  const todas = await Promise.all(TABLES.map(k => idb('tables', 'readonly', s => s.get(tk(k, ws))).catch(() => null)));
+  TABLES.forEach((k, i) => { const x = todas[i]; S.t[k] = x ? x.rows || [] : []; if (x) S.meta[k] = { rev: x.rev, hash: x.hash }; else delete S.meta[k]; });
 }
 // Cambiar de espacio: la pantalla cambia al instante con su copia local y luego se sincroniza
 export async function switchWs(ws) {
@@ -68,10 +70,14 @@ export async function api(a, d, opts = {}) {
   if (!opts.quiet) { S.busy++; status(); }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeout || 60000);
+  // v16.1 · VELOCIDAD: se le dice al servidor qué versión de cada tabla hay aquí; si esta acción cambia algo, las filas
+  // cambiadas vuelven en ESTA MISMA respuesta (antes había que preguntar otra vez: el doble de espera).
+  const ws0 = opts.ws || S.ws, k = !opts.quiet && S.ready && S.token && opts.token === undefined && !S.queue.length && a !== 'sync.pull' && a !== 'sync.lote' ? conocidas() : undefined;
+  const t0 = performance.now(), miSeq = ++seq;
   try {
     let r;
     try {
-      r = await fetch(S.server, { method: 'POST', body: JSON.stringify({ a, d: d || {}, t: opts.token === undefined ? S.token : opts.token, op: opts.op, dev: S.device, v: APP_VERSION, ws: opts.ws || S.ws }), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow', signal: ctrl.signal });
+      r = await fetch(S.server, { method: 'POST', body: JSON.stringify({ a, d: d || {}, t: opts.token === undefined ? S.token : opts.token, op: opts.op, dev: S.device, v: APP_VERSION, ws: ws0, k }), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow', signal: ctrl.signal });
     } catch (e) {
       setOnline(false);
       throw new ApiError('NET', ctrl.signal.aborted ? 'El servidor tarda demasiado en responder.' : 'Sin conexión con el servidor.');
@@ -84,9 +90,50 @@ export async function api(a, d, opts = {}) {
       if (j.err.code === 'AUTH' && a !== 'auth.login' && a !== 'auth.desbloquear') onAuthLost(j.err.msg);
       throw new ApiError(j.err.code, j.err.msg, j.err.extra);
     }
+    medida(a, performance.now() - t0, j.ms);
+    if (j.sync) { try { aplicarSync(j.sync, ws0, opts.antes, miSeq); } catch (e) { console.error(e); frescoHasta = 0; pullSoon(300); } }
     return j.data;
   } finally { clearTimeout(timer); if (!opts.quiet) { S.busy--; status(); } }
 }
+// ---------- v16.1 · Cambios que llegan en la misma respuesta ----------
+let frescoHasta = 0, frescoSeq = -1, seq = 0;
+// ¿La última respuesta ya trajo TODO lo que cambió y no se ha pedido nada más desde entonces? Entonces no hace falta
+// preguntar otra vez. (Una sincronización pedida a propósito con pull() SIEMPRE pregunta al servidor.)
+export const alDia = () => frescoSeq === seq && Date.now() < frescoHasta;
+export function pullSiHaceFalta() { return alDia() ? Promise.resolve() : pull(); }
+function conocidas() { const k = {}; TABLES.forEach(n => { if (S.meta[n] && S.meta[n].rev) k[n] = S.meta[n].rev; }); return k; }
+// antes(tabla) → las filas de esa tabla tal como estaban ANTES del cambio «al instante» de la pantalla (o null):
+// la verdad es «lo de antes + lo que dice el servidor», no lo que la pantalla supuso.
+function aplicarSync(sy, ws0, antes, miSeq) {
+  if (S.ws !== ws0 || S.queue.length) return;
+  let cambio = false, pendiente = !!sy.pendiente, hechas = 0;
+  for (const n of Object.keys(sy.tablas || {})) {
+    const x = sy.tablas[n], m = S.meta[n];
+    if (!TABLES.includes(n) || !m || m.rev !== x.de) { pendiente = true; continue; } // aquí ya no está como el servidor creía: sincronización normal
+    const key = x.clave || 'id', fuera = new Set(x.fuera || []);
+    const rows = ((antes && antes(n)) || S.t[n]).filter(r => !fuera.has(r[key]));
+    for (const d of (x.filas || []).slice().sort((p, q) => p.i - q.i)) {
+      const i = rows.findIndex(r => r[key] === d.f[key]);
+      if (i >= 0) rows[i] = d.f; else rows.splice(Math.min(d.i, rows.length), 0, d.f);
+    }
+    if (rows.length !== x.total) { S.meta[n] = { rev: '', hash: '' }; pendiente = true; continue; } // no cuadra: que venga la tabla entera
+    S.t[n] = rows; S.meta[n] = { rev: x.rev, hash: x.hash }; cambio = true; hechas++;
+    idb('tables', 'readwrite', s => s.put({ rows, rev: x.rev, hash: x.hash }, tk(n, ws0))).catch(() => { });
+  }
+  (sy.caducas || []).forEach(n => { if (S.meta[n]) S.meta[n] = { rev: '', hash: S.meta[n].hash }; });
+  if (pendiente) { frescoHasta = 0; pullSoon(350); }
+  else if (hechas && miSeq === seq) { frescoHasta = Date.now() + 800; frescoSeq = miSeq; S.lastSync = new Date().toISOString(); }
+  else frescoHasta = 0;
+  if (cambio) emit();
+}
+// Cuánto tarda cada acción (solo en este aparato): se ve en Estado del sistema → Velocidad
+export const VEL = { n: 0, total: 0, servidor: 0, ultimas: [] };
+function medida(a, ms, srv) {
+  if (a === 'sys.ping' || a === 'sys.pulso') return;
+  VEL.n++; VEL.total += ms; VEL.servidor += Number(srv) || 0;
+  VEL.ultimas.push({ a, ms: Math.round(ms), srv: Math.round(Number(srv) || 0), t: Date.now() }); if (VEL.ultimas.length > 60) VEL.ultimas.shift();
+}
+
 // ---------- v10: conexión con reconexión automática ----------
 // Si se pierde la conexión: se intenta de nuevo a los 1, 2, 4, 8, 16 y 30 s (y luego cada 30 s),
 // sin cerrar sesión ni perder lo que hay en pantalla. Al volver: se envía lo pendiente y se sincroniza.
@@ -301,10 +348,25 @@ export function syncRevs(revs) {
 
 // ---------- Cambios (con cola sin conexión) ----------
 // optimistic(t) modifica S.t localmente para que la pantalla responda al instante.
+const enVuelo = {}; // cuántos cambios «al instante» hay sin confirmar en cada tabla
 export async function mutate(a, d, opts = {}) {
   const op = uid('op');
-  const snapshot = opts.optimistic ? JSON.stringify(Object.fromEntries((opts.tables || Object.keys(S.t)).map(k => [k, S.t[k]]))) : null;
-  if (opts.optimistic) { try { opts.optimistic(S.t); emit(); } catch (e) { console.error(e); } }
+  // v16.1 · VELOCIDAD: se guarda copia SOLO de las tablas que el cambio toca (antes se copiaban todas en cada pulsación,
+  // miniaturas de fotos incluidas: en el móvil eran décimas de segundo de pantalla parada).
+  const snapshot = opts.optimistic ? {} : null;
+  if (opts.optimistic) {
+    const guarda = k => { if (typeof k === 'string' && !(k in snapshot) && Array.isArray(S.t[k])) snapshot[k] = JSON.stringify(S.t[k]); };
+    const vista = new Proxy(S.t, { get(t, k) { guarda(k); return t[k]; }, set(t, k, v) { guarda(k); t[k] = v; return true; } });
+    try { opts.optimistic(vista); emit(); } catch (e) { console.error(e); }
+  }
+  // Si este es el ÚNICO cambio sin confirmar de la tabla, la verdad es «lo de antes + lo que diga el servidor».
+  // Si hay más de uno en marcha (dos pedidos cambiados seguidos), se aplica encima de lo que hay: así el segundo no «salta atrás».
+  const tocadas = snapshot ? Object.keys(snapshot) : [];
+  tocadas.forEach(k => { enVuelo[k] = (enVuelo[k] || 0) + 1; });
+  const antes = snapshot ? n => (n in snapshot && enVuelo[n] === 1 ? JSON.parse(snapshot[n]) : null) : undefined;
+  try { return await enviar(a, d, opts, op, snapshot, antes); } finally { tocadas.forEach(k => { enVuelo[k]--; }); }
+}
+async function enviar(a, d, opts, op, snapshot, antes) {
   if (S.queue.length || !S.online) {
     if (opts.onlineOnly) { restore(snapshot); throw new ApiError('NET', 'Esta acción necesita conexión a Internet.'); }
     await enqueue({ op, a, d, label: opts.label || a, t: Date.now(), ws: S.ws });
@@ -312,8 +374,8 @@ export async function mutate(a, d, opts = {}) {
     return { queued: true };
   }
   try {
-    const res = await api(a, d, { op });
-    pullSoon();
+    const res = await api(a, d, { op, antes });
+    if (!alDia()) pullSoon(); // si la respuesta ya trajo los cambios, no hace falta preguntar otra vez
     return res;
   } catch (e) {
     if (e.code === 'NET' && !opts.onlineOnly) { await enqueue({ op, a, d, label: opts.label || a, t: Date.now(), ws: S.ws }); return { queued: true }; }
@@ -324,8 +386,8 @@ export async function mutate(a, d, opts = {}) {
 }
 function restore(snapshot) {
   if (!snapshot) return;
-  const o = JSON.parse(snapshot);
-  Object.keys(o).forEach(k => { S.t[k] = o[k]; });
+  // (la versión de esas tablas se olvida: la siguiente sincronización las trae enteras y no queda nada a medias)
+  Object.keys(snapshot).forEach(k => { S.t[k] = JSON.parse(snapshot[k]); if (S.meta[k]) S.meta[k] = { rev: '', hash: '' }; });
   emit();
 }
 async function enqueue(x) { S.queue.push(x); await kv.set('queue', S.queue); emit(); }

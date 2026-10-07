@@ -78,7 +78,7 @@ export function render(el, params) {
           mover ? btn('Compré…', () => a.tipo === 'filamento' ? compraRapida({ filamento: a.id }) : compraRapida({ id: a.id }), { cls: 'sm' }) : null)))
           : h('p.small.muted', 'Ningún material está por debajo de su aviso. Los límites se cambian en cada material.')),
       revCard,
-      h('p.tiny.muted', 'El stock baja solo: el filamento al imprimir (con la cola o al pasar el pedido a «Acabado»), la caja/sobre/bolsa, la cinta y los papeles al cerrar el paquete, y el alcohol con cada lavado.'));
+      h('p.tiny.muted', 'El stock baja solo: el filamento al imprimir (con la cola o al pasar el pedido a «En mesa»), la caja/sobre/bolsa, la cinta y los papeles al cerrar el paquete, y el alcohol con cada lavado.'));
     revision(true).then(r => { if (!revCard.isConnected || !r.lista.length) return; const T = { incoherencia: 'No cuadra', falta: 'Falta', estimado: 'Estimado' };
       mount(revCard, h('details.more', h('summary', '🧠 Revisión (opcional): ' + r.lista.length + (r.lista.length === 1 ? ' dato' : ' datos') + ' que podrías afinar cuando quieras'), h('div.in', h('p.tiny.muted', 'Nada de esto impide trabajar. Son datos que faltan o que son una estimación.'),
         r.lista.map(x => h('div.rev-i.' + x.nivel, { onclick: () => go(x.enlace.indexOf('pedido:') === 0 ? 'pedidos/' + x.enlace.slice(7) : (x.enlace || 'inventario')) }, h('span', REV_ICO[x.nivel]), h('b.rev-t', T[x.nivel]), h('span.grow.small', x.texto)))))); revCard.style.display = ''; });

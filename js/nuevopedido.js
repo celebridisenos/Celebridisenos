@@ -45,8 +45,11 @@ export function mostrar(lista) {
   const uno = lista.length === 1 ? lista[0] : null;
   const cant = o => (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + (o.producto || 'producto');
   const quien = o => { const n = String(o.cliente || '').trim().split(/\s+/)[0]; return n ? ' · ' + n : ''; };
-  const t = uno ? '🛒 ¡Pedido nuevo!' : '🛒 ¡' + lista.length + ' pedidos nuevos!';
-  const s = uno ? 'nº ' + uno.numero + ' · ' + cant(uno) + (tv ? '' : quien(uno)) : lista.slice(0, 3).map(o => 'nº ' + o.numero).join(' · ') + (lista.length > 3 ? ' …' : '');
+  // v16.2: una venta de la tienda web se anuncia como lo que es; y si era la última unidad, se dice
+  const esWeb = o => !!o.refWeb || /web|tienda/i.test(String(o.canal || ''));
+  const agot = o => { const p = (S.t.productos || []).find(x => x.id === o.productoId); const w = p && p.web; return !!(w && w.publicado && w.stockModo === 'contado' && !(Number(w.stock) > 0)); };
+  const t = uno ? (esWeb(uno) ? '🎉 ¡PRODUCTO VENDIDO!' : '🛒 ¡Pedido nuevo!') : (lista.every(esWeb) ? '🎉 ¡' + lista.length + ' VENTAS en la web!' : '🛒 ¡' + lista.length + ' pedidos nuevos!');
+  const s = uno ? 'nº ' + uno.numero + ' · ' + cant(uno) + (tv ? '' : quien(uno)) + (esWeb(uno) && agot(uno) ? ' · 🔴 AGOTADO: era la última' : '') : lista.slice(0, 3).map(o => 'nº ' + o.numero).join(' · ') + (lista.length > 3 ? ' …' : '');
   if (cartel) cartel.remove(); clearTimeout(cierra);
   cartel = h('div.pn-cartel', { role: 'status', 'aria-live': 'polite', onclick: () => { cartel && cartel.remove(); cartel = null; if (uno && !tv) location.hash = '#/pedidos/' + uno.id; } }, h('div.pn-t', t), h('div.pn-s', s));
   document.body.appendChild(cartel);

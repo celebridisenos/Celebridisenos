@@ -10,7 +10,7 @@
 //  · si falla NO se finge nada: queda «Etiqueta no impresa — motivo», con reintentos espaciados;
 //  · nunca abre PDFs ni preguntas sin que nadie esté delante: sin impresora real, se avisa y ya;
 //  · «Omitir por ahora» y el interruptor de Embalaje (Tarjeta y mensajes) lo detienen.
-import { S, can, byId, on } from './store.js';
+import { S, can, byId, on, api, pull } from './store.js';
 import { desktop } from './desktop.js';
 import * as E from './envio.js';
 
@@ -126,13 +126,21 @@ export function problemasEtiquetas() {
 }
 export const textoProblema = p => 'Etiqueta no impresa — ' + p.motivo;
 
-let timer = null, unsub = null, deb = null;
+let timer = null, unsub = null, deb = null, rapido = null;
 export function startAutoPrint() {
   if (!desktop.on || timer) return;
   timer = setInterval(autoTick, 20000);
-  unsub = on(() => { clearTimeout(deb); deb = setTimeout(autoTick, 1500); }); // en cuanto cambia un pedido
+  unsub = on(() => { clearTimeout(deb); deb = setTimeout(autoTick, 350); }); // en cuanto cambia un pedido (v16.3.2: antes 1,5 s)
+  // v16.3.2 · CARRIL RÁPIDO: cada 3 s una consulta mínima («¿ha cambiado algo en pedidos o impresiones?»); si sí, se sincroniza YA
+  let visto = null, latiendo = false;
+  rapido = setInterval(async () => {
+    if (latiendo || !S.ready || !S.me || !S.online || !autoOn() || !leader()) return;
+    latiendo = true;
+    try { const r = await api('sys.latido', {}, { quiet: true, timeout: 8000 }), v = r ? r.i + '|' + r.p : null; if (v !== null && visto !== null && v !== visto) { AUTO.rapidas = (AUTO.rapidas || 0) + 1; await pull(); } if (v !== null) visto = v; }
+    catch (e) { } finally { latiendo = false; }
+  }, 3000);
   setTimeout(autoTick, 6000);
 }
-export function stopAutoPrint() { clearInterval(timer); timer = null; if (unsub) unsub(); unsub = null; }
+export function stopAutoPrint() { clearInterval(timer); clearInterval(rapido); rapido = null; timer = null; if (unsub) unsub(); unsub = null; }
 // Reintento manual (botón «Reintentar» de Hoy): olvida los fallos y vuelve a intentarlo ya
 export function reintentar(id) { if (id) AUTO.fallos.delete(id); else AUTO.fallos.clear(); return autoTick(); }

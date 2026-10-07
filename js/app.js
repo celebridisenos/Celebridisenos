@@ -1,8 +1,10 @@
 // ================= Arranque, navegación y estructura =================
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
 import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes } from './store.js';
+import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
 import { desktop } from './desktop.js';
+import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
 import { menuNav, editarMenu } from './menuorden.js';
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
@@ -32,6 +34,7 @@ const VIEWS = {
   embalaje: () => import('./views/embalaje.js'),
   escanear: () => import('./views/escanear.js'),
   tienda: () => import('./views/tienda.js'), // v12: Tienda web (sustituye a THE NOORKO)
+  cotizador: () => import('./views/cotizador.js'), // v16.2: STL / 3MF → coste y precio al momento
   camaras: () => import('./views/camaras.js'), // v11.7: cámaras de las Bambu Lab (en el PC) // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
   taller: () => import('./views/taller.js'),
@@ -56,35 +59,38 @@ const VIEWS = {
 };
 // v16: el menú va por GRUPOS que se pliegan (menos desorden, más lógica). Cada apartado es el mismo de siempre.
 export const NAV = [
+  // v16.2: grupos pedidos por la dueña: Pedidos · Productos · Producción · Embalaje y logística · Ventas y web · Marketing · Equipo
   { k: 'inicio', t: 'Inicio', i: 'home' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
-  { sep: true, t: 'Negocio' },
+  { sep: true, t: 'Pedidos' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes),
   { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas,
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
+  { sep: true, t: 'Productos' },
+  { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
+  { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
+  { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
+  { sep: true, t: 'Producción' },
+  { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
+  { k: 'cotizador', t: 'Cotizador 3D ⚡', i: 'cube', p: 'productos.ver' }, // v16.2: en lugar de «Cámaras» (no se usaba; sigue existiendo en #/camaras)
+  { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
+  { sep: true, t: 'Embalaje y logística' },
+  { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje,
+  { k: 'inventario', t: 'Inventario y compras', i: 'box', p: 'productos.ver' }, // v16,
+  { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector),
+  { sep: true, t: 'Ventas y web' },
+  { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC),
+  { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web,
+  { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13,
   { k: 'ingresos', t: 'Ingresos 💶', i: 'euro', p: 'productos.costes' }, // v16,
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
-  { sep: true, t: 'Producción' },
-  { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
-  { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
-  { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
-  { k: 'camaras', t: 'Cámaras', i: 'camera', p: 'taller.ver', d: true },
-  { k: 'inventario', t: 'Inventario y compras', i: 'box', p: 'productos.ver' }, // v16,
-  { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
-  { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
-  { sep: true, t: 'Embalaje y envíos' },
-  { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje,
-  { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector),
-  { sep: true, t: 'Tienda y contenido' },
-  { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web,
-  { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC),
-  { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13,
+  { sep: true, t: 'Marketing' },
+  { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
   { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3,
   { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
-  { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
   { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»,
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
   { k: 'rapidas', t: 'Respuestas rápidas 💬', i: 'msg' }, // v13.10: manual para contestar a los clientes,
@@ -124,6 +130,9 @@ async function route() {
   navActual = name; if (navCerrados().size) refreshShell(); // v16: si su grupo está plegado, el apartado abierto se enseña igualmente
   markNav(name);
   if (current.name === name && current.view && current.view.params) { current.view.params(params); return; }
+  // v16.2 · ESTABILIDAD: si ya estás en esta misma pantalla (misma dirección) y has escrito o tocado algo en ella en el último
+  // cuarto de hora, NO se vacía ni se vuelve a montar (Tienda web perdía lo escrito en las promociones cuando algo la recargaba).
+  if (current.name === name && current.view && JSON.stringify(current.params || []) === JSON.stringify(params || []) && trabajandoAqui()) return;
   if (current.view && current.view.destroy) current.view.destroy();
   const content = shell.content;
   clear(content);
@@ -138,6 +147,7 @@ async function route() {
     current = { name, view: mod.render(content, params) || {}, params };
     window.scrollTo(0, 0);
     entrada(content); // v14.0: el contenido entra suave
+    if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); } // v16.1
     if (!route._inau && debeInaugurar()) { route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full')) inauguracion({ ir: go }); }, 700); }
   } catch (e) {
     console.error(e);
@@ -145,6 +155,13 @@ async function route() {
   }
 }
 window.addEventListener('hashchange', route);
+// v16.1 · VELOCIDAD: las pantallas que más se usan se cargan en los ratos libres; el primer clic en cada una ya no espera.
+function precalentar() {
+  const lista = ['hoy', 'pedidos', 'productos', 'inventario', 'embalaje', 'ingresos', 'clientes', 'stock', 'costes'].filter(k => VIEWS[k]);
+  const libre = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 300));
+  const sig = () => { const k = lista.shift(); if (!k || document.hidden) return; VIEWS[k]().catch(() => { }).then(() => libre(sig)); };
+  libre(sig);
+}
 
 // ---------- v10: menú lateral y cuenta ----------
 function openNav() { document.body.classList.add('nav-open'); }
@@ -197,7 +214,7 @@ function buildShell() {
   // una sección. En pantallas grandes se puede FIJAR (📌) y funciona como barra lateral.
   const closeB = h('button.btn.ghost.icon.sm.nav-close', { title: 'Cerrar menú', 'aria-label': 'Cerrar menú', onclick: () => closeNav() }, icon('left', 's'));
   const pinB = h('button.btn.ghost.icon.sm.nav-pin', { title: 'Fijar el menú a la izquierda', 'aria-label': 'Fijar menú', onclick: () => pinNav(!document.body.classList.contains('nav-pinned')) }, '📌');
-  const sidebar = h('aside.sidebar', { 'aria-label': 'Menú' }, h('div.brand', h('div.logo', h('img.brand-logo', { src: (S.cfg && S.cfg.empresa && S.cfg.empresa.logo) || 'icons/icon-192.png', alt: '' })), h('div.grow', h('b.ellipsis', (S.cfg && S.cfg.empresa.nombre) || 'CelebriDiseños'), h('small', 'Gestión del negocio')), pinB, closeB), h('div.ws-box'), nav, h('div.me', { onclick: () => go('config/perfil') }));
+  const sidebar = h('aside.sidebar', { 'aria-label': 'Menú' }, h('div.brand', h('div.logo', h('img.brand-logo', { src: (S.cfg && S.cfg.empresa && S.cfg.empresa.logo) || 'icons/icon-192.png', alt: '' })), h('div.grow', h('b.ellipsis', (S.cfg && S.cfg.empresa.nombre) || 'CelebriDiseños'), h('small', 'Gestión del negocio')), pinB, closeB), h('div.ws-box'), nav, botonActualizar(), h('div.me', { onclick: () => go('config/perfil') }));
   const scrim = h('div.scrim', { onclick: () => closeNav() });
   const syncEl = h('button.sync', { title: 'Estado de la sincronización', onclick: () => syncPanel() });
   const bell = h('button.btn.ghost.icon.icon-btn', { title: 'Notificaciones', onclick: () => go('notificaciones') }, icon('bell'));
@@ -209,7 +226,7 @@ function buildShell() {
     h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú', 'aria-label': 'Abrir menú' }, icon('menu')),
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
     quick,
-    h('div.right.row', syncEl, chatB, bell, meBtn));
+    h('div.right.row', syncEl, botonRegalo(), chatB, bell, meBtn));
   const banner = h('div');
   const content = h('main.content', { id: 'main' });
   const tabbar = h('nav.tabbar', { 'aria-label': 'Secciones principales' });
@@ -251,6 +268,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target ==
 // por su cuenta (p. ej. al abrir una noticia), la pantalla se sigue actualizando con normalidad.
 let ultimoToque = 0, campoTocado = null;
 ['input', 'change', 'keydown', 'pointerdown'].forEach(ev => document.addEventListener(ev, e => { const t = e.target; if (t && t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && t.closest('.content, .drawer')) { ultimoToque = Date.now(); campoTocado = t; } }, true));
+// ¿Has tocado un campo de ESTA pantalla hace poco y sigue ahí? (para no rehacerla y perder lo escrito)
+function trabajandoAqui() { return !!(campoTocado && campoTocado.isConnected && campoTocado.closest('.content') && Date.now() - ultimoToque < 15 * 60000); }
 function enUnCampo() {
   const a = document.activeElement;
   return !!(a && a === campoTocado && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !/^(search|checkbox|radio|button|submit|file)$/.test(a.type || '') && a.closest('.content, .drawer') && !a.closest('.topbar, .quickbar, .inp-icon, .palette') && Date.now() - ultimoToque < 20000);
@@ -404,7 +423,7 @@ export function accionesPaleta() {
     nav('Nuevo cliente', 'plus', 'clientes/nuevo', 'clientes.editar', 'crear añadir'),
     nav('Ir a Inicio', 'home', 'inicio', '', 'panel resumen'),
     nav('Estantería: mi tienda web como un mundo virtual', 'store', 'estanteria', 'productos.ver', 'tienda virtual estanterias productos mundo escaparate 3d'),
-    nav('Descanso: jugar un rato (Fusiona bobinas)', 'play', 'descanso', '', 'juego 2048 jugar descanso entretenimiento'),
+    nav('Descanso: jugar un rato (Villa Celebri · Macedonia)', 'play', 'descanso', '', 'juego jugar descanso entretenimiento villa mundo macedonia frutas'),
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
     fn('Modo taller (botones grandes)', 'play', () => { try { localStorage.setItem('cd.operario', '1'); } catch (e) { } document.body.classList.add('operario'); go('hoy'); }, 'pedidos.ver', 'operario tablet'),
     nav('Biouvision (editor de fotos)', 'camera', 'estudio', 'productos.ver', 'foto editar retocar mejorar imagen estudio cara piel filtros fondo'),
@@ -426,6 +445,7 @@ export function accionesPaleta() {
     fn('Tarjeta de resultados para redes', 'camera', () => import('./tarjeta.js').then(m => m.abrirTarjeta()), 'pedidos.ver', 'instagram imagen compartir resumen'),
     fn('Celebrar pedidos nuevos: cartel y confeti (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().on; m.guardarPrefs({ on: v }); toast(v ? '🎉 Celebración de pedidos nuevos activada' : 'Celebración de pedidos nuevos apagada'); }), 'pedidos.ver', 'pedido nuevo confeti cartel celebrar'),
     fn('Hologramas 3D: figuras que aparecen unos segundos (sí/no)', 'sparkles', () => import('./hologramas.js').then(m => { const v = m.setHolo(!m.holoOn()); toast(v ? '✨ Hologramas activados' : 'Hologramas apagados en este aparato', 'ok'); }), '', 'holograma figuras 3d animacion efecto rendimiento'),
+    fn('🎁 Mi regalo: mi taller en números', 'sparkles', () => abrirRegalo(), '', 'regalo sorpresa numeros poster taller'),
     fn('Holograma: enseñar uno ahora', 'sparkles', () => import('./hologramas.js').then(m => m.mostrar()), '', 'holograma figura 3d ver'),
     fn('Sonido al entrar un pedido nuevo (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().sonido; m.guardarPrefs({ sonido: v }); if (v) m.sonar(); toast(v ? '🔔 Sonido de pedido nuevo activado' : 'Sonido de pedido nuevo apagado'); }), 'pedidos.ver', 'pedido nuevo sonido campana'),
     fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),

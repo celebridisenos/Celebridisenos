@@ -103,6 +103,8 @@ export const desktop = {
   motorRestaurarFoto: async (id, cual) => (await call('motor/restaurar/foto?' + q({ id, cual: cual || '' }))).blob(),
   motorRestaurarCancelar: id => call('motor/restaurar/cancelar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
   motorDanos: fd => call('motor/danos', { method: 'POST', body: fd }),
+  // v16.1 · ⚡ Turbo: tarjeta gráfica para los motores de fotos (activar | medir | apagar | encender; sin acción = cómo está)
+  motorTurbo: accion => call('motor/turbo', accion ? { method: 'POST', body: JSON.stringify({ Accion: accion }) } : undefined),
   // v15.4: abrir otra ventana del programa: Biouvision (app propia) o el programa en una pantalla (p. ej. '#/instagram')
   ventana: (que, ruta) => call('ventana', { method: 'POST', body: JSON.stringify({ Que: que || '', Ruta: ruta || '' }) }),
   // v15.3 · Reels con Remotion (el de EDITOR_VIDEO): estado, encargar el vídeo, seguirlo y recogerlo

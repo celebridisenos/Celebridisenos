@@ -37,6 +37,12 @@
   setTimeout(function () { if (!window.__appStarted && !document.querySelector('.shell,.auth-card,.wizard')) { var d = document.getElementById('app'); if (d && /Cargando/.test(d.textContent)) d.innerHTML = '<div class="center-page"><div class="card auth-card"><h2>No se pudo iniciar</h2><p>Actualiza el navegador (Chrome, Edge o Safari recientes) o recarga la página.</p><button class="btn primary" onclick="location.reload()">Recargar</button></div></div>'; } }, 15000);
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').then(function (reg) {
+      window.__cdSW = reg; // v16.3.2: lo usa el botón fijo «Buscar actualización»
+      // una versión que ya se bajó la última vez se aplica nada más abrir (todavía no hay nada a medio escribir)
+      if (reg.waiting && navigator.serviceWorker.controller) reg.waiting.postMessage('skip');
+      var busca = function () { try { reg.update(); } catch (e) { } };
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') busca(); });
+      setInterval(busca, 30 * 60000);
       reg.addEventListener('updatefound', function () {
         var w = reg.installing;
         w && w.addEventListener('statechange', function () {

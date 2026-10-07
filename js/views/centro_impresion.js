@@ -120,19 +120,20 @@ export async function render(b, L, reload) {
 
   // ---------- 3. Bambu Lab ----------
   const bbox = h('div');
-  let lastSig = '';
+  let lastSig = '', lastEst = '';
+  const estructura = l => JSON.stringify((l || []).map(x => [x.serial, x.nombre, x.modelo, x.ip, x.impresoraId, x.origenCodigo]));
   const sigOf = l => JSON.stringify((l || []).map(x => Object.assign({}, x, { actualizado: 0 })));
   const drawBambu = async (pre) => {
     let r = pre;
     if (!r) try { r = await desktop.bambu(); } catch (e) { mount(bbox, h('p.bad-t', e.message)); return; }
-    lastSig = sigOf(r.impresoras);
+    lastSig = sigOf(r.impresoras); lastEst = estructura(r.impresoras);
     const taller = (S.t.impresoras || []);
     mount(bbox,
       r.impresoras.length ? h('div.list.boxed', r.impresoras.map(x => {
         const asg = sel([{ v: '', t: '— Sin relacionar —' }].concat(taller.map(t => ({ v: t.id, t: t.nombre }))), x.impresoraId || '');
         asg.onchange = async () => { try { await desktop.bambuAccion({ accion: 'asignar', serial: x.serial, impresoraId: asg.value }); toast('Relacionada con el Taller', 'ok'); } catch (e) { toast(e.message, 'bad'); } };
         return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap', alignItems: 'flex-start' } }, icon('cube', 's'),
-          h('div.grow', { style: { minWidth: '240px' } }, h('div.row.wrap', h('b', x.nombre || x.modelo), h('span.tiny.muted', x.ip + ' · ' + x.serial + (x.origenCodigo ? ' · código de ' + x.origenCodigo : ''))), bambuLine(x)),
+          h('div.grow', { style: { minWidth: '240px' } }, h('div.row.wrap', h('b', x.nombre || x.modelo), h('span.tiny.muted', x.ip + ' · ' + x.serial + (x.origenCodigo ? ' · código de ' + x.origenCodigo : ''))), h('div.bb-linea', { 'data-serial': x.serial }, bambuLine(x))),
           h('div.col', { style: { gap: '6px', minWidth: '200px' } }, h('span.tiny.muted', 'En el Taller es:'), asg,
             /^(01S|01P|030|039)/.test(x.serial) ? btn('📷 Ver cámara', () => import('../camaras.js').then(C => C.openCam(x.serial)), { cls: 'sm' }) : null,
             btn('Desvincular', async () => { if (!await confirmDlg('Desvincular', '¿Dejar de seguir la ' + (x.nombre || x.modelo) + '?', 'Desvincular', true)) return; await desktop.bambuAccion({ accion: 'desvincular', serial: x.serial }); drawBambu(); }, { cls: 'sm ghost danger' })));
@@ -159,8 +160,13 @@ export async function render(b, L, reload) {
   // En vivo: se vuelve a leer cada 5 s mientras esta pantalla esté abierta (sin molestar si estás eligiendo algo)
   const live = setInterval(async () => {
     if (!bbox.isConnected) return clearInterval(live);
-    if (bbox.contains(document.activeElement) || bbox.querySelector('.bad-t, p.small.muted:only-child')) return;
-    try { const r = await desktop.bambu(); if (sigOf(r.impresoras) !== lastSig) drawBambu(r); } catch (e) { }
+    if (bbox.querySelector('.bad-t, p.small.muted:only-child')) return;
+    try {
+      const r = await desktop.bambu(); if (sigOf(r.impresoras) === lastSig) return;
+      // v16.3.2: si solo cambian el %, el tiempo o las temperaturas, se cambia ESA línea y nada más (la pantalla no salta)
+      if (estructura(r.impresoras) === lastEst) { r.impresoras.forEach(x => { const el = [...bbox.querySelectorAll('.bb-linea')].find(e => e.dataset.serial === x.serial); if (el) mount(el, bambuLine(x)); }); lastSig = sigOf(r.impresoras); }
+      else if (!bbox.contains(document.activeElement)) drawBambu(r);
+    } catch (e) { }
   }, 5000);
   return c;
 }

@@ -42,7 +42,7 @@ export function widget(o, opts = {}) {
     const total = () => { if (opts.onChange) { try { opts.onChange(value()); } catch (e) { } } const p = costeDe(value()); mount(tot, p ? h('div', h('b', 'Coste del embalaje: ' + (p.coste === null ? 'al menos ' + eur(p.conocido) : eur(p.coste))), h('div.tiny.muted', p.lineas.map(l => l.nombre + (l.unidad === 'm' ? ' ' + fmt(l.cantidad) + ' m' : '') + ' ' + (l.coste === null ? 'sin precio' : eur(l.coste))).join(' + '))) : h('span.tiny.muted', 'Elige caja, sobre o bolsa.')); };
     mount(el,
       h('div.lbl', { style: { fontWeight: 700 } }, '📦 EMBALAJE DEL PEDIDO'),
-      h('p.small', { style: { margin: '4px 0 6px' } }, '¿Cómo se entrega o se prepara este pedido?'),
+      h('p.small', { style: { margin: '4px 0 6px' } }, '¿Cómo se entrega o se prepara este pedido?', h('span.muted', ' · No hace falta elegir: si lo dejas así, lo pongo yo solo (el embalaje del producto o el que le va por sus medidas).')),
       h('div.row.wrap.envase-tipos', { style: { gap: '8px' } }, TIPOS.map(([k, ic, sg]) => h('button.chip' + (st.tipo === k ? '.on' : ''), { type: 'button', 'data-tipo': k, onclick: () => { st.tipo = k; st.envaseId = ''; if (k !== 'bolsa') st.enMano = false; draw(); } }, ic + ' ' + sg + ' · ' + eur(c.precioEnvase)))),
       st.tipo ? (lista.length ? h('div.row.wrap', { style: { gap: '6px', marginTop: '8px' } }, h('span.small', 'Medida:'), lista.map(m => h('button.chip.envase-medida' + (st.envaseId === m.id ? '.on' : ''), { type: 'button', 'data-id': m.id, onclick: () => { st.envaseId = m.id; draw(); } },
           (CL.medidasTxt(m) || m.nombre) + ' · ' + fmt(m.stock || 0) + ' en stock', CL.stockEstado(m, c) === 'agotado' ? ' 🔴' : CL.stockEstado(m, c) === 'bajo' ? ' 🟠' : '')))
@@ -59,7 +59,7 @@ export function widget(o, opts = {}) {
   // obligatorio si hay envases en Stock: caja/sobre/bolsa y su medida
   const error = () => {
     if (!hayEnvases()) return '';
-    if (!st.tipo) return 'Elige cómo se prepara el pedido: caja, sobre o bolsa.';
+    if (!st.tipo) return ''; // v16.2: no es obligatorio: sin elegir, el programa pone el embalaje del producto (o el que le va por medidas)
     if (envasesDe(st.tipo).length && !st.envaseId) return 'Elige la medida de ' + CL.envaseTipo(st.tipo)[2].toLowerCase() + '.';
     if (num(st.kraft) < 0 || num(st.marron) < 0) return 'Los metros no pueden ser negativos.';
     return '';

@@ -19,7 +19,7 @@ const PRESETS = [
   { k: 'reservas', t: 'Reservas', f: o => ph(o) === 'reserva' },
   { k: 'fabricar', t: 'Por imprimir', f: o => ph(o) === 'confirmado' },
   { k: 'fabricando', t: 'Imprimiendo', f: o => ph(o) === 'impresion' },
-  { k: 'postpro', t: 'Acabado', f: o => ph(o) === 'postpro' },
+  { k: 'postpro', t: 'En mesa', f: o => ph(o) === 'postpro' },
   { k: 'empaquetar', t: 'Empaquetar', f: o => ph(o) === 'empaquetar' },
   { k: 'enviar', t: 'Por enviar', f: o => ph(o) === 'listo' },
   { k: 'enviados', t: 'Enviados', cls: 'ok', f: o => ph(o) === 'enviado' },
