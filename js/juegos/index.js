@@ -6,11 +6,15 @@
 // se conservan con «oculto: true»: no salen en el menú pero su código, sus pruebas y su dirección siguen funcionando.
 // «detectives» (casos rápidos infinitos) también está oculto: se abre desde el juego Detectives (expedientes).
 export const JUEGOS = [
-  { id: 'vida', titulo: 'Vida', emoji: '🌸', desc: 'Tu barrio en pixel con tus compañeros: huerto, casa que decoras mueble a mueble, probador de ropa, misiones diarias, mercadillo, Club VIP… y tu personaje crece (1 día real = 1 año).', tag: 'Barrio', cargar: () => import('./vida.js') },
-  { id: 'trivial', titulo: 'Trivial', emoji: '🧠', desc: 'Más de 400 preguntas en 14 categorías. Solo o por equipos.', tag: 'Equipos', cargar: () => import('./trivial.js') },
-  { id: 'ahorcado', titulo: 'Ahorcado', emoji: '🪢', desc: 'Adivina la palabra letra a letra antes de que se complete el dibujo.', tag: '', cargar: () => import('./ahorcado.js') },
-  { id: 'puesto', titulo: 'Mi puesto del mercado', emoji: '🧺', desc: 'Atiende a los clientes de tu puesto antes de que se cansen. Lo que ganas va de verdad a la hucha de tu personaje de Vida.', tag: 'Nuevo', cargar: () => import('./puesto.js') },
-  { id: 'sopa', titulo: 'Sopa de ideas', emoji: '🔤', desc: 'Sopa de letras infinita. Cada palabra que encuentras es una idea de qué fabricar.', tag: 'Infinito', cargar: () => import('./sopa.js') },
+  // v16.2: la dueña pidió quitar los juegos de antes («no valen») y hacer dos de verdad. Estos dos son el menú.
+  { id: 'villa', titulo: 'Villa Celebri', emoji: '🏘️', desc: 'Un mini-mundo de verdad: pasea por la villa, habla con sus 8 vecinos y hazte su amigo, pesca, cultiva el huerto, imprime en el taller 3D, completa el álbum… y si tus compañeros están jugando, los ves andar por allí y os saludáis.', tag: 'Con el equipo', cargar: () => import('./villa.js') },
+  { id: 'macedonia', titulo: 'Macedonia', emoji: '🍉', desc: 'Suelta frutas en el frasco: dos iguales se funden en una más grande. ¿Llegas a la sandía? Con la clasificación del equipo.', tag: 'Engancha', cargar: () => import('./macedonia.js') },
+  // ---- los de antes de la 16.2 (ocultos: no salen en el menú, pero no se ha borrado nada) ----
+  { id: 'vida', oculto: true, titulo: 'Vida', emoji: '🌸', desc: 'Tu barrio en pixel con tus compañeros: huerto, casa que decoras mueble a mueble, probador de ropa, misiones diarias, mercadillo, Club VIP… y tu personaje crece (1 día real = 1 año).', tag: 'Barrio', cargar: () => import('./vida.js') },
+  { id: 'trivial', oculto: true, titulo: 'Trivial', emoji: '🧠', desc: 'Más de 400 preguntas en 14 categorías. Solo o por equipos.', tag: 'Equipos', cargar: () => import('./trivial.js') },
+  { id: 'ahorcado', oculto: true, titulo: 'Ahorcado', emoji: '🪢', desc: 'Adivina la palabra letra a letra antes de que se complete el dibujo.', tag: '', cargar: () => import('./ahorcado.js') },
+  { id: 'puesto', oculto: true, titulo: 'Mi puesto del mercado', emoji: '🧺', desc: 'Atiende a los clientes de tu puesto antes de que se cansen. Lo que ganas va de verdad a la hucha de tu personaje de Vida.', tag: 'Nuevo', cargar: () => import('./puesto.js') },
+  { id: 'sopa', oculto: true, titulo: 'Sopa de ideas', emoji: '🔤', desc: 'Sopa de letras infinita. Cada palabra que encuentras es una idea de qué fabricar.', tag: 'Infinito', cargar: () => import('./sopa.js') },
   // ---- descartados (se conservan, ocultos) ----
   // v13.12: la Subasta sale del menú (el dueño: «no se entiende, no compras nada real»). La sustituye «Mi puesto del mercado».
   { id: 'subasta', titulo: 'Subasta de encargos', emoji: '🔨', desc: 'Juego ONLINE con el equipo: puja a ciegas tus horas de taller por los mejores encargos. Se juega con fichas.', tag: 'Online', oculto: true, cargar: () => import('./subasta.js') },

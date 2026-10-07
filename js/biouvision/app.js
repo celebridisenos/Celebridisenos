@@ -18,6 +18,7 @@ const SECCIONES = [
   ['inicio', '🏠', 'Inicio'],
   ['restaurar', '🕰️', 'Restaurar'],
   ['fondo', '✂️', 'Quitar fondo'],
+  ['borrador', '🪄', 'Borrador mágico'], // v16.1
   ['estudio', '🎨', 'Estudio'],
   ['fotos', '🖼️', 'Mis fotos'],
   ['motores', '⚙️', 'Motores', () => desktop.on]
@@ -71,8 +72,9 @@ const C = {
     const st = await estadoMotor();
     if (!st || !st.listo) return { lineas: [[false, ['Motor de fotos', 'falta el Python de EDITOR_VIDEO (míralo en «Centro de IA»)']]], falta: false };
     const m = id => (st.modelos || []).find(x => x.id === id) || {};
-    const L = grupo === 'restaurar'
-      ? [[m('esrgan-x4').presente || m('esrgan-x2').presente, ['🔍 Ampliar con IA', 'hasta 4K']], [m('gfpgan').presente, ['🙂 Caras nítidas', '']], [m('deoldify').presente || m('ddcolor').presente, ['🎨 Color IA', '(opcional)']]]
+    const L = grupo === 'borrar' ? [[m('lama').presente, ['🪄 Borrador con IA (LaMa)', m('lama').presente ? '' : '(sin él solo borra cosas pequeñas)']]]
+      : grupo === 'restaurar'
+      ? [[m('esrgan-x4').presente || m('esrgan-x2').presente, ['🔍 Ampliar con IA', 'hasta 4K']], [m('gfpgan').presente || m('restoreformer').presente, ['🙂 Caras nítidas', '']], [m('lama').presente, ['🩹 Roturas y manchas grandes (LaMa)', '']], [m('deoldify').presente || m('ddcolor').presente, ['🎨 Color IA', '(opcional)']]]
       : [[(st.modelos || []).some(x => x.grupo === 'fondo' && x.presente), ['✂️ Recorte con IA', (st.modelos || []).filter(x => x.grupo === 'fondo' && x.presente).map(x => x.nombre.split(' (')[0]).slice(0, 2).join(', ')]]];
     return { lineas: L, falta: L.some(x => !x[0]) };
   },
@@ -101,6 +103,7 @@ async function crearYa(sec) {
   if (sec === 'inicio') vistas[sec] = pantallaInicio(el);
   else if (sec === 'restaurar') vistas[sec] = (await import('./restaurar.js')).pantallaRestaurar(el, C);
   else if (sec === 'fondo') vistas[sec] = (await import('./fondo.js')).pantallaFondo(el, C);
+  else if (sec === 'borrador') vistas[sec] = (await import('./restaurar.js')).pantallaRestaurar(el, C, { modo: 'borrar' }); // v16.1
   else if (sec === 'fotos') vistas[sec] = (await import('./fotos.js')).pantallaFotos(el, C);
   else if (sec === 'motores') vistas[sec] = (await import('./motores.js')).pantallaMotores(el, C);
   else if (sec === 'estudio') {
@@ -142,6 +145,7 @@ function pantallaInicio(el) {
     h('div.bv-tarjetas',
       tarjeta('restaurar', '🕰️', 'Restaurar fotos antiguas', 'Repara, recupera las caras y la amplía hasta 4K. Con color si quieres.', { estrella: true, nuevo: 'NUEVO' }),
       tarjeta('fondo', '✂️', 'Quitar el fondo', 'Recorte con IA hasta el pelo. Ponle un fondo blanco, de color o de estudio.', { nuevo: 'ULTRA' }),
+      tarjeta('borrador', '🪄', 'Borrador mágico', 'Pinta encima de una mancha, un hilo, un soporte o un objeto… y desaparece.', { nuevo: 'NUEVO' }),
       tarjeta('estudio', '🎨', 'Estudio', 'Luz, color, filtros y retoque de cara. Para tus fotos de producto.'),
       tarjeta('fotos', '🖼️', 'Mis fotos', 'Todo lo que has hecho, para descargarlo o compartirlo.')),
     recientes);

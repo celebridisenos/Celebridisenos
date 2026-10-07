@@ -18,7 +18,9 @@ export const TIPOS = {
   precio: { t: 'Precio', i: '🏷️', dur: 2.4 }, texto: { t: 'Texto', i: '💬', dur: 2.2 }, cta: { t: 'Llamada a la acción', i: '👉', dur: 2.6 }
 };
 export const MOVS = [['zoom', 'Acercar'], ['alejar', 'Alejar'], ['panor', 'Desplazar'], ['quieto', 'Quieto']];
-export const estiloDe = p => ESTILOS[p.estilo] || ESTILOS.minimal;
+// v16.2: una plantilla puede traer SUS colores (acento · fondo · texto) encima del estilo; el motor de vídeo del PC hace lo mismo
+const mezcla = (a, b, k) => { const n = x => { const m = /^#?([0-9a-f]{6})$/i.exec(String(x || '')); return m ? [0, 2, 4].map(i => parseInt(m[1].substr(i, 2), 16)) : null; }, A = n(a), B = n(b); return A && B ? '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join('') : a; };
+export const estiloDe = p => { const e = ESTILOS[p.estilo] || ESTILOS.minimal, c = p.colores; if (!c) return e; const fondo = c.fondo || e.fondo, texto = c.texto || e.texto; return Object.assign({}, e, { acento: c.acento || e.acento, fondo, texto, fondo2: mezcla(fondo, texto, 0.1) }); };
 const uid = () => 'e' + Math.random().toString(36).slice(2, 9);
 export const nuevaEscena = (tipo, o = {}) => Object.assign({ id: uid(), tipo, dur: TIPOS[tipo].dur }, o);
 
@@ -100,7 +102,7 @@ export function proyectoVacio() {
 // Las props que recibe Remotion (fotos ya con su nombre de archivo en la carpeta del trabajo)
 export function propsRemotion(p, nombreFoto, logo) {
   const f = FORMATOS[p.formato] || FORMATOS['9:16'];
-  return { formato: { ancho: f.ancho, alto: f.alto, fps: 30 }, estilo: p.estilo, marcaAgua: p.marcaAgua !== false, marca: { nombre: marcaNombre(), logo: logo || '' },
+  return { formato: { ancho: f.ancho, alto: f.alto, fps: 30 }, estilo: p.estilo, colores: p.colores || undefined, marcaAgua: p.marcaAgua !== false, marca: { nombre: marcaNombre(), logo: logo || '' },
     musica: p.musica ? { volumen: p.musica.volumen == null ? 0.7 : p.musica.volumen } : null,
     escenas: p.escenas.map(s => ({ tipo: s.tipo, dur: Number(s.dur) || TIPOS[s.tipo].dur, texto: s.texto || '', titulo: s.titulo || '', sub: s.sub || '', precio: s.precio || '', antes: s.antes || '', mov: s.mov || 'zoom', ajuste: s.ajuste || 'cubrir', foto: s.foto ? nombreFoto(s.foto) : '' })) };
 }
