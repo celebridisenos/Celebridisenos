@@ -4,7 +4,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 // h('div.card#id', {onclick}, hijos...)
 export function h(sel, attrs, ...kids) {
   if (attrs === null || typeof attrs !== 'object' || attrs instanceof Node || Array.isArray(attrs)) { kids.unshift(attrs); attrs = {}; }
-  const m = sel.match(/^([a-z0-9]+)?((?:[.#][\w-]+)*)$/i);
+  const m = sel.replace(/\.(?=\.|$)/g, '').match(/^([a-z0-9]+)?((?:[.#][\w-]+)*)$/i); // v11: tolera clases vacías ('div.x.' + '')
   const el = document.createElement(m[1] || 'div');
   (m[2].match(/[.#][\w-]+/g) || []).forEach(p => { if (p[0] === '.') el.classList.add(p.slice(1)); else el.id = p.slice(1); });
   for (const k in attrs) {
@@ -87,8 +87,10 @@ const P = {
   pin: 'M12 17v5M9 3h6l-1 7 4 3v2H6v-2l4-3z',
   archive: 'M21 8v13H3V8M1 3h22v5H1zM10 12h4',
   history: 'M3 3v5h5M3.05 13A9 9 0 106 5.3L3 8M12 7v5l4 2',
+  bluetooth: 'M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11',
   printer: 'M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z',
   store: 'M3 9l1-5h16l1 5M3 9h18v2a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0V9zM5 13v8h14v-8',
+  qr: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM18 18h3v3h-3zM14 20h2M20 14v2',
   key: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 11-7.8 7.8 5.5 5.5 0 017.8-7.8zM15.5 7.5l3 3L22 7l-3-3'
 };
 export function icon(name, cls) {
@@ -229,13 +231,28 @@ export function promptDlg(title, label, value, opts = {}) {
 
 // ---------- Avisos ----------
 let toastBox;
-export function toast(text, kind, ms) {
+export function toast(text, kind, ms, action) {
   if (!toastBox) { toastBox = h('div.toasts', { role: 'status', 'aria-live': 'polite' }); document.body.appendChild(toastBox); }
-  const t = h('div.toast' + (kind ? '.' + kind : ''), h('span', text), h('button.x', { 'aria-label': 'Cerrar', onclick: () => t.remove() }, '✕'));
+  const t = h('div.toast' + (kind ? '.' + kind : ''), h('span', text), action ? h('button.btn.sm.ghost', { onclick: () => { t.remove(); action.on(); } }, action.t) : null, h('button.x', { 'aria-label': 'Cerrar', onclick: () => t.remove() }, '✕'));
   toastBox.appendChild(t);
   setTimeout(() => t.remove(), ms || (kind === 'bad' ? 7000 : 3500));
 }
 
 export function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 export function uid(prefix) { const a = new Uint8Array(8); crypto.getRandomValues(a); return (prefix ? prefix + '_' : '') + Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); }
+// v11: menú desplegable pequeño ("Más ⋯") para acciones secundarias
+export function menu(label, items, opts = {}) {
+  const b = btn(label, ev => {
+    ev.stopPropagation();
+    document.querySelectorAll('.pop-menu').forEach(x => x.remove());
+    const list = items.filter(Boolean);
+    const m = h('div.pop-menu', { role: 'menu' }, list.map(it => h('button' + (it.danger ? '.danger' : ''), { role: 'menuitem', onclick: () => { m.remove(); it.on(); } }, it.icon ? icon(it.icon, 's') : null, it.t)));
+    document.body.appendChild(m);
+    const r = b.getBoundingClientRect(), mw = m.offsetWidth, mh = m.offsetHeight;
+    m.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.left)) + 'px';
+    m.style.top = (r.bottom + mh + 8 > window.innerHeight ? Math.max(8, r.top - mh - 6) : r.bottom + 6) + 'px';
+    setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }), 0);
+  }, Object.assign({ icon: 'menu' }, opts));
+  return b;
+}
 export function copyText(t) { navigator.clipboard.writeText(t).then(() => toast('Copiado'), () => toast('No se pudo copiar', 'bad')); }

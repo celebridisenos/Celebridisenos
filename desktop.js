@@ -37,6 +37,35 @@ export const desktop = {
   avisoVisto: () => call('update/anterior', { method: 'DELETE' }).catch(() => { }),
   applyUpdate: () => call('update', { method: 'POST' }),
   pickFolder: () => call('pick', { method: 'POST' }),
+  // v11: impresoras de Windows y etiquetas al tamaño exacto (sin diálogo del navegador)
+  printers: usb => call('printers' + (usb ? '?usb=1' : '')),
+  // v11.2: búsqueda por todos los métodos (Windows, USB, red, Bambu) y Bambu Lab en vivo por la red local
+  discover: () => call('discover'),
+  bambu: () => call('bambu'),
+  bambuAccion: body => call('bambu', { method: 'POST', body: JSON.stringify(body) }),
+  print: job => call('print', { method: 'POST', body: JSON.stringify(job) }),
+  // v13.2: impresión directa por Bluetooth/puerto COM (bytes ya preparados) y lista de puertos que ve Windows
+  puertos: () => call('puertos'),
+  rawPrint: (port, bytes) => { let b = ''; for (let i = 0; i < bytes.length; i += 0x8000) b += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return call('raw', { method: 'POST', body: JSON.stringify({ port, data: btoa(b) }) }); },
+  // v11.8: lo que puede hacer una impresora según su controlador y abrir sus preferencias de Windows
+  printerCaps: name => call('printers/capacidades?' + q({ name })),
+  printerPrefs: name => call('printers/capacidades', { method: 'POST', body: JSON.stringify({ printer: name }) }),
+  // v11.7: cámaras de las Bambu Lab P1/A1 (vídeo de la propia impresora por la red local; el código nunca llega aquí)
+  camaras: () => call('camara'),
+  // v13.1 · vídeo DIRECTO: la dirección que el <img> abre una vez; el programa del PC manda cada imagen en cuanto llega de la impresora
+  camaraStream: serial => '/local/camara/stream?' + q({ serial, key: H.key, t: Date.now() }),
+  camaraFoto: async serial => {
+    const r = await fetch('/local/camara?' + q({ serial }), { headers: { 'X-Host-Key': H.key }, cache: 'no-store' });
+    if (r.status === 200) return { blob: await r.blob(), edadMs: Number(r.headers.get('X-Edad-Ms')) || 0, estado: r.headers.get('X-Estado') || 'en_directo' };
+    let j = {}; try { j = await r.json(); } catch (e) { }
+    return { estado: j.estado || 'error', problema: j.problema || j.error || '' };
+  },
+  // v11.1 · CelebryNova (operador autónomo) dentro del programa
+  novaEstado: () => call('nova/estado'),
+  novaArrancar: () => call('nova/arrancar', { method: 'POST' }),
+  novaInstalar: () => call('nova/instalar', { method: 'POST' }),
+  novaUrl: () => call('nova/url'),
+  novaApi: (path, body) => call('nova/api/' + path, body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
   // ---- IA local (Ollama en este PC) ----
   hardware: () => call('ia/hardware'),
   iaEstado: () => call('ia/estado'),
@@ -61,6 +90,31 @@ export const desktop = {
     }
     if (buf.trim()) { try { onChunk(JSON.parse(buf)); } catch (e) { } }
   },
+  // v15.2 · motor de fotos del PC (Python de EDITOR_VIDEO): fondo con IA y caras con ojos, nariz y boca
+  motorEstado: forzar => call('motor/estado' + (forzar ? '?forzar=1' : '')),
+  motorFondo: (blob, modelo, calidad) => call('motor/fondo' + (modelo || calidad ? '?' + q({ modelo: modelo || '', calidad: calidad || '' }) : ''), { method: 'POST', body: blob }),
+  motorCaras: blob => call('motor/caras', { method: 'POST', body: blob }),
+  motorDescargar: id => call('motor/descargar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  motorBorrar: id => call('motor/borrar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  // v15.4 · Biouvision: restaurar fotos antiguas hasta 4K (en segundo plano, con avance) y paquetes de motores
+  motorDescargarGrupo: grupo => call('motor/descargar', { method: 'POST', body: JSON.stringify({ Grupo: grupo }) }),
+  motorRestaurar: fd => call('motor/restaurar', { method: 'POST', body: fd }),
+  motorRestaurarEstado: id => call('motor/restaurar/estado?' + q({ id })),
+  motorRestaurarFoto: async (id, cual) => (await call('motor/restaurar/foto?' + q({ id, cual: cual || '' }))).blob(),
+  motorRestaurarCancelar: id => call('motor/restaurar/cancelar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  motorDanos: fd => call('motor/danos', { method: 'POST', body: fd }),
+  // v16.1 · ⚡ Turbo: tarjeta gráfica para los motores de fotos (activar | medir | apagar | encender; sin acción = cómo está)
+  motorTurbo: accion => call('motor/turbo', accion ? { method: 'POST', body: JSON.stringify({ Accion: accion }) } : undefined),
+  // v15.4: abrir otra ventana del programa: Biouvision (app propia) o el programa en una pantalla (p. ej. '#/instagram')
+  ventana: (que, ruta) => call('ventana', { method: 'POST', body: JSON.stringify({ Que: que || '', Ruta: ruta || '' }) }),
+  // v15.3 · Reels con Remotion (el de EDITOR_VIDEO): estado, encargar el vídeo, seguirlo y recogerlo
+  reelsEstado: () => call('reels/estado'),
+  reelsRender: fd => call('reels/render', { method: 'POST', body: fd }),
+  reelsTrabajo: id => call('reels/estado?' + q({ id })),
+  reelsVideo: async id => (await call('reels/video?' + q({ id }))).blob(),
+  reelsCancelar: id => call('reels/cancelar', { method: 'POST', body: JSON.stringify({ ID: id }) }),
+  reelsNavegador: () => call('reels/navegador', { method: 'POST' }),
+  reelsMusica: extra => call('reels/musica' + (extra ? '?' + q({ extra }) : '')),
   // ---- Apps instaladas (TikTok, Instagram…) ----
   // Internet para Celebrity (limitado y registrado)
   webBuscar: q => call('web/buscar?' + q({ q })),

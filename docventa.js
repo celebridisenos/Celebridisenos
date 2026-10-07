@@ -26,7 +26,6 @@ function precios(p) {
 
 // Tipo de producto para elegir frases que encajen (no hablar de impresión 3D en una camiseta)
 export function tipo(p) {
-  if (S.ws === 'noorko') return 'textil'; // THE NOORKO es ropa
   const s = low([p.categoria, p.subcategoria, p.nombre, p.material].join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (/ropa|tee\b|t-?shirt|camiseta|sudadera|hoodie|gorra|moda|algodon|textil|pantalon|chaqueta|noorko|streetwear|prenda/.test(s)) return 'textil';
   if (/pla\b|petg|resina|3d|stl|impres/.test(s)) return '3d';
@@ -93,11 +92,20 @@ export function docxBlob(p, d) {
   sec('TIKTOK'); b.push(para(d.tiktok.texto, { after: 240 }));
   sec('OTRAS PLATAFORMAS'); b.push(para('Usa el título y la descripción de Wallapop como base (Milanuncios, Opla, tienda propia…).', { color: '777777' }));
   const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + b.join('') + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>';
+  return docxPack(doc);
+}
+// v13.10: empaquetar cualquier documento Word (lo usan también el manual de respuestas y los consejos)
+function docxPack(doc) {
   const files = {
     '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
     '_rels/.rels': '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
     'word/document.xml': doc
   };
   return new Blob([zipFiles(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }); // zipFiles ya es un Blob
+}
+// bloques: [[texto, { b, sz, color, after }], …] → .docx
+export function docxDe(bloques) {
+  const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + bloques.map(([t, o]) => para(t, o || {})).join('') + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr></w:body></w:document>';
+  return docxPack(doc);
 }
 export const docName = p => 'Venta - ' + (p.sku || p.id) + ' - ' + String(p.nombre).replace(/[\\/:*?"<>|]+/g, '_') + '.docx';

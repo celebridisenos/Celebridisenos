@@ -1,77 +1,120 @@
-// ================= 💬 Chat del equipo =================
-import { h, mount, btn, avatar, toast } from '../ui.js';
-import { S, can, user } from '../store.js';
-import { CHAT, onChat, send, setOpen, retry, loadOlder, delMsg } from '../chat.js';
+// ================= Chat del equipo: servicio en segundo plano =================
+// Consulta mensajes nuevos cada pocos segundos (con el chat abierto, en cuanto termina la consulta anterior)
+// y mantiene el contador de no leídos para el icono 💬.
+import { S, api, can, kv, emit, syncRevs } from './store.js';
+import { uid, confirmDlg, toast } from './ui.js';
 
-const hm = iso => new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-const dayLabel = iso => { const d = new Date(iso), t = new Date(); const y = new Date(); y.setDate(t.getDate() - 1); return d.toDateString() === t.toDateString() ? 'Hoy' : d.toDateString() === y.toDateString() ? 'Ayer' : d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }); };
+export const CHAT = { msgs: [], conectados: [], lastSeen: '', open: false, error: '', ready: false, pending: [] };
+const listeners = new Set();
+export function onChat(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+const notify = () => listeners.forEach(f => { try { f(CHAT); } catch (e) { console.error(e); } });
 
-export function render(el, params) {
-  const canDel = can('chat.borrar');
-  const who = h('div.chat-who');
-  const log = h('div.chat-log.team', { role: 'log', 'aria-live': 'polite' });
-  const ta = h('textarea', { rows: 1, placeholder: 'Escribe un mensaje… (usa @Nombre para avisar a alguien)', 'aria-label': 'Mensaje' });
-  const sendB = btn('', go2, { cls: 'primary icon', icon: 'send', title: 'Enviar' });
-  ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; });
-  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go2(); } });
-  const more = btn('Ver mensajes anteriores', async () => { more.disabled = true; try { const n = await loadOlder(); if (!n) more.remove(); } catch (e) { toast(e.message, 'bad'); } more.disabled = false; }, { cls: 'ghost sm' });
-  el.append(h('div.page-head', h('div', h('h1', '💬 Chat del equipo'), h('div.muted.small', 'Mensajes en vivo entre todo el equipo.')), who), h('div.chat.team', more, log, h('div.chat-in', ta, sendB)));
-  async function go2() { const t = ta.value; if (!t.trim()) return; ta.value = ''; ta.style.height = 'auto'; await send(t); }
-  // v10: la conversación NO se redibuja entera: solo se añaden o cambian los mensajes afectados,
-  // y al cargar mensajes antiguos se mantiene la posición de lectura.
-  const nodes = new Map();
-  let lastLastId = '', focusMsg = '';
-  function draw() {
-    const on = CHAT.conectados || [];
-    mount(who, h('div.row.wrap', h('span.tiny.muted', 'Conectados ahora:'), on.length ? on.map(c => h('span.online', avatar(user(c.id) || { nombre: c.nombre }, 's'), c.nombre)) : h('span.tiny.muted', 'nadie más')), CHAT.error ? h('span.tiny.bad-t', ' · ' + CHAT.error) : null);
-    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
-    const oldH = log.scrollHeight, oldTop = log.scrollTop;
-    const want = [];
-    let lastDay = '';
-    if (!CHAT.msgs.length) want.push(['empty', 'e', () => h('div.empty', h('h3', 'Todavía no hay mensajes'), h('p', 'Escribe el primero: todo el equipo lo verá al momento.'))]);
-    CHAT.msgs.forEach((m, i) => {
-      const d = dayLabel(m.creado);
-      if (d !== lastDay) { want.push(['d_' + d, d, () => h('div.day-sep', h('span', d))]); lastDay = d; }
-      const mine = m.autorId === S.me.id;
-      const prev = CHAT.msgs[i - 1];
-      const grouped = prev && prev.autorId === m.autorId && dayLabel(prev.creado) === d && (new Date(m.creado) - new Date(prev.creado)) < 300000;
-      const st = m.pendiente ? 'p' : m.error ? 'e' + m.error : 'ok';
-      want.push(['m_' + m.id, [grouped, st, m.texto, m.creado].join('|'), () => {
-        const u = user(m.autorId) || { nombre: m.autor };
-        return h('div.cmsg' + (mine ? '.me' : '') + (grouped ? '.grp' : ''), { dataset: { m: m.id } },
-          !mine && !grouped ? avatar(u, 's') : h('span.av-sp'),
-          h('div.cb', !mine && !grouped ? h('div.tiny.bold', m.autor) : null, h('div.ct', highlight(m.texto)),
-            h('div.tiny.muted.time', m.pendiente ? '🕓 Enviando…' : m.error ? h('a', { href: 'javascript:void 0', onclick: () => retry(m) }, '⚠️ ' + m.error) : hm(m.creado) + (mine ? ' ✓' : ''))),
-          canDel && !m.pendiente && !m.error ? h('button.cdel', { title: 'Borrar mensaje (va a la papelera)', onclick: () => delMsg(m) }, '🗑') : null);
-      }]);
-    });
-    const keep = new Set(want.map(w => w[0]));
-    for (const [k, v] of nodes) if (!keep.has(k)) { v.el.remove(); nodes.delete(k); }
-    const firstBefore = log.firstElementChild;
-    want.forEach(([k, sig, mk], i) => {
-      let n = nodes.get(k);
-      if (!n || n.sig !== sig) { const el2 = mk(); if (n) n.el.replaceWith(el2); n = { sig, el: el2 }; nodes.set(k, n); }
-      if (log.children[i] !== n.el) log.insertBefore(n.el, log.children[i] || null);
-    });
-    const lastId = CHAT.msgs.length ? CHAT.msgs[CHAT.msgs.length - 1].id : '';
-    const lastMine = CHAT.msgs.length && CHAT.msgs[CHAT.msgs.length - 1].autorId === S.me.id;
-    if (focusMsg && nodes.get('m_' + focusMsg)) {
-      const el2 = nodes.get('m_' + focusMsg).el; el2.scrollIntoView({ block: 'center' }); el2.classList.add('hl'); setTimeout(() => el2.classList.remove('hl'), 3500); focusMsg = '';
-    } else if (lastId !== lastLastId && (atBottom || lastMine || !lastLastId)) log.scrollTop = log.scrollHeight; // mensaje nuevo
-    else if (firstBefore && log.firstElementChild !== firstBefore && !atBottom) log.scrollTop = oldTop + (log.scrollHeight - oldH); // cargados antiguos: no se mueve
-    lastLastId = lastId;
+let timer = null, running = false, started = false;
+// v10: ¿la persona está usando la app de verdad? (ratón, teclado, toques o desplazamiento en los últimos 2 min)
+let lastUse = Date.now();
+['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(ev => addEventListener(ev, () => { lastUse = Date.now(); }, { passive: true, capture: true }));
+const usando = () => document.visibilityState === 'visible' && Date.now() - lastUse < 120000;
+// v10: además del chat, esta consulta ligera ("pulso") trae la revisión de cada tabla:
+// notificaciones, noticias, pedidos… llegan en segundos sin recargar nada.
+export async function startChat() {
+  if (started || !S.me) return;
+  started = true;
+  if (can('chat.usar')) {
+    CHAT.msgs = (await kv.get('chat.msgs')) || [];
+    CHAT.lastSeen = (await kv.get('chat.visto.' + S.me.id)) || '';
   }
-  function highlight(t) {
-    const out = h('span');
-    String(t).split(/(@[\wÀ-ÿ.]+)/).forEach(p => out.appendChild(/^@/.test(p) ? h('b.mention', p) : document.createTextNode(p)));
-    return out;
+  unread();
+  tick();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') tick(); });
+}
+function schedule() {
+  clearTimeout(timer);
+  // v11: con el chat abierto, cada 1,5 s (Google tarda ~1 s en responder: más rápido solo saturaba sin ganar nada)
+  const ms = !S.online ? 30000 : CHAT.open && document.visibilityState === 'visible' ? (CHAT.fast && !CHAT.noLong ? 60 : 1500) : document.visibilityState === 'visible' ? 5000 : 60000;
+  timer = setTimeout(tick, ms);
+}
+export async function tick() {
+  if (running || !S.token) return schedule();
+  running = true;
+  try {
+    // v10.6.2: solo cuentan los mensajes confirmados por el servidor (la hora de un mensaje aún
+    // enviándose es la del PC y, si el reloj va adelantado, se saltaban mensajes de otras personas)
+    const last = CHAT.msgs.reduce((a, m) => !m.pendiente && !m.error && m.creado > a ? m.creado : a, '');
+    // v11.8: con el chat abierto, «espera larga»: el servidor contesta EN CUANTO llega un mensaje (hasta 20 s)
+    const longo = CHAT.open && document.visibilityState === 'visible' && S.online && !CHAT.noLong;
+    let r;
+    if (longo) {
+      try { r = await api('chat.esperar', { desde: last, max: 20000, activo: true, usando: usando() }, { quiet: true, timeout: 35000 }); CHAT.fast = Number(r.esperaMs) >= 5000; }
+      catch (e) { if (e.code === 'VALIDATION') CHAT.noLong = true; throw e; } // servidor antiguo sin «espera larga»: se vuelve al pulso
+    } else r = await api('rt.poll', { desde: last, activo: document.visibilityState === 'visible', usando: usando() }, { quiet: true });
+    syncRevs(r.revs || {});
+    r.mensajes = r.mensajes || [];
+    // mensajes borrados por una administradora: desaparecen al momento
+    r.mensajes.filter(m => m.borrado).forEach(m => { CHAT.msgs = CHAT.msgs.filter(x => x.id !== m.id); });
+    r.mensajes = r.mensajes.filter(m => !m.borrado);
+    if (r.mensajes.length) {
+      const ids = new Set(CHAT.msgs.map(m => m.id));
+      r.mensajes.forEach(m => { if (!ids.has(m.id)) CHAT.msgs.push(m); });
+      CHAT.msgs.sort((a, b) => String(a.creado).localeCompare(String(b.creado)));
+      CHAT.msgs = CHAT.msgs.slice(-300);
+      kv.set('chat.msgs', CHAT.msgs);
+      if (!CHAT.open || document.visibilityState !== 'visible') ping(r.mensajes.filter(m => m.autorId !== S.me.id));
+    }
+    // v11: conversación borrada para todos
+    if (r.corte && r.corte !== CHAT.corte) { CHAT.corte = r.corte; CHAT.msgs = CHAT.msgs.filter(m => m.pendiente || m.creado > r.corte); kv.set('chat.msgs', CHAT.msgs); }
+    CHAT.conectados = r.conectados || [];
+    CHAT.error = ''; CHAT.ready = true;
+    if (CHAT.open && document.visibilityState === 'visible') markRead();
+  } catch (e) { CHAT.error = e.code === 'NET' ? 'Sin conexión' : e.message; }
+  running = false;
+  unread(); notify(); schedule();
+}
+function ping(list) {
+  if (!list.length) return;
+  try { if (localStorage.getItem('cd.chatSonido') !== '0') { const a = new AudioContext(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = 0.04; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.12); } } catch (e) { }
+  if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+    const m = list[list.length - 1];
+    try { new Notification('💬 ' + m.autor, { body: m.texto.slice(0, 120), tag: 'chat' }); } catch (e) { }
   }
-  if (!can('chat.usar')) { mount(el, h('p', 'No tienes acceso al chat.')); return {}; }
-  focusMsg = (params || []).find(x => x && !x.startsWith('?')) || '';
-  const off = onChat(draw);
-  setOpen(true);
-  draw();
-  setTimeout(() => ta.focus(), 50);
-  if ('Notification' in window && Notification.permission === 'default') setTimeout(() => { try { Notification.requestPermission(); } catch (e) { } }, 3000);
-  return { destroy: () => { off(); setOpen(false); }, update: () => { }, params: p => { focusMsg = (p || []).find(x => x && !x.startsWith('?')) || ''; draw(); } };
+}
+function unread() {
+  const n = CHAT.msgs.filter(m => m.autorId !== (S.me && S.me.id) && m.creado > CHAT.lastSeen).length;
+  if (n !== S.chatUnread) { S.chatUnread = n; emit(); } // solo se redibuja si cambia el contador
+}
+export function markRead() {
+  const last = CHAT.msgs.length ? CHAT.msgs[CHAT.msgs.length - 1].creado : '';
+  if (last && last !== CHAT.lastSeen) { CHAT.lastSeen = last; kv.set('chat.visto.' + S.me.id, last); unread(); }
+}
+export function setOpen(v) { CHAT.open = v; if (v) { markRead(); tick(); } else schedule(); }
+export async function send(texto, opts = {}) {
+  texto = String(texto || '').trim();
+  if (!texto) return;
+  const tmp = { id: uid('ch').replace(/[^a-z0-9_]/gi, '').toLowerCase().slice(0, 19), autorId: S.me.id, autor: S.me.nombre, texto, creado: new Date().toISOString(), pendiente: true };
+  if (!/^ch_[a-z0-9]{8,20}$/.test(tmp.id)) tmp.id = 'ch_' + Math.random().toString(36).slice(2, 14);
+  CHAT.msgs.push(tmp); notify();
+  for (let i = 0; i < 3; i++) {
+    try {
+      const m = await api('chat.enviar', { id: tmp.id, texto, telegram: !!opts.telegram }, { quiet: true });
+      const tgr = m.telegram; delete m.telegram;
+      Object.assign(tmp, m, { pendiente: false }); kv.set('chat.msgs', CHAT.msgs); markRead(); notify();
+      if (opts.telegram && tgr) toast(tgr.enviados ? '✈️ También enviado por Telegram a ' + tgr.enviados + ' persona(s)' + (tgr.sinTelegram ? ' · ' + tgr.sinTelegram + ' sin Telegram conectado' : '') : '✈️ ' + (tgr.aviso || 'No se envió por Telegram'), tgr.enviados ? 'ok' : 'warn', 7000);
+      tick(); // v10.6.2: se consulta enseguida para ver las respuestas sin esperar al siguiente pulso
+      return;
+    } catch (e) { if (e.code !== 'NET' && e.code !== 'BUSY') { tmp.error = e.message; tmp.pendiente = false; notify(); return; } await new Promise(r => setTimeout(r, 1500 * (i + 1))); }
+  }
+  tmp.error = 'No se pudo enviar (sin conexión). Pulsa para reintentar.'; tmp.pendiente = false; notify();
+}
+export async function delMsg(m) {
+  if (!await confirmDlg('Borrar mensaje', 'Irá a la papelera: una administradora puede restaurarlo.', 'Borrar', true)) return;
+  try { await api('chat.borrar', { id: m.id }); CHAT.msgs = CHAT.msgs.filter(x => x.id !== m.id); kv.set('chat.msgs', CHAT.msgs); notify(); }
+  catch (e) { toast(e.message, 'bad'); }
+}
+export async function retry(m) { CHAT.msgs = CHAT.msgs.filter(x => x !== m); await send(m.texto); }
+export async function loadOlder() {
+  const first = CHAT.msgs[0];
+  const r = await api('chat.historial', { antes: first ? first.creado : '' });
+  const ids = new Set(CHAT.msgs.map(m => m.id));
+  CHAT.msgs = r.filter(m => !ids.has(m.id)).concat(CHAT.msgs);
+  notify();
+  return r.length;
 }

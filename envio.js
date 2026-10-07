@@ -1,0 +1,771 @@
+// ================= v11.6 · FASE 4 · EMPAQUETAR automático =================
+// Todo lo que se imprime o se envía al cliente con cada paquete, desde un solo sitio:
+// · Etiqueta de envío OFICIAL (Vinted, Correos, InPost…): se ADJUNTA (PDF o imagen) y sale tal cual. Nunca se inventa.
+// · Código del paquete 50 × 50 (QR + CEB-AAAA-NNNNNN): al escanearlo se abre el pedido.
+// · Tarjeta de agradecimiento 50 × 50 con tu logo y tu texto ({cliente}, {producto}, {pedido}…).
+// · Cada impresión queda registrada: Pendiente / Enviando / Impreso / Error. Lo ya impreso solo se repite con «Reimprimir».
+// · Mensajes al cliente para copiar y pegar (Vinted, Wallapop, WhatsApp…): lo que falta se avisa, no se rellena.
+import { h, mount, btn, modal, toast, field, inp, area, sel, pill, fdt, copyText, confirmDlg } from './ui.js';
+import { S, api, can, byId, upsertLocal, emit, pull } from './store.js';
+import * as PLT from './plantillas.js'; // v16.2: saber si hay un diseño propio puesto
+import { appUrl, emisor } from './print.js';
+
+const CL = window.CL;
+const ecfg = () => (S.cfg && S.cfg.envio) || {};
+export const PRINT_TIPOS = {
+  oficial: { t: 'Etiqueta de envío oficial', tpl: 'oficial', f: '100x150', i: '🏷️' },
+  propia: { t: 'Etiqueta de dirección propia', tpl: 'envio', f: '100x150', i: '✉️' },
+  paquete: { t: 'Etiqueta de soporte del paquete', tpl: 'paquete', f: '50x50', i: '🔳' },
+  gracias: { t: 'Tarjeta de agradecimiento', tpl: 'gracias', f: '50x50', i: '💌' }
+};
+const EST_CLS = { Pendiente: 'warn', Enviando: 'brand', Impreso: 'ok', Error: 'bad' };
+// lo que ve la persona (en el registro se guarda Enviando/Impreso)
+const EST_TXT = { Pendiente: 'PENDIENTE', Enviando: 'IMPRIMIENDO', Impreso: 'IMPRESO', Error: 'ERROR' };
+// v13.10: la etiqueta del paquete sale en la MISMA bobina que la de envío (100 × 150) salvo que elijas el formato pequeño 50 × 50
+export const formatoPaquete = () => (ecfg().formatoPaquete === 'pequeno' ? 'pequeno' : 'largo');
+export const fmtPaquete = () => formatoPaquete() === 'largo' ? '100x150' : '50x50';
+// Antes de imprimir el QR interno: con el formato pequeño se pide cambiar a la bobina 50 × 50; con el largo no hace falta cambiar nada
+export async function bobinaPaquete(texto) {
+  if (formatoPaquete() === 'largo') return true;
+  return confirmDlg('Bobina 50 × 50 mm', 'Coloca la bobina de 50 × 50 mm. ' + texto, 'Bobina puesta');
+}
+export const CODE_RX = /CEB-\d{4}-\d{6}/i;
+export const codeFrom = t => { const m = String(t || '').match(CODE_RX); return m ? m[0].toUpperCase() : ''; };
+
+// ---------- Código del paquete ----------
+export function qrPayload(o) { const b = appUrl(); return o.codigo ? (b ? b + '#/q/ceb/' + o.codigo : o.codigo) : ''; }
+export async function ensureCode(o) {
+  if (o.codigo) return o;
+  const r = await api('pedidos.codigo', { id: o.id });
+  upsertLocal('pedidos', r); emit();
+  return r;
+}
+export function findByCode(code) { code = codeFrom(code); return code ? (S.t.pedidos || []).find(o => o.codigo === code) || null : null; }
+
+// ---------- Plantillas con {marcadores} ----------
+export const MARCAS = [['cliente', 'nombre del cliente'], ['producto', 'producto'], ['pedido', 'nº de pedido'], ['codigo', 'código del paquete'], ['cantidad', 'unidades'], ['tienda', 'tu tienda'], ['transportista', 'transportista'], ['seguimiento', 'nº de seguimiento'], ['total', 'importe total'], ['pago', 'forma de pago'], ['hasta', 'hasta cuándo se guarda']];
+export function ctxOf(o) {
+  const em = emisor();
+  // v12.5: un pedido de la web con varias líneas es UN paquete: el total y los productos son los de todo el pedido
+  const g = CL.webGroup(o, S.t.pedidos).filter(x => CL.phaseOf(S.cfg.pedidos, x.estado) !== 'cancelado'), grupo = g.length ? g : [o];
+  const pw = CL.pagoWeb(o), hasta = pw.porWa ? CL.reservaHasta(grupo[0]) : null;
+  const eur2 = v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',') + ' €';
+  return { cliente: String(o.cliente || '').trim(), producto: grupo.length > 1 ? grupo.map(x => (Number(x.cantidad) > 1 ? x.cantidad + ' × ' : '') + x.producto).join(', ') : String(o.producto || '').trim(), pedido: String(o.numero || ''), codigo: o.codigo || '', cantidad: String(o.cantidad || 1),
+    tienda: em.comercial || em.nombre || (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || '', transportista: o.envio || '', seguimiento: o.seguimiento || '',
+    total: eur2(grupo.reduce((a, x) => a + CL.orderTotal(x), 0)), pago: pw.metodo, hasta: hasta ? hasta.toLocaleString('es-ES', { weekday: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '' };
+}
+// Rellena los marcadores. Lo que falta NO se inventa: queda marcado y se devuelve en «faltan».
+export function fill(text, ctx) {
+  const faltan = [];
+  const out = String(text || '').replace(/\{(\w+)\}/g, (m, k) => {
+    if (!(k in ctx)) return m;
+    const v = String(ctx[k] || '').trim();
+    if (!v) { faltan.push(k); return '[' + ((MARCAS.find(x => x[0] === k) || [k, k])[1]).toUpperCase() + ' — FALTA]'; }
+    return k === 'cliente' ? v.split(/\s+/)[0] : v;
+  });
+  return { texto: out, faltan: [...new Set(faltan)] };
+}
+export function thanksData(o, g) {
+  g = Object.assign({}, ecfg().gracias || {}, g || {});
+  const c = ctxOf(o), F = t => fill(t, c);
+  const parts = [F(g.titulo), F(g.texto), F(g.firma)];
+  const t = ecfg().tarjeta || {}; // v13.7: el mismo DISEÑO que las tarjetas (fondo, letras, colores) también en la etiqueta 50 × 50
+  return { titulo: parts[0].texto, texto: parts[1].texto, firma: parts[2].texto, faltan: [...new Set(parts.flatMap(p => p.faltan))], logo: g.logo !== false, qr: g.qrCodigo && o.codigo ? qrPayload(o) : '',
+    color: t.color || '#e0457b', fondo: !!t.fondo, diseno: t.diseno || null };
+}
+
+// ---------- v11.8 · Tarjeta UNIVERSAL en hoja A4 (no lleva datos del cliente) ----------
+export const cardMode = () => (((ecfg().tarjeta || {}).modo) === 'etiqueta' ? 'etiqueta' : 'hoja');
+const UNIVERSAL_OK = ['tienda'];
+export function thanksUrl(t) {
+  t = t || ecfg().tarjeta || {}; const b = appUrl(); if (!b) return '';
+  const pg = t.pagina || {}, em = emisor(), q = new URLSearchParams();
+  q.set('n', em.comercial || em.nombre || (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || '');
+  if (pg.mensaje) q.set('m', pg.mensaje); if (pg.instagram) q.set('ig', pg.instagram); if (pg.tiktok) q.set('tt', pg.tiktok);
+  if (pg.web) q.set('w', pg.web); if (pg.whatsapp) q.set('wa', pg.whatsapp); if (pg.email) q.set('e', pg.email);
+  if (t.color) q.set('c', t.color.replace('#', ''));
+  return b + 'gracias.html?' + q.toString();
+}
+export function universalCard(g, t, forma) {
+  g = Object.assign({}, ecfg().gracias || {}, g || {}); t = Object.assign({ tam: '85x55', corte: 'marcas', color: '#e0457b' }, ecfg().tarjeta || {}, t || {});
+  // v13.5: forma de la tarjeta (la elegida para la plantilla «tarjetas»)
+  const fs = (ecfg().formas || {}), fo = forma || fs.tarjetas || 'rect';
+  const quitados = new Set(), em = emisor(), tienda = em.comercial || em.nombre || (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || '';
+  const F = x => String(x || '').replace(/\{(\w+)\}/g, (m, k) => { if (k === 'tienda') return tienda; quitados.add(k); return ''; }).replace(/\s{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+  const qrUrl = t.qr ? thanksUrl(t) : '';
+  return { titulo: F(g.titulo), texto: F(g.texto), firma: F(g.firma), logo: g.logo !== false, qr: qrUrl, tam: t.tam, n: Number(t.n) || 0, corte: t.corte, color: t.color, fondo: !!t.fondo, forma: fo, diseno: t.diseno || null,
+    avisos: [...quitados].length ? ['La tarjeta es universal: no lleva ' + [...quitados].map(k => '{' + k + '}').join(', ') + ' (sirve para todos los clientes).'] : [], sinQr: t.qr && !qrUrl ? 'Falta la dirección pública de la app (la de GitHub Pages): sin ella el QR no puede abrir la página de agradecimiento.' : '' };
+}
+export async function printCardSheets(d, opts = {}) {
+  const L = await import('./labels.js');
+  if (d.logo) d.logoImg = await L.loadLogo();
+  d.fondoImg = await L.loadCardBg(d.diseno); // v13.7: imagen de fondo (si la hay)
+  const hojas = Math.max(1, Math.min(20, Number(opts.hojas) || 1)), dpi = opts.dpi || 300;
+  const r = await L.sendLabel('tarjetas', () => Array.from({ length: hojas }, () => L.drawCardSheet(d, dpi)), { printer: opts.printer, pdf: !!opts.pdf, calidad: 'foto', fileName: 'tarjetas_agradecimiento' });
+  if (opts.pdf) return r; // v16: exportar no cuenta como impresión
+  api('etiquetas.registrar', { plantilla: 'tarjetas', entidad: 'etiqueta', entidadId: 'tarjetas-A4', titulo: hojas + ' hoja(s) de tarjetas ' + d.tam, impresora: r.printer, copias: hojas }, { quiet: true }).catch(() => { });
+  return r;
+}
+
+// v13.10 · Tarjetas por la IMPRESORA DE ETIQUETAS: una tarjeta por etiqueta, al tamaño de la tarjeta (ej. 85 × 55 mm)
+export async function printCardLabels(d, opts = {}) {
+  const L = await import('./labels.js');
+  if (d.logo) d.logoImg = await L.loadLogo();
+  d.fondoImg = await L.loadCardBg(d.diseno);
+  const s = L.oneCardSize(d); L.TEMPLATES.tarjeta1.w = s.w; L.TEMPLATES.tarjeta1.h = s.h;
+  const n = Math.max(1, Math.min(200, Number(opts.copias) || 1));
+  const r = await L.sendLabel('tarjeta1', dpi => Array.from({ length: n }, () => L.drawOneCardCanvas(d, dpi)), { printer: opts.printer, pdf: !!opts.pdf, fileName: 'tarjetas_etiqueta' });
+  if (opts.pdf) return r;
+  api('etiquetas.registrar', { plantilla: 'tarjeta1', entidad: 'etiqueta', entidadId: 'tarjetas-etiqueta', titulo: n + ' tarjeta(s) ' + d.tam + ' en etiqueta', impresora: r.printer, copias: n }, { quiet: true }).catch(() => { });
+  return r;
+}
+// ---------- Estado de impresión de cada cosa del paquete ----------
+export const printsOf = o => (S.t.impresiones || []).filter(r => r.pedidoId === o.id).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+export function wanted(o) {
+  const im = Object.assign({ paquete: true, gracias: true, propiaSinOficial: false }, ecfg().imprimir || {}), out = [];
+  if (o.etiquetaEnvio && o.etiquetaEnvio.archivoId) out.push('oficial'); else if (im.propiaSinOficial) out.push('propia');
+  if (im.paquete) out.push('paquete');
+  if (im.gracias) out.push('gracias');
+  return out;
+}
+export function statusOf(o, tipo) {
+  o = ownerOf(o, tipo); // v13.8: en un envío conjunto el QR, la tarjeta y la etiqueta son UNA para todo el paquete
+  const rows = printsOf(o).filter(r => r.tipo === tipo), last = rows[rows.length - 1];
+  const done = rows.filter(r => r.estado === 'Impreso');
+  if (!last) return { estado: 'Pendiente', rows, done };
+  // un «Impreso» anterior manda sobre un error de una reimpresión
+  const estado = last.estado === 'Error' && done.length ? 'Impreso' : last.estado;
+  return { estado, last, rows, done, fallo: last.estado === 'Error' ? last : null };
+}
+export const pendingOf = o => wanted(o).filter(t => ['Pendiente', 'Error'].includes(statusOf(o, t).estado));
+
+// ---------- Etiqueta oficial: de su PDF o imagen a 100 × 150 sin deformarla ----------
+// v13.5: pdf.js se carga desde el visor común (con la compatibilidad para móviles antiguos: antes daba
+// «Promise.withResolvers is not a function» en iPhone con iOS < 17.4 y Android con Chrome antiguo)
+async function pdfLib() { return (await import('./pdfview.js')).pdfjs(); }
+const isPdf = (name, mime) => /pdf/i.test(mime || '') || /\.pdf$/i.test(name || '');
+// Recorta el blanco alrededor (las etiquetas suelen venir en un folio A4) y gira si viene apaisada
+function cropRotate(src, portrait) {
+  const g = src.getContext('2d', { willReadFrequently: true }), W = src.width, H = src.height, px = g.getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) { const i = (y * W + x) * 4; if (px[i + 3] > 20 && px[i] + px[i + 1] + px[i + 2] < 600) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+  if (x1 < 0) return { canvas: src, recorte: false, giro: false };
+  const pad = Math.round(Math.max(W, H) * 0.008);
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1, recorte = cw * ch < W * H * 0.9;
+  const giro = portrait && cw > ch * 1.08;
+  const out = document.createElement('canvas'); out.width = giro ? ch : cw; out.height = giro ? cw : ch;
+  const o = out.getContext('2d'); o.fillStyle = '#fff'; o.fillRect(0, 0, out.width, out.height);
+  if (giro) { o.translate(out.width, 0); o.rotate(Math.PI / 2); }
+  o.drawImage(src, x0, y0, cw, ch, 0, 0, cw, ch);
+  return { canvas: out, recorte, giro };
+}
+const officialCache = new Map(), pageCache = new Map();
+// La página entera de la etiqueta (PDF a 300 ppp o la foto), sin tocar
+export async function paginaEtiqueta(o, opts = {}) {
+  const e = o.etiquetaEnvio;
+  if (!e || !e.archivoId) throw new Error('Este pedido no tiene la etiqueta oficial adjunta.');
+  const pagina = Math.max(1, Number(opts.pagina || e.pagina) || 1), key = e.archivoId + ':' + pagina;
+  if (pageCache.has(key)) return pageCache.get(key);
+  const a = byId('archivos', e.archivoId) || { id: e.archivoId, nombre: e.nombre, mime: e.mime, driveId: 'x' };
+  const F = await import('./files.js');
+  const blob = opts.blob || await F.fetchFile(a);
+  let src, paginas = 1;
+  if (isPdf(a.nombre, a.mime || blob.type)) {
+    const lib = await pdfLib();
+    const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
+    paginas = doc.numPages;
+    const page = await doc.getPage(Math.min(pagina, paginas)), vp = page.getViewport({ scale: 300 / 72 });
+    src = document.createElement('canvas'); src.width = Math.round(vp.width); src.height = Math.round(vp.height);
+    const g = src.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, src.width, src.height);
+    await page.render({ canvasContext: g, viewport: vp }).promise;
+  } else {
+    const bmp = await createImageBitmap(blob);
+    src = document.createElement('canvas'); src.width = bmp.width; src.height = bmp.height;
+    const g = src.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, src.width, src.height); g.drawImage(bmp, 0, 0);
+  }
+  const out = { src, paginas, pagina: Math.min(pagina, paginas) };
+  pageCache.set(key, out); if (pageCache.size > 12) pageCache.delete(pageCache.keys().next().value);
+  return out;
+}
+// La etiqueta lista para imprimir: con su RECORTE (v14.1: el que hizo el programa o la persona) o sin el blanco de alrededor
+export async function officialCanvas(o, opts = {}) {
+  const e = o.etiquetaEnvio;
+  if (!e || !e.archivoId) throw new Error('Este pedido no tiene la etiqueta oficial adjunta.');
+  const rc = opts.recorte !== undefined ? opts.recorte : e.recorte || null;
+  const pagina = Math.max(1, Number(opts.pagina || e.pagina) || 1), key = e.archivoId + ':' + pagina + ':' + (opts.recortar === false ? 0 : 1) + ':' + JSON.stringify(rc || '');
+  if (officialCache.has(key)) return officialCache.get(key);
+  const pg = await paginaEtiqueta(o, opts);
+  let r;
+  if (opts.recortar === false) r = { canvas: pg.src, recorte: false, giro: false };
+  else if (rc) { const RC = await import('./recorte.js'); const c = RC.aplicar(pg.src, rc); r = cropRotate(c, !rc.giro); r.recorte = true; r.recortada = true; r.giro = r.giro || !!rc.giro; }
+  else r = cropRotate(pg.src, true);
+  const out = Object.assign(r, { paginas: pg.paginas, pagina: pg.pagina, page: pg.src });
+  officialCache.set(key, out); if (officialCache.size > 20) officialCache.delete(officialCache.keys().next().value);
+  return out;
+}
+// v14.1 · ✂️ Recortar la etiqueta (inteligente + a mano) y guardarlo en el pedido
+export async function recortarEtiqueta(o, after) {
+  o = labelOwner(byId('pedidos', o.id) || o);
+  try {
+    const pg = await paginaEtiqueta(o), RC = await import('./recorte.js');
+    const auto = RC.detectarEtiqueta(pg.src), e = o.etiquetaEnvio || {};
+    const v = await RC.recortarDialog(pg.src, e.recorte || (auto ? Object.assign({ modo: 'auto' }, auto) : null), { auto });
+    if (v === undefined) return null;
+    const r = await api('pedidos.etiquetaOficial', { id: o.id, recorte: v });
+    upsertLocal('pedidos', r); emit();
+    toast(v ? '✂️ Recorte guardado: se imprimirá solo la etiqueta' : 'Se imprimirá la página entera (sin recorte)', 'ok');
+    after && after(); return r;
+  } catch (e) { toast('No se pudo recortar: ' + e.message, 'bad', 8000); return null; }
+}
+// Posibles números de seguimiento escritos en la etiqueta (solo se PROPONEN; la persona elige)
+// v13.10 · LEER LA ETIQUETA que subes (PDF): transportista y nº de seguimiento, para no escribirlos a mano
+const TRANSPORTISTAS = [['Vinted Go', /vinted\s*go\b|vintedgo/i], ['InPost', /in\s?post/i], ['Correos Express', /correos\s*express/i], ['Correos', /\bcorreos\b/i], ['SEUR', /\bseur\b/i], ['MRW', /\bmrw\b/i],
+  ['GLS', /\bgls\b/i], ['UPS', /\bups\b/i], ['DHL', /\bdhl\b/i], ['Mondial Relay', /mondial\s*relay/i], ['Nacex', /\bnacex\b/i], ['CTT', /\bctt\b/i], ['Celeritas', /celeritas/i], ['Zeleris', /zeleris/i],
+  ['Envialia', /envialia/i], ['TIPSA', /\btipsa\b/i], ['Packlink', /packlink/i], ['Paack', /\bpaack\b/i]];
+async function pdfTexto(blob, name) {
+  if (!isPdf(name, blob.type)) return '';
+  const lib = await pdfLib();
+  const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
+  let txt = '';
+  for (let i = 1; i <= Math.min(doc.numPages, 3); i++) { const tc = await (await doc.getPage(i)).getTextContent(); txt += ' ' + tc.items.map(x => x.str).join(' '); }
+  return txt;
+}
+function seguimientosDe(txt) {
+  const found = new Set();
+  [/\b[A-Z]{2}\d{9}[A-Z]{2}\b/g, /\bPQ[A-Z0-9]{10,22}\b/g, /\b\d{12,24}\b/g, /\b[A-Z]{2,4}\d{8,20}[A-Z]{0,2}\b/g].forEach(rx => (txt.replace(/\s(?=\d{4}\b)/g, ' ').match(rx) || []).forEach(x => found.add(x)));
+  return [...found].filter(x => !/^(19|20)\d{6}$/.test(x)).slice(0, 5);
+}
+export function transportistaDe(txt) {
+  const t = String(txt || ''), lista = (S.cfg && S.cfg.pedidos && S.cfg.pedidos.envios) || [];
+  for (const [n, rx] of TRANSPORTISTAS) if (rx.test(t)) { const enLista = lista.find(x => CL.norm(x) === CL.norm(n) || (n === 'Vinted Go' && /vinted/i.test(x))); return enLista || n; }
+  return '';
+}
+// { transportista, seguimientos: [...] } (vacío si es una foto o no se puede leer)
+export async function leerEtiqueta(blob, name) {
+  try { const txt = await pdfTexto(blob, name); return { transportista: transportistaDe(txt), seguimientos: seguimientosDe(txt), leida: !!txt.trim() }; }
+  catch (e) { return { transportista: '', seguimientos: [], leida: false }; }
+}
+export async function trackingCandidates(blob, name) { return (await leerEtiqueta(blob, name)).seguimientos; }
+
+// ---------- Imprimir una cosa del paquete, registrada y sin dobles ----------
+async function buildFor(o, tipo, L) {
+  const T = PRINT_TIPOS[tipo];
+  if (tipo === 'oficial') { const r = await officialCanvas(o); return { tpl: 'oficial', data: { canvas: r.canvas } }; }
+  if (tipo === 'propia') { return { tpl: 'envio', data: L.dataFor('envio', { o, c: o.clienteId ? byId('clientes', o.clienteId) : null }) }; }
+  if (tipo === 'paquete' && formatoPaquete() === 'largo') {
+    const g = grupoDe(o).length ? grupoDe(o) : [o], t = CL.orderTiming(o, S.cfg.pedidos, S.hoy), gd = thanksData(o), lo = labelOwner(o), et = (lo.etiquetaEnvio || {});
+    const d = { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, conjunto: g.length > 1,
+      cliente: (() => { const p = String(o.cliente || '').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1].charAt(0).toUpperCase() + '.' : ''); })(),
+      limite: t && t.limite ? t.limite.split('-').reverse().slice(0, 2).join('/') : '', transportista: lo.envio || et.transportista || '', seguimiento: lo.seguimiento || '', canal: o.canal || '', cuenta: [...new Set(g.map(p => p.cuenta).filter(Boolean))].join(' + '), // v14.1: desde qué cuenta se vendió
+      lineas: g.map(p => (Number(p.cantidad) > 1 ? p.cantidad + ' × ' : '') + p.producto + (p.color ? ' · ' + p.color : '') + (p.personalizacion ? ' · «' + String(p.personalizacion).slice(0, 40) + '»' : '') + (g.length > 1 ? ' (nº ' + p.numero + ')' : '')),
+      nota: String(o.obsEnvio || '').slice(0, 120), gracias: { titulo: gd.titulo, texto: gd.texto, firma: gd.firma } };
+    if (gd.logo) d.logoImg = await L.loadLogo();
+    return { tpl: 'paquete150', data: d };
+  }
+  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + ') } }; }
+  const d = thanksData(o);
+  if (d.logo) d.logoImg = await L.loadLogo();
+  d.fondoImg = await L.loadCardBg(d.diseno);
+  return { tpl: T.tpl, data: d };
+}
+// Modo hoja A4: la tarjeta ya está impresa en hojas; en el pedido solo se apunta que va DENTRO del paquete
+export async function cardIncluded(o) {
+  let row;
+  try { row = (await api('impresiones.iniciar', { pedidoId: o.id, tipo: 'gracias', formato: 'A4', impresora: 'Tarjetas de las hojas A4', dispositivo: S.device || '' })).impresion; }
+  catch (e) { toast(e.code === 'YA_IMPRESO' ? 'La tarjeta ya estaba metida en este paquete.' : e.message, 'warn'); return null; }
+  upsertLocal('impresiones', row); emit();
+  const r = await api('impresiones.resultado', { id: row.id, ok: true, impresora: 'Tarjetas de las hojas A4' });
+  upsertLocal('impresiones', r.impresion); emit(); toast('💌 Tarjeta metida en el paquete', 'ok');
+  return r.impresion;
+}
+// ---------- v14.1 · IMPRIMIR EN EL PC DEL TALLER desde el móvil o el portátil ----------
+// Sin impresora en este aparato se pregunta: «En el PC del taller» (queda encargado y el programa del PC lo saca solo)
+// o «Aquí» (el PDF de siempre). La elección se puede recordar en este aparato.
+const DKEY = 'cd.imprimirEn';
+export function destinoGuardado() { try { const v = localStorage.getItem(DKEY); return v === 'taller' || v === 'aqui' ? v : ''; } catch (e) { return ''; } }
+export function guardarDestino(v) { try { if (v) localStorage.setItem(DKEY, v); else localStorage.removeItem(DKEY); } catch (e) { } }
+export function elegirDestino(what) {
+  const g = destinoGuardado(); if (g) return Promise.resolve(g);
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    const rec = h('input', { type: 'checkbox', checked: true });
+    modal('¿Dónde lo imprimo?', h('div.col', h('p', 'Este aparato no tiene impresora de etiquetas. ' + (what ? '«' + what + '»' : 'La etiqueta') + ' puede salir por el PC del taller (el programa tiene que estar abierto) o aquí, en PDF.'),
+      h('label.check.small', rec, 'Recordarlo en este aparato (se cambia en Configuración → Centro de impresión)')),
+    close => [btn('📄 Aquí', () => { if (rec.checked) guardarDestino('aqui'); fin('aqui'); close(); }, { cls: 'ghost' }), btn('🖨️ En el PC del taller', () => { if (rec.checked) guardarDestino('taller'); fin('taller'); close(); }, { cls: 'primary' })],
+    { size: 'narrow', onclose: () => fin('') });
+  });
+}
+async function encargar(o, tipo, opts) {
+  let r;
+  try { r = await api('impresiones.encargar', { pedidoId: o.id, tipo, formato: tipo === 'paquete' ? fmtPaquete() : PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', dispositivo: S.device || '' }); }
+  catch (e) {
+    if (e.code === 'YA_IMPRESO' && !opts.auto) return otraCopia(o, tipo, opts); // v16.2: sale igual, con un aviso corto (sin ventana)
+    if (e.code === 'YA_IMPRESO' || e.code === 'EN_CURSO') { if (!opts.auto) toast(e.message, 'warn', 7000); return { estado: 'omitido', motivo: e.message }; }
+    throw e;
+  }
+  upsertLocal('impresiones', r.impresion); emit();
+  if (!opts.silencio) toast('🖨️ ' + PRINT_TIPOS[tipo].t + (r.yaEncargado ? ': ya estaba encargada al PC del taller.' : ': enviada al PC del taller. Sale en cuanto el programa del PC la coja.'), 'ok', 7000);
+  return { estado: 'Encargado', impresion: r.impresion };
+}
+// Lo encargado al PC del taller que aún no ha salido (para el bloque de impresión y para «Hoy»)
+export const encargadaPC = (o, tipo) => { const st = statusOf(o, tipo); return st.last && st.last.estado === 'Pendiente' ? st.last : null; };
+export function encargosPendientes() {
+  const out = [];
+  for (const r of (S.t.impresiones || [])) {
+    if (r.estado !== 'Pendiente') continue;
+    const o = byId('pedidos', r.pedidoId);
+    if (o && !o.eliminado) out.push({ o, r, min: (Date.now() - new Date(r.fecha).getTime()) / 60000 });
+  }
+  return out;
+}
+
+export async function printOne(o, tipo, opts = {}) {
+  o = ownerOf(o, tipo);
+  if (tipo === 'gracias' && cardMode() === 'hoja') return (await cardIncluded(o)) ? { estado: 'Impreso' } : { estado: 'omitido' };
+  const L = await import('./labels.js');
+  if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
+  // v14.1: sin impresora real aquí → ¿en el PC del taller o aquí?
+  if (!opts.aqui) {
+    const t0 = await L.targetFor(PRINT_TIPOS[tipo].tpl === 'paquete' && formatoPaquete() === 'largo' ? 'paquete150' : PRINT_TIPOS[tipo].tpl).catch(() => null);
+    if (!t0 || !t0.pr) {
+      const dest = opts.destino || await elegirDestino(PRINT_TIPOS[tipo].t);
+      if (!dest) return { estado: 'cancelado' };
+      if (dest === 'taller') return encargar(o, tipo, opts);
+    }
+  }
+  const b = await buildFor(o, tipo, L); // si falta algo (la etiqueta no se puede leer…) no se registra nada
+  let t = await L.targetFor(b.tpl);
+  // v16: antes de imprimir a mano se ve QUÉ sale y POR DÓNDE (impresora, etiqueta, tamaño y copias). Nunca por otra impresora sin decirlo.
+  if (t.pr && !opts.auto && !opts.confirmado) {
+    try { await L.printers(true); t = await L.targetFor(b.tpl); } catch (e) { }
+    const elegida = await confirmarImpresion(o, tipo, b.tpl, t, L);
+    if (!elegida) return { estado: 'cancelado' };
+    if (t.pr && elegida !== t.pr.name) { opts = Object.assign({}, opts, { printer: elegida }); t = await L.targetFor(b.tpl, elegida); }
+  }
+  let row;
+  try {
+    row = (await api('impresiones.iniciar', { pedidoId: o.id, tipo, formato: tipo === 'paquete' ? fmtPaquete() : PRINT_TIPOS[tipo].f, reimprimir: !!opts.reimprimir, motivo: opts.motivo || '', impresora: t.pr ? t.pr.name : 'PDF', dispositivo: S.device || '' })).impresion;
+  } catch (e) {
+    if (e.code === 'YA_IMPRESO' && !opts.auto) return otraCopia(o, tipo, opts); // v16.2: sale igual, con un aviso corto (sin ventana)
+    if (e.code === 'YA_IMPRESO' || e.code === 'EN_CURSO') { if (!opts.auto) toast(e.message, 'warn', 7000); return { estado: 'omitido', motivo: e.message }; }
+    throw e;
+  }
+  upsertLocal('impresiones', row); emit();
+  const answer = async (ok, error, impresora) => { try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '' }); upsertLocal('impresiones', r.impresion); emit(); return r.impresion; } catch (e) { return null; } };
+  try {
+    const res = await L.sendLabel(b.tpl, (dpi, s) => [L.draw(b.tpl, b.data, dpi, s)], { silent: true, wait: true, printer: opts.printer || '', fileName: tipo + '_pedido_' + o.numero, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero }); // v13.5: con PDF se espera a cerrar el visor
+    if (res.how === 'printer') { await answer(true, '', res.printer); if (!opts.auto) { toast('🖨️ ' + PRINT_TIPOS[tipo].t + ' → ' + res.printer, 'ok', 5000); ofrecerSoporte(o, tipo); } return { estado: 'Impreso', impresora: res.printer }; }
+    // en el móvil (PDF) no sabemos si la impresora lo sacó bien: se pregunta
+    const okp = await askPrinted(PRINT_TIPOS[tipo].t);
+    await answer(okp, okp ? '' : 'No salió bien (PDF)', 'PDF');
+    if (okp && !opts.auto) ofrecerSoporte(o, tipo);
+    return { estado: okp ? 'Impreso' : 'Error' };
+  } catch (e) {
+    await answer(false, e.message, t.pr ? t.pr.name : '');
+    toast('❌ ' + PRINT_TIPOS[tipo].t + ': ' + e.message, 'bad', 9000);
+    return { estado: 'Error', error: e.message };
+  }
+}
+// v16: al imprimir la etiqueta de envío se ofrece la ETIQUETA DE SOPORTE del paquete (gracias + código + QR + pedido + producto + envío)
+function ofrecerSoporte(o, tipo) {
+  if (tipo !== 'oficial' && tipo !== 'propia') return;
+  if (statusOf(o, 'paquete').estado === 'Impreso') return;
+  toast('¿Imprimes también la etiqueta de soporte del paquete?', '', 12000, { t: 'Imprimir etiqueta de soporte', on: () => printOne(o, 'paquete').catch(() => { }) });
+}
+const RECORDADA = 'cd.print.directo.';
+// Devuelve el nombre de la impresora elegida, o '' si se cancela. Si marcaste «no preguntar» para ESA impresora, no pregunta;
+// en cuanto la impresora que toca es otra (o está apagada), vuelve a preguntar.
+function confirmarImpresion(o, tipo, tpl, t, L) {
+  const T = PRINT_TIPOS[tipo], pr = t.pr;
+  let recordada = ''; try { recordada = localStorage.getItem(RECORDADA + tpl) || ''; } catch (e) { }
+  if (recordada && recordada === pr.name && !pr.offline) return Promise.resolve(pr.name);
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    const reales = L.realPrinters(t.list || []), nombres = reales.map(p => p.name); if (!nombres.includes(pr.name)) nombres.unshift(pr.name);
+    const s = sel(nombres.map(n => { const p = reales.find(x => x.name === n); return { v: n, t: n + (p && !p.offline ? '' : ' — apagada o desconectada') + (p && p.label ? ' · etiquetas' : p ? ' · folios' : '') }; }), pr.name);
+    const no = h('input', { type: 'checkbox' }), aviso = h('p.small.bad-t');
+    const pinta = () => { const p = reales.find(x => x.name === s.value); aviso.textContent = !p || p.offline ? ((pr.name === s.value && pr.problema) || 'Esta impresora está apagada o desconectada: enciéndela o elige otra.') : (!p.label && T.f !== 'A4' ? 'Ojo: «' + p.name + '» es de folios, no de etiquetas. La etiqueta saldría en un folio A4.' : ''); };
+    s.addEventListener('change', pinta); pinta();
+    const dato = (k, v) => h('div.imp-dato', h('span', k), h('b', v));
+    modal('🖨️ ¿Imprimir?', h('div.imp-conf',
+      dato('Etiqueta', T.i + ' ' + T.t), dato('Pedido', 'nº ' + o.numero + (o.cliente ? ' · ' + o.cliente : '')),
+      dato('Tamaño', t.size.w + ' × ' + t.size.h + ' mm' + (t.sheet ? ' (en folio A4)' : '')), dato('Copias', String(opts_copias(tipo))),
+      h('div.field', h('label', 'Impresora'), s), aviso,
+      h('label.check.small', no, 'No preguntar más en este aparato mientras salga por esta impresora')),
+      close => [btn('Cancelar', () => { fin(''); close(); }, { cls: 'ghost' }), btn('Imprimir', () => {
+        const p = reales.find(x => x.name === s.value);
+        if (!p || p.offline) { pinta(); return; }
+        try { if (no.checked) localStorage.setItem(RECORDADA + tpl, s.value); else localStorage.removeItem(RECORDADA + tpl); } catch (e) { }
+        fin(s.value); close();
+      }, { cls: 'primary', icon: 'printer' })], { size: 'narrow', onclose: () => fin('') });
+  });
+}
+const opts_copias = () => 1;
+function askPrinted(what) {
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    modal('¿Se ha impreso bien?', h('p', 'Has visto el PDF de «' + what + '» a tamaño real. ¿Lo has impreso (escala 100 %) y ha salido bien?'),
+      close => [btn('No / todavía no', () => { fin(false); close(); }, { cls: 'ghost' }), btn('Sí, impreso', () => { fin(true); close(); }, { cls: 'primary' })], { size: 'narrow', onclose: () => fin(false) });
+  });
+}
+// v16.2 · Ya estaba impresa (al escanear el QR o al pulsar Imprimir otra vez): NO se pregunta nada. Sale otra copia, con un aviso
+// pequeño que se quita solo, y queda apuntada como reimpresión.
+function otraCopia(o, tipo, opts) {
+  if (opts && opts.reimprimir) return Promise.resolve({ estado: 'Error', error: 'No se pudo sacar otra copia.' }); // (por si el servidor insiste: nunca en bucle)
+  toast('⚠️ Esta etiqueta ya se imprimió: deberías tener una copia. Sale otra igualmente.', 'warn', 5000);
+  return printOne(o, tipo, Object.assign({}, opts, { reimprimir: true, motivo: 'Otra copia (ya estaba impresa)' }));
+}
+// Reimprimir: lo pide la persona, con motivo; queda como copia 2, 3…
+export function reprintDialog(o, tipo, aviso) {
+  // v16.2: la ventana «Reimprimir · Etiqueta de envío oficial» sobraba: otra copia de la etiqueta oficial sale directa
+  // (sigue quedando apuntada como reimpresión, con fecha y quién).
+  if (tipo === 'oficial') return printOne(o, tipo, { reimprimir: true, motivo: 'Otra copia' });
+  return new Promise(res => {
+    const motivo = sel(['Salió mal / manchada', 'Se ha perdido o roto', 'Hace falta otra copia', 'Otro'].map(x => ({ v: x, t: x })), 'Salió mal / manchada'), otro = inp({ placeholder: 'Escribe el motivo' });
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    modal('Reimprimir · ' + PRINT_TIPOS[tipo].t, h('div.col', aviso ? h('p.small.warn-t', aviso) : null, h('p.small', 'Queda apuntado como reimpresión, con fecha, quién y el motivo.'), field('Motivo', motivo), field('Detalle (opcional)', otro)),
+      close => [btn('Cancelar', () => { fin({ estado: 'cancelado' }); close(); }), btn('Reimprimir', async () => { close(); fin(await printOne(o, tipo, { reimprimir: true, motivo: motivo.value + (otro.value.trim() ? ': ' + otro.value.trim() : '') })); }, { cls: 'primary', icon: 'printer' })],
+      { size: 'narrow', onclose: () => fin({ estado: 'cancelado' }) });
+  });
+}
+// Imprime en orden todo lo que falta (sin repetir lo ya impreso)
+export async function printPending(o) {
+  const list = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja')), out = [];
+  // v14.1: se pregunta UNA vez dónde (si este aparato no tiene impresora), no una por etiqueta
+  const L = await import('./labels.js'), t0 = list.length ? await L.targetFor('oficial').catch(() => null) : null;
+  let destino = '';
+  if (list.length && (!t0 || !t0.pr)) { destino = await elegirDestino('Lo que falta del pedido nº ' + o.numero); if (!destino) return out; }
+  for (const t of list) { out.push([t, await printOne(byId('pedidos', o.id) || o, t, { auto: true, destino, silencio: true })]); }
+  const ok = out.filter(x => x[1].estado === 'Impreso').length, bad = out.filter(x => x[1].estado === 'Error').length, enc = out.filter(x => x[1].estado === 'Encargado').length;
+  if (enc) toast('🖨️ ' + enc + ' etiqueta(s) enviadas al PC del taller' + (ok ? ' · ' + ok + ' impresa(s) aquí' : '') + (bad ? ' · ' + bad + ' con error' : ''), bad ? 'warn' : 'ok', 7000);
+  else if (list.length) toast(ok + ' de ' + list.length + ' impreso(s)' + (bad ? ' · ' + bad + ' con error' : ''), bad ? 'warn' : 'ok', 6000);
+  return out;
+}
+
+// ---------- Bloque «ETIQUETAS E IMPRESIÓN» (Embalaje y Escanear) ----------
+export function printBlock(o, opts = {}) {
+  const edit = can('pedidos.editar'), list = wanted(o), e = o.etiquetaEnvio;
+  const row = tipo => {
+    if (tipo === 'gracias' && cardMode() === 'hoja') {
+      const st = statusOf(o, 'gracias'), inc = st.estado === 'Impreso', last = st.done[st.done.length - 1];
+      return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span', '💌'), h('span.grow.small', h('b', 'Tarjeta de agradecimiento'), h('span.tiny.muted', ' · de las hojas A4'),
+        last ? h('div.tiny.muted', 'Metida ' + fdt(last.fecha) + ' por ' + last.usuario) : h('div.tiny.muted', 'Las tarjetas se imprimen en hojas (Embalaje → Tarjeta y mensajes).')),
+        pill(inc ? 'INCLUIDA' : 'PENDIENTE', inc ? 'ok' : 'warn'), edit && !inc ? btn('✓ Metida en el paquete', () => cardIncluded(o).then(() => opts.redraw && opts.redraw()), { cls: 'sm' }) : null);
+    }
+    const st = statusOf(o, tipo), T = PRINT_TIPOS[tipo], last = st.done[st.done.length - 1];
+    return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span', T.i), h('span.grow.small', h('b', T.t), h('span.tiny.muted', ' · ' + T.f.replace('x', ' × ') + ' mm'),
+      last ? h('div.tiny.muted', 'Impreso ' + fdt(last.fecha) + ' por ' + last.usuario + (st.done.length > 1 ? ' · ' + st.done.length + ' copias' : '') + (last.impresora ? ' · ' + last.impresora : '')) : null,
+      st.fallo ? h('div.tiny.bad-t', 'Error: ' + st.fallo.error) : null),
+      encargadaPC(o, tipo) ? h('div.tiny.muted', '🖨️ Encargada al PC del taller ' + fdt(encargadaPC(o, tipo).fecha) + ' por ' + (encargadaPC(o, tipo).usuario || '?')) : null,
+      pill(tipo === 'gracias' && st.estado === 'Impreso' ? 'IMPRESA' : encargadaPC(o, tipo) ? 'EN EL PC DEL TALLER' : EST_TXT[st.estado] || st.estado.toUpperCase(), EST_CLS[st.estado]),
+      edit ? (st.estado === 'Impreso' ? btn('Reimprimir', () => reprintDialog(o, tipo).then(() => opts.redraw && opts.redraw()), { cls: 'sm ghost', icon: 'printer' })
+        : st.estado === 'Enviando' ? null : btn(st.estado === 'Error' ? 'Reintentar' : 'Imprimir', () => printOne(o, tipo).then(() => opts.redraw && opts.redraw()).catch(err => toast(err.message, 'bad', 8000)), { cls: 'sm', icon: 'printer' })) : null,
+      tipo === 'oficial' ? (e && e.archivoId ? btn('', ev => officialPdf(o, ev.target.closest('button')), { cls: 'sm ghost icon', icon: 'file', title: 'Ver el PDF (100 × 150 mm)' }) : null)
+        : btn('', () => previewDialog(o, tipo), { cls: 'sm ghost icon', icon: 'eye', title: 'Ver cómo queda' }));
+  };
+  const pend = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja'));
+  return h('div.card.flat', { style: { marginBottom: '10px' } }, h('div.row', h('div.lbl.grow', { style: { fontWeight: 700 } }, 'ETIQUETAS E IMPRESIÓN'), o.codigo ? h('code.small', o.codigo) : null),
+    h('div.row.wrap', { style: { margin: '4px 0 8px', gap: '6px', alignItems: 'center' } },
+      e && e.archivoId ? h('span.small.grow', '🏷️ Etiqueta oficial: ', h('b', e.nombre), e.transportista ? ' · ' + e.transportista : '', h('span.tiny.muted', ' · adjuntada por ' + (e.por || '?')))
+        : h('span.small.grow.warn-t', '🏷️ Falta la etiqueta de envío oficial (la de Vinted, Correos, InPost…). Adjúntala: nunca se inventa.'),
+      edit ? btn(e && e.archivoId ? 'Cambiar' : 'Adjuntar etiqueta', () => attachDialog(o, opts.redraw), { cls: 'sm' + (e && e.archivoId ? ' ghost' : ' primary'), icon: 'upload' }) : null,
+      e && e.archivoId ? btn('', () => officialPreview(o), { cls: 'sm ghost icon', icon: 'eye', title: 'Ver la etiqueta' }) : null),
+    h('div.list', !(e && e.archivoId) ? h('div.item', { style: { cursor: 'default' } }, h('span', '🏷️'), h('span.grow.small', h('b', 'Etiqueta de envío oficial'), h('div.tiny.muted', 'No se imprime una etiqueta que no existe: adjúntala primero.')), pill('🟠 FALTA', 'warn')) : null, list.map(row)),
+    edit && pend.length ? h('div.row', { style: { marginTop: '8px' } }, btn('🖨️ Imprimir lo que falta (' + pend.length + ')', () => printPending(o).then(() => opts.redraw && opts.redraw()), { cls: 'primary' }), h('span.tiny.muted', 'No repite lo ya impreso.')) : null,
+    h('div.row.wrap', { style: { marginTop: '6px' } }, btn('💬 Mensaje para el cliente', () => messageDialog(o), { cls: 'sm ghost' })));
+}
+
+// Vista previa de la tarjeta de gracias / código del paquete
+export async function previewDialog(o, tipo) {
+  const L = await import('./labels.js');
+  if (tipo === 'paquete' && !o.codigo) { try { o = await ensureCode(o); } catch (e) { return toast(e.message, 'bad'); } }
+  const b = await buildFor(o, tipo, L), s = L.sizeOf(b.tpl, await L.labelCfg());
+  await L.prepararPlantilla(b.tpl); // v15.0: diseño propio (logo en alta, letras)
+  const cv = L.draw(b.tpl, b.data, 300, s); cv.className = 'lbl-canvas'; cv.style.width = Math.round(s.w * 4) + 'px'; cv.style.maxWidth = '100%';
+  const faltan = tipo === 'gracias' ? b.data.faltan : [];
+  modal(PRINT_TIPOS[tipo].t + ' · ' + s.w + ' × ' + s.h + ' mm', h('div.col', h('div.lbl-prev', cv), faltan.length ? h('p.small.warn-t', 'Falta: ' + faltan.join(', ')) : null,
+    tipo === 'gracias' ? h('p.tiny.muted', 'El texto se cambia en Embalaje → Tarjeta y mensajes.') : null), close => [btn('Cerrar', close),
+    // v16.2: si hay un diseño propio puesto, se puede volver al de siempre con un toque (el propio no se borra)
+    ['envio', 'paquete150', 'paquete'].includes(b.tpl) && PLT.activa(b.tpl) && can('config.editar') ? btn('↺ Diseño original', async () => { try { const r = await api('plantillas.predeterminada', { tpl: b.tpl, id: '' }); if (r && r.config) { S.cfg = r.config; emit(); } else await pull(true); toast('Vuelve a salir con el diseño original. Tu diseño sigue guardado en el editor.', 'ok', 6000); close(); previewDialog(o, tipo); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'ghost', title: 'Usar el diseño de siempre' }) : null,
+    ['envio', 'paquete150', 'paquete'].includes(b.tpl) ? btn('Editar diseño', async () => { close(); const ED = await import('./views/editor_etiqueta.js'); await ED.abrirEditor(b.tpl, { datos: b.data }); previewDialog(o, tipo); }, { icon: 'edit', cls: 'ghost' }) : null,
+    btn('Ver PDF', () => { const pages = [{ canvas: L.draw(b.tpl, b.data, 300, s), wmm: s.w, hmm: s.h }]; import('./pdfview.js').then(PV => PV.showPdf({ blob: L.pdfFromCanvases(pages), pages, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero, fileName: tipo + '_pedido_' + o.numero })); }, { icon: 'file' })], { size: 'narrow' });
+}
+export async function officialPreview(o) {
+  const box = h('div.col', h('p.muted', 'Leyendo la etiqueta…'));
+  const e0 = o.etiquetaEnvio || {};
+  // v13.5: desde aquí también se abre el PDF a 100 × 150 (imprimir / descargar / compartir) y el archivo original
+  modal('Etiqueta oficial · pedido nº ' + o.numero, box, close => [btn('Cerrar', close), can('pedidos.editar') ? btn('✂️ Recortar', () => { close(); recortarEtiqueta(o, () => officialPreview(byId('pedidos', o.id) || o)); }) : null,
+    e0.archivoId ? btn('Archivo original', async () => { const a = byId('archivos', e0.archivoId); if (!a) return toast('El archivo original no está en este dispositivo todavía. Sincroniza y vuelve a probar.', 'warn'); (await import('./files.js')).openFile(a); }, { icon: 'file' }) : null,
+    btn('PDF para imprimir', ev => officialPdf(o, ev.target.closest('button')), { cls: 'primary', icon: 'printer' })], { size: 'narrow' });
+  try {
+    const r = await officialCanvas(o), cv = document.createElement('canvas');
+    cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0);
+    cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '320px';
+    mount(box, h('div.lbl-prev', cv), h('p.tiny.muted', 'Se imprime a 100 × 150 mm sin deformarla' + (r.recortada ? ' · ✂️ recortada: solo la etiqueta' : r.recorte ? ' · recortado el blanco de alrededor' : '') + (r.giro ? ' · girada para que quepa' : '') + (r.paginas > 1 ? ' · página ' + r.pagina + ' de ' + r.paginas : '') + '. Es tu archivo original: no se cambia nada de lo que pone.'));
+  } catch (e) { mount(box, h('p.bad-t', 'No se pudo leer la etiqueta: ' + e.message)); }
+}
+
+// v13.5 · La etiqueta oficial como PDF de 100 × 150 mm en el visor (sin registrar impresión: solo para verla/guardarla)
+export async function officialPdf(o, b) {
+  if (b) b.disabled = true;
+  try {
+    const r = await officialCanvas(o), L = await import('./labels.js');
+    const cv = L.draw('oficial', { canvas: r.canvas }, 300, { w: 100, h: 150 });
+    const pages = [{ canvas: cv, wmm: 100, hmm: 150 }];
+    return (await import('./pdfview.js')).showPdf({ blob: L.pdfFromCanvases(pages), pages, title: 'Etiqueta oficial · pedido nº ' + o.numero, fileName: 'etiqueta_oficial_pedido_' + o.numero });
+  } catch (e) { toast('No se pudo preparar el PDF: ' + e.message, 'bad', 8000); return null; }
+  finally { if (b) b.disabled = false; }
+}
+
+// ---------- Adjuntar la etiqueta oficial ----------
+export function attachDialog(o, after, opts = {}) {
+  const fi = h('input', { type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp' });
+  const tr = sel([{ v: '', t: o.envio ? o.envio + ' (el del pedido)' : '—' }].concat(((S.cfg && S.cfg.pedidos && S.cfg.pedidos.envios) || []).map(x => ({ v: x, t: x }))), '');
+  const seg = inp({ placeholder: 'Nº de seguimiento (si lo sabes)', value: '' }), sug = h('div.row.wrap', { style: { gap: '6px' } }), prev = h('div.lbl-prev'), info = h('p.tiny.muted');
+  const pagSel = sel([{ v: 1, t: 'Página 1' }], 1);
+  let file = null, rec = null, recAuto = null; // v14.1: recorte (inteligente al elegir el archivo; se puede ajustar a mano)
+  const local = () => ({ etiquetaEnvio: { archivoId: 'local:' + file.name + ':' + file.size, nombre: file.name, mime: file.type } });
+  const recBtns = h('div.row.wrap.rc-botones', { style: { gap: '6px' } });
+  const showPrev = async (nuevo) => {
+    if (!file) return;
+    mount(prev, h('p.muted.small', 'Preparando la vista previa…'));
+    try {
+      if (nuevo) { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); const RC = await import('./recorte.js'); recAuto = RC.detectarEtiqueta(pg.src); rec = recAuto ? Object.assign({ modo: 'auto' }, recAuto) : null; }
+      const r = await officialCanvas(local(), { blob: file, pagina: Number(pagSel.value), recorte: rec });
+      if (r.paginas > 1 && pagSel.options.length !== r.paginas) mount(pagSel, Array.from({ length: r.paginas }, (_, i) => h('option', { value: i + 1, selected: i + 1 === r.pagina }, 'Página ' + (i + 1))));
+      const cv = document.createElement('canvas'); cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0); cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '260px';
+      mount(prev, cv); info.textContent = 'Así saldrá (100 × 150 mm)' + (rec ? (rec.modo === 'auto' ? ' · ✂️ recortada sola: solo la etiqueta, sin las instrucciones' : ' · ✂️ con tu recorte') : r.recorte ? ' · sin el blanco de alrededor' : '') + (r.giro ? ' · girada' : '') + (r.paginas > 1 ? ' · el PDF tiene ' + r.paginas + ' páginas: elige la de la etiqueta' : '') + '.';
+      mount(recBtns, btn('✂️ ' + (rec ? 'Ajustar el recorte' : 'Recortar'), async () => { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); const RC = await import('./recorte.js'); const v = await RC.recortarDialog(pg.src, rec, { auto: recAuto }); if (v !== undefined) { rec = v; showPrev(false); } }, { cls: 'sm' }),
+        rec ? btn('Sin recortar', () => { rec = null; showPrev(false); }, { cls: 'sm ghost' }) : null);
+    } catch (e) { mount(prev, h('p.bad-t.small', 'No se puede leer este archivo: ' + e.message)); }
+  };
+  pagSel.onchange = () => showPrev(true);
+  fi.onchange = async () => {
+    file = fi.files[0] || null; mount(sug);
+    if (!file) return;
+    showPrev(true);
+    const L = await leerEtiqueta(file, file.name);
+    if (L.transportista && !o.envio) { if (![...tr.options].some(x => x.value === L.transportista)) tr.append(h('option', { value: L.transportista }, L.transportista)); tr.value = L.transportista; }
+    if (!o.seguimiento && L.seguimientos.length && !seg.value) seg.value = L.seguimientos[0];
+    mount(sug, L.leida && (L.transportista || L.seguimientos.length) ? h('span.tiny.ok-t', '📖 Leído de la etiqueta: ' + [L.transportista, L.seguimientos[0]].filter(Boolean).join(' · ')) : !L.leida ? h('span.tiny.muted', 'Es una foto: si quieres, escribe el transportista y el seguimiento.') : null,
+      !o.seguimiento && L.seguimientos.length ? [h('span.tiny.muted', L.seguimientos.length > 1 ? ' ¿Es otro número?' : ' Seguimiento:'), L.seguimientos.map(x => h('button.chip', { onclick: () => { seg.value = x; } }, x))] : null);
+  };
+  modal('Adjuntar la etiqueta oficial · nº ' + o.numero, h('div.col',
+    h('p.small', 'La etiqueta que te da la plataforma o la empresa de envíos (Vinted, Wallapop, Correos, InPost…), en PDF o foto. Se imprime tal cual: el programa no la inventa ni cambia lo que pone.'),
+    fi, prev, info, recBtns, h('div.form', field('Página del PDF', pagSel), field('Transportista', tr), field('Nº de seguimiento', seg, o.seguimiento ? 'Ya tiene: ' + o.seguimiento + ' (no se cambia)' : 'Solo si es el de la etiqueta')), sug),
+  close => [btn('Cancelar', close), btn('Adjuntar', async ev => {
+    if (!file) return toast('Elige el archivo de la etiqueta', 'warn');
+    const bt = ev.target.closest('button'), t0 = bt.innerHTML; bt.disabled = true; bt.textContent = '⏳ Adjuntando…';
+    try {
+      await attachFile(o, file, { transportista: tr.value || o.envio || '', seguimiento: seg.value.trim(), paginas: pagSel.options.length, pagina: Number(pagSel.value) || 1, recorte: rec || undefined });
+      close(); after && after();
+      if (opts.imprimir) { toast('🏷️ Etiqueta oficial adjuntada: se imprime tal cual', 'ok'); printOne(byId('pedidos', o.id) || o, 'oficial').then(() => after && after()).catch(e => toast(e.message, 'bad')); }
+      else toast('🏷️ Etiqueta oficial adjuntada', 'ok', 8000, can('pedidos.editar') ? { t: '🖨️ Imprimir ahora', on: () => printOne(byId('pedidos', o.id) || o, 'oficial').catch(e => toast(e.message, 'bad')) } : null);
+    } catch (e) { toast(e.message, 'bad', 8000); bt.disabled = false; bt.innerHTML = t0; }
+  }, { cls: 'primary', icon: 'upload' })], { size: 'wide' });
+}
+
+// v13.10 · «🏷️ Etiqueta de envío»: SIEMPRE la que adjuntas (Vinted, Wallapop, Etsy, Correos…), tal cual. Si aún no está,
+// se pide adjuntarla y se imprime al momento. La etiqueta con dirección hecha por el programa queda solo como último recurso.
+export async function etiquetaEnvio(o, after) {
+  o = byId('pedidos', o.id) || o;
+  const lo = labelOwner(o);
+  if (hasLabel(lo)) return printOne(lo, 'oficial').then(r => { after && after(); return r; });
+  if (!can('pedidos.editar')) return toast('Este pedido aún no tiene la etiqueta de envío adjunta.', 'warn');
+  let m = null;
+  m = modal('🏷️ Etiqueta de envío · nº ' + (enConjunto(o) ? CL.numerosGrupo(grupoDe(o)) : o.numero), h('div.col', { style: { gap: '10px' } },
+    h('p', 'Este pedido aún no tiene la etiqueta de la plataforma (Vinted, Wallapop, Etsy, Correos, InPost…).'),
+    h('p.small.muted', 'Adjúntala (PDF o foto) y se imprime tal cual en la bobina de 100 × 150. El programa lee el transportista y el nº de seguimiento.'),
+    h('details.more', h('summary', 'Lo envío yo por mi cuenta, sin etiqueta de plataforma'), h('div.in', h('p.small', 'Puedes sacar una etiqueta con la dirección hecha por el programa.'),
+      btn('Etiqueta con la dirección', async () => { if (m) m.close(); const P = await import('./views/pedidos.js'); P.labelDialog(o); }, { cls: 'sm ghost', icon: 'printer' })))),
+  close => [btn('Cancelar', close), btn('📎 Adjuntar e imprimir', () => { close(); attachDialog(lo, after, { imprimir: true }); }, { cls: 'primary' })], { size: 'narrow' });
+  return m;
+}
+export async function etiquetasEnvio(list) {
+  const con = [], sin = [], vistos = new Set();
+  list.forEach(o => { const lo = labelOwner(byId('pedidos', o.id) || o); if (vistos.has(lo.id)) return; vistos.add(lo.id); (hasLabel(lo) ? con : sin).push(lo); });
+  if (!con.length) return toast('Ninguno tiene adjunta la etiqueta de la plataforma. Adjúntala desde cada pedido.', 'warn', 8000);
+  if (!await confirmDlg('Imprimir etiquetas de envío', 'Se imprimen ' + con.length + ' etiqueta(s) tal cual las adjuntaste (bobina de 100 × 150).' + (sin.length ? ' Sin etiqueta adjunta: nº ' + sin.map(x => x.numero).join(', ') + '.' : ''), 'Imprimir')) return;
+  for (const o of con) { try { await printOne(o, 'oficial', { auto: true }); } catch (e) { toast('Nº ' + o.numero + ': ' + e.message, 'bad', 8000); } }
+}
+
+// ---------- Mensaje para el cliente (idea 6): elegir, revisar y copiar — v12.5: o abrir directo en WhatsApp ----------
+// Plantillas para los pedidos de la web que se cobran por WhatsApp (Bizum / efectivo). Se añaden a las tuyas si no existen.
+export const WA_PLANTILLAS = [
+  { k: 'wa_confirmar', t: '💬 Web: confirmar pedido y pago', texto: '¡Hola {cliente}! Soy de {tienda}. Hemos recibido tu pedido nº {pedido}: {producto}, total {total}. ¿Lo confirmamos? Pagarías por {pago}. Dime si la dirección de entrega es correcta y te paso los datos. 😊' },
+  { k: 'wa_cobrado', t: '💬 Web: pago recibido', texto: '¡Hola {cliente}! Pago recibido ✅ ({total}). Ya preparamos tu pedido nº {pedido}. Te aviso en cuanto salga. ¡Gracias por confiar en {tienda}!' },
+  { k: 'wa_recordatorio', t: '💬 Web: recordatorio, se acaba la reserva', texto: '¡Hola {cliente}! Tu pedido nº {pedido} ({producto}, {total}) sigue apartado, pero solo lo guardamos hasta el {hasta}. ¿Lo confirmamos por {pago}? Si ya no lo quieres, dímelo y lo liberamos. 🙏' }
+];
+export const plantillasMsg = () => { const ms = ecfg().mensajes || [], have = new Set(ms.map(m => m.k)); return ms.concat(WA_PLANTILLAS.filter(m => !have.has(m.k))); };
+export function tipoPorDefecto(o) {
+  const ph = CL.phaseOf(S.cfg.pedidos, o.estado), pw = CL.pagoWeb(o);
+  if (pw.porWa && ph === 'reserva') return 'wa_confirmar';
+  if (pw.porWa && ph === 'confirmado') return 'wa_cobrado';
+  return { enviado: 'enviado', entregado: 'gracias', listo: 'empaquetado', empaquetar: 'empaquetado' }[ph] || 'preparando';
+}
+export function telefonoDe(o) { const c = byId('clientes', o.clienteId) || (S.t.clientes || []).find(x => CL.norm(x.nombre) === CL.norm(o.cliente)); return (c && c.telefono) || ''; }
+export function messageDialog(o, kind) {
+  const ms = plantillasMsg();
+  const def = (ms.find(m => m.k === (kind || tipoPorDefecto(o))) || ms[0] || {}).k;
+  const pick = sel(ms.map(m => ({ v: m.k, t: m.t })), def), ta = area({ rows: 6 }), warn = h('p.small'), tel = telefonoDe(o), phone = CL.waPhone(tel);
+  const upd = () => { const m = ms.find(x => x.k === pick.value) || {}; const r = fill(m.texto, ctxOf(o)); ta.value = r.texto; mount(warn, r.faltan.length ? h('span.warn-t', '⚠️ Falta: ' + r.faltan.map(k => (MARCAS.find(x => x[0] === k) || [k, k])[1]).join(', ') + '. Complétalo antes de enviarlo (no se inventa).') : h('span.ok-t', '✓ Todo relleno con los datos del pedido.')); };
+  pick.onchange = upd; upd();
+  const abrir = async () => {
+    const url = CL.waLink(tel, ta.value);
+    if (!url) return toast('Este cliente no tiene un teléfono válido. Añádelo en su ficha o copia el mensaje.', 'warn', 6000);
+    const { desktop } = await import('./desktop.js'); desktop.openUrl(url);
+  };
+  modal('💬 Mensaje para ' + (o.cliente || 'el cliente') + ' · nº ' + o.numero, h('div.col', field('Plantilla', pick), ta, warn,
+    h('p.tiny.muted', phone ? 'WhatsApp se abre con el mensaje escrito para +' + phone + '. Tú lo revisas y pulsas enviar: el programa no lo envía solo.' : '⚠️ Este cliente no tiene teléfono en su ficha, así que solo puedes copiar el mensaje. Las plantillas se cambian en Embalaje → Tarjeta y mensajes.')),
+    close => [btn('Cerrar', close), btn('Copiar', () => { copyText(ta.value); }, { icon: 'copy' }), btn('Abrir en WhatsApp', abrir, { cls: 'primary', icon: 'msg' })], { size: 'narrow' });
+}
+
+// ---------- v11.7 · La etiqueta de envío vive en el PEDIDO (crear, ver, sustituir) ----------
+export const hasLabel = o => !!(o && o.etiquetaEnvio && o.etiquetaEnvio.archivoId);
+// ---------- v13.8 · ENVÍO CONJUNTO: varios pedidos del mismo cliente en un solo paquete (un QR, una prueba, una etiqueta) ----------
+export const grupoDe = o => o ? CL.grupoEnvio(S.t.pedidos || [], byId('pedidos', o.id) || o) : [];
+export const principalDe = o => grupoDe(o)[0] || o;
+export const enConjunto = o => grupoDe(o).length > 1;
+// La etiqueta de envío del paquete: la del principal o, si no tiene, la de otro pedido del grupo
+export function labelOwner(o) { const g = grupoDe(o); return g.find(hasLabel) || g[0] || o; }
+export const hasLabelEnvio = o => hasLabel(labelOwner(o));
+function ownerOf(o, tipo) { if (!o || !enConjunto(o)) return o; return tipo === 'oficial' ? labelOwner(o) : (tipo === 'paquete' || tipo === 'gracias') ? principalDe(o) : o; }
+const NO_CONJ = 'cd.conjuntoNo';
+const conjNo = () => { try { return JSON.parse(sessionStorage.getItem(NO_CONJ) || '[]'); } catch (e) { return []; } };
+// ¿Hay otros pedidos del mismo cliente sin enviar? Se pregunta si van en el mismo paquete (y, si el nombre solo se parece, «¿es el mismo cliente?»).
+// opts.auto: solo pregunta si hay candidatos y no se dijo «por separado» antes. Devuelve el grupo final (o null si se cancela).
+export function conjuntoDialog(o, opts = {}) {
+  o = byId('pedidos', o.id) || o;
+  const cands = CL.candidatosConjunto(S.t.pedidos || [], S.cfg.pedidos, o).filter(c => !opts.auto || !conjNo().includes(o.id + '|' + c.pedido.id));
+  const g0 = grupoDe(o);
+  if (opts.auto && !cands.length) return Promise.resolve(g0);
+  return new Promise(resolve => {
+    let done = false; const fin = v => { if (!done) { done = true; resolve(v); } };
+    const checks = cands.map(c => ({ c, x: h('input', { type: 'checkbox', checked: c.seguro }) }));
+    const yaDentro = g0.filter(p => p.id !== o.id);
+    const body = h('div.col.conjunto-dlg', { style: { gap: '10px' } },
+      h('p', h('b', o.cliente), ' tiene ' + (cands.length === 1 ? 'otro pedido' : 'otros pedidos') + ' sin enviar. ¿Van en el mismo paquete? Saldrá un solo QR, un solo vídeo de prueba y una sola etiqueta de envío.'),
+      yaDentro.length ? h('p.small', '📦 Ya van juntos: ' + yaDentro.map(p => 'nº ' + p.numero).join(', ')) : null,
+      checks.length ? h('div.list', checks.map(({ c, x }) => h('label.item', { style: { cursor: 'pointer', alignItems: 'flex-start' } }, x,
+        h('span.grow.small', h('b', 'Nº ' + c.pedido.numero), ' · ' + (c.pedido.producto || '') + ' · ' + c.pedido.estado,
+          c.seguro ? null : h('div.warn-t.tiny', '¿Es el mismo cliente? Este pedido está a nombre de «' + c.pedido.cliente + '». Márcalo solo si es la misma persona.'))))) : h('p.small.muted', 'No hay otros pedidos de este cliente para juntar.'));
+    modal('📦 Envío conjunto · ' + o.cliente, body, close => [
+      btn(opts.auto ? 'No, van por separado' : 'Cerrar', () => { try { const l = conjNo(); cands.forEach(c => l.push(o.id + '|' + c.pedido.id)); sessionStorage.setItem(NO_CONJ, JSON.stringify(l)); } catch (e) { } fin(g0); close(); }),
+      checks.length ? btn('Sí, en el mismo paquete', async () => {
+        const sel = checks.filter(z => z.x.checked).map(z => z.c.pedido);
+        if (!sel.length) return toast('Marca al menos un pedido', 'warn');
+        fin(juntar(o, sel)); close(); // (primero el resultado: al cerrar se resolvería «sin cambios»)
+      }, { cls: 'primary' }) : null], { size: 'narrow', onclose: () => fin(g0) });
+  });
+}
+// Junta pedidos en el paquete de «o». El principal es el que ya tenga el QR impreso (si no, «o» o su principal).
+export async function juntar(o, otros) {
+  const g = grupoDe(o).concat(otros.filter(p => !grupoDe(o).some(x => x.id === p.id)));
+  const conQr = g.find(p => statusOf(p, 'paquete').estado === 'Impreso' && !enConjunto(p));
+  const pr = conQr || principalDe(o);
+  for (const p of g) if ((byId('pedidos', p.id) || p).envioConjunto !== pr.id) await guardarConj(p, pr.id);
+  toast('📦 Envío conjunto: nº ' + CL.numerosGrupo(grupoDe(pr)) + ' van en un solo paquete', 'ok', 6000);
+  return grupoDe(pr);
+}
+// Saca un pedido del envío conjunto (si queda uno solo, el paquete vuelve a ser normal)
+export async function separar(o) {
+  const g = grupoDe(o), pr = g[0];
+  if (o.id === pr.id) { for (const p of g) await guardarConj(p, ''); }
+  else { await guardarConj(o, ''); const rest = grupoDe(pr); if (rest.length < 2) await guardarConj(pr, ''); }
+  toast('El pedido nº ' + o.numero + ' ya va por separado', 'ok');
+}
+async function guardarConj(p, val) {
+  const { mutate } = await import('./store.js');
+  const r = await mutate('pedidos.guardar', { id: p.id, datos: { envioConjunto: val }, orig: { envioConjunto: p.envioConjunto || '' } }, { label: 'Envío conjunto nº ' + p.numero, tables: ['pedidos'], optimistic: t => { const x = t.pedidos.find(q => q.id === p.id); if (x) x.envioConjunto = val; } });
+  if (r && r.id) upsertLocal('pedidos', r);
+  emit();
+}
+// Recuadro para la ficha / el escáner / el embalaje
+export function conjuntoBlock(o, redraw) {
+  const g = grupoDe(o), edit = can('pedidos.editar');
+  if (g.length < 2) {
+    const c = edit ? CL.candidatosConjunto(S.t.pedidos || [], S.cfg.pedidos, o) : [];
+    return c.length ? h('div.card.flat.conjunto', { style: { marginTop: '10px' } }, h('div.row.wrap', h('span.grow.small', '📦 ' + o.cliente + ' tiene ' + c.length + (c.length === 1 ? ' pedido más' : ' pedidos más') + ' sin enviar (nº ' + c.map(x => x.pedido.numero).join(', ') + ').'),
+      btn('Envío conjunto', () => conjuntoDialog(o).then(() => redraw && redraw()), { cls: 'sm' }))) : null;
+  }
+  return h('div.card.flat.conjunto.on', { style: { marginTop: '10px' } },
+    h('div.row.wrap', h('b.grow', '📦 ENVÍO CONJUNTO · ' + g.length + ' pedidos en un solo paquete'), edit ? btn('Añadir', () => conjuntoDialog(o).then(() => redraw && redraw()), { cls: 'sm ghost' }) : null),
+    h('div.list', g.map((p, i) => h('div.item', { style: { cursor: 'default' } }, h('b', 'Nº ' + p.numero), h('span.grow.small', (p.producto || '') + ' · ' + p.estado + (i === 0 ? ' · QR y etiqueta de este paquete' : '')),
+      CL.phaseOf(S.cfg.pedidos, p.estado) === 'cancelado' ? pill('⛔ CANCELADO: no lo metas', 'bad') : null,
+      edit ? btn('Separar', () => separar(p).then(() => redraw && redraw()), { cls: 'sm ghost' }) : null))));
+}
+// v15.3 · ⚡ La etiqueta va al servidor en UN solo viaje (antes eran 3 seguidos: empezar subida, trozo y adjuntar).
+// Lo ya preparado en la vista previa (la página dibujada) se reutiliza: imprimirla después es inmediato.
+const ETIQUETA_UN_VIAJE = 6 * 1048576;
+function recordarLocal(file, archivoId) {
+  const loc = 'local:' + file.name + ':' + file.size;
+  for (const [k, v] of [...pageCache]) if (k.startsWith(loc + ':')) pageCache.set(archivoId + k.slice(loc.length), v);
+}
+export async function attachFile(o, file, extra = {}) {
+  const F = await import('./files.js');
+  if (file.size <= ETIQUETA_UN_VIAJE) {
+    try {
+      const [datos, miniatura] = await Promise.all([F.aBase64(file), /^image\//.test(file.type || '') ? F.makeThumb(file, 'foto') : Promise.resolve('')]);
+      const r = await api('pedidos.adjuntarEtiqueta', Object.assign({ id: o.id, nombre: file.name, mime: file.type || '', datos, miniatura: miniatura || '', transportista: o.envio || '' }, extra), { timeout: 120000 });
+      if (r.archivo) { upsertLocal('archivos', r.archivo); F.recordarBlob(r.archivo.id, file); recordarLocal(file, r.archivo.id); }
+      upsertLocal('pedidos', r.pedido); emit();
+      return r.pedido;
+    } catch (e) { if (!/Acción desconocida/.test(e.message || '')) throw e; } // servidor sin actualizar: como antes
+  }
+  const a = await F.uploadFile(file, { entidad: 'pedidos', entidadId: o.id, original: true });
+  F.recordarBlob(a.id, file); recordarLocal(file, a.id);
+  const r = await api('pedidos.etiquetaOficial', Object.assign({ id: o.id, archivoId: a.id, transportista: o.envio || '' }, extra));
+  upsertLocal('pedidos', r); emit();
+  return r;
+}
+// Estado + botones (Adjuntar / Ver / Sustituir) para la ficha del pedido y su formulario
+export function labelRow(o, after) {
+  const ok = hasLabel(o), e = o.etiquetaEnvio || {}, edit = can('pedidos.editar');
+  return h('div.lbl-row' + (ok ? '.ok' : '.warn'),
+    h('span.grow', h('b', ok ? '🟢 ETIQUETA ADJUNTADA' : '🟠 FALTA ETIQUETA DE ENVÍO'), ok ? h('span.tiny', ' · ' + e.nombre + (e.transportista ? ' · ' + e.transportista : '')) : h('span.tiny', ' · la de Vinted, InPost, Correos… (nunca se inventa)')),
+    ok ? btn('Ver', () => officialPreview(o), { cls: 'sm ghost', icon: 'eye' }) : null,
+    ok && edit ? btn(e.recorte ? '✂️ Recorte' : '✂️ Recortar', () => recortarEtiqueta(o, after), { cls: 'sm ghost', title: 'Dejar solo la etiqueta (sin instrucciones alrededor)' }) : null,
+    edit ? btn(ok ? 'Sustituir' : 'Adjuntar etiqueta', () => attachDialog(o, after), { cls: 'sm' + (ok ? ' ghost' : ' primary'), icon: 'upload' }) : null);
+}
+// «Omitir por ahora»: deja seguir trabajando; la falta sigue marcada en 🟠
+const OMIT = 'cd.etiquetaOmitida';
+export const labelSkipped = o => { try { return (JSON.parse(sessionStorage.getItem(OMIT) || '[]')).includes(o.id); } catch (e) { return false; } };
+export function skipLabel(o) { try { const l = JSON.parse(sessionStorage.getItem(OMIT) || '[]'); if (!l.includes(o.id)) l.push(o.id); sessionStorage.setItem(OMIT, JSON.stringify(l)); } catch (e) { } }
+export function prepareBanner(o, redraw) {
+  if (hasLabel(o) || labelSkipped(o) || !can('pedidos.editar')) return null;
+  return h('div.prep-banner', h('div.grow', h('b', '📦 PREPARAR PEDIDO'), h('div.small', 'Antes de imprimir, adjunta la etiqueta de envío del cliente.')),
+    btn('ADJUNTAR ETIQUETA', () => attachDialog(o, redraw), { cls: 'primary', icon: 'upload' }),
+    btn('Omitir por ahora', () => { skipLabel(o); redraw && redraw(); }, { cls: 'ghost' }));
+}
+
+// ---------- «Preparado para enviar»: se comprueba todo antes de marcar como enviado (sin repetir impresiones) ----------
+export async function offerOfficialLabel(o) {
+  o = byId('pedidos', o.id) || o;
+  const g = grupoDe(o), lo = labelOwner(o), cuales = g.length > 1 ? 'Envío conjunto nº ' + CL.numerosGrupo(g) : 'El pedido';
+  if (!hasLabel(lo)) { toast(cuales + ' ya está en «Listo para envío», pero falta adjuntar su etiqueta oficial 100 × 150 mm.', 'warn', 8000); return false; }
+  if (statusOf(lo, 'oficial').estado === 'Impreso') return true; // ya impresa: no se repite
+  if (!await confirmDlg('Bobina de envío 100 × 150 mm', cuales + ' está en «Listo para envío». Coloca la bobina de 100 × 150 mm. ¿Quieres imprimir ahora la etiqueta de envío que adjuntaste al crear el pedido?', 'Sí, imprimir etiqueta')) return false;
+  const r = await printOne(lo, 'oficial');
+  return !!r && r.estado === 'Impreso';
+}
+
+export function sendCheck(o, after) {
+  o = byId('pedidos', o.id) || o;
+  const packed = !!(o.embalaje && o.embalaje.hecho), items = [
+    ['🏷️ Etiqueta de envío', hasLabelEnvio(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'ok' : 'warn') : 'warn', hasLabelEnvio(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'Adjuntada e impresa' : 'Adjuntada, sin imprimir') : 'FALTA (no se puede imprimir lo que no existe)'],
+    ['📦 Paquete', packed ? 'ok' : 'warn', packed ? 'Hecho el ' + String(o.embalaje.hecho).split('-').reverse().join('/') : 'Sin cerrar'],
+    ['🔳 Etiqueta de soporte del paquete', statusOf(o, 'paquete').estado === 'Impreso' ? 'ok' : wanted(o).includes('paquete') ? 'warn' : 'ok', statusOf(o, 'paquete').estado === 'Impreso' ? 'Impreso' : wanted(o).includes('paquete') ? 'Sin imprimir' : 'No se usa'],
+    ['💌 Tarjeta', statusOf(o, 'gracias').estado === 'Impreso' ? 'ok' : wanted(o).includes('gracias') ? 'warn' : 'ok', statusOf(o, 'gracias').estado === 'Impreso' ? (cardMode() === 'hoja' ? 'Metida en el paquete' : 'Impresa') : wanted(o).includes('gracias') ? (cardMode() === 'hoja' ? 'Sin meter en el paquete' : 'Sin imprimir') : 'No se usa'],
+    ['📮 Dirección de envío', 'ok', o.direccionEnvio && o.direccionEnvio !== '•••' ? o.direccionEnvio : 'La que lleva la etiqueta de envío'],
+    ...(enConjunto(o) ? [['📦 Envío conjunto', 'ok', 'Van juntos los pedidos nº ' + CL.numerosGrupo(grupoDe(o))]] : []),
+  ];
+  const pend = pendingOf(o).filter(t => !(t === 'gracias' && cardMode() === 'hoja'));
+  const cardPend = cardMode() === 'hoja' && wanted(o).includes('gracias') && statusOf(o, 'gracias').estado !== 'Impreso';
+  modal('🚚 Preparado para enviar · nº ' + (enConjunto(o) ? CL.numerosGrupo(grupoDe(o)) : o.numero), h('div.col', h('div.list', items.map(([t, nv, d]) => h('div.item', { style: { cursor: 'default' } }, h('span.grow', h('b', t), h('div.tiny.muted', d)), pill(nv === 'ok' ? '✓' : 'REVISAR', nv)))),
+    pend.length || cardPend ? h('p.small', 'Puedes completar lo que falta (sin repetir lo ya impreso) o enviarlo igualmente.') : h('p.small.ok-t', '✓ Todo listo.')),
+  close => [btn('Cancelar', close),
+    cardPend && can('pedidos.editar') ? btn('💌 Tarjeta metida', async () => { close(); await cardIncluded(o); sendCheck(o, after); }) : null,
+    pend.length && can('pedidos.editar') ? btn('🖨️ Imprimir lo que falta (' + pend.length + ')', async () => { close(); await printPending(o); sendCheck(o, after); }) : null,
+    btn('🚚 Marcar como enviado', async () => { close(); const P = await import('./views/pedidos.js'); P.shipDialog(byId('pedidos', o.id) || o); after && after(); }, { cls: 'primary' })], { size: 'narrow' });
+}
