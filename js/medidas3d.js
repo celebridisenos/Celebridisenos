@@ -127,4 +127,7 @@ export async function medir3D(buf, nombre) {
 }
 export const esArchivo3D = nombre => /\.(stl|3mf|obj)$/i.test(String(nombre || ''));
 export const escalar = (m, f) => Object.assign({}, m, { x: r1(m.x * f), y: r1(m.y * f), z: r1(m.z * f), estado: 'manual', aviso: '' });
-export const textoMedidas = p => p && Number(p.dimX) > 0 ? [p.dimX, p.dimY, p.dimZ].map(v => String(Math.round(Number(v) * 10) / 10).replace('.', ',')).join(' × ') + ' mm' : '';
+// v16: las medidas se enseñan con su nombre y en centímetros. X, Y, Z de la Bambu = Ancho, Largo, Alto.
+export const cm = mm => String(Math.round(Number(mm) / 10 * 10) / 10).replace('.', ',');
+export const EJES = [['dimX', 'Ancho', 'X', '↔'], ['dimY', 'Largo', 'Y', '↕'], ['dimZ', 'Alto', 'Z', '⬆']];
+export const textoMedidas = p => p && Number(p.dimX) > 0 ? EJES.map(e => e[1] + ' ' + cm(p[e[0]]) + ' cm').join(' · ') : '';

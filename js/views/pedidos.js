@@ -200,6 +200,26 @@ function fromStockBtn(o) {
     catch (e) { handleError(e, 'pedidos'); }
   }, { cls: 'ok-btn' });
 }
+// v16 · El camino del pedido, con tus palabras: llega → se prepara → imprimir → en la mesa → empaquetar → enviar → completado → cobrado
+const PASO_FLUJO = { reserva: 'Llega', confirmado: 'Preparado', impresion: 'Imprimiendo', postpro: 'En la mesa', empaquetar: 'Empaquetar', listo: 'Listo para enviar', enviado: 'Enviado', entregado: 'Completado' };
+// v16 · Filamento del pedido. Si falta el consumo se pregunta UNA vez: queda guardado en el producto.
+const FALTA_FIL = { consumo: 'No sé cuántos gramos gasta este producto', color: 'No sé de qué color se imprimió', bobina: 'No hay ninguna bobina de ese material y color', stock: 'No había filamento suficiente', producto: 'El producto no está en el catálogo' };
+function filamentoLinea(o, redraw) {
+  const f = o.filamento; if (!f || typeof f !== 'object' || !f.fecha) return null;
+  if (!f.falta) return h('div.small.muted.fil-linea', '🧵 Filamento descontado: ', h('b', (f.g || 0) + ' g de ' + (f.material || 'PLA') + ' ' + (f.color || '')), f.auto ? ' (solo, al pasar a acabado)' : '');
+  const pedir = () => {
+    const g = inp({ type: 'number', min: 0, step: 1, placeholder: 'Ej.: 87', inputmode: 'decimal' }), col = inp({ value: f.color || '', placeholder: 'Ej.: Blanco', list: 'dl-fil-col' }), msg = h('p.bad-t');
+    const cols = [...new Set((S.t.bobinas || []).filter(b => Number(b.restante) > 0).map(b => b.color).filter(Boolean))];
+    const m = modal('🧵 Filamento de «' + o.producto + '»', h('div', h('datalist', { id: 'dl-fil-col' }, cols.map(c => h('option', { value: c }))),
+      h('div.form', f.falta === 'consumo' || f.falta === 'producto' ? field('Gramos de UNA unidad', g, 'Se guarda en el producto: no te lo vuelvo a preguntar.') : null, field('Color', col)), msg),
+      close => [btn('Cancelar', close), btn('Guardar y descontar', async ev => {
+        const bt = ev.target.closest('button'); bt.disabled = true;
+        try { const r = await api('pedidos.filamento', { id: o.id, gramos: g.value === '' ? undefined : Number(g.value), color: col.value.trim() }); upsertLocal('pedidos', r.pedido); import('../store.js').then(s => s.pull()); emit(); toast(r.filamento.falta ? 'Apuntado, pero ' + (FALTA_FIL[r.filamento.falta] || '').toLowerCase() : '🧵 ' + r.filamento.g + ' g descontados', r.filamento.falta ? 'warn' : 'ok'); m.close(); redraw && redraw(); }
+        catch (e) { msg.textContent = e.message || String(e); bt.disabled = false; }
+      }, { cls: 'primary' })], { size: 'narrow' });
+  };
+  return h('div.issue-bar.fil-falta', h('span.grow', h('b', '🧵 Filamento sin descontar: '), FALTA_FIL[f.falta] || f.falta, f.g ? ' (descontados ' + f.g + ' g)' : ''), can('pedidos.editar') && f.falta !== 'stock' ? btn(f.falta === 'consumo' ? 'Poner los gramos' : 'Resolver', pedir, { cls: 'sm' }) : null);
+}
 export function orderDrawer(id, onClose) {
   let tab = 'resumen', ctl;
   const res = { update: null, close: () => ctl && ctl.close() };
@@ -222,12 +242,13 @@ export function orderDrawer(id, onClose) {
         h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, cobrado ? pill('💶 Cobrado', 'ok') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
           btn('', closeAll, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
         h('div.drawer-b.col', { style: { gap: '14px' } },
-          h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.hint || s.k }, h('i'), h('span', s.k))),
+          h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.k + (s.hint ? ' · ' + s.hint : '') }, h('i'), h('span', PASO_FLUJO[s.f] || s.k))),
             h('div.fs.fs-cobro' + (cobrado ? '.done' : ''), { title: cobrado ? 'Cobrado el ' + fdate(o.cobradoEn) : 'Todavía sin cobrar' }, h('i'), h('span', '💶 Cobrado'))), // v16
           o.incidencia && t.abierto ? h('div.issue-bar', icon('alert', 's'), h('span.grow', h('b', 'Incidencia: '), o.incidencia), editable ? btn('Resuelta', () => save(o, { incidencia: '' }, 'Incidencia resuelta · nº ' + o.numero), { cls: 'sm', icon: 'check' }) : null) : null,
           t.abierto || t.enviado ? EV.labelRow(o, draw) : null,
           t.abierto || t.enviado ? EV.conjuntoBlock(o, draw) : null, // v13.8: envío conjunto
           ENV.bloquePedido(o, draw), // v13.9: EMBALAJE DEL PEDIDO
+          filamentoLinea(o, draw), // v16: filamento descontado solo (o el dato que falta)
           editable ? h('div.row.wrap',
             nx && !(ph(o) === 'listo' && nx && S.cfg.pedidos.estados.find(s => s.k === nx && s.shipped)) ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
             !t.enviado && !t.cancelado ? btn(ph(o) === 'listo' ? 'Preparado para enviar' : 'Enviar pedido', () => ['listo', 'empaquetar'].includes(ph(o)) ? EV.sendCheck(o) : shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,

@@ -85,7 +85,7 @@ export async function abrirEditor(tpl, opts = {}) {
   const stage = h('div.ee-stage', paper), side = h('div.ee-side'), info = h('div.ee-info'), avisos = h('div.ee-avisos');
   paper.append(safe, ov, guia);
   const body = h('div.ee',
-    h('div.ee-top', field('Diseño', selDiseno), h('div.row', bUndo, bRedo), field('Ver', selZoom), selDatos ? field('Vista previa', selDatos) : null),
+    h('div.ee-top', field('Diseño', selDiseno), btn('📚 Biblioteca', () => biblioteca(), { cls: 'sm', title: 'Tus diseños guardados y los estilos, con su miniatura' }), h('div.row', bUndo, bRedo), field('Ver', selZoom), selDatos ? field('Vista previa', selDatos) : null),
     h('div.ee-add', h('span.tiny.muted', 'Añadir:'), add('texto', '+ Texto'), add('logo', '+ Logo'), add('qr', '+ QR'), add('barras', '+ Código de barras'), add('linea', '+ Línea'), add('caja', '+ Caja')),
     h('div.ee-main', stage, side), avisos, info);
 
@@ -306,6 +306,19 @@ export async function abrirEditor(tpl, opts = {}) {
     return h('div.col', field('Relleno', rel), h('div.ee-grid', num(e, 'borde', 'Borde (mm)', { min: 0, max: 10, step: 0.1 }), num(e, 'radio', 'Esquinas (mm)', { min: 0, max: 50, step: 0.5 })));
   }
 
+  // ---------- v16: biblioteca de plantillas (miniaturas) ----------
+  async function biblioteca() {
+    const mini = Pm => { const c = PL.dibujar(Pm, datos, 96, { w: Pm.w, h: Pm.h }); c.className = 'bib-mini'; return c; };
+    const guardados = PL.lista(tpl), def = PL.idPredeterminada(tpl), estilos = PL.ESTILOS.map(e => PL.conEstilo(tpl, { w: P.w, h: P.h }, e[0]));
+    for (const Pm of guardados.concat(estilos)) await PL.preparar(Pm);
+    const tarjeta = (Pm, sub, on) => h('button.bib-i', { type: 'button', onclick: on }, mini(Pm), h('b', Pm.nombre), h('span.tiny.muted', sub));
+    const mb = modal('📚 Biblioteca de plantillas · ' + L.TEMPLATES[tpl].t, h('div',
+      h('h4', 'Tus diseños guardados (' + guardados.length + ')'),
+      guardados.length ? h('div.bib', guardados.map(g => tarjeta(g, (g.id === def ? '★ predeterminado · ' : '') + g.w + ' × ' + g.h + ' mm', () => { mb.close(); selDiseno.value = g.id; selDiseno.onchange(); }))) : h('p.small.muted', 'Todavía no has guardado ninguno. Elige un estilo, retócalo y pulsa «Guardar plantilla».'),
+      h('h4', { style: { marginTop: '14px' } }, 'Estilos para empezar (9)'),
+      h('div.bib', estilos.map((s, i) => tarjeta(s, 'Se aplica al diseño de siempre', () => { mb.close(); editar(() => { P.els = s.els; if (!P.id) P.nombre = s.nombre; selId = null; }); lado(); })))),
+      close => [btn('Cerrar', close)], { size: 'wide' });
+  }
   // ---------- v16: duplicar y exportar ----------
   function duplicarDiseno() { editar(() => { P.id = ''; P.nombre = (P.nombre.replace(/ \(copia\)$/, '') + ' (copia)').slice(0, 50); }); rellenaDisenos(); lado(); toast('Copia lista: cámbiale lo que quieras y pulsa «Guardar plantilla».', 'ok', 6000); }
   async function exportar() {

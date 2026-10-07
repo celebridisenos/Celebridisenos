@@ -14,7 +14,7 @@ const ecfg = () => (S.cfg && S.cfg.envio) || {};
 export const PRINT_TIPOS = {
   oficial: { t: 'Etiqueta de envío oficial', tpl: 'oficial', f: '100x150', i: '🏷️' },
   propia: { t: 'Etiqueta de dirección propia', tpl: 'envio', f: '100x150', i: '✉️' },
-  paquete: { t: 'QR interno del paquete', tpl: 'paquete', f: '50x50', i: '🔳' },
+  paquete: { t: 'Etiqueta de soporte del paquete', tpl: 'paquete', f: '50x50', i: '🔳' },
   gracias: { t: 'Tarjeta de agradecimiento', tpl: 'gracias', f: '50x50', i: '💌' }
 };
 const EST_CLS = { Pendiente: 'warn', Enviando: 'brand', Impreso: 'ok', Error: 'bad' };
@@ -100,7 +100,8 @@ export async function printCardSheets(d, opts = {}) {
   if (d.logo) d.logoImg = await L.loadLogo();
   d.fondoImg = await L.loadCardBg(d.diseno); // v13.7: imagen de fondo (si la hay)
   const hojas = Math.max(1, Math.min(20, Number(opts.hojas) || 1)), dpi = opts.dpi || 300;
-  const r = await L.sendLabel('tarjetas', () => Array.from({ length: hojas }, () => L.drawCardSheet(d, dpi)), { printer: opts.printer, calidad: 'foto', fileName: 'tarjetas_agradecimiento' });
+  const r = await L.sendLabel('tarjetas', () => Array.from({ length: hojas }, () => L.drawCardSheet(d, dpi)), { printer: opts.printer, pdf: !!opts.pdf, calidad: 'foto', fileName: 'tarjetas_agradecimiento' });
+  if (opts.pdf) return r; // v16: exportar no cuenta como impresión
   api('etiquetas.registrar', { plantilla: 'tarjetas', entidad: 'etiqueta', entidadId: 'tarjetas-A4', titulo: hojas + ' hoja(s) de tarjetas ' + d.tam, impresora: r.printer, copias: hojas }, { quiet: true }).catch(() => { });
   return r;
 }
@@ -112,7 +113,8 @@ export async function printCardLabels(d, opts = {}) {
   d.fondoImg = await L.loadCardBg(d.diseno);
   const s = L.oneCardSize(d); L.TEMPLATES.tarjeta1.w = s.w; L.TEMPLATES.tarjeta1.h = s.h;
   const n = Math.max(1, Math.min(200, Number(opts.copias) || 1));
-  const r = await L.sendLabel('tarjeta1', dpi => Array.from({ length: n }, () => L.drawOneCardCanvas(d, dpi)), { printer: opts.printer, fileName: 'tarjetas_etiqueta' });
+  const r = await L.sendLabel('tarjeta1', dpi => Array.from({ length: n }, () => L.drawOneCardCanvas(d, dpi)), { printer: opts.printer, pdf: !!opts.pdf, fileName: 'tarjetas_etiqueta' });
+  if (opts.pdf) return r;
   api('etiquetas.registrar', { plantilla: 'tarjeta1', entidad: 'etiqueta', entidadId: 'tarjetas-etiqueta', titulo: n + ' tarjeta(s) ' + d.tam + ' en etiqueta', impresora: r.printer, copias: n }, { quiet: true }).catch(() => { });
   return r;
 }
@@ -740,7 +742,7 @@ export function sendCheck(o, after) {
   const packed = !!(o.embalaje && o.embalaje.hecho), items = [
     ['🏷️ Etiqueta de envío', hasLabelEnvio(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'ok' : 'warn') : 'warn', hasLabelEnvio(o) ? (statusOf(o, 'oficial').estado === 'Impreso' ? 'Adjuntada e impresa' : 'Adjuntada, sin imprimir') : 'FALTA (no se puede imprimir lo que no existe)'],
     ['📦 Paquete', packed ? 'ok' : 'warn', packed ? 'Hecho el ' + String(o.embalaje.hecho).split('-').reverse().join('/') : 'Sin cerrar'],
-    ['🔳 QR interno del paquete', statusOf(o, 'paquete').estado === 'Impreso' ? 'ok' : wanted(o).includes('paquete') ? 'warn' : 'ok', statusOf(o, 'paquete').estado === 'Impreso' ? 'Impreso' : wanted(o).includes('paquete') ? 'Sin imprimir' : 'No se usa'],
+    ['🔳 Etiqueta de soporte del paquete', statusOf(o, 'paquete').estado === 'Impreso' ? 'ok' : wanted(o).includes('paquete') ? 'warn' : 'ok', statusOf(o, 'paquete').estado === 'Impreso' ? 'Impreso' : wanted(o).includes('paquete') ? 'Sin imprimir' : 'No se usa'],
     ['💌 Tarjeta', statusOf(o, 'gracias').estado === 'Impreso' ? 'ok' : wanted(o).includes('gracias') ? 'warn' : 'ok', statusOf(o, 'gracias').estado === 'Impreso' ? (cardMode() === 'hoja' ? 'Metida en el paquete' : 'Impresa') : wanted(o).includes('gracias') ? (cardMode() === 'hoja' ? 'Sin meter en el paquete' : 'Sin imprimir') : 'No se usa'],
     ['📮 Dirección de envío', 'ok', o.direccionEnvio && o.direccionEnvio !== '•••' ? o.direccionEnvio : 'La que lleva la etiqueta de envío'],
     ...(enConjunto(o) ? [['📦 Envío conjunto', 'ok', 'Van juntos los pedidos nº ' + CL.numerosGrupo(grupoDe(o))]] : []),

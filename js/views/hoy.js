@@ -26,6 +26,24 @@ function free(o) {
   return fab - out - held;
 }
 
+// v16 · Revisión automática (datos que faltan, estimaciones e incoherencias). Se pide como mucho cada 2 minutos.
+let revCache = null, revT = 0;
+export async function revision(forzar) {
+  if (!forzar && revCache && Date.now() - revT < 120000) return revCache;
+  const { api } = await import('../store.js');
+  try { revCache = await api('asistente.revision', {}, { quiet: true }); revT = Date.now(); } catch (e) { revCache = revCache || { lista: [], falta: 0, estimado: 0, incoherencia: 0 }; }
+  return revCache;
+}
+export const REV_ICO = { incoherencia: '❗', falta: '❓', estimado: '≈' };
+function pintaRevision(box) {
+  revision().then(r => {
+    const n = r.falta + r.incoherencia; if (!n || !box.isConnected) return;
+    const urg = r.lista.filter(x => x.nivel !== 'estimado');
+    mount(box, h('details.more.hoy-rev-d', h('summary', '🧠 ' + n + (n === 1 ? ' cosa por completar' : ' cosas por completar') + ' (lo he revisado yo: no hace falta que busques)'),
+      h('div.in', urg.slice(0, 8).map(x => h('div.rev-i.' + x.nivel, { onclick: () => go(x.enlace.indexOf('pedido:') === 0 ? 'pedidos/' + x.enlace.slice(7) : (x.enlace || 'inventario')) }, h('span', REV_ICO[x.nivel]), h('span.grow.small', x.texto))),
+        r.estimado ? h('p.tiny.muted', 'Además hay ' + r.estimado + ' datos estimados (metros de cinta, bobinas abiertas…). Están en Inventario.') : null)));
+  });
+}
 // v16 · Avisos de stock: materiales (bajo / crítico / agotado) y filamento por material + color
 export function avisosStock() {
   const lleno = v => v !== '' && v !== null && v !== undefined && isFinite(Number(v)), out = [];
@@ -125,7 +143,8 @@ export function render(el) {
     const stockBox = avisos.length ? h('div.card.flat.hoy-stock', { role: 'status' },
       h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', avisos.some(a => a.nivel !== 'bajo') ? '🔴 Material en nivel crítico' : '⚠️ Stock bajo'), h('span.grow'), btn('Ver inventario', () => go('inventario'), { cls: 'sm' })),
       h('div.row.wrap.hoy-stock-l', avisos.slice(0, 8).map(a => h('span.chip.' + (a.nivel === 'bajo' ? 'warn' : 'bad'), (a.nivel === 'agotado' ? '⛔ ' : a.nivel === 'critico' ? '🔴 ' : '⚠️ ') + a.nombre + ': ' + (a.nivel === 'agotado' ? 'agotado' : a.queda + ' ' + a.unidad))))) : null;
-    mount(top, flujo, stockBox, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
+    const revBox = h('div.hoy-rev'); pintaRevision(revBox);
+    mount(top, flujo, stockBox, revBox, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
         h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🏷️ ' + labelProbs.length + ' etiqueta' + (labelProbs.length > 1 ? 's' : '') + ' sin imprimir'), edit ? btn('Reintentar', () => reintentar().then(draw), { cls: 'sm', icon: 'printer' }) : null),
         labelProbs.slice(0, 6).map(p => h('div.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + p.o.id) }, h('b', 'nº ' + p.o.numero), ' · ' + (p.o.cliente || '') + ' — ' + textoProblema(p)))) : null,
       T.rateBlock ? T.rateBlock(tall) : null, prs.length ? h('div.hoy-prs', prCards) : null, // v11.4: avisos de la Bambu y «¿Cómo salió?»
@@ -169,7 +188,10 @@ export function render(el) {
     const shipCol = [toShip.length > 1 ? btn('Imprimir todas las etiquetas (' + toShip.length + ')', () => import('../envio.js').then(E => E.etiquetasEnvio(toShip.map(x => x.o))), { cls: 'sm', icon: 'printer' }) : null,
       toShip.length ? toShip.map(x => card(x, [btn('🏷️ Etiqueta', () => import('../envio.js').then(E => E.etiquetaEnvio(x.o))), edit ? btn('Enviado', () => P.shipDialog(x.o), { cls: 'primary', icon: 'truck' }) : null], x.o.envio ? h('span.tiny.muted', x.o.envio) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por enviar.')];
     const col = (ic, t, cnt, kids, k) => h('section.hoy-col', h('div.hoy-col-h', h('span.ic', ic), h('h2.grow', t), h('span.cnt', String(cnt)), btn('', () => go('pedidos/?f=' + k), { cls: 'ghost icon sm', icon: 'external', title: 'Ver en Pedidos' })), h('div.hoy-list', kids));
-    mount(cols, col('🖨️', 'Imprimir', toPrint.length, printCol, 'fabricar'), col('🧽', 'En la mesa · revisar y acabado', enMesa.length, prepOf(enMesa), 'postpro'), col('📦', 'Empaquetar', aEmpaquetar.length, prepOf(aEmpaquetar), 'empaquetar'),
+    // v16: lo que llega y hay que aceptar (solo aparece si hay alguno)
+    const confK = CL.stateOfPhase(S.cfg.pedidos, 'confirmado');
+    const llegan = nuevos.length ? col('📥', 'Llegan · aceptar', nuevos.length, nuevos.map(x => card(x, [edit && confK ? btn('Aceptar pedido', () => P.changeState(x.o, confK), { cls: 'primary', icon: 'check' }) : null], h('span.tiny.muted', x.o.canal || ''))), 'reservas') : null;
+    mount(cols, llegan, col('🖨️', 'Imprimir', toPrint.length, printCol, 'fabricar'), col('🧽', 'En la mesa · revisar y acabado', enMesa.length, prepOf(enMesa), 'postpro'), col('📦', 'Empaquetar', aEmpaquetar.length, prepOf(aEmpaquetar), 'empaquetar'),
       col('🚚', 'Enviar', toShip.length, shipCol, 'enviar'), col('💶', 'Cobrar', porCobrar.length, cobrarCol, 'porcobrar'));
     if (!S.t.pedidos.length) mount(cols, h('div.card', empty('truck', 'Aún no hay pedidos', 'Cuando entren aparecerán aquí, ordenados por urgencia.')));
   };

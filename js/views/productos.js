@@ -5,7 +5,7 @@ import { go, handleError, requestAccess } from '../app.js';
 import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf } from '../files.js';
 import { desktop } from '../desktop.js';
 import { parse3D, viewer, unzip } from '../stl.js';
-import { medir3D, esArchivo3D, escalar, textoMedidas } from '../medidas3d.js'; // v16: medidas reales X × Y × Z
+import { medir3D, esArchivo3D, escalar, textoMedidas, EJES, cm } from '../medidas3d.js'; // v16: medidas reales (Ancho · Largo · Alto)
 import { accionTxt, resumenDetalle } from './pedidos.js';
 import { generate, asText, docxBlob, docName, PLATAFORMAS } from '../docventa.js';
 import { download, uploadFile } from '../files.js';
@@ -41,7 +41,7 @@ export function render(el, params) {
       return h('div.card.click', { style: { padding: 0, overflow: 'hidden' }, onclick: () => go('productos/' + p.id) },
         h('div', { style: { aspectRatio: '4/3', background: 'var(--surface-2)', display: 'grid', placeItems: 'center', color: 'var(--muted)' } }, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover' } }) : icon('cube', 'l')),
         h('div', { style: { padding: '10px 12px' } }, h('div.bold.ellipsis', p.nombre), h('div.tiny.muted.ellipsis', (p.sku || p.id) + ' · ' + pretty(p.subcategoria || p.categoria)),
-          h('div.row', { style: { marginTop: '6px' } }, pill(pState(p.estado), ST_CLS[pState(p.estado)]), h('b.right', p.precio ? eur(p.precio) : ''))));
+          h('div.row', { style: { marginTop: '6px' } }, pill(pState(p.estado), ST_CLS[pState(p.estado)]), h('span.right', { style: { textAlign: 'right' } }, h('b', p.precio ? eur(p.precio) : ''), (() => { const mn = precioMinDe(p); return mn && p.precio ? h('div.tiny.muted', { title: 'Mínimo regateando' }, '🤝 mín. ' + eur(mn.v)) : null; })()))));
     })), rows.length > st.limit ? h('div.pager', btn('Mostrar más', () => { st.limit += 120; drawList(); })) : null);
   }
   let openId = null, dr = null;
@@ -90,8 +90,9 @@ const PTABS = {
   resumen(el, p) {
     const foto = p.fotoId ? byId('archivos', p.fotoId) : null;
     mount(el, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', style: { width: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '12px', background: 'var(--surface-2)', cursor: 'pointer' }, onclick: () => openFile(foto) }) : null,
-      h('div.facts', { style: { marginTop: '12px' } }, fact('Precio', p.precio ? eur(p.precio) : na('')), fact('Categoría', pretty(p.categoria) || na('')), fact('Subcategoría', pretty(p.subcategoria) || na('')), fact('Tipo', p.tipo || na('')),
-        fact('SKU', p.sku || p.id), fact('Tallas', na(p.tallas)), fact('Color', na(p.color)), fact('Material', na(p.material)), fact('Tamaño', na(p.tamano)), fact('Medidas reales' + (p.dimEstado === 'supuesto' ? ' (STL: en mm)' : p.dimEstado === 'revisar' ? ' ⚠️ revisar' : ''), textoMedidas(p) || na('')), fact('Peso del producto (la pieza)', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
+      precioFicha(p), medidasFicha(p),
+      h('div.facts', { style: { marginTop: '12px' } }, fact('Categoría', pretty(p.categoria) || na('')), fact('Subcategoría', pretty(p.subcategoria) || na('')), fact('Tipo', p.tipo || na('')),
+        fact('SKU', p.sku || p.id), fact('Tallas', na(p.tallas)), fact('Color', na(p.color)), fact('Material', na(p.material)), !(Number(p.dimX) > 0) ? fact('Tamaño', na(p.tamano)) : null, fact('Peso del producto (la pieza)', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
       p.descripcion ? h('div', { style: { marginTop: '12px' } }, h('div.lbl', 'Descripción'), h('p', { style: { whiteSpace: 'pre-wrap' } }, p.descripcion)) : null,
       h('dl.kv', { style: { marginTop: '12px' } }, h('dt', 'Origen'), h('dd', [p.fuente, p.enlace].filter(Boolean).join(' · ') || h('span.na', 'No disponible')), h('dt', 'Licencia'), h('dd', na(p.licencia)), h('dt', 'Carpeta'), h('dd', p.ruta ? h('span.row', h('span.ellipsis', p.ruta), desktop.on ? btn('Abrir', () => desktop.open(p.ruta).catch(e => toast(e.message, 'bad')), { cls: 'sm', icon: 'folder' }) : null) : h('span.na', 'Sin carpeta')), h('dt', 'Creado por'), h('dd', na(p.creadoPor))),
       stockCard(p));
@@ -107,7 +108,7 @@ const PTABS = {
     // v13.10: primero lo sencillo — 3 descripciones CORTAS; los textos largos por plataforma quedan plegados
     const corto = h('div.col.dq-lista', { style: { gap: '8px' } });
     let semilla = Date.now();
-    const cortas = () => import('../descripcion.js').then(D => { semilla += 7919; mount(corto, D.generar(p.nombre, { color: p.color ? CL.norm(p.color) : '' }, 3, semilla).map(txt => h('div.dq-op', h('p', txt), h('div.row.wrap', { style: { gap: '6px' } },
+    const cortas = () => import('../descripcion.js').then(D => { semilla += 7919; mount(corto, D.generar(p.nombre, { color: p.color ? CL.norm(p.color) : '', medidas: textoMedidas(p), personalizable: /personaliz|nombre|inicial/i.test([p.nombre, p.descripcion, p.subcategoria].join(' ')) }, 3, semilla).map(txt => h('div.dq-op', h('p', txt), h('div.row.wrap', { style: { gap: '6px' } },
       btn('Copiar', () => { copyText(txt); toast('Copiada', 'ok'); }, { cls: 'sm', icon: 'copy' }),
       can('productos.editar') ? btn('Usar como descripción', async () => { try { await mutate('productos.guardar', { id: p.id, datos: { descripcion: txt } }, { label: 'Descripción', tables: ['productos'], optimistic: tt => { const x = tt.productos.find(y => y.id === p.id); if (x) x.descripcion = txt; } }); emit(); toast('✅ Descripción guardada', 'ok'); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm primary' }) : null)))); });
     const box = h('div.col', { style: { gap: '12px' } });
@@ -178,6 +179,23 @@ const PTABS = {
   }
 };
 function fact(l, v) { return h('div.fact', h('div.l', l), h('div.v', v)); }
+// v16 · Lo que hay que ver de un vistazo: a cuánto se publica, hasta dónde se puede bajar, y cuánto mide
+export function precioMinDe(p) {
+  if (Number(p.precioMin) > 0) return { v: Number(p.precioMin), tuyo: true };
+  const c = (S.t.calculadora || []).find(x => CL.norm(x.nombre) === CL.norm(p.nombre));
+  return c && Number(c.precioMinimo) > 0 ? { v: Number(c.precioMinimo), tuyo: false } : null;
+}
+function precioFicha(p) {
+  const pv = Number(p.precio) || 0, mn = precioMinDe(p);
+  if (!pv && !mn) return null;
+  return h('div.pr2.ficha', h('div.pr2-c.redes', h('span.pr2-t', '💶 Precio en redes'), h('span.pr2-v', pv ? eur(pv) : '—')),
+    h('div.pr2-c.min', h('span.pr2-t', '🤝 Mínimo regateando'), h('span.pr2-v', mn ? eur(mn.v) : '—'), mn && !mn.tuyo ? h('span.pr2-s', 'calculado por costes') : !mn ? h('span.pr2-s', 'ponlo en Editar → paso 3') : null),
+    pv && mn && mn.v <= pv ? h('div.pr2-res', 'Puedes bajar hasta ', h('b', eur(pv - mn.v)), ' (' + Math.round((pv - mn.v) / pv * 100) + ' %). Por debajo de ', h('b', eur(mn.v)), ' no.') : null);
+}
+function medidasFicha(p) {
+  if (!(Number(p.dimX) > 0)) return null;
+  return h('div.med-ejes.ficha', EJES.map(e => h('div.med-eje', h('span.med-n', e[3] + ' ' + e[1]), h('span.med-v', cm(p[e[0]]) + ' cm'))), p.dimEstado === 'revisar' ? h('div.tiny.warn-t', '⚠️ Revisa la escala de estas medidas (Editar).') : null);
+}
 // v11.8 · Rentabilidad real: primeros pedidos frente a los más recientes (detector de productos que pierden dinero)
 function driftCard(p, orders) {
   const r = CL.productDrift(Object.assign({}, S.t, { pedidos: orders }), S.cfg).find(x => x.id === p.id || CL.norm(x.nombre) === CL.norm(p.nombre));
@@ -234,10 +252,13 @@ export function priceAssistant(p, costsIn, onPick) {
   const c = Object.assign({ gramos: (calc && calc.gramos) || (gEst && gEst.v) || '', horas: (calc && calc.horas) || (p && p.horas) || '', horasMO: (calc && calc.horasMO) || '', precioBobina: (calc && calc.precioBobina) || '', pintado: (calc && calc.pintado) || 'No', costePintado: (calc && calc.costePintado) || '', gasto1: (calc && calc.gasto1) || '', gasto2: (calc && calc.gasto2) || '' }, costsIn || {});
   const f = {
     gramos: inp({ type: 'number', min: 0, step: 1, value: c.gramos, placeholder: 'g' }), horas: inp({ type: 'number', min: 0, step: 0.25, value: c.horas, placeholder: 'h' }),
-    horasMO: inp({ type: 'number', min: 0, step: 0.25, value: c.horasMO, placeholder: 'h' }), precioBobina: inp({ type: 'number', min: 0, step: 0.5, value: c.precioBobina, placeholder: 'Por defecto: ' + (S.cfg.precios ? S.cfg.precios.costeKg : 20) + ' €/kg' }),
+    horasMO: inp({ type: 'hidden', value: c.horasMO }), // v16: se escribe en MINUTOS (abajo) y aquí se guarda en horas, como siempre
+ precioBobina: inp({ type: 'number', min: 0, step: 0.5, value: c.precioBobina, placeholder: 'Por defecto: ' + (S.cfg.precios ? S.cfg.precios.costeKg : 20) + ' €/kg' }),
     pintado: sel(['No', 'Sí'], /^s/i.test(c.pintado) ? 'Sí' : 'No'), costePintado: inp({ type: 'number', min: 0, step: 0.1, value: c.costePintado }),
     gasto1: sel([''].concat(S.t.gastos.map(g => g.nombre)), c.gasto1), gasto2: sel([''].concat(S.t.gastos.map(g => g.nombre)), c.gasto2)
   };
+  const minMO = inp({ type: 'number', min: 0, step: 1, value: Number(c.horasMO) > 0 ? Math.round(Number(c.horasMO) * 60) : '', placeholder: 'min', inputmode: 'numeric', 'aria-label': 'Mano de obra en minutos' });
+  minMO.addEventListener('input', () => { f.horasMO.value = minMO.value === '' ? '' : Math.round(Number(minMO.value) / 60 * 10000) / 10000; f.horasMO.dispatchEvent(new Event('input', { bubbles: true })); });
   const out = h('div');
   const orders = p ? S.t.pedidos.filter(o => (o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre)) && !CL.stateOf(S.cfg.pedidos, o.estado).cancelled && Number(o.precio) > 0) : [];
   const calcNow = () => {
@@ -248,7 +269,7 @@ export function priceAssistant(p, costsIn, onPick) {
     mount(out,
       faltan.length ? h('p.small.warn-t', '⚠️ Falta ' + faltan.join(' y ') + ' para un cálculo exacto. El resto ya lo sé por la Configuración.') : null,
       h('div.table-wrap', { style: { marginTop: '8px' } }, h('table.t', h('thead', h('tr', h('th', 'Dónde lo vendes'), h('th', 'Precio recomendado'), h('th', 'No bajes de'), h('th.hide-m', 'Ganas (aprox.)'), onPick ? h('th', '') : null)),
-        h('tbody', PLATFORMS.map(pl => h('tr', { style: { cursor: 'default' } }, h('td.bold', pl.t), h('td', h('b', eur(r.recomendado[pl.k]))), h('td', eur(r.minimo[pl.k])), h('td.hide-m', eur(r.beneficio[pl.k])), onPick ? h('td', btn('Usar', () => onPick(r.recomendado[pl.k], pl.t, v), { cls: 'sm' })) : null))
+        h('tbody', PLATFORMS.map(pl => h('tr', { style: { cursor: 'default' } }, h('td.bold', pl.t), h('td', h('b', eur(r.recomendado[pl.k]))), h('td', eur(r.minimo[pl.k])), h('td.hide-m', eur(r.beneficio[pl.k])), onPick ? h('td', btn('Usar', () => onPick(r.recomendado[pl.k], pl.t, v, r), { cls: 'sm' })) : null))
           .concat([h('tr', { style: { cursor: 'default' } }, h('td.bold', 'Segunda mano'), h('td', h('b', eur(r.segundaMano))), h('td', '—'), h('td.hide-m', '—'), onPick ? h('td', btn('Usar', () => onPick(r.segundaMano, 'Segunda mano', v), { cls: 'sm' })) : null)])))),
       h('p.small', { style: { marginTop: '10px' } }, `En palabras: fabricarlo os cuesta ${eur(r.desglose.costeTotal)} con IVA (filamento ${eur(r.desglose.filamento)}, luz ${eur(r.desglose.luz)}, mano de obra ${eur(r.desglose.manoObra)}${r.desglose.pintado ? ', pintado ' + eur(r.desglose.pintado) : ''}${r.desglose.gastosExtra ? ', extras ' + eur(r.desglose.gastosExtra) : ''}). Para ganar el ${Math.round((S.cfg.precios.margen || 0.3) * 100)}% en Wallapop, véndelo a ${eur(r.recomendado.wallapop)}. En Etsy sube a ${eur(r.recomendado.etsy)} porque cobra comisiones (${((S.cfg.precios.etsyVenta + S.cfg.precios.etsyPago + S.cfg.precios.etsyReg) * 100).toFixed(1)}% + ${eur(S.cfg.precios.etsyFijo)} + anuncio).`),
       hist ? h('p.small', '📊 Se ha vendido ' + hist.n + (hist.n === 1 ? ' vez' : ' veces') + ' a una media de ' + eur(hist.media) + (hist.n > 1 ? ' (entre ' + eur(hist.min) + ' y ' + eur(hist.max) + ')' : '') + '.') : null,
@@ -257,7 +278,7 @@ export function priceAssistant(p, costsIn, onPick) {
   };
   Object.values(f).forEach(x => x.addEventListener('input', calcNow));
   const wrap = h('div.col',
-    h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' } }, field('Filamento (gramos)', f.gramos, gEst ? gEst.t : null), field('Horas de impresión', f.horas), field('Horas de mano de obra', f.horasMO, 'Solo para el precio orientativo: en los pedidos se cobra lo que indiques al cerrar el paquete'), field('Precio bobina 1 kg (€)', f.precioBobina), field('¿Pintado?', f.pintado), field('Coste del pintado (€)', f.costePintado), field('Gasto extra 1', f.gasto1), field('Gasto extra 2', f.gasto2)),
+    h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' } }, field('Filamento (gramos)', f.gramos, gEst ? gEst.t : null), field('Horas de impresión', f.horas), field('Mano de obra (minutos)', minMO, 'Quitar soportes, lijar, montar… Solo para el precio orientativo'), f.horasMO, field('Precio bobina 1 kg (€)', f.precioBobina), field('¿Pintado?', f.pintado), field('Coste del pintado (€)', f.costePintado), field('Gasto extra 1', f.gasto1), field('Gasto extra 2', f.gasto2)),
     out,
     p && can('productos.editar') && !onPick ? h('div.row', btn('Guardar costes', async () => { const { v } = calcNow(); await saveProduct(p, {}, v); }, { cls: 'sm' }), btn('Usar precio de Wallapop', async () => { const { r, v } = calcNow(); await saveProduct(p, { precio: r.recomendado.wallapop }, v); }, { cls: 'primary sm' })) : null);
   wrap.getCosts = () => { const v = {}; Object.keys(f).forEach(k => { v[k] = f[k].value; }); return v; };
@@ -404,31 +425,56 @@ export function productWizard(p) {
   const cCat = combo(f.categoria), cSub = combo(f.subcategoria);
   { const sh = sharedTree().map(x => x.c); if (sh.length) cats = [...new Set(sh.concat(cats))]; cCat.set(sh.length ? sh.concat(S.t.productos.map(x => x.categoria)) : cats); } loadSubs();
   f.categoria.addEventListener('change', () => { f.subcategoria.value = ''; loadSubs(); });
-  // ---- v16: medidas reales de la pieza (se calculan al subir el STL / 3MF; siempre se pueden corregir a mano) ----
-  const dimF = k => inp({ type: 'number', min: 0, step: 0.1, value: p[k] ?? '', placeholder: 'mm', inputmode: 'decimal', style: { maxWidth: '110px' } });
-  Object.assign(f, { dimX: dimF('dimX'), dimY: dimF('dimY'), dimZ: dimF('dimZ'), dimEstado: inp({ type: 'hidden', value: p.dimEstado || '' }), dimArchivo: inp({ type: 'hidden', value: p.dimArchivo || '' }) });
+  // ---- v16: MEDIDAS de la pieza. Se rellenan SOLAS al subir el STL / 3MF (X, Y, Z de la Bambu = Ancho, Largo, Alto), en cm.
+  // Por dentro se guardan en milímetros (dimX, dimY, dimZ); en pantalla, tres casillas con su nombre. Se pueden corregir a mano.
+  const oculto = (k, v) => inp({ type: 'hidden', value: v ?? '' });
+  Object.assign(f, { dimX: oculto('dimX', p.dimX), dimY: oculto('dimY', p.dimY), dimZ: oculto('dimZ', p.dimZ), dimEstado: oculto('dimEstado', p.dimEstado), dimArchivo: oculto('dimArchivo', p.dimArchivo) });
+  const enCm = {}; EJES.forEach(e => { enCm[e[0]] = inp({ type: 'number', min: 0, step: 0.1, value: Number(p[e[0]]) > 0 ? Math.round(Number(p[e[0]])) / 10 : '', placeholder: 'cm', inputmode: 'decimal', 'aria-label': e[1] + ' en centímetros' }); });
   const medInfo = h('div.med-info'), medSug = h('div.med-sug');
-  const medBox = h('div.med-box.full', h('div.lbl', '📐 Medidas reales de la pieza (mm)'), h('div.row.wrap.med-xyz', h('span', 'X'), f.dimX, h('span', '× Y'), f.dimY, h('span', '× Z'), f.dimZ), medInfo, medSug, f.dimEstado, f.dimArchivo);
-  const ESTADOS_MED = { medido: ['✓ Medido en el archivo', 'ok'], supuesto: ['Leído en mm (el STL no guarda la unidad)', ''], revisar: ['⚠️ Revisar la escala', 'warn'], manual: ['✏️ Puesto a mano', ''] };
+  const medBox = h('div.med-box.full', h('div.lbl', '📐 Medidas de la pieza'),
+    h('div.med-ejes', EJES.map(e => h('label.med-eje', h('span.med-n', e[3] + ' ' + e[1]), h('span.med-c', enCm[e[0]], h('span.u', 'cm')), h('span.tiny.muted', 'eje ' + e[2] + ' de la impresora')))),
+    medInfo, medSug, f.dimX, f.dimY, f.dimZ, f.dimEstado, f.dimArchivo);
+  const ESTADOS_MED = { medido: ['✓ Medido en el archivo', 'ok'], supuesto: ['✓ Leído del STL (en milímetros)', 'ok'], revisar: ['⚠️ Revisar la escala', 'warn'], manual: ['✏️ Puesto a mano', ''] };
   let medUlt = null;
+  const tamanoAuto = () => /^Ancho [\d,]+ cm · Largo/.test(f.tamano.value.trim());
   function pintarMed() {
-    const e = ESTADOS_MED[f.dimEstado.value];
-    mount(medInfo, f.dimX.value === '' ? h('span.tiny.muted', 'Sube el STL o el 3MF y se calculan solas (caja envolvente real, no a ojo). También puedes escribirlas.') : [e ? pill(e[0], e[1]) : null, f.dimArchivo.value ? h('span.tiny.muted', ' ' + f.dimArchivo.value) : null],
-      medUlt && medUlt.aviso ? h('div.tiny.' + (medUlt.estado === 'revisar' ? 'warn-t' : 'muted'), medUlt.aviso) : null,
+    const e = ESTADOS_MED[f.dimEstado.value], hay = Number(f.dimX.value) > 0 && Number(f.dimY.value) > 0 && Number(f.dimZ.value) > 0;
+    // el «Tamaño» del producto se escribe solo con las medidas (salvo que tú hayas puesto otro texto)
+    if (hay && (!f.tamano.value.trim() || tamanoAuto())) f.tamano.value = textoMedidas({ dimX: f.dimX.value, dimY: f.dimY.value, dimZ: f.dimZ.value });
+    mount(medInfo, !hay ? h('span.tiny.muted', 'No hace falta escribirlas: al subir el STL o el 3MF se rellenan solas con las medidas reales de la pieza.') : [e ? pill(e[0], e[1]) : null, f.dimArchivo.value ? h('span.tiny.muted', ' ' + f.dimArchivo.value) : null],
+      medUlt && medUlt.aviso && medUlt.estado !== 'supuesto' ? h('div.tiny.' + (medUlt.estado === 'revisar' ? 'warn-t' : 'muted'), medUlt.aviso) : null,
       medUlt && medUlt.sugerencias ? h('div.row.wrap', { style: { gap: '6px', marginTop: '4px' } }, medUlt.sugerencias.map(s => btn(s.t, () => ponerMed(escalar(medUlt, s.f), f.dimArchivo.value), { cls: 'sm' }))) : null);
     const d = { x: Number(f.dimX.value), y: Number(f.dimY.value), z: Number(f.dimZ.value) };
     mount(medSug);
-    if (d.x > 0 && d.y > 0 && d.z > 0) api('embalajes.sugerir', { dim: d }).then(r => { const s = r && r.sugerencia; if (!s || Number(f.dimX.value) !== d.x) return; mount(medSug, h('span.tiny', s.cabe ? ['📦 Embalaje que le va: ', h('b', s.nombre), ' (' + s.envase + ')', s.aviso ? h('span.warn-t', ' · ' + s.aviso) : null] : h('span.warn-t', '📦 ' + s.motivo))); }).catch(() => { });
+    if (hay) api('embalajes.sugerir', { dim: d }, { quiet: true }).then(r => { const s = r && r.sugerencia; if (!s || Number(f.dimX.value) !== d.x) return; mount(medSug, h('span.tiny', s.cabe ? ['📦 Embalaje que le va: ', h('b', s.nombre), ' (' + s.envase + ')', s.aviso ? h('span.warn-t', ' · ' + s.aviso) : null] : h('span.warn-t', '📦 ' + s.motivo))); }).catch(() => { });
   }
-  function ponerMed(m, archivo) { medUlt = m; f.dimX.value = m.x; f.dimY.value = m.y; f.dimZ.value = m.z; f.dimEstado.value = m.estado; f.dimArchivo.value = archivo || ''; pintarMed(); }
-  [f.dimX, f.dimY, f.dimZ].forEach(x => x.addEventListener('change', () => { f.dimEstado.value = f.dimX.value === '' && f.dimY.value === '' && f.dimZ.value === '' ? '' : 'manual'; if (!f.dimEstado.value) f.dimArchivo.value = ''; medUlt = null; pintarMed(); }));
-  // al subir (o sustituir) el archivo 3D se vuelven a calcular
+  function ponerMed(m, archivo) { medUlt = m; [['dimX', m.x], ['dimY', m.y], ['dimZ', m.z]].forEach(x => { f[x[0]].value = x[1]; enCm[x[0]].value = Math.round(Number(x[1])) / 10; }); f.dimEstado.value = m.estado; f.dimArchivo.value = archivo || ''; pintarMed(); }
+  EJES.forEach(e => enCm[e[0]].addEventListener('change', () => {
+    f[e[0]].value = enCm[e[0]].value === '' ? '' : Math.round(Number(enCm[e[0]].value) * 100) / 10;
+    const vacio = EJES.every(x => enCm[x[0]].value === ''); f.dimEstado.value = vacio ? '' : 'manual'; if (vacio) f.dimArchivo.value = ''; medUlt = null; pintarMed();
+  }));
+  // al subir (o sustituir) el archivo 3D se calculan solas
   async function medirArchivo(it) {
     if (!it || !it.file || !esArchivo3D(it.file.name)) return;
-    try { const m = await medir3D(await it.file.arrayBuffer(), it.file.name); ponerMed(m, it.file.name); toast('📐 ' + [m.x, m.y, m.z].join(' × ') + ' mm' + (m.estado === 'revisar' ? ' · revisa la escala' : ''), m.estado === 'revisar' ? 'warn' : 'ok'); }
-    catch (e) { mount(medInfo, h('span.tiny.warn-t', 'No he podido medir «' + it.file.name + '»: ' + e.message + ' Puedes escribir las medidas a mano.')); }
+    try { const m = await medir3D(await it.file.arrayBuffer(), it.file.name); ponerMed(m, it.file.name); toast('📐 Medidas puestas solas: ' + textoMedidas({ dimX: m.x, dimY: m.y, dimZ: m.z }) + (m.estado === 'revisar' ? ' · revisa la escala' : ''), m.estado === 'revisar' ? 'warn' : 'ok', 6000); }
+    catch (e) { mount(medInfo, h('span.tiny.warn-t', 'No he podido medir «' + it.file.name + '»: ' + e.message + ' Puedes escribir las medidas.')); }
   }
   pintarMed();
+  // ---- v16: los DOS PRECIOS, claros: el que publicas en redes y lo mínimo que aceptas regateando ----
+  f.precioMin = inp({ type: 'number', min: 0, step: 0.1, value: p.precioMin || '', placeholder: 'Ej.: 16' });
+  const precioResumen = h('div.pr2-res');
+  let minAuto = !(Number(p.precioMin) > 0), minCalc = null; // mientras no lo escribas tú, el mínimo lo propone el programa
+  function pintarPrecios() {
+    const pv = Number(f.precio.value), mn = Number(f.precioMin.value);
+    mount(precioResumen, pv > 0 && mn > 0 ? (mn > pv ? h('span.bad-t', '⚠️ El mínimo (' + eur(mn) + ') es más alto que el precio en redes (' + eur(pv) + ').')
+      : [h('span', 'Publicas a ', h('b', eur(pv)), ' · puedes bajar hasta ', h('b', eur(pv - mn)), ' (' + Math.round((pv - mn) / pv * 100) + ' %) · no bajes de ', h('b', eur(mn)), '.'), minCalc && mn < minCalc ? h('div.warn-t', '⚠️ Por debajo de ' + eur(minCalc) + ' casi no ganas con este producto.') : null])
+      : h('span.muted', pv > 0 ? 'Falta el mínimo: cuánto es lo menos que aceptarías.' : 'Pon el precio al que lo publicas y el mínimo que aceptas regateando.'));
+  }
+  f.precio.addEventListener('input', pintarPrecios);
+  f.precioMin.addEventListener('input', () => { minAuto = false; pintarPrecios(); });
+  const preciosBox = h('div.pr2', h('label.pr2-c.redes', h('span.pr2-t', '💶 Precio en redes'), h('span.pr2-s', 'El que publicas en Vinted, Wallapop, Instagram…'), h('span.pr2-i', f.precio, h('span.u', '€'))),
+    h('label.pr2-c.min', h('span.pr2-t', '🤝 Mínimo regateando'), h('span.pr2-s', 'Lo menos que aceptas si te piden rebaja'), h('span.pr2-i', f.precioMin, h('span.u', '€'))), precioResumen);
+  pintarPrecios();
   const zones = { foto: dropZone('foto', { title: 'FOTO', existing: () => p.id ? filesOf('productos', p.id) : [] }), video: dropZone('video', { title: 'VÍDEO', existing: () => p.id ? filesOf('productos', p.id) : [] }), stl: dropZone('stl', { title: 'STL / 3MF', existing: () => p.id ? filesOf('productos', p.id) : [], onReady: medirArchivo }) };
   let pa = null;
   const msg = h('p.bad-t');
@@ -441,15 +487,16 @@ export function productWizard(p) {
     const bar = h('div.wiz-steps', titles.map((t, i) => h('div.st' + (i === step ? '.on' : i < step ? '.done' : ''))));
     if (step === 0) mount(body, bar, h('h3', titles[0]), h('datalist', { id: 'dl-pcat' }, cats.map(c => h('option', { value: c }))), h('datalist', { id: 'dl-psub' }, subs.map(c => h('option', { value: c }))),
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
-        field('Color', f.color), field('Material', f.material), field('Tamaño', f.tamano, 'Texto libre para el anuncio (las medidas reales van abajo)'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full', btn('✨ Crear descripción corta', () => import('../descripcion.js').then(D => D.rapida({ texto: f.nombre.value, onUsar: txt => { f.descripcion.value = txt; } })), { cls: 'sm ghost' }))),
+        field('Color', f.color), field('Material', f.material), medBox, field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full', btn('✨ Crear descripción corta', () => import('../descripcion.js').then(D => D.rapida({ texto: f.nombre.value, onUsar: txt => { f.descripcion.value = txt; } })), { cls: 'sm ghost' }))),
       can('stock.mover') || can('productos.editar') ? skBox : null,
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),
       h('div.drops', { style: { marginTop: '12px' } }, zones.foto.el, zones.video.el, zones.stl.el), medBox, missingHint(), msg);
     if (step === 2) {
-      if (!pa) pa = priceAssistant(p.id ? p : null, null, (v) => { f.precio.value = v; toast('Precio puesto: ' + eur(v), 'ok'); });
+      if (!pa) pa = priceAssistant(p.id ? p : null, null, (v, plat, vals, r) => { f.precio.value = v; const k = (PLATFORMS.find(x => x.t === plat) || {}).k; minCalc = r && k && r.minimo[k] ? r.minimo[k] : null; if (minAuto && minCalc) f.precioMin.value = minCalc; pintarPrecios(); toast('Precio en redes ' + eur(v) + (minAuto && minCalc ? ' · mínimo regateando ' + eur(minCalc) : ''), 'ok'); });
       mount(body, bar, h('h3', titles[2]), h('p.small.muted', 'Rellena lo que sepas: el resto (IVA, margen, luz, mano de obra, comisiones) sale de la Configuración.'),
-        can('productos.costes') ? pa : h('p.muted', '🔒 No tienes permiso para ver costes.'), h('div.form', { style: { marginTop: '12px' } }, field('Precio de venta (€)', f.precio, 'Pulsa "Usar" en la tabla o escríbelo.')), msg);
+        preciosBox, h('details.more', { open: !(Number(f.precio.value) > 0), style: { marginTop: '10px' } }, h('summary', '🧮 ¿No sabes qué precio poner? Que lo calcule el programa'),
+          h('div.in', can('productos.costes') ? pa : h('p.muted', '🔒 No tienes permiso para ver costes.'))), msg);
     }
     mount(foot, step > 0 ? btn('Atrás', () => { step--; draw(); }) : btn('Cancelar', async () => { if (anyFiles() && !await confirmDlg('Descartar', '¿Descartar el producto y los archivos preparados?', 'Descartar', true)) return; m.close(); }), h('span.grow'),
       step < 2 ? btn(isNew ? 'Crear ya' : 'Guardar ya', ev => { if (!f.nombre.value.trim()) { msg.textContent = 'Escribe el nombre del producto.'; return; } saveAll(ev); }, { cls: 'ghost', title: 'Guardar ahora; los archivos y costes se pueden añadir después' }) : null,
@@ -469,7 +516,6 @@ export function productWizard(p) {
       if (dup) return msg.textContent = 'Ya existe un producto llamado "' + dup.nombre + '" (' + dup.id + ').';
     }
     if (step === 1) {
-      if (Object.values(zones).some(z => z.busy())) return msg.textContent = 'Espera a que terminen de prepararse las vistas previas…';
     }
     step++; draw();
   }
@@ -478,7 +524,7 @@ export function productWizard(p) {
     const datos = {}; Object.keys(f).forEach(k => { datos[k] = typeof f[k].value === 'string' ? f[k].value.trim() : f[k].value; });
     if (datos.precio === '') delete datos.precio; else datos.precio = Number(datos.precio);
     if (datos.pesoG !== '') datos.pesoG = Number(datos.pesoG);
-    ['dimX', 'dimY', 'dimZ'].forEach(k => { if (datos[k] !== '') datos[k] = Number(datos[k]); }); // v16
+    ['dimX', 'dimY', 'dimZ', 'precioMin'].forEach(k => { if (datos[k] !== '') datos[k] = Number(datos[k]); }); // v16
     const costes = pa && can('productos.costes') ? pa.getCosts() : null;
     // v11: unidades, mínimo y ubicación (solo si se han tocado o el producto es nuevo con datos)
     let stock = null;
@@ -503,19 +549,22 @@ export function productWizard(p) {
           z.items.forEach(it => { it._path = dir + (dir.includes('/') ? '/' : '\\') + sub[k] + (dir.includes('/') ? '/' : '\\') + it.file.name; });
         }
       }
-      b.textContent = 'Subiendo archivos…';
-      const errors = [];
-      for (const k of Object.keys(zones)) {
-        const z = zones[k];
-        // en el PC: se guardan en la carpeta y (fotos/vídeos, y STL pequeños) también en Drive para verlos en el móvil
-        z._opts = null;
-        await uploadZone(z, prod.id, k, dir).catch(e => errors.push(e.message));
-        if (z.hasErrors()) errors.push(RULES[k].t + ': algún archivo no se pudo subir');
-      }
-      if (errors.length) { toast('Producto guardado, pero: ' + errors.join(' · '), 'warn', 9000); step = 1; draw(); b.disabled = false; return; }
+      // v16: SIN ESPERAS. El producto ya está guardado: la ventana se cierra y los archivos suben en segundo plano (todos a la vez).
+      const nArch = Object.values(zones).reduce((a, z) => a + z.items.filter(i => !i.err && i.state !== 'subido').length, 0);
       m.close();
-      toast(isNew ? 'Producto ' + prod.id + ' creado 🎉' : 'Producto guardado', 'ok');
+      toast((isNew ? 'Producto ' + prod.id + ' creado 🎉' : 'Producto guardado') + (nArch ? ' · subiendo ' + nArch + (nArch === 1 ? ' archivo' : ' archivos') + ' mientras sigues trabajando' : ''), 'ok', nArch ? 6000 : 3500);
       go('productos/' + prod.id);
+      if (nArch) {
+        const aviso = e => { e.preventDefault(); e.returnValue = ''; }; window.addEventListener('beforeunload', aviso);
+        (async () => {
+          const errors = [];
+          for (let i = 0; i < 600 && Object.values(zones).some(z => z.busy && z.busy() && z.items.some(x => x.state === 'preparando')); i++) await new Promise(r => setTimeout(r, 150));
+          await Promise.all(Object.keys(zones).map(async k => { const z = zones[k]; z._opts = null; await uploadZone(z, prod.id, k, dir).catch(e => errors.push(e.message)); if (z.hasErrors()) errors.push(RULES[k].t + ': algún archivo no se pudo subir'); }));
+          window.removeEventListener('beforeunload', aviso); emit();
+          if (errors.length) toast('⚠️ ' + prod.nombre + ': ' + errors.join(' · ') + '. Abre el producto y súbelo otra vez.', 'warn', 14000);
+          else toast('✅ Archivos de «' + prod.nombre + '» subidos', 'ok');
+        })();
+      }
       if (isNew && can('redes.preparar')) setTimeout(() => toast('💡 Idea: prepara un reel de ' + prod.nombre + ' desde Redes sociales.', '', 6000), 1500);
     } catch (e) { msg.textContent = e.message; handleError(e, 'productos'); b.disabled = false; b.textContent = isNew ? 'Crear producto' : 'Guardar'; }
   }

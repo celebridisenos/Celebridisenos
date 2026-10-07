@@ -595,7 +595,20 @@ async function cardPrintBox(el, getCard) {
       const b = ev.target.closest('button'); b.disabled = true;
       try { const d = getCard(); const pn = D.desktop.on && prSel ? prSel.value : undefined; const r = esEtiqueta() ? await E.printCardLabels(d, { copias: hojas.value, printer: pn }) : await E.printCardSheets(d, { hojas: hojas.value, dpi: Number(calidad.value), printer: pn }); mount(out, h('p.small.ok-t', r.how === 'printer' ? '✓ Enviado a ' + r.printer : '✓ PDF listo')); }
       catch (e) { toast('No se pudo imprimir: ' + e.message, 'bad', 8000); } b.disabled = false;
-    }, { cls: 'primary' })), out);
+    }, { cls: 'primary' }),
+    // v16: EXPORTAR de verdad (PDF a tamaño real o una imagen), además de imprimir
+    btn('📄 Exportar PDF', async ev => {
+      const b = ev.target.closest('button'); b.disabled = true;
+      try { const d = getCard(); if (esEtiqueta()) await E.printCardLabels(d, { copias: hojas.value, pdf: true }); else await E.printCardSheets(d, { hojas: hojas.value, dpi: Number(calidad.value), pdf: true }); mount(out, h('p.small.ok-t', '✓ PDF listo: descárgalo o compártelo desde el visor')); }
+      catch (e) { toast('No se pudo exportar: ' + e.message, 'bad', 8000); } b.disabled = false;
+    }, { title: 'El PDF a tamaño real, para guardarlo, enviarlo o llevarlo a una imprenta' }),
+    btn('🖼️ Exportar imagen', async ev => {
+      const b = ev.target.closest('button'); b.disabled = true;
+      try { const d = getCard(), L = await import('../labels.js'); if (d.logo) d.logoImg = await L.loadLogo(); d.fondoImg = await L.loadCardBg(d.diseno);
+        L.drawOneCardCanvas(d, 300).toBlob(bl => { const a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = 'tarjeta_agradecimiento.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }, 'image/png');
+        mount(out, h('p.small.ok-t', '✓ Imagen guardada: tarjeta_agradecimiento.png')); }
+      catch (e) { toast('No se pudo exportar: ' + e.message, 'bad', 8000); } b.disabled = false;
+    }, { title: 'Una tarjeta suelta en PNG a 300 puntos por pulgada' })), out);
 }
 // Mini panel de la impresora de etiquetas de ESTE ordenador
 async function labelPrinterBox(el) {

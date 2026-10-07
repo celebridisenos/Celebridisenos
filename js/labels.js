@@ -461,7 +461,7 @@ export async function sendLabel(tpl, build, opts = {}) {
   const t = await targetFor(tpl, opts.printer), s = t.size, dpi = t.dpi;
   await prepararPlantilla(tpl); // v15.0: logo y letras del diseño propio, cargados antes de dibujar
   const canv = await build(dpi, s);
-  if (t.pr && t.pr.raw) {
+  if (!opts.pdf && t.pr && t.pr.raw) { // v16: con «pdf: true» se EXPORTA (no se imprime aunque haya impresora)
     // v13.2: directo por Bluetooth (sin controlador de Windows). PC → puerto COM; móvil Android → Web Bluetooth
     const pr = t.pr;
     if (pr.offline) throw new Error(pr.problema || 'La impresora «' + pr.name + '» está desconectada o apagada.');
@@ -472,7 +472,7 @@ export async function sendLabel(tpl, build, opts = {}) {
     if (!opts.silent) toast('🖨️ ' + canv.length + (canv.length === 1 ? ' etiqueta enviada' : ' etiquetas enviadas') + ' por Bluetooth a ' + pr.name, 'ok', 5000);
     return { how: 'printer', printer: pr.name, sheet: false, count: canv.length };
   }
-  if (desktop.on && t.pr) {
+  if (!opts.pdf && desktop.on && t.pr) {
     const pr = t.pr, adj = (t.c.ajuste && t.c.ajuste[pr.name]) || {};
     if (pr.offline) throw new Error(pr.problema || 'La impresora «' + pr.name + '» está desconectada o apagada. No se ha impreso en ninguna otra.');
     const tile = t.sheet && tpl !== 'tarjetas';

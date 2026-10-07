@@ -51,7 +51,7 @@ export function widget(o, opts = {}) {
       h('div.row.wrap.envase-mats', { style: { gap: '14px', marginTop: '10px', alignItems: 'center' } },
         h('label.row', { style: { gap: '6px' } }, h('span.small', '🟤 Papel kraft (m)'), kraft),
         h('label.row', { style: { gap: '6px' } }, h('span.small', '🟫 Papel marrón (m)'), marron),
-        h('label.check', cinta, '🧻 Utilizar cinta (' + eur(c.cinta) + ')')),
+        h('label.check', cinta, '🧻 Utilizar cinta (≈ ' + fmt(c.cintaM) + ' m del rollo)')),
       tot);
     total();
   };
@@ -89,8 +89,23 @@ export function embalajeDialog(o, after) {
   }, { cls: 'primary' })], { size: 'narrow' });
 }
 // Recuadro de la ficha del pedido
+// v16: sin elegir nada, el pedido ya tiene su PLANTILLA (la que le va por medidas, «Entrega en mano» o la estándar)
+function bloquePlantilla(o, redraw) {
+  const edit = can('pedidos.editar'), e = o.embalaje || {}, cerrado = !!e.hecho, embs = S.t.embalajes || [];
+  const pl = CL.packPlan(o, { materiales: S.t.materiales || [], embalajes: embs, recetas: S.t.recetas || [], productos: S.t.productos || [] }, (S.cfg && S.cfg.precios) || {});
+  if (!pl || !pl.plantilla) return null;
+  const por = cerrado ? 'Paquete cerrado el ' + String(e.hecho).split('-').reverse().join('/') : e.auto === 'medidas' && pl.origen === 'elegido' ? 'Elegida sola por las medidas de la pieza' : e.auto === 'entrega' && pl.origen === 'elegido' ? 'Elegida sola: se entrega en mano' : pl.origen === 'elegido' ? 'Elegida por ti' : pl.origen === 'producto' ? 'La del producto' : 'La estándar';
+  const cambiar = async id => { try { const r = await mutate('pedidos.guardar', { id: o.id, datos: { embalaje: { plantillaId: id } } }, { onlineOnly: true, label: 'Embalaje' }); if (r && r.id) upsertLocal('pedidos', r); emit(); toast('Embalaje cambiado', 'ok'); redraw && redraw(); } catch (x) { toast(x.message, 'bad'); } };
+  const sel = edit && !cerrado && embs.length > 1 ? h('select.inp.sm', { 'aria-label': 'Plantilla de embalaje', style: { maxWidth: '210px', minHeight: '34px' }, onchange: ev => cambiar(ev.target.value) }, embs.map(x => h('option', { value: x.id, selected: x.id === pl.plantilla.id }, (/^s/i.test(String(x.predeterminado || '')) ? '⭐ ' : '') + x.nombre))) : null;
+  return h('div.card.flat.envase-ficha', { style: { marginTop: '10px' } },
+    h('div.row.wrap', h('b.grow', '📦 EMBALAJE · ' + pl.plantilla.nombre), sel, edit && !cerrado ? btn('A mano', () => embalajeDialog(o, redraw), { cls: 'sm ghost', title: 'Elegir caja, sobre o bolsa y los metros de papel para este pedido' }) : null),
+    h('div.tiny.muted', por + ' · se descuenta del stock al cerrar el paquete · no se suma al precio del cliente'),
+    h('div.small', { style: { marginTop: '4px' } }, pl.lineas.map(l => l.nombre + (l.unidad && l.unidad !== 'ud' ? ' ' + fmt(l.cantidad) + ' ' + l.unidad : (l.cantidad > 1 ? ' × ' + l.cantidad : ''))).join(' · ') || 'Sin materiales: duplica la plantilla y pon lo que lleve.'),
+    can('productos.costes') ? h('div.row', { style: { borderTop: '1px solid var(--line)', paddingTop: '4px', marginTop: '4px' } }, h('b.grow', 'Coste interno del embalaje' + (pl.estado === 'estimado' ? ' (estimado)' : '')), h('b', pl.coste === null ? 'al menos ' + eur(pl.conocido) : eur(pl.coste))) : null);
+}
 export function bloquePedido(o, redraw) {
   const s = o.embalaje && o.embalaje.simple, edit = can('pedidos.editar');
+  if (!(s && s.tipo)) { const b = bloquePlantilla(o, redraw); if (b) return b; }
   const p = s && s.tipo ? costeDe(s) : null;
   const falta = !(s && s.tipo) && hayEnvases();
   return h('div.card.flat.envase-ficha' + (falta ? '.warn' : ''), { style: { marginTop: '10px' } },
@@ -169,8 +184,9 @@ export function renderStock(el) {
     if ((!kraft || !marron) && edit && !preparando) { preparando = true; api('envases.preparar', {}, { quiet: true }).then(r => { aplicar(r); api('config.obtener', {}, { quiet: true }).then(cf => { S.cfg = cf; emit(); }).catch(() => { }); }).catch(() => { }); }
     const all = TIPOS.flatMap(t => envasesDe(t[0])).concat([kraft, marron].filter(Boolean));
     const bajos = all.filter(m => ['bajo', 'agotado'].includes(CL.stockEstado(m, c)));
-    const cinta = inp({ type: 'number', min: 0, step: 0.01, value: c.cinta, 'aria-label': 'Coste fijo de la cinta por pedido (€)', disabled: !edit, style: { width: '100px' } });
-    cinta.onchange = async () => { try { aplicar(await api('envases.config', { cinta: cinta.value })); toast('🧻 Cinta: ' + eur(num(cinta.value)) + ' por pedido', 'ok'); } catch (e) { toast(e.message, 'bad'); } };
+    // v16: la cinta ya NO es un coste fijo por pedido: se cuentan los metros (estimados) y salen del rollo
+    const cinta = inp({ type: 'number', min: 0, step: 0.1, value: c.cintaM, 'aria-label': 'Metros de cinta por pedido', disabled: !edit, style: { width: '100px' } });
+    cinta.onchange = async () => { try { aplicar(await api('envases.config', { cintaM: cinta.value })); toast('🧻 Cinta: ' + fmt(num(cinta.value)) + ' m por pedido', 'ok'); } catch (e) { toast(e.message, 'bad'); } };
     const avU = inp({ type: 'number', min: 0, step: 1, value: c.avisoUnidades, 'aria-label': 'Aviso de unidades', disabled: !edit, style: { width: '70px' } });
     const avM = inp({ type: 'number', min: 0, step: 0.5, value: c.avisoMetros, 'aria-label': 'Aviso de metros', disabled: !edit, style: { width: '70px' } });
     [avU, avM].forEach(i => { i.onchange = async () => { try { aplicar(await api('envases.config', { avisoUnidades: avU.value, avisoMetros: avM.value })); } catch (e) { toast(e.message, 'bad'); } }; });
@@ -182,11 +198,11 @@ export function renderStock(el) {
         envasesDe(k).length ? h('div.env-grid', envasesDe(k).map(m => tarjeta(m, { icono: ic }))) : h('p.small.muted', 'Aún no hay ' + pl.toLowerCase() + '. ' + (edit ? 'Pulsa «+ Añadir medida».' : '')))),
       h('section.env-sec', h('h3', '🟤 PAPEL KRAFT'), kraft ? h('div.env-grid', tarjeta(kraft, { icono: '🟤' })) : h('p.small.muted', 'Preparando…')),
       h('section.env-sec', h('h3', '🟫 PAPEL MARRÓN'), marron ? h('div.env-grid', tarjeta(marron, { icono: '🟫' })) : h('p.small.muted', 'Preparando…')),
-      h('section.env-sec', h('h3', '🧻 CINTA'), h('div.env-card.ok.env-cinta', h('b', '🧻 Cinta adhesiva'), h('div.small', 'No se cuentan los metros: cada pedido que use cinta suma un coste fijo.'),
-        h('div.row', { style: { gap: '6px', alignItems: 'center' } }, h('span.small', 'Coste fijo por pedido (€)'), cinta))),
+      h('section.env-sec', h('h3', '🧻 CINTA'), h('div.env-card.ok.env-cinta', h('b', '🧻 Cinta adhesiva'), h('div.small', 'Sale del rollo «Cinta de embalar»: cada pedido que use cinta descuenta estos metros (es una estimación: cámbiala cuando lo midas). No hay coste fijo por pedido.'),
+        h('div.row', { style: { gap: '6px', alignItems: 'center' } }, h('span.small', 'Metros por pedido (estimado)'), cinta))),
       h('section.env-sec', h('h3', '🔔 AVISOS'), h('div.row.wrap.small', { style: { gap: '10px', alignItems: 'center' } }, '🟠 Stock bajo cuando queden', avU, 'unidades o', avM, 'metros (cada tarjeta puede tener su propio aviso en «Editar»). 🔴 Agotado = 0.')),
       h('details.more.env-ayuda', h('summary', '¿Qué se descuenta solo y qué hago yo?'), h('div.in.small',
-        h('p', h('b', 'Lo descuenta el programa al guardar un pedido: '), '1 caja, sobre o bolsa de la medida elegida y los metros de papel kraft y marrón que pongas. La cinta solo suma su coste. Si cambias el pedido se ajusta; si lo cancelas o lo borras, vuelve al stock.'),
+        h('p', h('b', 'Lo descuenta el programa al guardar un pedido: '), '1 caja, sobre o bolsa de la medida elegida y los metros de papel kraft y marrón que pongas. La cinta descuenta sus metros del rollo. Si cambias el pedido se ajusta; si lo cancelas o lo borras, vuelve al stock.'),
         h('p', h('b', 'Lo haces tú cuando compras: '), '«Añadir stock» / «Añadir rollo», o escribir la cantidad que hay. El programa nunca compra nada.'))));
   };
   draw();

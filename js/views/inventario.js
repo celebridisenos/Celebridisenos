@@ -5,7 +5,7 @@
 import { h, mount, btn, modal, toast, eur, empty, field, inp, sel, pill, fdt, confirmDlg } from '../ui.js';
 import { S, can, api, upsertLocal, emit, pull } from '../store.js';
 import { handleError, requestAccess, go } from '../app.js';
-import { avisosStock } from './hoy.js';
+import { avisosStock, revision, REV_ICO } from './hoy.js';
 
 const CL = window.CL;
 const n = v => Number(String(v === undefined || v === null ? '' : v).replace(',', '.')) || 0;
@@ -63,6 +63,7 @@ export function render(el, params) {
     mats.forEach(m => { const c = CL.matCost(m).coste; if (c === null) sinPrecio++; else vM += n(m.stock) * c; });
     gr.forEach(g => { vF += g.valor; });
     const falta = !(S.cfg && S.cfg.v16 && S.cfg.v16.inventario) && !mats.length;
+    const revCard = h('div.card.inv-rev', { style: { display: 'none' } });
     mount(cuerpo,
       falta && can('costes.editar') ? h('div.card', h('h3', 'Carga tu inventario'), h('p.small.muted', 'Cajas, sobres, bolsas, cinta, papel burbuja, kraft, laca, alcohol, aceite y tus bobinas, tal como los indicaste el 7-10-2026.'), btn('Cargar inventario inicial', cargarInicial, { cls: 'primary' })) : null,
       h('div.kpis.g4',
@@ -76,7 +77,11 @@ export function render(el, params) {
           h('b', (NIVEL[a.nivel] || ['', ''])[0].toUpperCase()), h('span.grow', a.nombre + ': ', h('b', a.nivel === 'agotado' ? 'no queda' : a.queda.toLocaleString('es-ES') + ' ' + (UN[a.unidad] || a.unidad) + (a.queda === 1 ? ' restante' : ' restantes'))),
           mover ? btn('Compré…', () => a.tipo === 'filamento' ? compraRapida({ filamento: a.id }) : compraRapida({ id: a.id }), { cls: 'sm' }) : null)))
           : h('p.small.muted', 'Ningún material está por debajo de su aviso. Los límites se cambian en cada material.')),
-      h('p.tiny.muted', 'El stock baja solo: el filamento al terminar cada impresión, la caja/sobre/bolsa y los papeles al empaquetar, y el alcohol con cada lavado de la placa.'));
+      revCard,
+      h('p.tiny.muted', 'El stock baja solo: el filamento al imprimir (con la cola o al pasar el pedido a «Acabado»), la caja/sobre/bolsa, la cinta y los papeles al cerrar el paquete, y el alcohol con cada lavado.'));
+    revision(true).then(r => { if (!revCard.isConnected || !r.lista.length) return; const T = { incoherencia: 'No cuadra', falta: 'Falta', estimado: 'Estimado' };
+      mount(revCard, h('h3', '🧠 Revisión automática'), h('p.tiny.muted', 'Lo que falta, lo que es una estimación y lo que no cuadra. Lo miro yo: tú solo completas lo que quieras.'),
+        r.lista.map(x => h('div.rev-i.' + x.nivel, { onclick: () => go(x.enlace.indexOf('pedido:') === 0 ? 'pedidos/' + x.enlace.slice(7) : (x.enlace || 'inventario')) }, h('span', REV_ICO[x.nivel]), h('b.rev-t', T[x.nivel]), h('span.grow.small', x.texto)))); revCard.style.display = ''; });
   }
 
   function materiales() {

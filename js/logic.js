@@ -287,7 +287,7 @@ var CL = (function () {
     var sameClient = same.filter(function (x) { return norm(x.cliente) === norm(o.cliente); });
     var last = sameClient[sameClient.length - 1] || null, lastAny = same[same.length - 1] || null;
     var out = { coste: ci ? r2(ci.coste) : null, catalogo: prod && n(prod.precio) > 0 ? n(prod.precio) : null, recomendado: ci && ci.recomendado ? ci.recomendado : null,
-      minimo: ci && ci.minimo ? ci.minimo : (ci ? r2(ci.coste / (1 - minM)) : null), anteriorCliente: last ? n(last.precio) : null, anterior: lastAny ? n(lastAny.precio) : null,
+      minimo: prod && n(prod.precioMin) > 0 ? n(prod.precioMin) : (ci && ci.minimo ? ci.minimo : (ci ? r2(ci.coste / (1 - minM)) : null)), anteriorCliente: last ? n(last.precio) : null, anterior: lastAny ? n(lastAny.precio) : null,
       ventasPrevias: same.length, cantidad: qty, notas: [], avisos: [], fuente: '', embalaje: emb };
     // Precio sugerido: el del catálogo o el recomendado por costes; al cliente habitual, su último precio
     var sug = null;
@@ -864,8 +864,8 @@ var CL = (function () {
   function productWeight(o, data) { var p = productOf(o, data); return p && filled(p.pesoG) && n(p.pesoG) > 0 ? n(p.pesoG) : null; }
   // ---------- v13.9 · EMBALAJE SENCILLO: Caja / Sobre / Bolsa (1 € cada uno) + papel kraft y marrón por metros + cinta a precio fijo ----------
   var ENVASE_TIPOS = [['caja', '📦', 'Caja', 'Cajas'], ['sobre', '✉️', 'Sobre', 'Sobres'], ['bolsa', '🛍️', 'Bolsa', 'Bolsas']];
-  var SIMPLE_DEF = { precioEnvase: 1, cinta: 0, avisoUnidades: 3, avisoMetros: 2, kraftId: '', marronId: '' };
-  function simpleCfg(c) { var o = {}; c = c || {}; Object.keys(SIMPLE_DEF).forEach(function (k) { o[k] = c[k] !== undefined && c[k] !== null && c[k] !== '' ? c[k] : SIMPLE_DEF[k]; }); ['precioEnvase', 'cinta', 'avisoUnidades', 'avisoMetros'].forEach(function (k) { o[k] = n(o[k]); }); return o; }
+  var SIMPLE_DEF = { precioEnvase: 1, cinta: 0, cintaM: 1.2, avisoUnidades: 3, avisoMetros: 2, kraftId: '', marronId: '' }; // v16: «cinta» (coste fijo por pedido) ya no se usa: cuenta por metros (cintaM)
+  function simpleCfg(c) { var o = {}; c = c || {}; Object.keys(SIMPLE_DEF).forEach(function (k) { o[k] = c[k] !== undefined && c[k] !== null && c[k] !== '' ? c[k] : SIMPLE_DEF[k]; }); ['precioEnvase', 'cinta', 'cintaM', 'avisoUnidades', 'avisoMetros'].forEach(function (k) { o[k] = n(o[k]); }); return o; }
   function envaseTipo(k) { for (var i = 0; i < ENVASE_TIPOS.length; i++) if (ENVASE_TIPOS[i][0] === k) return ENVASE_TIPOS[i]; return null; }
   function medidasTxt(m) { var v = [m.largo, m.ancho, m.alto].filter(function (x) { return filled(x) && n(x) > 0; }).map(fmtN); return v.length ? v.join(' × ') + ' cm' : ''; }
   function envaseNombre(tipo, m) { var t = envaseTipo(tipo); return (t ? t[2] : 'Envase') + (medidasTxt(m) ? ' ' + medidasTxt(m) : ''); }
@@ -878,10 +878,12 @@ var CL = (function () {
     var min = filled(m.stockMin) ? n(m.stockMin) : (unitKey(m.unidad) === 'm' ? sc.avisoMetros : sc.avisoUnidades);
     return st <= min ? 'bajo' : 'ok';
   }
+  // La cinta del inventario (un solo material): «Cinta de embalar (rollo)»
+  function cintaDe(mats) { var l = mats || []; for (var i = 0; i < l.length; i++) if (norm(l[i].activo) !== 'no' && norm(l[i].nombre) === norm('Cinta de embalar (rollo)')) return l[i]; return null; }
   function simplePlan(o, data) {
     var e = o.embalaje.simple, sc = simpleCfg(data.simple), mats = {}; (data.materiales || []).forEach(function (m) { mats[m.id] = m; });
     var fx = e.precios && typeof e.precios === 'object' ? e.precios : null; // v13.9: precios FIJADOS al guardar el pedido (no cambian si luego cambias los de Stock)
-    if (fx) { if (has(fx.envase)) sc.precioEnvase = n(fx.envase); if (has(fx.cinta)) sc.cinta = n(fx.cinta); }
+    if (fx) { if (has(fx.envase)) sc.precioEnvase = n(fx.envase); }
     var env = e.envaseId ? mats[e.envaseId] : null, t = envaseTipo(e.tipo), lineas = [], pend = [];
     lineas.push({ nombre: env ? env.nombre : (t ? t[2] : 'Envase') + ' (sin medida)', cantidad: 1, unidad: 'ud', coste: r2x(sc.precioEnvase), estado: 'confirmado', peso: env && filled(env.pesoG) && n(env.pesoG) > 0 ? n(env.pesoG) : null });
     [['kraft', 'kraftId', 'Papel kraft'], ['marron', 'marronId', 'Papel marrón']].forEach(function (x) {
@@ -890,7 +892,10 @@ var CL = (function () {
       if (pm === null) pend.push({ nombre: x[2], falta: 'precio por metro (Stock)' });
       lineas.push({ nombre: x[2], cantidad: q, unidad: 'm', coste: pm === null ? null : r2x(q * pm), estado: pm === null ? 'pendiente' : 'confirmado', peso: null });
     });
-    if (e.cinta) lineas.push({ nombre: 'Cinta adhesiva', cantidad: 1, unidad: 'pedido', coste: r2x(sc.cinta), estado: 'confirmado', peso: null });
+    if (e.cinta) { // v16: la cinta NO es un coste fijo por pedido: son los metros (estimados) que gasta, al precio del rollo
+      var cm = cintaDe(data.materiales), qm = fx && has(fx.cintaMetros) ? n(fx.cintaMetros) : (sc.cintaM > 0 ? sc.cintaM : 1.2), pcm = fx && has(fx.cintaM) ? n(fx.cintaM) : porMetro(cm);
+      lineas.push({ nombre: 'Cinta de embalar', cantidad: qm, unidad: 'm', coste: pcm === null ? 0 : r2x(qm * pcm), estado: 'estimado', estimado: true, peso: null });
+    }
     var conocido = r2x(lineas.reduce(function (a, l) { return a + (l.coste === null ? 0 : l.coste); }, 0)), falta = lineas.some(function (l) { return l.coste === null; });
     var peso = lineas[0].peso;
     return { plantilla: { id: 'simple', nombre: lineas[0].nombre }, origen: 'simple', simple: true, envase: { tipo: e.tipo, enMano: !!e.enMano }, lineas: lineas, coste: falta ? null : conocido, conocido: conocido,
@@ -1594,7 +1599,7 @@ var CL = (function () {
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
-    finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
+    finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,
