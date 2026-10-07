@@ -173,6 +173,40 @@ function beep(ok) {
 function flash(el, ok) { el.classList.remove('scan-ok', 'scan-bad'); void el.offsetWidth; el.classList.add(ok ? 'scan-ok' : 'scan-bad'); beep(ok); }
 export function scanFail(el, title, text) { mount(el, h('div.scan-card.scan-bad', h('div.scan-big', '❌'), h('h2', title), h('p.muted', text))); delete el.dataset.id; beep(false); }
 
+// ---------- v17 · escaneo con sorpresa ----------
+const PASOS17 = [['confirmado', 'Confirmado', '✅'], ['impresion', 'En impresión', '🖨️'], ['postpro', 'En mesa', '🛠️'], ['empaquetar', 'Empaquetado', '📦'], ['listo', 'Listo', '🏷️'], ['enviado', 'Enviado', '🚚'], ['entregado', 'Entregado', '🏁']];
+function viaje17(ph, color) {
+  const i = Math.max(0, PASOS17.findIndex(x => x[0] === ph)), caja = h('div.sc17-viaje', { role: 'img', 'aria-label': 'Va por: ' + PASOS17[i][1] });
+  caja.style.setProperty('--c', color || 'var(--brand)'); caja.style.setProperty('--p', Math.round(i / (PASOS17.length - 1) * 100) + '%');
+  mount(caja, h('i.sc17-linea'), PASOS17.map((x, k) => h('span.sc17-paso' + (k < i ? '.hecho' : k === i ? '.aqui' : ''), { title: x[1] }, h('b', x[2]), h('small', x[1]))));
+  return caja;
+}
+// cuántos paquetes llevas escaneados hoy en este aparato (cada pedido cuenta una vez)
+function racha17(id, cuenta) {
+  const hoy = new Date().toISOString().slice(0, 10); let r = { d: hoy, ids: [] };
+  try { const x = JSON.parse(localStorage.getItem('cd.escaneos') || 'null'); if (x && x.d === hoy && Array.isArray(x.ids)) r = x; } catch (e) { }
+  const nuevo = cuenta && !r.ids.includes(id); if (nuevo) { r.ids.push(id); try { localStorage.setItem('cd.escaneos', JSON.stringify(r)); } catch (e) { } }
+  return { n: r.ids.length, nuevo };
+}
+function frase17(o, ph, t, fresh) {
+  const r = racha17(o.id, fresh), hoy = S.hoy || new Date().toISOString().slice(0, 10), man = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const f = t.enviado ? (ph === 'entregado' ? '🏁 Entregado. ¡Otro cliente contento!' : '🚚 Este ya está de camino.')
+    : t.limite && t.limite < hoy ? '🔥 Va con retraso: que salga el primero.'
+    : t.limite === hoy ? '🚀 ¡Este sale HOY!'
+    : t.limite === man ? '⏰ Vence mañana: mejor dejarlo listo hoy.'
+    : ph === 'listo' ? '🏷️ Listo para salir: solo falta entregarlo al transporte.'
+    : ph === 'empaquetar' ? '📦 A empaquetar: revisa que va todo dentro.'
+    : '👌 Va bien de tiempo.';
+  const hito = r.nuevo && [5, 10, 20, 30, 50].includes(r.n);
+  if (hito) import('../premium.js').then(P => P.confeti({ n: 160, ms: 2600 })).catch(() => { });
+  return h('div.sc17-frase' + (hito ? '.hito' : ''), h('span.grow', f), h('span.sc17-racha', { title: 'Paquetes distintos escaneados hoy en este aparato' }, (hito ? '🏅 ' : '📦 ') + r.n + (r.n === 1 ? ' hoy' : ' hoy') + (hito ? ' · ¡vaya ritmo!' : '')));
+}
+function chispas17(card) {
+  try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) { }
+  const caja = h('div.sc17-chispas', { 'aria-hidden': 'true' }); for (let i = 0; i < 14; i++) { const c = h('i', ['✨', '⭐', '💫', '✨'][i % 4]); c.style.setProperty('--x', Math.round(Math.random() * 100) + '%'); c.style.setProperty('--d', (Math.random() * 0.5).toFixed(2) + 's'); c.style.setProperty('--g', Math.round(Math.random() * 60 - 30) + 'deg'); caja.appendChild(c); }
+  card.appendChild(caja); setTimeout(() => caja.remove(), 1800);
+}
+
 // ---------- La ficha: SOLO lo que hace falta para preparar el paquete. Se puede escanear las veces que haga falta. ----------
 function showOrder(o, extra, el, fresh) {
   if (!o) { scanFail(el, 'Este pedido ya no existe', ''); return; }
@@ -232,7 +266,9 @@ function showOrder(o, extra, el, fresh) {
     h('details.scan-more', { open: wasOpen }, h('summary', 'Etiquetas, impresión y más'),
       E.printBlock(o, { redraw }),
       h('div.row.wrap', { style: { gap: '8px' } }, btn('📦 Abrir el embalaje', () => import('./embalaje.js').then(EM => EM.packPanel(o.id))), btn('Abrir el pedido', () => go('pedidos/' + o.id), { cls: 'ghost' }))));
-  if (fresh) flash(card, true); else if (sigueOk) card.classList.add('scan-ok');
+  // v17 · ESCANEO CON SORPRESA: el viaje del pedido (por dónde va), una frase que mira lo que le pasa a ESTE paquete y tu racha del día
+  try { const cab = card.querySelector('.scan-head'); if (cab) cab.after(viaje17(ph, st.c), frase17(o, ph, t, fresh)); } catch (e) { }
+  if (fresh) { flash(card, true); chispas17(card); } else if (sigueOk) card.classList.add('scan-ok');
   // opcional (Embalaje → Tarjeta y mensajes): al escanear un pedido en «Empaquetar» se imprime lo que falta
   if (fresh && edit && ph === 'empaquetar' && (cfg().envio || {}).autoAlEscanear && E.pendingOf(o).length) E.printPending(o).then(redraw).catch(e => handleError(e));
 }

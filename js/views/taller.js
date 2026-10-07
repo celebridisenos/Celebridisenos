@@ -73,7 +73,7 @@ export function render(el, params) {
   const edit = can('taller.editar');
   const tabs = h('div.tabs'), body = h('div');
   el.append(h('div.page-head', h('div', h('h1', '🖨️ Impresión'), h('div.muted.small', 'Impresoras 3D (qué imprime cada una y qué va después), filamento, y las impresoras de etiquetas y de papel.')),
-    edit ? h('div.row.wrap', btn('Nueva impresión', () => jobForm(), { cls: 'primary', icon: 'plus' }), btn('Añadir bobina', () => spoolForm(), { icon: 'plus' })) : null), tabs, body);
+    edit ? h('div.row.wrap', btn('🧠 Plan', () => import('../v17.js').then(m => m.dialogoPlan()), { cls: 'p17-abrir', title: 'Plan de impresión: qué imprimir ahora y en qué orden' }), btn('Nueva impresión', () => jobForm(), { cls: 'primary', icon: 'plus' }), btn('Añadir bobina', () => spoolForm(), { icon: 'plus' })) : null), tabs, body);
   function drawTabs() {
     const pend = (S.t.compras || []).filter(c => c.estado === 'Pendiente').length;
     const T = [['impresoras', 'Impresoras 3D'], ['papel', 'Etiquetas e impresoras de papel'], ['filamento', 'Filamento'], ['compras', 'Lista de la compra' + (pend ? ' (' + pend + ')' : '')], ['historial', 'Historial']];

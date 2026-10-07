@@ -7,6 +7,7 @@ import { homeCameras } from '../camaras.js';
 import { gameCard, checkLevelUp, loadFrases, fraseDelDia, game } from '../game.js';
 import { brief, objetivoTexto } from '../ai/celebrity.js';
 import { metaCard } from '../premium.js';
+import { tira17 } from '../v17.js'; // v17: plan de impresión, calendario y colores, a la vista
 
 const CL = window.CL;
 
@@ -62,6 +63,7 @@ function draw(root) {
     h('div.page-head', h('div', h('h1', greet()), h('div.muted', hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1))), h('div.right.row',
       can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),
+    tira17(() => draw(root)),
     mods.some(m => m.k === 'kpis') ? kpiStrip(d) : null,
     can('productos.ver') ? (consejoEl || (consejoEl = (() => { const box = h('div.cj-home'); import('../consejos.js').then(C => box.append(C.tarjetaConsejo())); return box; })())) : null, // v13.10: 💡 consejo del día para vender más
     // v16.2: la tarjeta de cámaras ya no sale en el inicio (no se usaba)

@@ -6,7 +6,7 @@ import { h, mount, btn, toast, sel, inp, area, copyText, modal } from '../ui.js'
 import { S, can, byId, kv } from '../store.js';
 import { desktop } from '../desktop.js';
 import { downloadBlob } from '../pdfview.js';
-import { ESTILOS, FORMATOS, TIPOS, MOVS, nuevaEscena, duracion, proyectoDeProducto, proyectoVacio, guionPlantilla, guionIA } from '../reels/modelo.js';
+import { ESTILOS, FORMATOS, TIPOS, MOVS, nuevaEscena, duracion, tiempos, proyectoDeProducto, proyectoVacio, guionPlantilla, guionIA } from '../reels/modelo.js';
 import { reproductor } from '../reels/previa.js';
 import { crearVideo, estadoReels, claveFoto } from '../reels/render.js';
 import { historial, teclasDeshacer } from '../biou/pro.js';
@@ -23,22 +23,26 @@ export function render(el, params) {
   const barra = h('input.rl-barra', { type: 'range', min: 0, max: 1000, value: 0, 'aria-label': 'Momento del Reel', oninput: () => { rep.pausar(); pintaPlay(); rep.ir(Number(barra.value) / 1000 * duracion(p)); } });
   const reloj = h('span.tiny.muted.rl-reloj', '0 s');
   const panel = h('div.rl-panel'), resBox = h('div.rl-res');
+  // v17 · EDICIÓN FÁCIL: debajo del vídeo, la TIRA de escenas (se toca una y el vídeo salta ahí), los botones mágicos y el editor de ESA escena
+  const tira = h('div.rl-tira', { role: 'list', 'aria-label': 'Escenas del Reel' }), magia = h('div.rl-magia'), rapido = h('div.rl-rapido');
+  let escSel = 0, enCurso = -1;
   const bDes = btn('↶ Deshacer', () => deshacer(), { cls: 'sm', title: 'Deshacer (Ctrl+Z)' }), bReh = btn('↷ Rehacer', () => rehacer(), { cls: 'sm', title: 'Rehacer (Ctrl+Y)' });
   bDes.setAttribute('aria-label', 'Deshacer'); bReh.setAttribute('aria-label', 'Rehacer'); bDes.disabled = bReh.disabled = true;
   const hist = historial(e => { bDes.disabled = !e.atras; bReh.disabled = !e.adelante; });
   const rep = reproductor(cv, () => ({ p: p && Object.assign({}, p, { __marca: (S.cfg.empresa && S.cfg.empresa.nombre) || 'CelebriDiseños' }), imgs, logo }));
-  rep.alCambiar((t, D) => { barra.value = D ? Math.round(t / D * 1000) : 0; reloj.textContent = fmtT(t) + ' / ' + fmtT(D); });
+  rep.alCambiar((t, D) => { barra.value = D ? Math.round(t / D * 1000) : 0; reloj.textContent = fmtT(t) + ' / ' + fmtT(D);
+    if (p) { const T = tiempos(p); let k = T.findIndex(x => t < x.fin - 0.01); if (k < 0) k = T.length - 1; if (k !== enCurso) { enCurso = k; [...tira.children].forEach((b, i) => b.classList.toggle('va', i === k)); } } });
   const pintaPlay = () => { bPlay.textContent = rep.play ? '⏸ Pausa' : '▶ Ver'; };
 
   el.append(h('div.page-head', h('div.grow', h('h1', '🎬 Reels'), h('p.small.muted', { style: { margin: '2px 0 0' } }, 'Elige un producto y sale un Reel hecho. Cambia lo que quieras y pulsa «Crear el vídeo».')),
     btn('Nuevo Reel', () => nuevo(), { cls: 'ghost', icon: 'plus' })),
     h('div.rl-herr', bDes, bReh),
-    h('div.rl', h('div.rl-izq', h('div.rl-marco', cv), h('div.row', { style: { gap: '8px', alignItems: 'center', marginTop: '8px' } }, bPlay, barra, reloj), resBox), panel));
+    h('div.rl', h('div.rl-izq', h('div.rl-marco', cv), h('div.row', { style: { gap: '8px', alignItems: 'center', marginTop: '8px' } }, bPlay, barra, reloj), tira, magia, rapido, resBox), panel));
 
   // ---------- historial ----------
   const apuntar = () => { clearTimeout(tApunte); if (p) hist.apuntar(p); };
   function cambio(estructura) { // algo cambió: vista previa al momento, guardar el borrador y un paso de «Deshacer»
-    if (estructura) pintaPanel();
+    if (estructura) pintaPanel(); else { pintaTira(); sincroniza(); }
     if (!rep.play) rep.pinta();
     clearTimeout(tApunte); tApunte = setTimeout(() => { apuntar(); guardarBorrador(); }, 450);
   }
@@ -187,6 +191,43 @@ export function render(el, params) {
     const x = (o.area ? area : inp)({ value: s[k] || '', placeholder: o.ph || '', 'aria-label': t + ' (' + TIPOS[s.tipo].t + ')', rows: o.area ? 2 : undefined, oninput: () => { s[k] = x.value; cambio(); } });
     return h('label.rl-campo', h('span', t), x);
   }
+  // ---------- v17 · tira de escenas, editor rápido y botones mágicos ----------
+  const COMBOS = [null, { acento: '#facc15', fondo: '#0a0a0a', texto: '#ffffff' }, { acento: '#0ea5e9', fondo: '#f0f9ff', texto: '#0c4a6e' }, { acento: '#f0abfc', fondo: '#1a0b1f', texto: '#fdf4ff' }, { acento: '#16a34a', fondo: '#f7fee7', texto: '#14532d' }, { acento: '#fde047', fondo: '#b91c1c', texto: '#ffffff' }, { acento: '#22d3ee', fondo: '#1e1b4b', texto: '#ffffff' }, { acento: '#e11d48', fondo: '#fff1f2', texto: '#4c0519' }];
+  const elegir = i => { escSel = Math.max(0, Math.min(p.escenas.length - 1, i)); rep.pausar(); pintaPlay(); rep.ir(tiempos(p)[escSel].ini + 0.35); pintaTira(); pintaRapido(); };
+  function pintaTira() {
+    if (!p) return mount(tira);
+    if (escSel >= p.escenas.length) escSel = p.escenas.length - 1;
+    const tot = p.escenas.reduce((a, x) => a + (Number(x.dur) || 2), 0) || 1;
+    mount(tira, p.escenas.map((x, i) => { const im = x.foto ? imgs.get(claveFoto(x.foto)) : null, t = String(x.texto || x.titulo || x.precio || '').replace(/\*/g, '');
+      const b = h('button.rl-bloque' + (i === escSel ? '.on' : '') + (i === enCurso ? '.va' : ''), { type: 'button', role: 'listitem', 'data-i': i, title: (i + 1) + '. ' + TIPOS[x.tipo].t + ' · ' + fmtT(Number(x.dur) || 2), onclick: () => elegir(i) }, h('i', TIPOS[x.tipo].i), h('span', t || TIPOS[x.tipo].t), h('small', fmtT(Number(x.dur) || 2)));
+      b.style.flex = Math.max(0.6, (Number(x.dur) || 2) / tot * p.escenas.length) + ' 1 0'; if (im) { b.style.backgroundImage = 'linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.6)), url(' + im.src + ')'; b.classList.add('foto'); } return b; }));
+    const D = duracion(p), ok = D >= 6 && D <= 20;
+    const dur = magia.querySelector('.rl-dur'); if (dur) { dur.textContent = '⏱ ' + fmtT(D) + (ok ? ' · duración ideal' : D < 6 ? ' · muy corto' : ' · algo largo (ideal 7–15 s)'); dur.classList.toggle('mal', !ok); }
+  }
+  function pintaRapido() {
+    if (!p || !p.escenas.length) return mount(rapido);
+    const x = p.escenas[escSel], n = p.escenas.length;
+    mount(rapido, h('div.rl-rap-cab', h('b', '✏️ Estás editando la escena ' + (escSel + 1) + ' de ' + n), h('span.grow'),
+        btn('◀ Anterior', () => elegir(escSel - 1), { cls: 'sm ghost' }), btn('Siguiente ▶', () => elegir(escSel + 1), { cls: 'sm ghost' }),
+        btn('⧉ Duplicar', () => { apuntar(); p.escenas.splice(escSel + 1, 0, nuevaEscena(x.tipo, Object.assign({}, x, { id: undefined }))); p.escenas[escSel + 1].id = 'e' + Math.random().toString(36).slice(2, 9); escSel++; cambio(true); }, { cls: 'sm ghost rl-dup', title: 'Otra escena igual a continuación' })),
+      tarjetaEscena(x, escSel));
+  }
+  // la misma escena se ve en dos sitios (junto al vídeo y en la lista de la derecha): lo que escribes en uno se copia al otro
+  function sincroniza() {
+    const a = document.activeElement, x = p && p.escenas[escSel]; if (!x) return;
+    const lista = panel.querySelector('.rl-escenas .rl-esc[data-i="' + escSel + '"]'), rap = rapido.querySelector('.rl-esc');
+    if (rapido.contains(a)) { if (lista) lista.replaceWith(tarjetaEscena(x, escSel)); }
+    else if (rap && a && a.closest && a.closest('.rl-escenas .rl-esc') && a.closest('.rl-esc').dataset.i === String(escSel)) rap.replaceWith(tarjetaEscena(x, escSel));
+  }
+  panel.addEventListener('focusin', e => { const c = e.target.closest && e.target.closest('.rl-escenas .rl-esc'); if (c && p && Number(c.dataset.i) !== escSel) { escSel = Number(c.dataset.i); pintaTira(); pintaRapido(); } });
+  function pintaMagia() {
+    const ritmo = k => { apuntar(); p.escenas.forEach(x => { x.dur = Math.round(Math.max(1, Math.min(6, (Number(x.dur) || 2) * k)) * 10) / 10; }); cambio(true); toast(k < 1 ? '⚡ Más rápido' : '🐢 Más tranquilo', 'ok', 1500); };
+    mount(magia,
+      btn('🎲 Sorpréndeme', () => { const id = p.productoId || (panel.querySelector('select[aria-label="Producto del Reel"]') || {}).value; if (!id) return toast('Elige primero un producto (a la derecha).', 'warn'); const L = PLANTILLAS.filter(T => T.k !== p.plantilla && T.k !== 'agotado' && T.k !== 'restock'); dePlantilla(id, L[Math.floor(Math.random() * L.length)].k); }, { cls: 'sm primary rl-sorpresa', title: 'Otro Reel distinto del mismo producto, con otra plantilla' }),
+      btn('🎨 Otros colores', () => { apuntar(); const i = COMBOS.findIndex(c => JSON.stringify(c) === JSON.stringify(p.colores || null)); p.colores = COMBOS[(i + 1) % COMBOS.length]; cambio(true); }, { cls: 'sm rl-colores', title: 'Cambia los colores del vídeo (toca varias veces)' }),
+      btn('⚡ Más rápido', () => ritmo(0.85), { cls: 'sm rl-rapidez' }), btn('🐢 Más lento', () => ritmo(1.18), { cls: 'sm rl-lento' }),
+      h('span.rl-dur'));
+  }
   function tarjetaEscena(s, i) {
     const n = p.escenas.length, mueve = d => { const j = i + d; if (j < 0 || j >= n) return; apuntar(); const a = p.escenas; [a[i], a[j]] = [a[j], a[i]]; cambio(true); };
     const dur = h('input', { type: 'range', min: 10, max: 60, value: Math.round((Number(s.dur) || 2) * 10), 'aria-label': 'Duración de la escena ' + (i + 1), oninput: () => { s.dur = Number(dur.value) / 10; dv.textContent = fmtT(s.dur); cambio(); } }), dv = h('b.es-val', fmtT(s.dur));
@@ -254,6 +295,7 @@ export function render(el, params) {
       h('div.es-sec', h('div.lbl', '6 · Texto para publicar'), cap, hash, h('div.row', { style: { gap: '6px', marginTop: '6px' } }, btn('📋 Copiar', () => copyText((p.caption || '') + '\n\n' + (p.hashtags || '')), { cls: 'sm ghost' }))),
       h('div.es-sec.rl-final', h('label.rl-campo', h('span', 'Nombre del archivo'), nombre), bCrear, motor));
     seccionMotor(motor); seccionMusica(musica); seccionIdeas(ideas, p.productoId || '');
+    pintaMagia(); pintaTira(); pintaRapido();
   }
 
   // ---------- arranque: el borrador de antes, un producto (#/reels/producto/ID) o uno nuevo ----------
