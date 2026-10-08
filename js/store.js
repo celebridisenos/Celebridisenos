@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '17.3.0';
+export const APP_VERSION = '17.4.2';
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
 export const S = {
