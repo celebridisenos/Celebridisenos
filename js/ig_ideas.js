@@ -51,16 +51,16 @@ const F = [
     texto: { simple: f => 'De la idea a la pieza.', medio: f => 'Empezó siendo esto (foto 1) y terminó siendo ' + f.n + '. Desliza para ver el camino.',
       pro: f => 'Me mandaron una idea y poco más.\n\n1. Lo que me pidieron.\n2. Cómo lo dibujé.\n3. Cómo quedó.\n\nSi tienes algo en la cabeza y no sabes si se puede hacer, mándamelo aunque sea en una servilleta.' } },
   { k: 'como_cuidar', cat: 'educativo', t: 'Cómo cuidarla', tipo: 'carrusel', para: 'Dar algo útil para guardar',
-    pasos: ['1 · Título: «Cómo cuidar una pieza impresa en 3D».', '2 · No la dejes al sol dentro del coche.', '3 · Se limpia con un paño húmedo.', '4 · Si se ensucia mucho: agua tibia y jabón, sin lavavajillas.'], foto: ['Texto grande y corto en cada imagen: se lee en el móvil.', 'Una idea por imagen.'],
+    pasos: ['1 · Título: «Cómo cuidar tu pieza».', '2 · No la dejes al sol dentro del coche.', '3 · Se limpia con un paño húmedo.', '4 · Si se ensucia mucho: agua tibia y jabón, sin lavavajillas.'], foto: ['Texto grande y corto en cada imagen: se lee en el móvil.', 'Una idea por imagen.'],
     texto: { simple: f => 'Tres cosas para que te dure años. Guárdalo.', medio: f => 'Me lo preguntáis mucho, así que aquí va: cómo cuidar una pieza de ' + (f.material || 'PLA') + '. Es fácil. Lo único importante: lejos del calor fuerte.',
-      pro: f => 'Guarda esto si tienes (o vas a tener) algo impreso en 3D.\n\n· Nada de coche al sol ni lavavajillas: el calor lo deforma.\n· Paño húmedo y listo.\n· Si se cae, normalmente aguanta. Si no, escríbeme.\n\n¿Alguna duda más? Pregunta abajo y la añado.' } },
+      pro: f => 'Guarda esto si tienes (o vas a tener) una pieza nuestra.\n\n· Nada de coche al sol ni lavavajillas: el calor lo deforma.\n· Paño húmedo y listo.\n· Si se cae, normalmente aguanta. Si no, escríbeme.\n\n¿Alguna duda más? Pregunta abajo y la añado.' } },
   { k: 'material', cat: 'educativo', t: '¿De qué está hecho?', tipo: 'post', para: 'Quitar dudas antes de comprar',
     pasos: ['Foto de la bobina de filamento junto a la pieza hecha con ella.'], foto: ['Bobina detrás, pieza delante.', 'Que se vea el mismo color en las dos.'],
     texto: { simple: f => 'De aquí (la bobina) sale esto (la pieza).', medio: f => 'Esto es ' + (f.material || 'PLA') + ': un plástico de origen vegetal que se funde y se va poniendo capa a capa. De esa bobina sale ' + f.n + '.',
       pro: f => '«¿Y esto de qué es?»\n\n' + (f.material || 'PLA') + '. Viene en bobinas como la de la foto, se funde a unos 200 grados y la impresora lo va colocando en capas finísimas' + (f.horas ? '. ' + cap(f.n) + ' son ' + horasTxt(f.horas) + ' de impresión' : '') + '.\n\nNo es un material para meter en el horno, pero para el uso de casa aguanta sin problema.' } },
   { k: 'mito', cat: 'educativo', t: 'Lo que la gente cree', tipo: 'carrusel', para: 'Enseñar y generar conversación',
-    pasos: ['1 · «Lo que la gente cree de la impresión 3D».', '2 · «Le das a un botón y sale sola» → foto de una pieza fallida.', '3 · «Es todo plástico barato» → detalle de un acabado bueno.', '4 · «Tarda un minuto» → captura de las horas de impresión.'], foto: ['Las piezas que han salido mal funcionan muy bien aquí.'],
-    texto: { simple: f => 'Lo que se cree y lo que es.', medio: f => 'Tres cosas que oigo mucho sobre imprimir en 3D y que no son del todo así. La segunda foto es de esta misma semana.',
+    pasos: ['1 · «Lo que la gente cree de lo hecho por encargo».', '2 · «Le das a un botón y sale sola» → foto de una pieza fallida.', '3 · «Es todo plástico barato» → detalle de un acabado bueno.', '4 · «Tarda un minuto» → captura de las horas de impresión.'], foto: ['Las piezas que han salido mal funcionan muy bien aquí.'],
+    texto: { simple: f => 'Lo que se cree y lo que es.', medio: f => 'Tres cosas que oigo mucho sobre hacer las cosas por encargo y que no son del todo así. La segunda foto es de esta misma semana.',
       pro: f => 'Me lo dicen cada semana: «eso le das a un botón y ya».\n\nDesliza y te enseño el botón.\n\n(Spoiler: la pieza de la foto 2 fue a la basura después de varias horas.)\n\n¿Qué pensabas tú antes de ver esto?' } },
   { k: 'disponible', cat: 'venta', t: 'Hay unidades listas', tipo: 'post', para: 'Vender lo que ya tienes hecho',
     pasos: ['Foto de las unidades que tienes hechas, juntas.'], foto: ['Cuenta las unidades reales y dilo: no pongas «últimas» si no lo son.'],
@@ -151,10 +151,10 @@ export function hashtags(p, cfg, max = 10) {
 }
 export function keywords(p, cfg) {
   const f = ficha(p, cfg), base = sinTildes([f.nombre, p && p.categoria, p && p.subcategoria].join(' ')), n = f.n;
-  const claves = [n, n + ' impresa en 3D', f.color ? n + ' ' + f.color : '', f.personalizable ? n + ' personalizada' : n + ' original', n + ' para regalar'].filter(Boolean);
+  const claves = [n, n + ' hecho por encargo', f.color ? n + ' ' + f.color : '', f.personalizable ? n + ' personalizada' : n + ' original', n + ' para regalar'].filter(Boolean);
   const busquedas = [];
   TEMAS.forEach(t => { if (t[0].test(base)) t[2].forEach(x => busquedas.push(x)); });
-  busquedas.push('regalo original hecho a mano', 'decoración impresa en 3D');
+  busquedas.push('regalo original hecho a mano', 'decoración original para casa');
   const ideas = ['Pon «' + n + '» en la primera línea del texto: Instagram busca por lo que escribes, no solo por hashtags.', 'Escribe el texto alternativo de la foto (Opciones avanzadas → Accesibilidad): «' + cap(n) + (f.color ? ' de color ' + f.color : '') + ' sobre fondo liso».', 'Usa el mismo nombre del producto en el anuncio de Vinted o Wallapop y aquí: quien te busca lo encuentra en los dos sitios.'];
   if (f.tienda) ideas.push('Añade tu ciudad en el texto o como ubicación si vendes en mano.');
   return { claves: [...new Set(claves)].slice(0, 6), busquedas: [...new Set(busquedas)].slice(0, 6), ideas };

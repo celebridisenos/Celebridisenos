@@ -278,6 +278,12 @@ const SECS = {
       h('div.form', field('Envío gratis desde (€)', gratis), field('En la opción', gratisOp)), h('p.tiny.muted', 'El cliente ve el precio del envío ANTES de pagar. Los precios de referencia (Correos 2026, InPost en Packlink) son orientativos: pon los tuyos y confírmalos.')),
       opBox, btn('Guardar y publicar', async () => { try { await guardar(Object.assign(T(), { envios: { paises: [...paises], gratisDesde: n(gratis.value), gratisOpcion: gratisOp.value, opciones: ops } })); } catch (e) { handleError(e); } }, { cls: 'primary' }));
     b.append(urgCard); // (debajo de los envíos)
+    // v17.1 · PayPal: sale en la web como forma de pago. Se acuerda por WhatsApp al confirmar, igual que Bizum (la web no cobra sola).
+    let ppOn = !!(t.pagos && t.pagos.paypal);
+    b.append(card('💙 Cómo te pagan en la web', h('p.small', 'Bizum y efectivo están siempre: el cliente hace el pedido, lo confirmáis por WhatsApp y entonces paga. No da datos de tarjeta en ningún momento, y así lo dice la web («Compra tranquila»).'),
+      h('label.check', sw(ppOn, v => { ppOn = v; }), h('b', 'Aceptar también PayPal')),
+      h('p.tiny.muted', 'Actívalo solo si tienes cuenta de PayPal para cobrar. La web dirá «También puedes pagar con PayPal» y el pedido te llegará marcado como PayPal. El cobro lo pides tú desde tu PayPal al confirmar el pedido.'),
+      btn('Guardar y publicar', async () => { try { await guardar(Object.assign(T(), { pagos: { paypal: ppOn } })); } catch (e) { handleError(e); } }, { cls: 'primary pp-guardar' })));
   },
 
   textos(b) {

@@ -8,6 +8,7 @@ import * as ENV from '../envases.js';
 import { miniPedido } from '../fotopedido.js'; // v13.10: foto de lo que pidió el cliente
 import * as COL from '../colores.js'; // v14.1: selector de colores
 import { cuentaSelect, cuentasVenta } from '../cuentas.js'; // v14.1: desde qué cuenta se vendió
+import { PAISES, paisDe } from './inteligencia.js'; // v17.1: de qué país es el cliente
 
 const CL = window.CL;
 // v11: los filtros van por FASE (no por nombre de estado) y lo terminado hace +30 días se archiva solo
@@ -128,7 +129,8 @@ export function render(el, params) {
         h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null, o.cuenta ? h('span.cv-mini', ' · ' + o.cuenta) : null),
         h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t))),
       h('div.bold', eur(CL.orderTotal(o))));
-    const tRow = ({ o, t }, hijo) => h('tr' + (hijo ? '.cli-hijo' : ''), { onclick: () => go('pedidos/' + o.id) },
+    const colorDe = o => { const c = String(((S.cfg.pedidos.estados || []).find(s => s.k === o.estado) || {}).c || ''); return /^#[0-9a-f]{3,8}$/i.test(c) ? c : 'transparent'; };
+    const tRow = ({ o, t }, hijo) => h('tr.ped-fila' + (hijo ? '.cli-hijo' : '') + (t.incidencia ? '.inc' : ''), { onclick: () => go('pedidos/' + o.id), 'data-fase': ph(o), title: t.incidencia ? '⚠️ Incidencia: ' + (o.incidencia || '') : '', style: 'box-shadow: inset 6px 0 0 ' + (t.incidencia ? 'var(--bad, #dc2626)' : colorDe(o)) + '; --est: ' + colorDe(o) }, // v17.1: color del estado a la vista (franja + tinte suave)
       h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
       h('td.nowrap', fdate(o.fecha), horaDe(o) ? h('div.tiny.muted.ped-hora', { title: 'Hora a la que entró el pedido' }, '🕒 ' + horaDe(o)) : null), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
       h('td', h('div.row.fp-prod', { style: { gap: '8px', alignItems: 'center', flexWrap: 'nowrap' } }, miniPedido(o, 34), h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null))),
@@ -273,6 +275,7 @@ export function orderDrawer(id, onClose) {
               can('pedidos.crear') ? { t: 'Duplicar', icon: 'copy', on: () => orderForm(Object.assign({}, o, { id: '', numero: '', fecha: '', estado: '', seguimiento: '', fechaEnvio: '', fechaEntrega: '', incidencia: '' }), true) } : null,
               can('pedidos.editar') ? { t: o.regalo && o.regalo.token ? 'Regalo con QR ✓' : 'Regalo con QR', icon: 'gift', on: () => import('../regalo.js').then(m => m.giftDialog(o)) } : null,
               editable ? { t: '🎥 Prueba de empaquetado (vídeo)', icon: 'camera', on: () => import('./embalaje.js').then(E => E.captureSaleProof(o, { suelta: true })) } : null, // v14.1: cuando quieras, sin obligar
+              { t: '🔮 Vídeo holograma para este cliente', icon: 'sparkles', on: () => import('../holograma.js').then(m => m.dialogoHolograma({ pedido: o })) }, // v17.2
               { t: 'Etiqueta QR del pedido (¡Gracias! + datos)', icon: 'printer', on: () => import('../envio.js').then(EV2 => EV2.printOne(byId('pedidos', o.id) || o, 'paquete')).catch(e => toast('No se pudo imprimir: ' + e.message, 'bad', 8000)) }, // v16.3.3: siempre la grande, no el QR suelto
               can('pedidos.borrar') ? { t: 'Borrar', icon: 'trash', danger: true, on: () => delOrder(o, closeAll) } : { t: 'Borrar (pedir permiso)', icon: 'lock', on: () => requestAccess('pedidos.borrar', 'pedidos', 'Borrar pedido nº ' + o.numero) }
             ]))));
@@ -642,11 +645,15 @@ export function orderForm(o, duplicate, opts = {}) {
   f.cuenta.addEventListener('change', () => { const c = cuentasVenta().find(x => x.id === f.cuenta.selectedOptions[0]?.dataset.id); if (c && (S.cfg.pedidos.canales || []).includes(c.plataforma)) { f.canal.value = c.plataforma; f.canal.dispatchEvent(new Event('input')); } });
   const limitTxt = h('span.small.muted');
   const clientInfo = h('div.small.muted');
+  // v17.1: el país del cliente. Va a SU ficha (no al pedido). Vacío = no se toca: nunca se inventa.
+  const paisSel = sel([{ v: '', t: 'No lo sé todavía' }].concat(Object.keys(PAISES).map(k => ({ v: PAISES[k][0], t: PAISES[k][0] }))), ''); paisSel.setAttribute('aria-label', 'País del cliente');
+  let paisTocado = false; paisSel.addEventListener('change', () => { paisTocado = true; });
   const costs = can('productos.costes') ? costsEditor(o) : null;
   if (costs) [f.canal, f.precio, f.cantidad].forEach(x => x.addEventListener('input', () => costs.setCanal(f.canal.value, (Number(f.cantidad.value) || 1) * (Number(f.precio.value) || 0))));
   const updLimit = () => { const d = CL.addDays(f.fecha.value, f.plazoDias.value); limitTxt.textContent = d ? 'Fecha límite: ' + fdate(d, true) + ' (' + (CL.days(S.hoy, d) >= 0 ? 'quedan ' + CL.days(S.hoy, d) + ' días' : 'ya vencida') + ')' : ''; };
   const updClient = () => {
     const c = S.t.clientes.find(x => CL.norm(x.nombre) === CL.norm(f.cliente.value));
+    if (!paisTocado) { const k = c ? paisDe(c.pais) : ''; paisSel.value = k ? PAISES[k][0] : ''; }
     if (!f.cliente.value.trim()) { clientInfo.textContent = ''; return; }
     if (!c) { clientInfo.textContent = '✨ Cliente nuevo: se creará automáticamente.'; return; }
     const st = clientStats()[c.id];
@@ -705,7 +712,7 @@ export function orderForm(o, duplicate, opts = {}) {
   const msg = h('p.bad-t');
   const labelFile = h('input', { type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp' });
   const body = h('div.col', dlC, dlP,
-    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full.card.flat', { style: { margin: '2px 0' } }, envW.el), h('div.full', assist),
+    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('🌍 País del cliente', paisSel, 'Se guarda en su ficha y enciende el planeta de Inteligencia.', 'full.ped-pais'), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full.card.flat', { style: { margin: '2px 0' } }, envW.el), h('div.full', assist),
       field('Cuenta de venta', f.cuenta, cuentasVenta().length ? 'Desde qué cuenta lo vendiste: sale en la etiqueta del paquete.' : 'Añade tus cuentas (Vinted, Wallapop…) en Configuración → Mis cuentas de venta.'), field('Canal / tienda', f.canal),
       h('div.full', h('div.lbl', '🎨 Color'), colSel.el), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
     h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
@@ -721,6 +728,7 @@ export function orderForm(o, duplicate, opts = {}) {
     const datos = {};
     Object.keys(f).forEach(k => { let v = f[k].value; if (typeof v === 'string') v = v.trim(); if (['cantidad', 'precio', 'plazoDias'].includes(k) && v !== '') v = Number(v); datos[k] = v; });
     if (!datos.cliente) { otroMas = false; return msg.textContent = 'Indica el cliente.'; }
+    if (paisTocado && paisSel.value) { datos.paisCliente = paisSel.value; const cl = S.t.clientes.find(x => CL.norm(x.nombre) === CL.norm(datos.cliente)); if (cl && cl.pais !== paisSel.value) upsertLocal('clientes', Object.assign({}, cl, { pais: paisSel.value })); }
     if (!datos.producto) { otroMas = false; return msg.textContent = 'Indica el producto.'; }
     if (!(datos.cantidad > 0)) { otroMas = false; return msg.textContent = 'La cantidad debe ser mayor que 0.'; }
     const envErr = envW.error(); if (envErr) { otroMas = false; envW.el.scrollIntoView({ block: 'center' }); return msg.textContent = envErr; }

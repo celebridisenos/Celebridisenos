@@ -35,6 +35,7 @@ export function render(el, params) {
   const pintaPlay = () => { bPlay.textContent = rep.play ? '⏸ Pausa' : '▶ Ver'; };
 
   el.append(h('div.page-head', h('div.grow', h('h1', '🎬 Reels'), h('p.small.muted', { style: { margin: '2px 0 0' } }, 'Elige un producto y sale un Reel hecho. Cambia lo que quieras y pulsa «Crear el vídeo».')),
+    btn('🔮 Vídeo holograma', () => import('../holograma.js').then(m => m.dialogoHolograma()), { cls: 'holo-abrir', title: 'La pieza flotando en un proyector de luz, con el nombre del cliente: vídeo para TikTok o WhatsApp' }), btn('🎬 Así nació', () => import('../nacer.js').then(m => m.dialogoNacer()), { cls: 'nc-abrir', title: 'El vídeo de cada pieza creciendo, suave, con el nombre del cliente' }),
     btn('Nuevo Reel', () => nuevo(), { cls: 'ghost', icon: 'plus' })),
     h('div.rl-herr', bDes, bReh),
     h('div.rl', h('div.rl-izq', h('div.rl-marco', cv), h('div.row', { style: { gap: '8px', alignItems: 'center', marginTop: '8px' } }, bPlay, barra, reloj), tira, magia, rapido, resBox), panel));

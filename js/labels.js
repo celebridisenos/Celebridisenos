@@ -315,9 +315,12 @@ export function draw(tpl, d, dpi, size) {
     if (src) { const sc = Math.min(c.width / src.width, c.height / src.height), w = src.width * sc, hh = src.height * sc; g.drawImage(src, (c.width - w) / 2, (c.height - hh) / 2, w, hh); }
     else T('Falta la etiqueta oficial', m, m, W - 2 * m, 12, 700, 2);
   } else if (tpl === 'paquete') {
-    const cap = d.cuenta ? 15.5 : 12, qs = Math.min(W - 2 * m, H - cap - m);
-    qr(g, d.qr, ((W - qs) / 2) * k, (m - 1.5) * k, qs * k);
+    // v17.3: también en la pequeña va el «¡Gracias!» (lo pidió la dueña: QR + gracias + identificación del paquete, siempre)
+    const gr = d.gracias ? String(d.gracias).slice(0, 22) : '', alto = gr ? 5.2 : 0;
+    const cap = d.cuenta ? 15.5 : 12, qs = Math.min(W - 2 * m, H - cap - m - alto);
     g.textAlign = 'center';
+    if (gr) { g.font = F(W < 45 ? 9 : 11, 800); g.fillText(fit(g, gr, (W - 2 * m) * k), (W / 2) * k, (m - 1.6) * k); }
+    qr(g, d.qr, ((W - qs) / 2) * k, (m - 1.5 + alto) * k, qs * k);
     g.font = F(W < 45 ? 7.5 : 9, 800); g.fillText(d.codigo || '', (W / 2) * k, (H - cap + 0.5) * k);
     g.font = F(W < 45 ? 6 : 7, 500); g.fillText(fit(g, ['Nº ' + (d.numero || ''), d.cliente || ''].filter(Boolean).join(' · '), (W - 2 * m) * k), (W / 2) * k, (H - cap + 5) * k);
     if (d.cuenta) { g.font = F(W < 45 ? 6 : 7, 800); g.fillText(fit(g, d.cuenta, (W - 2 * m) * k), (W / 2) * k, (H - cap + 9) * k); } // v14.1: cuenta de venta

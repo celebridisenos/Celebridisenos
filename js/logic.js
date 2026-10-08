@@ -1466,8 +1466,8 @@ var CL = (function () {
   function waLink(tel, texto) { var p = waPhone(tel); return p ? 'https://wa.me/' + p + '?text=' + encodeURIComponent(s(texto)) : ''; }
   // ¿Es un pedido de la web que se paga por WhatsApp (Bizum/efectivo)? La forma de pago la deja escrita la importación en las notas.
   function pagoWeb(o) {
-    var m = s(o && o.notas).match(/POR WHATSAPP: cobro pendiente \((Bizum|efectivo)\)/i);
-    return o && o.refWeb && m ? { porWa: true, metodo: m[1].toLowerCase() === 'efectivo' ? 'efectivo' : 'Bizum' } : { porWa: false, metodo: '' };
+    var m = s(o && o.notas).match(/POR WHATSAPP: cobro pendiente \((Bizum|efectivo|PayPal)\)/i);
+    return o && o.refWeb && m ? { porWa: true, metodo: m[1].toLowerCase() === 'efectivo' ? 'efectivo' : m[1].toLowerCase() === 'paypal' ? 'PayPal' : 'Bizum' } : { porWa: false, metodo: '' };
   }
   // Todas las líneas del mismo pedido web (un paquete); si no es de la web, solo el propio pedido.
   function webGroup(o, pedidos) {

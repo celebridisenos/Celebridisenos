@@ -104,7 +104,7 @@ export function regalo17(alCerrar) {
     muestras(),
     h('div.r17-tejas',
       teja('🧠', 'Plan de impresión', 'Te dice qué imprimir ahora, en qué orden, cuándo acaba y qué no llega a tiempo.', 'Verlo', () => { cierra(); dialogoPlan(); }),
-      teja('🗓️', 'Calendario de entregas', 'Todo el mes de un vistazo: cada pedido en su día, del color de su estado.', 'Abrirlo', () => { cierra(); go('calendario'); }),
+      teja('🎯', 'Banco de metas y planeta', 'Dime cuánto quieres ganar y te digo cuánto vender al día. Y un planeta con los países de tus clientes.', 'Abrirlo', () => { cierra(); go('inteligencia'); }),
       teja('🎨', 'Colores', 'Ocho paletas. El programa entero cambia al momento, en cada aparato a su gusto.', 'Ya lo estás viendo', () => { }))),
     close => [btn(esCumple() ? '¡Gracias! 🥳' : 'A trabajar 🚀', close, { cls: 'primary' })], { size: 'wide', noFocus: true, onclose: () => { if (alCerrar) alCerrar(); } });
   return m;
@@ -117,11 +117,14 @@ export function tira17(redibuja) {
   const tarde = semana.filter(o => (timing(o) || {}).limite < hoy).length;
   const pal = PALETAS.find(p => p.k === colorActual()) || PALETAS[0];
   const teja = (cls, ic, t, s, f) => h('button.t17-teja.' + cls, { type: 'button', onclick: f }, h('i', ic), h('span', h('b', t), h('small', s)));
+  const hueco = h('div.pd-hueco'); // v17.1: el parte del día
+  if (regaloVisto()) import('./premium171.js').then(M => { const x = M.franjaParte(redibuja); if (x) hueco.replaceChildren(x); }).catch(() => { });
   return h('section.t17', { 'aria-label': 'Novedades de la versión ' + APP_VERSION },
+    hueco,
     regaloVisto() ? null : h('div.t17-regalo', h('div.t17-r-ic', esCumple() ? '🎂' : '🎁'), h('div.grow', h('b', esCumple() ? '¡Feliz cumpleaños! Tienes un regalo' : 'Tienes un regalo: la versión 17'), h('span', 'Tres funciones nuevas y el programa en el color que tú quieras.')), btn('Abrir mi regalo', () => regalo17(redibuja), { cls: 'primary t17-abrir' })),
     h('div.t17-tejas',
       can('pedidos.ver') ? teja('plan', '🧠', 'Plan de impresión', P.items.length ? P.items.length + (P.items.length === 1 ? ' pedido' : ' pedidos') + (P.horas ? ' · ' + hTxt(P.horas) : '') + (P.tarde ? ' · ⚠️ ' + P.tarde + ' no llega' + (P.tarde === 1 ? '' : 'n') : '') : 'Nada esperando para imprimir', () => dialogoPlan()) : null,
-      can('pedidos.ver') ? teja('cal', '🗓️', 'Calendario de entregas', semana.length ? semana.length + ' en 7 días' + (tarde ? ' · ⚠️ ' + tarde + ' con retraso' : '') : 'Sin entregas en 7 días', () => go('calendario')) : null,
+      can('pedidos.ver') ? teja('cal', '🎯', 'Banco de metas', 'Cuánto vender al día para llegar a tu meta', () => go('inteligencia')) : null,
       teja('col', '🎨', 'Colores', 'Ahora: ' + pal.n + ' · tócalo para cambiar', () => { const d = dialogoColores(); const obs = new MutationObserver(() => { if (!document.body.contains(d.el)) { obs.disconnect(); if (redibuja) redibuja(); } }); obs.observe(document.body, { childList: true, subtree: true }); })));
 }
 aplicarColor(colorActual()); // al cargar: el color elegido en este aparato

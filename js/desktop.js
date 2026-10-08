@@ -60,6 +60,10 @@ export const desktop = {
     let j = {}; try { j = await r.json(); } catch (e) { }
     return { estado: j.estado || 'error', problema: j.problema || j.error || '' };
   },
+  // v17.2 · «Mira cómo nació tu pieza»: fotos de la cámara de la impresora guardadas en ESTE ordenador
+  nacer: () => call('nacer'),
+  nacerAccion: body => call('nacer', { method: 'POST', body: JSON.stringify(body) }),
+  nacerFoto: async (id, n) => { const r = await fetch('/local/nacer?' + q({ id, n }), { headers: { 'X-Host-Key': H.key } }); if (!r.ok) throw new Error('Esa foto ya no está.'); return r.blob(); },
   // v11.1 · CelebryNova (operador autónomo) dentro del programa
   novaEstado: () => call('nova/estado'),
   novaArrancar: () => call('nova/arrancar', { method: 'POST' }),

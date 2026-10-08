@@ -263,7 +263,7 @@ async function buildFor(o, tipo, L) {
     if (gd.logo) d.logoImg = await L.loadLogo();
     return { tpl: 'paquete150', data: d };
   }
-  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + ') } }; }
+  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { gracias: thanksData(o).titulo || '¡Gracias!', qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + ') } }; }
   const d = thanksData(o);
   if (d.logo) d.logoImg = await L.loadLogo();
   d.fondoImg = await L.loadCardBg(d.diseno);
@@ -338,7 +338,8 @@ export async function imprimirTomada(o, row) {
 }
 export async function printOne(o, tipo, opts = {}) {
   o = ownerOf(o, tipo);
-  if (tipo === 'gracias' && cardMode() === 'hoja') return (await cardIncluded(o)) ? { estado: 'Impreso' } : { estado: 'omitido' };
+  // v17.1: con «imprimir» sale de verdad por la impresora de etiquetas (antes, en modo hojas A4, solo se apuntaba como metida y no imprimía nada)
+  if (tipo === 'gracias' && cardMode() === 'hoja' && !opts.imprimir) return (await cardIncluded(o)) ? { estado: 'Impreso' } : { estado: 'omitido' };
   const L = await import('./labels.js');
   if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
   // v14.1: sin impresora real aquí → ¿en el PC del taller o aquí?
@@ -460,17 +461,33 @@ export async function printPending(o) {
 }
 
 // ---------- Bloque «ETIQUETAS E IMPRESIÓN» (Embalaje y Escanear) ----------
+// v17.1 · elegir CUALQUIER etiqueta o QR del pedido para imprimirla (lo pidió la dueña: «al lado debe haber una de poder cambiar cualquier tipo de QR»)
+export function otraEtiqueta(o) {
+  let m = null; const haz = f => () => { if (m) m.close(); Promise.resolve().then(f).catch(e => toast('No se pudo imprimir: ' + (e.message || e), 'bad', 8000)); };
+  const otra = tipo => haz(() => printOne(byId('pedidos', o.id) || o, tipo, Object.assign({ imprimir: true }, statusOf(o, tipo).done.length ? { reimprimir: true, motivo: 'Otra copia' } : {})));
+  const op = (ic, t, s, f) => h('button.otra-op', { type: 'button', onclick: f }, h('i', ic), h('span', h('b', t), h('small', s)));
+  m = modal('🖨️ ¿Qué quieres imprimir del pedido nº ' + o.numero + '?', h('div.otra-ops',
+    op('🏷️', 'Etiqueta del paquete · la de siempre', 'QR + ¡Gracias! + identificación del paquete' + (formatoPaquete() === 'largo' ? ' (pedido, código, cliente y qué va dentro)' : '') + ' · ' + fmtPaquete().replace('x', ' × '), otra('paquete')),
+    op('🔳', 'QR pequeño del pedido', 'Solo el QR: al escanearlo abre la ficha · 40 × 40', haz(() => import('./labels.js').then(L => L.labelDialog('qr', [L.dataFor('qr', { tipo: 'pedido', id: o.id, titulo: 'Pedido nº ' + o.numero })])))),
+    o.etiquetaEnvio && o.etiquetaEnvio.archivoId ? op('🚚', 'Etiqueta de envío oficial', 'La que adjuntaste (Vinted, Correos, InPost…), tal cual', otra('oficial')) : null,
+    op('✉️', 'Etiqueta con la dirección', 'Hecha por el programa con la dirección del cliente · 100 × 150', otra('propia')),
+    op('💌', 'Tarjeta de agradecimiento', 'Sale por la impresora de etiquetas, con tu texto de gracias · 50 × 50', otra('gracias'))), close => [btn('Cerrar', close)], { size: 'narrow', noFocus: true });
+  return m;
+}
 export function printBlock(o, opts = {}) {
   const edit = can('pedidos.editar'), list = wanted(o), e = o.etiquetaEnvio;
   const row = tipo => {
     if (tipo === 'gracias' && cardMode() === 'hoja') {
       const st = statusOf(o, 'gracias'), inc = st.estado === 'Impreso', last = st.done[st.done.length - 1];
       return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span', '💌'), h('span.grow.small', h('b', 'Tarjeta de agradecimiento'), h('span.tiny.muted', ' · de las hojas A4'),
-        last ? h('div.tiny.muted', 'Metida ' + fdt(last.fecha) + ' por ' + last.usuario) : h('div.tiny.muted', 'Las tarjetas se imprimen en hojas (Embalaje → Tarjeta y mensajes).')),
-        pill(inc ? 'INCLUIDA' : 'PENDIENTE', inc ? 'ok' : 'warn'), edit && !inc ? btn('✓ Metida en el paquete', () => cardIncluded(o).then(() => opts.redraw && opts.redraw()), { cls: 'sm' }) : null);
+        last ? h('div.tiny.muted', (/A4/.test(last.impresora || '') ? 'Metida ' : 'Impresa ') + fdt(last.fecha) + ' por ' + last.usuario) : h('div.tiny.muted', '¿La tienes ya en hojas? Pulsa «Metida en el paquete». ¿No? Imprímela aquí mismo.')),
+        pill(inc ? 'INCLUIDA' : 'PENDIENTE', inc ? 'ok' : 'warn'),
+        edit ? btn(inc ? 'Otra' : 'Imprimir', () => printOne(o, 'gracias', Object.assign({ imprimir: true }, inc ? { reimprimir: true, motivo: 'Otra copia' } : {})).then(() => opts.redraw && opts.redraw()).catch(err => toast(err.message, 'bad', 8000)), { cls: 'sm gr-imprime', icon: 'printer', title: 'Imprime la tarjeta de agradecimiento de este pedido' }) : null, // v17.1
+        edit && !inc ? btn('✓ Metida en el paquete', () => cardIncluded(o).then(() => opts.redraw && opts.redraw()), { cls: 'sm ghost', title: 'Ya va dentro del paquete (la tenías impresa en hojas)' }) : null);
     }
     const st = statusOf(o, tipo), T = PRINT_TIPOS[tipo], last = st.done[st.done.length - 1];
-    return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span', T.i), h('span.grow.small', h('b', T.t), h('span.tiny.muted', ' · ' + T.f.replace('x', ' × ') + ' mm'),
+    return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span', T.i), h('span.grow.small', h('b', T.t), h('span.tiny.muted', ' · ' + (tipo === 'paquete' ? fmtPaquete() : T.f).replace('x', ' × ') + ' mm'),
+      tipo === 'paquete' ? h('div.tiny.muted.etq-lleva', 'Lleva el QR, el «¡Gracias!» y la identificación del paquete.') : null, // v17.3
       last ? h('div.tiny.muted', 'Impreso ' + fdt(last.fecha) + ' por ' + last.usuario + (st.done.length > 1 ? ' · ' + st.done.length + ' copias' : '') + (last.impresora ? ' · ' + last.impresora : '')) : null,
       st.fallo ? h('div.tiny.bad-t', 'Error: ' + st.fallo.error) : null),
       encargadaPC(o, tipo) ? h('div.tiny.muted', '🖨️ Encargada al PC del taller ' + fdt(encargadaPC(o, tipo).fecha) + ' por ' + (encargadaPC(o, tipo).usuario || '?')) : null,
@@ -488,7 +505,9 @@ export function printBlock(o, opts = {}) {
       edit ? btn(e && e.archivoId ? 'Cambiar' : 'Adjuntar etiqueta', () => attachDialog(o, opts.redraw), { cls: 'sm' + (e && e.archivoId ? ' ghost' : ' primary'), icon: 'upload' }) : null,
       e && e.archivoId ? btn('', () => officialPreview(o), { cls: 'sm ghost icon', icon: 'eye', title: 'Ver la etiqueta' }) : null),
     h('div.list', !(e && e.archivoId) ? h('div.item', { style: { cursor: 'default' } }, h('span', '🏷️'), h('span.grow.small', h('b', 'Etiqueta de envío oficial'), h('div.tiny.muted', 'No se imprime una etiqueta que no existe: adjúntala primero.')), pill('🟠 FALTA', 'warn')) : null, list.map(row)),
-    edit && pend.length ? h('div.row', { style: { marginTop: '8px' } }, btn('🖨️ Imprimir lo que falta (' + pend.length + ')', () => printPending(o).then(() => opts.redraw && opts.redraw()), { cls: 'primary' }), h('span.tiny.muted', 'No repite lo ya impreso.')) : null,
+    edit ? h('div.row.etq-acc', { style: { marginTop: '8px', flexWrap: 'wrap' } }, pend.length ? btn('🖨️ Imprimir lo que falta (' + pend.length + ')', () => printPending(o).then(() => opts.redraw && opts.redraw()), { cls: 'primary' }) : null,
+      btn('🔁 Otra etiqueta o QR…', () => otraEtiqueta(o), { cls: 'otra-etq', title: 'Elige cualquier etiqueta o QR de este pedido e imprímela las veces que haga falta' }), // v17.1
+      pend.length ? h('span.tiny.muted', 'No repite lo ya impreso.') : null) : null,
     h('div.row.wrap', { style: { marginTop: '6px' } }, btn('💬 Mensaje para el cliente', () => messageDialog(o), { cls: 'sm ghost' })));
 }
 

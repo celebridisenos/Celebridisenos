@@ -13,18 +13,28 @@ export function formatoVideo() {
   return C.find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || null;
 }
 // Graba un lienzo durante «seg» segundos mientras «paso(f)» (0..1) va moviendo la animación
+// v17.2: si un formato «dice» que vale pero no graba nada (pasa con .mp4 en algunos navegadores sin su códec), se prueba el siguiente.
 export async function grabarLienzo(canvas, seg, paso, fps = 30) {
-  const tipo = formatoVideo();
-  if (!tipo || !canvas.captureStream) throw new Error('Este aparato no puede grabar vídeo desde el navegador. Prueba en el PC o en Chrome.');
-  const st = canvas.captureStream(fps), rec = new MediaRecorder(st, { mimeType: tipo, videoBitsPerSecond: 6000000 }), trozos = [];
-  rec.ondataavailable = e => { if (e.data && e.data.size) trozos.push(e.data); };
-  const fin = new Promise(res => { rec.onstop = res; });
-  rec.start(200);
-  const t0 = performance.now();
-  await new Promise(res => { const f = () => { const x = Math.min(1, (performance.now() - t0) / (seg * 1000)); paso(x); if (x < 1) requestAnimationFrame(f); else setTimeout(res, 120); }; requestAnimationFrame(f); });
-  rec.stop(); await fin; st.getTracks().forEach(t => t.stop());
-  const blob = new Blob(trozos, { type: tipo.split(';')[0] });
-  return { blob, ext: /mp4/.test(tipo) ? 'mp4' : 'webm' };
+  const C = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const tipos = typeof MediaRecorder === 'undefined' ? [] : C.filter(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } });
+  if (!tipos.length || !canvas.captureStream) throw new Error('Este aparato no puede grabar vídeo desde el navegador. Prueba en el PC o en Chrome.');
+  const vistos = new Set();
+  for (const tipo of tipos) {
+    const fam = /mp4/.test(tipo) ? 'mp4' : tipo; if (vistos.has(fam)) continue; vistos.add(fam);
+    let blob = null;
+    try {
+      const st = canvas.captureStream(fps), rec = new MediaRecorder(st, { mimeType: tipo, videoBitsPerSecond: 6000000 }), trozos = [];
+      rec.ondataavailable = e => { if (e.data && e.data.size) trozos.push(e.data); };
+      const fin = new Promise(res => { rec.onstop = res; rec.onerror = res; });
+      rec.start(200);
+      const t0 = performance.now();
+      await new Promise(res => { const f = () => { const x = Math.min(1, (performance.now() - t0) / (seg * 1000)); paso(x); if (x < 1) requestAnimationFrame(f); else setTimeout(res, 120); }; requestAnimationFrame(f); });
+      try { rec.stop(); } catch (e) { } await fin; st.getTracks().forEach(t => t.stop());
+      blob = new Blob(trozos, { type: tipo.split(';')[0] });
+    } catch (e) { blob = null; }
+    if (blob && blob.size > 2000) return { blob, ext: /mp4/.test(tipo) ? 'mp4' : 'webm' };
+  }
+  throw new Error('Este aparato no ha podido grabar el vídeo. Prueba en el PC del taller.');
 }
 function bajar(blob, nombre) { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nombre }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); }
 

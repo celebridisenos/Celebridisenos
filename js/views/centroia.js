@@ -15,11 +15,12 @@ const esVideo = a => a.tipo === 'video' || /^video\//.test(a.mime || '');
 
 export function render(el, params) {
   let tab = (params && params[0]) || (() => { try { return localStorage.getItem('cd.centroia.tab') || 'estado'; } catch (e) { return 'estado'; } })();
+  try { if (!(params && params[0]) && !localStorage.getItem('cd.centroia.v171')) { localStorage.setItem('cd.centroia.v171', '1'); tab = 'negocio'; } } catch (e) { } // v17.1: la primera vez, lo nuevo
   const tabs = h('div.seg.ci-tabs'), cuerpo = h('div.ci-cuerpo');
-  el.append(h('div.page-head', h('div.grow', h('h1', '🧠 Centro de IA'), h('p.small.muted', { style: { margin: '2px 0 0' } }, 'Mira si todo funciona y arréglalo con un botón.'))), tabs, cuerpo);
-  const TABS = [['estado', '🚦 Estado'], ['biblioteca', '🖼️ Biblioteca'], ['prompts', '💡 Ideas para la IA'], ['descargas', '⬇️ Descargas']];
+  el.append(h('div.page-head', h('div.grow', h('h1', '🧠 Centro de inteligencia'), h('p.small.muted', { style: { margin: '2px 0 0' } }, 'Tus metas y tus números, y debajo si todo funciona.'))), tabs, cuerpo);
+  const TABS = [['negocio', '📊 Tu negocio'], ['estado', '🚦 Estado'], ['biblioteca', '🖼️ Biblioteca'], ['prompts', '💡 Ideas para la IA'], ['descargas', '⬇️ Descargas']];
   function ponTab(k) { tab = k; try { localStorage.setItem('cd.centroia.tab', k); } catch (e) { } mount(tabs, TABS.map(([v, t]) => h('button' + (tab === v ? '.on' : ''), { type: 'button', 'data-tab': v, onclick: () => ponTab(v) }, t))); pinta(); }
-  function pinta() { if (tab === 'biblioteca') return biblioteca(); if (tab === 'prompts') return prompts(); if (tab === 'descargas') return descargas(); return semaforo(); }
+  function pinta() { if (tab === 'negocio') return import('./inteligencia.js').then(m => { mount(cuerpo); m.panel(cuerpo); }); if (tab === 'biblioteca') return biblioteca(); if (tab === 'prompts') return prompts(); if (tab === 'descargas') return descargas(); return semaforo(); }
 
   // =================== 🚦 SEMÁFORO ===================
   async function semaforo() {

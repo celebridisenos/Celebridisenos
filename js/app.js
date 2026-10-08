@@ -23,7 +23,8 @@ const VIEWS = {
   mitienda: () => import('./views/mitienda.js'), // v13.10: acceso directo para difundir la tienda web
   rapidas: () => import('./views/rapidas.js'), // v13.10: respuestas rápidas (manual del equipo)
   pedidos: () => import('./views/pedidos.js'),
-  calendario: () => import('./views/calendario.js'), // v17: el mes de entregas en colores
+  calendario: () => import('./views/calendario.js'), // v17 (fuera del menú desde la 17.1; sigue por su dirección)
+  inteligencia: () => import('./views/inteligencia.js'), // v17.1
   clientes: () => import('./views/clientes.js'),
   descanso: () => import('./views/descanso.js'), // v13.3: juego para los ratos de descanso
   estanteria: () => import('./views/estanteria.js'), // v13: la tienda web como un mundo virtual (sustituye al Universo)
@@ -66,7 +67,7 @@ export const NAV = [
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
   { sep: true, t: 'Pedidos' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
-  { k: 'calendario', t: 'Calendario de entregas 🗓️', i: 'tasks', p: 'pedidos.ver' }, // v17
+  { k: 'inteligencia', t: 'Inteligencia 🧠', i: 'sparkles', p: 'pedidos.ver' }, // v17.1: banco de metas, planeta de clientes y tus números (en lugar del calendario)
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes),
   { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas,
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
@@ -434,7 +435,7 @@ export function accionesPaleta() {
     nav('Nuevo cliente', 'plus', 'clientes/nuevo', 'clientes.editar', 'crear añadir'),
     nav('Ir a Inicio', 'home', 'inicio', '', 'panel resumen'),
     nav('Estantería: mi tienda web como un mundo virtual', 'store', 'estanteria', 'productos.ver', 'tienda virtual estanterias productos mundo escaparate 3d'),
-    nav('Calendario de entregas', 'tasks', 'calendario', '', 'calendario entregas fechas mes limite enviar'),
+    nav('Inteligencia: banco de metas y planeta de clientes', 'sparkles', 'inteligencia', '', 'metas objetivo ventas paises planeta clientes inteligencia numeros media'),
     fn('Plan de impresión: ¿qué imprimo ahora?', 'printer', () => dialogoPlan(), '', 'plan imprimir orden cola impresion que imprimo'),
     fn('Colores del programa', 'sparkles', () => dialogoColores(), '', 'colores paleta tema aspecto apariencia'),
     nav('Descanso: jugar un rato (Villa Celebri · Macedonia)', 'play', 'descanso', '', 'juego jugar descanso entretenimiento villa mundo macedonia frutas'),

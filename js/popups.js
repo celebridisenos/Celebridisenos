@@ -57,10 +57,15 @@ export function sonidoPedidoWeb(forzar) {
 
 // ---------- Vigilante: qué es nuevo desde la última vez ----------
 let seenN = null, seenO = null, seenC = null;
+// v17.1 · sonido de INCIDENCIA: tres tonos que bajan (no se confunde con el aviso normal ni con el de pedido web)
+export function sonidoIncidencia() { try { const A = window.AudioContext || window.webkitAudioContext; if (!A) return; const a = new A(); [880, 660, 440].forEach((f, i) => { const o = a.createOscillator(), g = a.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, a.currentTime + i * 0.22); g.gain.exponentialRampToValueAtTime(0.09, a.currentTime + i * 0.22 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + i * 0.22 + 0.2); o.connect(g); g.connect(a.destination); o.start(a.currentTime + i * 0.22); o.stop(a.currentTime + i * 0.22 + 0.21); }); setTimeout(() => a.close().catch(() => { }), 1200); } catch (e) { } }
+let vistasInc = null;
 export function startPopups() {
   const scan = () => {
     if (!S.me || !S.cfg) return;
     const ns = S.t.notificaciones || [], os = S.t.pedidos || [];
+    if (vistasInc === null) vistasInc = new Map(os.map(o => [o.id, String(o.incidencia || '')]));
+    else os.forEach(o => { const ahora = String(o.incidencia || ''), antes = vistasInc.get(o.id); vistasInc.set(o.id, ahora); if (ahora && ahora !== antes && !o.eliminado) { window.__ultimaIncidencia = { id: o.id, t: Date.now() }; sonidoIncidencia(); popup({ titulo: '⚠️ INCIDENCIA · pedido nº ' + o.numero, texto: (o.cliente ? o.cliente + ' · ' : '') + ahora, enlace: 'pedidos/' + o.id, kind: 'bad' }, true); } });
     if (seenN === null) { seenN = new Set(ns.map(n => n.id)); seenO = new Set(os.map(o => o.id)); return; }
     ns.forEach(n => {
       if (seenN.has(n.id)) return; seenN.add(n.id);

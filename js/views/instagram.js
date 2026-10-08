@@ -291,7 +291,7 @@ export function render(el, params) {
     try {
       const { write } = await import('../ai/engine.js');
       apuntar();
-      const r = (await write('Escribe el texto en español de España para ' + tipo + ' de Instagram de CelebriDiseños (tienda de productos personalizados e impresión 3D). Tono ' + TONOS[st.tono] + '. Empieza con una frase gancho, 3-5 líneas cortas, 2-4 emojis, y termina con una llamada a la acción. Después, en una línea aparte, 12-18 hashtags en español relevantes. Devuelve SOLO el texto.' + datos,
+      const r = (await write('Escribe el texto en español de España para ' + tipo + ' de Instagram de CelebriDiseños (tienda de regalos y productos personalizados, hechos con cuidado en un taller pequeño; habla del PRODUCTO y de para quién es, y no nombres «3D» ni «impresión 3D» salvo que el cliente lo pregunte). Tono ' + TONOS[st.tono] + '. Empieza con una frase gancho, 3-5 líneas cortas, 2-4 emojis, y termina con una llamada a la acción. Después, en una línea aparte, 12-18 hashtags en español relevantes. Devuelve SOLO el texto.' + datos,
         { onToken: t => { st.texto = t; const x = panel.querySelector('textarea[aria-label="Texto de la publicación"]'); if (x) x.value = t; }, onStatus: t => { b.textContent = t; } })).trim();
       const m = r.match(/((?:^|\n)\s*(?:#[\p{L}\p{N}_]+[\s,]*){3,})\s*$/u);
       st.texto = (m ? r.slice(0, m.index) : r).trim().slice(0, MAX_TEXTO);
@@ -513,7 +513,7 @@ export function render(el, params) {
       const ia = btn('✨ Con IA', async ev => {
         const b = ev.currentTarget, t0 = b.textContent; b.disabled = true;
         try { const { write } = await import('../ai/engine.js');
-          const r = await write('Eres CelebriDiseños (tienda de productos personalizados e impresión 3D). Contesta en español de España, en 1 o 2 frases cortas, cercano y amable, con 1 emoji, a este comentario de Instagram de @' + x.usuario + ': «' + x.texto + '». La publicación decía: «' + String(p.media.texto || '').slice(0, 300) + '». No inventes precios ni plazos: si preguntan eso, invita a escribir por privado. Devuelve SOLO la respuesta.', { onStatus: s => { b.textContent = s; } });
+          const r = await write('Eres CelebriDiseños (tienda de regalos y productos personalizados, hechos con cuidado en un taller pequeño; habla del PRODUCTO y de para quién es, y no nombres «3D» ni «impresión 3D» salvo que el cliente lo pregunte). Contesta en español de España, en 1 o 2 frases cortas, cercano y amable, con 1 emoji, a este comentario de Instagram de @' + x.usuario + ': «' + x.texto + '». La publicación decía: «' + String(p.media.texto || '').slice(0, 300) + '». No inventes precios ni plazos: si preguntan eso, invita a escribir por privado. Devuelve SOLO la respuesta.', { onStatus: s => { b.textContent = s; } });
           t.value = '@' + x.usuario + ' ' + r.trim().replace(/^@\S+\s*/, ''); t.focus();
         } catch (e) { toast(e.message, 'warn', 8000); } finally { b.disabled = false; b.textContent = t0; }
       }, { cls: 'sm' });

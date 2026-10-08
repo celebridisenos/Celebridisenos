@@ -101,7 +101,7 @@ void main(){
 }`;
 
 export function crearPieza(canvas, pos, opts = {}) {
-  const gl = canvas.getContext('webgl', { antialias: true, alpha: false }) || canvas.getContext('experimental-webgl');
+  const gl = canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: !!opts.conservar }) || canvas.getContext('experimental-webgl');
   if (!gl) throw new Error('Sin WebGL');
   const reducido = !!opts.reducedMotion;
   // geometría: centrada en X/Y, de 0 a h en Z (arriba), la dimensión mayor = 1
@@ -132,7 +132,7 @@ export function crearPieza(canvas, pos, opts = {}) {
   gl.enableVertexAttribArray(aP); gl.enableVertexAttribArray(aN);
   const color = opts.color || [0.62, 0.45, 0.98], hot = [1.0, 0.62, 0.2];
   let target = 0, shown = 0, yaw = 0.6, pitch = 0.55, raf = 0, alive = true, last = performance.now(), nextDraw = 0, first = true;
-  gl.clearColor(0.03, 0.04, 0.09, 1);
+  const fondo = opts.fondo || [0.03, 0.04, 0.09]; gl.clearColor(fondo[0], fondo[1], fondo[2], 1); // v17.2: negro para el holograma
   function dibujar(now) {
     if (!alive) return; raf = requestAnimationFrame(dibujar);
     if (document.hidden || !canvas.isConnected) { last = now; return; }
@@ -151,7 +151,7 @@ export function crearPieza(canvas, pos, opts = {}) {
     const cut = shown * H; gl.uniform1f(U.cut, shown >= 0.999 ? 10 : cut); gl.uniform1f(U.band, Math.max(0.012, H * 0.04));
     gl.enable(gl.DEPTH_TEST);
     const draw = (bp, bn, count, mode) => { gl.uniform1f(U.mode, mode); gl.bindBuffer(gl.ARRAY_BUFFER, bp); gl.vertexAttribPointer(aP, 3, gl.FLOAT, false, 0, 0); gl.bindBuffer(gl.ARRAY_BUFFER, bn); gl.vertexAttribPointer(aN, 3, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLES, 0, count); };
-    gl.disable(gl.BLEND); draw(bPP, bPN, pp.length / 3, 2); draw(bP, bN, cnt, 0);
+    gl.disable(gl.BLEND); if (!opts.sinPlaca) draw(bPP, bPN, pp.length / 3, 2); draw(bP, bN, cnt, 0);
     if (shown < 0.999) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.depthMask(false); draw(bP, bN, cnt, 1); gl.depthMask(true); gl.disable(gl.BLEND); }
   }
   raf = requestAnimationFrame(dibujar);
