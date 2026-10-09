@@ -4,6 +4,7 @@ import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can
 import { aplicarColor, colorActual, dialogoColores, dialogoPlan } from './v17.js'; // v17: colores, plan de impresión y calendario
 import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
+import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
 import { desktop } from './desktop.js';
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
@@ -16,6 +17,9 @@ import { startWorker, warmUp } from './ai/engine.js';
 const CL = window.CL;
 const VIEWS = {
   inicio: () => import('./views/home.js'),
+  puente: () => import('./views/puente.js'), // v18: 🛰️ Puente de mando (la entrada de la «Sala de mando»)
+  tallervivo: () => import('./views/tallervivo.js'), // v18: 🏭 el taller en directo (en lugar de los juegos)
+  trailer: () => import('./views/trailer.js'), // v18: 🎬 Tráiler del mes
   hoy: () => import('./views/hoy.js'),
   tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller (v13.10: fuera del menú; sigue en #/tv)
   estudio: () => import('./views/estudio.js'), // v13.10: 📸 Estudio de fotos
@@ -26,7 +30,6 @@ const VIEWS = {
   calendario: () => import('./views/calendario.js'), // v17 (fuera del menú desde la 17.1; sigue por su dirección)
   inteligencia: () => import('./views/inteligencia.js'), // v17.1
   clientes: () => import('./views/clientes.js'),
-  descanso: () => import('./views/descanso.js'), // v13.3: juego para los ratos de descanso
   estanteria: () => import('./views/estanteria.js'), // v13: la tienda web como un mundo virtual (sustituye al Universo)
   productos: () => import('./views/productos.js'),
   catalogo: () => import('./views/catalogo.js'),
@@ -37,6 +40,7 @@ const VIEWS = {
   embalaje: () => import('./views/embalaje.js'),
   escanear: () => import('./views/escanear.js'),
   tienda: () => import('./views/tienda.js'), // v12: Tienda web (sustituye a THE NOORKO)
+  celebrir8: () => import('./views/celebrir8.js'), // v18: 🧊 CelebriR8 (diseñar piezas con plantillas y editar STL)
   cotizador: () => import('./views/cotizador.js'), // v16.2: STL / 3MF → coste y precio al momento
   camaras: () => import('./views/camaras.js'), // v11.7: cámaras de las Bambu Lab (en el PC) // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
@@ -63,8 +67,10 @@ const VIEWS = {
 // v16: el menú va por GRUPOS que se pliegan (menos desorden, más lógica). Cada apartado es el mismo de siempre.
 export const NAV = [
   // v16.2: grupos pedidos por la dueña: Pedidos · Productos · Producción · Embalaje y logística · Ventas y web · Marketing · Equipo
+  { k: 'puente', t: 'Puente de mando 🛰️', i: 'home' }, // v18
   { k: 'inicio', t: 'Inicio', i: 'home' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
+  { k: 'tallervivo', t: 'Taller vivo 🏭', i: 'play', p: 'pedidos.ver' }, // v18: en lugar de «Descanso» (los juegos se retiraron)
   { sep: true, t: 'Pedidos' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
   { k: 'inteligencia', t: 'Inteligencia 🧠', i: 'sparkles', p: 'pedidos.ver' }, // v17.1: banco de metas, planeta de clientes y tus números (en lugar del calendario)
@@ -77,6 +83,7 @@ export const NAV = [
   { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
   { sep: true, t: 'Producción' },
   { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
+  { k: 'celebrir8', t: 'CelebriR8 🧊', i: 'cube', p: 'productos.ver' }, // v18: diseñar piezas sin saber de 3D
   { k: 'cotizador', t: 'Cotizador 3D ⚡', i: 'cube', p: 'productos.ver' }, // v16.2: en lugar de «Cámaras» (no se usaba; sigue existiendo en #/camaras)
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { sep: true, t: 'Embalaje y logística' },
@@ -91,6 +98,7 @@ export const NAV = [
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
+  { k: 'trailer', t: 'Tráiler del mes 🎬', i: 'play', p: 'pedidos.ver' }, // v18
   { sep: true, t: 'Marketing' },
   { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
   { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3,
@@ -105,7 +113,6 @@ export const NAV = [
   { k: 'archivos', t: 'Archivos', i: 'folder', p: 'archivos.ver' },
   { k: 'ia', t: 'Celeby Nova', i: 'sparkles', p: 'ia.usar' },
   { k: 'centroia', t: 'Centro de IA 🧠', i: 'sparkles' }, // v15.3 // v11.5: Celebrity + CelebryNova en un solo asistente,
-  { k: 'descanso', t: 'Descanso 🎮', i: 'play' }, // v13.3: juego para el rato de descanso,
   { sep: true },
   { k: 'config', t: 'Configuración', i: 'settings' },
   { k: 'estado', t: 'Estado del sistema', i: 'shield', p: 'config.ver' }
@@ -118,11 +125,13 @@ let shell = null;
 
 // ---------- Router ----------
 export function go(path) { if (location.hash !== '#/' + path) location.hash = '#/' + path; else route(); }
-function parseHash() { const p = (location.hash || '#/inicio').replace(/^#\/?/, '').split('/').map(decodeURIComponent); return { name: p[0] || 'inicio', params: p.slice(1) }; }
+const PORTADA = () => (es18() ? 'puente' : 'inicio'); // v18: en la «Sala de mando» se entra por el Puente
+function parseHash() { const p = (location.hash || '#/' + PORTADA()).replace(/^#\/?/, '').split('/').map(decodeURIComponent); return { name: p[0] || PORTADA(), params: p.slice(1) }; }
 async function route() {
   if (!S.token || !S.me) return;
   const { name, params } = parseHash();
   // v11: QR universal → #/q/<tipo>/<id> abre directamente la ficha
+  if (name === 'descanso') return go('tallervivo'); // v18: los juegos se retiraron; en su sitio está el Taller vivo
   if (name === 'universo') return go('estanteria'); // v13: el Universo (galaxia) se sustituyó por la Estantería; los enlaces antiguos siguen funcionando
   if (name === 'q' && params[0] === 'ceb') return go('escanear/' + encodeURIComponent(params[1] || '')); // v11.6: QR del paquete
   if (name === 'q' && params[0] === 'mesa') return go({ escanear: 'escanear/camara', empaquetar: 'embalaje', hoy: 'hoy' }[params[1]] || 'inicio'); // v12.2: QR de la mesa de trabajo
@@ -152,6 +161,7 @@ async function route() {
     window.scrollTo(0, 0);
     entrada(content); // v14.0: el contenido entra suave
     if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); } // v16.1
+    if (!route._est && debeEstrenar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer')) estreno({ ir: go }); else route._est = false; }, 900); }
     if (!route._inau && debeInaugurar()) { route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full')) inauguracion({ ir: go }); }, 700); }
   } catch (e) {
     console.error(e);
@@ -187,7 +197,7 @@ function accountMenu(anchor) {
     wsInfo().lista.length > 1 ? h('div.acct-ws', h('div.tiny.muted', 'Espacio de trabajo'), wsInfo().lista.map(w => h('button' + (w.id === S.ws ? '.on' : ''), { onclick: () => { m.remove(); changeWs(w.id); } }, h('span.ws-mark.' + (w.tema || 'principal')), w.nombre, w.id === S.ws ? ' ✓' : ''))) : null,
     h('button', { onclick: () => { m.remove(); go('config/perfil'); } }, icon('user', 's'), 'Mi perfil'),
     h('button', { onclick: () => { m.remove(); go('config'); } }, icon('settings', 's'), 'Configuración'),
-    h('button.acct-ui', { onclick: () => { m.remove(); const n = aplicarUI(!uiNueva()); toast(n ? '✨ Interfaz nueva' : '🗂️ Interfaz clásica', 'ok', 2500); } }, icon('sparkles', 's'), uiNueva() ? 'Volver a la interfaz clásica' : 'Usar la interfaz nueva 14.0'),
+    h('button.acct-ui', { onclick: () => { m.remove(); const k = es18() ? 'nueva' : 'v18'; ponInterfaz(k); toast(k === 'v18' ? '🛰️ Sala de mando (18)' : '✨ Interfaz 14', 'ok', 2500); } }, icon('sparkles', 's'), es18() ? 'Volver a la interfaz de antes (14)' : 'Usar la Sala de mando (18)'),
     h('button.danger', { onclick: async () => { m.remove(); await logout(); start(); } }, icon('logout', 's'), 'Cerrar sesión'));
   document.body.appendChild(m);
   setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
@@ -231,7 +241,7 @@ function buildShell() {
     h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú', 'aria-label': 'Abrir menú' }, icon('menu')),
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
     quick,
-    h('div.right.row', syncEl, actB, botonRegalo(), chatB, bell, meBtn));
+    h('div.right.row', syncEl, botonModo(), actB, botonRegalo(), chatB, bell, meBtn));
   const banner = h('div');
   const content = h('main.content', { id: 'main' });
   const tabbar = h('nav.tabbar', { 'aria-label': 'Secciones principales' });
@@ -314,8 +324,8 @@ function refreshShell() {
   const d = S.cfg ? dash() : null;
   const counts = d ? { pedidos: d.pedidos.urgentes.length, tareas: d.tareas.mias, chat: S.chatUnread || 0, ia: S.novaPend || 0, pedidosweb: can('pedidos.ver') ? pwPendientes() : 0, bandeja: can('pedidos.ver') ? (S.t.correosPlat || []).filter(r => r.estado !== 'hecho').length : 0 } : {};
   // v11: solo se redibuja el menú si ha cambiado algo (antes se rehacía en cada sincronización y parpadeaba)
-  const navSig = JSON.stringify([counts, S.perms, S.ws, S.cfg && S.cfg.menu, [...navCerrados()], navActual || current.name]);
-  const visible = n => (!n.p || can(n.p)) && (!n.d || desktop.on);
+  const navSig = JSON.stringify([counts, S.perms, S.ws, S.cfg && S.cfg.menu, [...navCerrados()], navActual || current.name, interfaz()]);
+  const visible = n => (!n.p || can(n.p)) && (!n.d || desktop.on) && !(n.k === 'inicio' && es18()); // v18: en la «Sala de mando» la entrada es el Puente (el Inicio de antes sigue en #/inicio)
   if (shell.navSig !== navSig) { shell.navSig = navSig;
   // v13.10: el administrador ordena y oculta los apartados del menú a su gusto (para todo el equipo)
   const lista = menuNav(NAV).filter(n => n.sep || visible(n)).filter((n, i, a) => !(n.sep && (!a[i + 1] || a[i + 1].sep)));
@@ -329,7 +339,7 @@ function refreshShell() {
     return h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), h('span', n.t), counts[n.k] ? h('span.count' + (n.k === 'tareas' ? '.soft' : ''), String(counts[n.k])) : null); }),
     can('config.editar') ? h('button.nav-orden', { type: 'button', title: 'Cambiar el orden del menú u ocultar apartados', onclick: e => { e.stopPropagation(); closeNav(); editarMenu(NAV, visible, refreshShell); } }, '↕️ Ordenar el menú') : null,
     h('button.nav-todo', { type: 'button', title: 'Abrir o plegar todos los grupos del menú', onclick: e => { e.stopPropagation(); navTodo(); } }, navCerrados().size ? '▾ Abrir todo' : '▸ Plegar todo')); }
-  const tabs = [{ k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
+  const tabs = [es18() ? { k: 'puente', t: 'Puente', i: 'home' } : { k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
   if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
   // v11.5: barra de acceso rápido · v11.7: «Cámaras» solo en el PC y si hay Bambu Lab vinculadas (nunca botones vacíos)
@@ -438,7 +448,10 @@ export function accionesPaleta() {
     nav('Inteligencia: banco de metas y planeta de clientes', 'sparkles', 'inteligencia', '', 'metas objetivo ventas paises planeta clientes inteligencia numeros media'),
     fn('Plan de impresión: ¿qué imprimo ahora?', 'printer', () => dialogoPlan(), '', 'plan imprimir orden cola impresion que imprimo'),
     fn('Colores del programa', 'sparkles', () => dialogoColores(), '', 'colores paleta tema aspecto apariencia'),
-    nav('Descanso: jugar un rato (Villa Celebri · Macedonia)', 'play', 'descanso', '', 'juego jugar descanso entretenimiento villa mundo macedonia frutas'),
+    nav('Puente de mando: el taller de un vistazo', 'home', 'puente', '', 'inicio portada sala mando resumen directo'),
+    nav('CelebriR8: diseñar una pieza (caja, engranaje, llavero con nombre, molde, cortador) o editar un STL', 'cube', 'celebrir8', 'productos.ver', 'celebrir8 r8 fusion diseñar dibujar 3d stl caja engranaje llavero nombre molde cortador galletas figura arandela editar cortar escalar'),
+    nav('Taller vivo: los pedidos moviéndose por el taller', 'play', 'tallervivo', 'pedidos.ver', 'taller vivo directo cubos cinta impresoras camión'),
+    nav('Tráiler del mes: tus números en vídeo', 'play', 'trailer', 'pedidos.ver', 'trailer video mes resumen cine música reel'),
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
     fn('Modo taller (botones grandes)', 'play', () => { try { localStorage.setItem('cd.operario', '1'); } catch (e) { } document.body.classList.add('operario'); go('hoy'); }, 'pedidos.ver', 'operario tablet'),
     nav('Biouvision (editor de fotos)', 'camera', 'estudio', 'productos.ver', 'foto editar retocar mejorar imagen estudio cara piel filtros fondo'),
@@ -464,9 +477,9 @@ export function accionesPaleta() {
     fn('Holograma: enseñar uno ahora', 'sparkles', () => import('./hologramas.js').then(m => m.mostrar()), '', 'holograma figura 3d ver'),
     fn('Sonido al entrar un pedido nuevo (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().sonido; m.guardarPrefs({ sonido: v }); if (v) m.sonar(); toast(v ? '🔔 Sonido de pedido nuevo activado' : 'Sonido de pedido nuevo apagado'); }), 'pedidos.ver', 'pedido nuevo sonido campana'),
     fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),
-    fn(uiNueva() ? 'Interfaz clásica (la de antes)' : 'Interfaz nueva 14.0', 'sparkles', () => { const n = aplicarUI(!uiNueva()); toast(n ? '✨ Interfaz nueva' : '🗂️ Interfaz clásica', 'ok', 2500); }, '', 'aspecto diseño antes nueva vieja'),
-    fn('Ver la inauguración de la 14.0', 'sparkles', () => inauguracion({ ir: go }), '', 'estreno cinta fiesta novedades'),
-    fn('Tema oscuro / claro', 'sparkles', () => { const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
+    fn(es18() ? 'Interfaz de antes (14)' : 'Sala de mando (interfaz 18)', 'sparkles', () => { const k = es18() ? 'nueva' : 'v18'; ponInterfaz(k); toast(k === 'v18' ? '🛰️ Sala de mando (18)' : '✨ Interfaz 14', 'ok', 2500); }, '', 'aspecto diseño antes nueva clásica interfaz sala mando noche día'),
+    fn('Ver el estreno de la 18', 'sparkles', () => estreno({ ir: go }), '', 'estreno inauguración fiesta novedades cine'),
+    fn('Tema oscuro / claro', 'sparkles', () => { if (es18()) return ponInterfaz('v18', document.documentElement.dataset.modo === 'noche' ? 'dia' : 'noche'); const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
     fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),
     fn('Cerrar sesión', 'logout', async () => { await logout(); start(); }, '', 'salir')
   ];
@@ -583,10 +596,30 @@ export function applyTheme(t) {
   const def = THEMES.find(x => x.k === theme);
   if (!def || (def.premium && S.perms && !isAdminUser())) theme = 'claro';
   const real = theme === 'sistema' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro') : theme;
-  document.documentElement.dataset.theme = real;
+  document.documentElement.dataset.theme = tema18(real); // v18: en la «Sala de mando» manda el modo (Noche/Día); el tema del perfil no se pierde
   try { aplicarColor(colorActual()); } catch (e) { } // v17: la paleta elegida en este aparato, encima del tema
   localStorage.setItem('cd.theme', theme);
 }
+// v18 · SUELTA UN STL DONDE SEA: un archivo 3D (STL, 3MF u OBJ) soltado en cualquier pantalla abre el Cotizador con él (medidas,
+// gramos, coste y precio). Las zonas que ya recogen archivos (subir fotos, adjuntar etiqueta…) siguen mandando en lo suyo.
+// De paso: soltar por error un archivo fuera de sitio ya no hace que la ventana «se vaya» a abrir ese archivo.
+{
+  const conArchivos = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
+  let fuera = 0;
+  const velo = si => { clearTimeout(fuera); if (si && S.me && shell) document.body.classList.add('suelta-3d'); else fuera = setTimeout(() => document.body.classList.remove('suelta-3d'), 120); };
+  window.addEventListener('dragover', e => { if (!conArchivos(e)) return; if (!e.defaultPrevented) { e.preventDefault(); try { e.dataTransfer.dropEffect = S.me && shell ? 'copy' : 'none'; } catch (x) { } velo(true); } else velo(false); });
+  window.addEventListener('dragleave', e => { if (!e.relatedTarget) velo(false); });
+  window.addEventListener('drop', e => {
+    velo(false); document.body.classList.remove('suelta-3d');
+    if (!conArchivos(e) || e.defaultPrevented) return; // lo recogió la zona de esa pantalla
+    e.preventDefault();
+    if (!S.me || !shell) return;
+    const f = [...(e.dataTransfer.files || [])].find(x => /\.(stl|3mf|obj)$/i.test(x.name));
+    if (!f) return toast('Para saber el precio de una pieza, suelta su archivo STL, 3MF u OBJ.', 'warn', 5000);
+    import('./views/cotizador.js').then(m => { m.cotizarArchivo(f); if (current.name !== 'cotizador') go('cotizador'); toast('⚡ ' + f.name + ' → Cotizador', 'ok', 3000); }).catch(handleError);
+  });
+}
+window.addEventListener('cd:interfaz', () => { try { applyTheme(); if (shell) { shell.navSig = shell.tabSig = ''; refreshShell(); const b = document.querySelector('.u18-modo'); if (b) b.textContent = document.documentElement.dataset.modo === 'dia' ? '☀️' : '🌙'; } } catch (e) { } });
 
 // ---------- Arranque ----------
 let unsub = null;

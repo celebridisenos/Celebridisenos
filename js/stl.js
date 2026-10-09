@@ -107,7 +107,7 @@ const FS = `precision mediump float; varying vec3 vn; uniform vec3 col; void mai
 
 // Crea un visor en un <canvas>. Devuelve { dims, snapshot(), destroy() }
 export function viewer(canvas, pos, opts = {}) {
-  const g = prepare(pos);
+  let g = prepare(pos);
   const gl = canvas.getContext('webgl', { antialias: true, preserveDrawingBuffer: !!opts.snapshot }) || canvas.getContext('experimental-webgl');
   if (!gl) throw new Error('Este dispositivo no permite la vista 3D (WebGL).');
   const sh = (t, s) => { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); return x; };
@@ -148,6 +148,7 @@ export function viewer(canvas, pos, opts = {}) {
   draw();
   return {
     dims: g.dims, triangles: g.count / 3,
+    set: pos2 => { g = prepare(pos2); gl.bindBuffer(gl.ARRAY_BUFFER, bp); gl.bufferData(gl.ARRAY_BUFFER, g.P, gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER, bn); gl.bufferData(gl.ARRAY_BUFFER, g.N, gl.STATIC_DRAW); req(); }, // v18: otra pieza, misma vista
     snapshot: (type, q) => { draw(); return canvas.toDataURL(type || 'image/jpeg', q || 0.8); },
     destroy: () => { alive = false; if (ro) ro.disconnect(); gl.deleteBuffer(bp); gl.deleteBuffer(bn); const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); }
   };

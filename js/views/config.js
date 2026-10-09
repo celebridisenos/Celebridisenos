@@ -1,6 +1,7 @@
 // ================= Configuración: todo lo ajustable, sin tocar código =================
 import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText } from '../ui.js';
 import * as UI14 from '../ui14.js';
+import * as UI18 from '../ui18.js'; // v18
 import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHashes, checkNewPassword, user } from '../store.js';
 import { rolePicker } from '../roles.js';
 import { iaPanel } from '../ai/models.js';
@@ -794,19 +795,24 @@ export async function appsCard(redes) {
   return card('Aplicaciones de este PC', box);
 }
 
-// v14.0 · elegir entre la interfaz NUEVA (14.0) y la CLÁSICA (la de antes); y volver a ver la inauguración
+// v14.0 · elegir interfaz · v18: ahora son tres: la «Sala de mando» (18, con Noche y Día), la 14 y la clásica
 function uiElegir() {
   const caja = h('div');
   const pinta = () => {
-    const n = UI14.uiNueva();
+    const k = UI18.interfaz(), m = UI18.modo();
+    const op = (clave, modo, mini, t, d) => h('button.ui-op' + (k === clave && (!modo || m === modo) ? '.on' : ''), { type: 'button', 'data-ui': clave === 'v18' ? 'v18' + modo : clave, onclick: () => { UI18.ponInterfaz(clave, modo); pinta(); } }, h('span.ui-mini.' + mini), h('b', t), h('span.tiny.muted', d));
     mount(caja, h('div.ui-elegir',
-      h('button.ui-op' + (n ? '.on' : ''), { type: 'button', 'data-ui': 'nueva', onclick: () => { UI14.aplicarUI(true); pinta(); } }, h('span.ui-mini.nueva'), h('b', '✨ Nueva (14.0)'), h('span.tiny.muted', 'Colores vivos, cristal, animaciones suaves. Usa un poco más la tarjeta gráfica.')),
-      h('button.ui-op' + (!n ? '.on' : ''), { type: 'button', 'data-ui': 'clasica', onclick: () => { UI14.aplicarUI(false); pinta(); } }, h('span.ui-mini.clasica'), h('b', '🗂️ Clásica'), h('span.tiny.muted', 'La de siempre: más sencilla y ligera (va mejor en ordenadores o móviles antiguos).'))),
-      h('div.row.wrap', { style: { gap: '8px', marginTop: '10px' } }, btn('🎀 Volver a ver la inauguración', () => UI14.inauguracion({ ir: r => { location.hash = '#/' + r; }, alCerrar: pinta }), { cls: 'sm ghost' })),
-      h('p.tiny.muted', 'Solo cambia el aspecto; todo sigue en el mismo sitio. Se guarda en este aparato (móvil y PC pueden tener una distinta).'));
+      op('v18', 'noche', 'v18n', '🌙 Sala de mando · Noche', 'La 18: oscura, de sala de control. La más rápida (sin cristales ni fondos que se mueven).'),
+      op('v18', 'dia', 'v18d', '☀️ Sala de mando · Día', 'La 18 en claro: limpia y luminosa, para trabajar con mucha luz.'),
+      op('nueva', '', 'nueva', '✨ La de antes (14.0)', 'Colores vivos, cristal, animaciones suaves. Usa un poco más la tarjeta gráfica.'),
+      op('clasica', '', 'clasica', '🗂️ Clásica', 'La de siempre: más sencilla y ligera (va mejor en ordenadores o móviles antiguos).')),
+      h('div.row.wrap', { style: { gap: '8px', marginTop: '10px' } }, btn('🎬 Volver a ver el estreno de la 18', () => UI18.estreno({ ir: r => { location.hash = '#/' + r; }, alCerrar: pinta }), { cls: 'sm ghost' })),
+      h('p.tiny.muted', 'Solo cambia el aspecto; todo sigue en el mismo sitio. Se guarda en este aparato (móvil y PC pueden tener una distinta). En la «Sala de mando» el color de arriba (tema) lo decide el modo Noche o Día; tu color de acento se respeta.'));
   };
-  pinta(); return caja;
+  pinta();
+  return caja;
 }
+
 
 // v14.1 · Guía para juntar TODAS las cuentas (varias de Vinted, de Wallapop…) en el Gmail del programa
 function guiaCuentas(st) {

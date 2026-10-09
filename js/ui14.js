@@ -8,7 +8,7 @@ import { h, btn } from './ui.js';
 const CLAVE = 'cd.ui', VISTA = 'cd.inaug14';
 const leer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
-export const uiNueva = () => leer(CLAVE) !== 'clasica';
+export const uiNueva = () => leer(CLAVE) !== 'clasica' && leer(CLAVE) !== 'v18'; // v18: la «Sala de mando» es otra interfaz (ui18.js)
 export function aplicarUI(v, guarda = true) {
   const nueva = v === undefined ? uiNueva() : !!v;
   document.documentElement.classList.toggle('ui14', nueva);
@@ -52,7 +52,7 @@ export function instalarEfectos() {
 }
 // cambia de pantalla con una entrada suave del contenido
 export function entrada(content) {
-  if (!content || !document.documentElement.classList.contains('ui14')) return;
+  if (!content || !/ui1[48]/.test(document.documentElement.className)) return;
   content.classList.remove('entrando'); void content.offsetWidth; content.classList.add('entrando');
   clearTimeout(content.__u14); content.__u14 = setTimeout(() => content.classList.remove('entrando'), 900);
 }
@@ -92,11 +92,11 @@ function fuegos(cv, ms) {
 
 // ---------- la inauguración ----------
 const NOVEDADES = [
-  ['🌸', 'Vida 2.0: huerto, casa y probador', 'descanso/vida'], ['📸', 'Biouvision: retoque de cara y filtros', 'estudio'], ['🧺', 'Juego nuevo: Mi puesto', 'descanso/puesto'],
+  ['📸', 'Biouvision: retoque de cara y filtros', 'estudio'],
   ['🏷️', 'Etiqueta de envío: la tuya, leída sola', 'embalaje'], ['💬', 'Respuestas rápidas para clientes', 'rapidas'], ['📰', 'Noticias de actualidad', 'noticias'],
   ['🛍️', 'Mi tienda con su QR', 'mitienda'], ['💡', 'Consejos para vender', 'inicio']
 ];
-export const debeInaugurar = () => !leer(VISTA) && !navigator.webdriver;
+export const debeInaugurar = () => !leer(VISTA) && !navigator.webdriver && leer(CLAVE) !== 'v18';
 export function inauguracion(opts = {}) {
   if (document.querySelector('.inau')) return;
   const ir = opts.ir || (r => { location.hash = '#/' + r; });

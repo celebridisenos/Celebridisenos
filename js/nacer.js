@@ -90,7 +90,7 @@ export async function grabarConSonido(canvas, seg, paso, plan) {
       const rec = new MediaRecorder(st, { mimeType: tipo, videoBitsPerSecond: 6000000, audioBitsPerSecond: 128000 }), trozos = [];
       rec.ondataavailable = e => { if (e.data && e.data.size) trozos.push(e.data); };
       const fin = new Promise(res => { rec.onstop = res; rec.onerror = res; });
-      rec.start(200); suena(AC, dest, plan);
+      rec.start(200); if (typeof plan === 'function') plan(AC, dest); else suena(AC, dest, plan); // v18: el Tráiler del mes trae su propia música
       const t0 = performance.now() + 60;
       await new Promise(res => { const f = () => { const x = entre((performance.now() - t0) / (seg * 1000), 0, 1); paso(x); if (x < 1) requestAnimationFrame(f); else setTimeout(res, 350); }; requestAnimationFrame(f); });
       try { rec.stop(); } catch (e) { } await fin; st.getTracks().forEach(t => t.stop());

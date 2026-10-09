@@ -14,16 +14,12 @@
 <link rel="icon" href="icons/favicon.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/juego_sopa.css">
-<link rel="stylesheet" href="css/juego_detectives.css">
-<link rel="stylesheet" href="css/juego_mascota.css">
-<link rel="stylesheet" href="css/juego_tetris.css">
-<link rel="stylesheet" href="css/juego_tresenraya.css">
-<link rel="stylesheet" href="css/juegos.css">
 <link rel="stylesheet" href="css/ui14.css">
+<link rel="stylesheet" href="css/ui18.css">
+<link rel="stylesheet" href="css/v18.css">
 <!--HOST-->
 <script>
-  try { var t = localStorage.getItem('cd.theme') || 'claro'; if (t === 'sistema') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro'; document.documentElement.dataset.theme = t; } catch (e) {}
+  try { var t = localStorage.getItem('cd.theme') || 'claro'; if (t === 'sistema') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro'; if (localStorage.getItem('cd.ui') === 'v18') { var m = localStorage.getItem('cd.modo18') === 'dia' ? 'dia' : 'noche'; document.documentElement.className += ' ui18'; document.documentElement.setAttribute('data-modo', m); t = m === 'noche' ? 'oscuro' : 'claro'; } document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
 <script src="js/logic.js"></script>
 <script src="js/listing.js"></script>

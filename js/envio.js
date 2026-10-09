@@ -323,11 +323,18 @@ export function encargosPendientes() {
 
 // v16.3.3 · CARRIL RÁPIDO: un encargo que el servidor YA ha reservado para este PC se imprime sin más viajes a Google
 // (antes: enterarse → sincronizar → reservar → imprimir; con Google a 2–3 s por viaje, se iba a medio minuto).
-export async function imprimirTomada(o, row) {
+export async function imprimirTomada(o, row, directo) {
   const tipo = row.tipo, L = await import('./labels.js');
-  const answer = async (ok, error, impresora) => { try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '' }); upsertLocal('impresiones', r.impresion); emit(); } catch (e) { } };
+  // v18: por el carril directo la fila sigue «Pendiente» en la hoja hasta esta respuesta; si Google no contesta, se insiste (3 veces)
+  const answer = async (ok, error, impresora) => {
+    for (let i = 0; i < (directo ? 3 : 1); i++) {
+      try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '', directo: !!directo, dispositivo: S.device || '' }, { quiet: true }); upsertLocal('impresiones', r.impresion); emit(); return; }
+      catch (e) { if (e && e.code && e.code !== 'NET' && e.code !== 'BUSY') return; await new Promise(r => setTimeout(r, 4000 * (i + 1))); }
+    }
+  };
   try {
     o = ownerOf(o, tipo);
+    if (!o.codigo && row.codigo && row.pedidoId === o.id) o = Object.assign({}, o, { codigo: row.codigo }); // v18: el código viene con el encargo (un viaje menos a Google)
     if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
     const b = await buildFor(o, tipo, L), t = await L.targetFor(b.tpl);
     if (!t || !t.pr || t.pr.offline) { await answer(false, 'La impresora está apagada o este PC no tiene impresora para esta etiqueta'); return { estado: 'Error' }; }
@@ -341,8 +348,8 @@ export async function printOne(o, tipo, opts = {}) {
   // v17.1: con «imprimir» sale de verdad por la impresora de etiquetas (antes, en modo hojas A4, solo se apuntaba como metida y no imprimía nada)
   if (tipo === 'gracias' && cardMode() === 'hoja' && !opts.imprimir) return (await cardIncluded(o)) ? { estado: 'Impreso' } : { estado: 'omitido' };
   const L = await import('./labels.js');
-  if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
-  // v14.1: sin impresora real aquí → ¿en el PC del taller o aquí?
+  // v14.1: sin impresora real aquí → ¿en el PC del taller o aquí?  (v18: se decide ANTES de pedir el código del pedido; si va
+  // al PC del taller, el código lo pone el servidor en el mismo viaje del encargo)
   if (!opts.aqui) {
     const t0 = await L.targetFor(PRINT_TIPOS[tipo].tpl === 'paquete' && formatoPaquete() === 'largo' ? 'paquete150' : PRINT_TIPOS[tipo].tpl).catch(() => null);
     if (!t0 || !t0.pr) {
@@ -351,6 +358,7 @@ export async function printOne(o, tipo, opts = {}) {
       if (dest === 'taller') return encargar(o, tipo, opts);
     }
   }
+  if (tipo !== 'oficial' && tipo !== 'propia') o = await ensureCode(o);
   const b = await buildFor(o, tipo, L); // si falta algo (la etiqueta no se puede leer…) no se registra nada
   let t = await L.targetFor(b.tpl);
   // v16: antes de imprimir a mano se ve QUÉ sale y POR DÓNDE (impresora, etiqueta, tamaño y copias). Nunca por otra impresora sin decirlo.

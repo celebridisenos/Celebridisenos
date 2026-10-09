@@ -13,6 +13,9 @@ import { textoMedidas, esArchivo3D } from '../medidas3d.js';
 const CL = window.CL;
 const CANALES = [['wallapop', 'Wallapop / directo'], ['vinted', 'Vinted'], ['etsy', 'Etsy']];
 let E = null; // lo último cotizado (se conserva al cambiar de pantalla y volver)
+// v18: un archivo soltado en CUALQUIER pantalla del programa llega aquí (app.js lo deja con cotizarArchivo y abre esta pantalla)
+let PEND = null, ABRIR = null;
+export function cotizarArchivo(f) { if (ABRIR && document.querySelector('.cz-soltar, .cz-res, .cz')) { try { ABRIR(f); return; } catch (e) { } } PEND = f; }
 
 export function render(el) {
   const costes = can('productos.costes');
@@ -114,6 +117,7 @@ export function render(el) {
   const sobre = e => { if ([...(e.dataTransfer && e.dataTransfer.types || [])].includes('Files')) e.preventDefault(); };
   const suelta = e => { const f = [...(e.dataTransfer && e.dataTransfer.files || [])].find(x => esArchivo3D(x.name)); if (f && el.isConnected) { e.preventDefault(); abrir(f); } };
   el.addEventListener('dragover', sobre); el.addEventListener('drop', suelta);
+  ABRIR = abrir; if (PEND) { const f = PEND; PEND = null; setTimeout(() => abrir(f), 60); } // v18: lo que se soltó en otra pantalla
   pinta();
   return { destroy: cerrarVista, abrir };
 }

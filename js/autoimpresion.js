@@ -20,8 +20,22 @@ const ME = Math.random().toString(36).slice(2);
 const RETRY_MS = [0, 30000, 120000, 300000]; // 1.º intento ya, luego 30 s, 2 min, 5 min; después se queda avisado
 const MAX_INTENTOS = RETRY_MS.length;
 
+const ESPERA = 9000; // v18: lo que el PC deja abierta la consulta del carril directo (el servidor contesta antes si hay algo)
+const EN_CURSO = new Map(); // v18: id de impresión → cuándo la cogió este PC por el carril directo
+// v18 · ETIQUETAS OFICIALES YA PREPARADAS: bajar de Drive el PDF de la etiqueta de envío y pasarlo a imagen eran varios
+// segundos justo cuando se quería imprimir. Ahora el PC con impresora las deja preparadas en cuanto las ve (una a una y
+// sin estorbar): al mandarla a imprimir sale al momento.
+let calentando = false;
+export async function calentarEtiquetas() {
+  if (calentando || !desktop.on || !AUTO.puedo || !S.ready || !S.online || !autoOn()) return;
+  calentando = true;
+  try {
+    const L = (S.t.pedidos || []).filter(o => !o.eliminado && !o.archivado && o.etiquetaEnvio && o.etiquetaEnvio.archivoId && !AUTO.listas.has(o.etiquetaEnvio.archivoId) && ['postpro', 'empaquetar', 'listo'].includes(faseDe(o)) && E.statusOf(o, 'oficial').estado !== 'Impreso').slice(0, 3);
+    for (const o of L) { AUTO.listas.add(o.etiquetaEnvio.archivoId); try { await E.officialCanvas(o); AUTO.calentadas = (AUTO.calentadas || 0) + 1; } catch (e) { } }
+  } finally { calentando = false; }
+}
 // Estado en memoria de esta ventana: pedidoId → { n, next, motivo, tipo }
-export const AUTO = { fallos: new Map(), activo: false, ultimo: 0 };
+export const AUTO = { fallos: new Map(), activo: false, ultimo: 0, listas: new Set() };
 
 const cfgE = () => (S.cfg && S.cfg.envio) || {};
 export const autoOn = () => cfgE().autoImprimir !== false;
@@ -42,7 +56,7 @@ export function encargos(o) {
 const enEmpaquetar = o => faseDe(o) === 'empaquetar' && !E.labelSkipped(o);
 // ¿Qué falta imprimir en este pedido y puede hacerse solo? (sin la tarjeta en modo «hoja», que se marca a mano)
 export function porImprimir(o) {
-  const enc = encargos(o);
+  const enc = encargos(o).filter(t => { const r = E.encargadaPC(o, t), c = r && EN_CURSO.get(r.id); return !(c && Date.now() - c < 180000); }); // v18: lo que ya se está imprimiendo por el carril directo
   const auto = enEmpaquetar(o) ? E.pendingOf(o).filter(t => !(t === 'gracias' && E.cardMode() === 'hoja')) : [];
   return Object.keys(E.PRINT_TIPOS).filter(t => enc.includes(t) || auto.includes(t)); // en orden: oficial → propia → paquete → tarjeta
 }
@@ -130,33 +144,44 @@ let timer = null, unsub = null, deb = null, rapido = null;
 export function startAutoPrint() {
   if (!desktop.on || timer) return;
   timer = setInterval(autoTick, 20000);
-  unsub = on(() => { clearTimeout(deb); deb = setTimeout(autoTick, 350); }); // en cuanto cambia un pedido (v16.3.2: antes 1,5 s)
-  // v16.3.3 · CARRIL RÁPIDO: cada 2 s una consulta mínima. Si alguien ha encargado una etiqueta desde el móvil o el portátil, el
-  // servidor la RESERVA para este PC en esa misma consulta y aquí se imprime al momento (sin sincronizar ni volver a preguntar).
+  unsub = on(() => { clearTimeout(deb); deb = setTimeout(() => { autoTick(); calentarEtiquetas(); }, 350); }); // en cuanto cambia un pedido (v16.3.2: antes 1,5 s)
+  // v16.3.3 · CARRIL RÁPIDO: una consulta mínima. Si alguien ha encargado una etiqueta desde el móvil o el portátil, el
+  // servidor se la da a este PC en esa misma consulta y aquí se imprime al momento (sin sincronizar ni volver a preguntar).
   // Si lo que cambia es un pedido (p. ej. pasa a Empaquetar), se sincroniza ya, sin esperar a los 15 s.
-  let visto = null, latiendo = false, puedo = false, tPuedo = 0;
-  rapido = setInterval(async () => {
-    if (latiendo || !S.ready || !S.me || !S.online || !autoOn() || !leader()) return;
-    latiendo = true;
+  // v18 · CARRIL DIRECTO: la consulta se queda ABIERTA (hasta 9 s) y el servidor contesta en cuanto hay algo: el PC ya no
+  // se entera «en la siguiente vuelta», se entera en el momento. Con un servidor antiguo (contesta enseguida) se pregunta
+  // cada 2 s como antes.
+  let visto = null, puedo = false, tPuedo = 0, fallos = 0;
+  const vuelta = async () => {
+    let luego = 2000;
     try {
+      if (!rapido) return;
+      if (!S.ready || !S.me || !S.online || !autoOn() || !leader()) return;
       if (Date.now() - tPuedo > (puedo ? 30000 : 4000)) { tPuedo = Date.now(); try { const L = await import('./labels.js'), t = await L.targetFor('paquete150'); puedo = !!(t && t.pr && !t.pr.offline); } catch (e) { puedo = false; } AUTO.puedo = puedo; }
-      const r = await api('sys.latido', puedo ? { imprimo: true, tipos: ['paquete', 'propia', 'oficial'], dispositivo: S.device || '', impresora: 'PC del taller' } : {}, { quiet: true, timeout: 12000 });
+      const t0 = Date.now();
+      const r = await api('sys.latido', Object.assign({ espera: ESPERA, visto: visto || '' }, puedo ? { imprimo: true, directo: true, tipos: ['paquete', 'propia', 'oficial'], dispositivo: S.device || '', impresora: 'PC del taller' } : {}), { quiet: true, timeout: ESPERA + 16000 });
+      fallos = 0;
       if (!r) return;
-      const tomadas = r.tomadas || [], v = r.i + '|' + r.p;
+      const tomadas = r.tomadas || [], v = r.i + '|' + r.p, dur = Date.now() - t0;
+      AUTO.latidos = (AUTO.latidos || 0) + 1; AUTO.abierta = dur > 2500; // ¿el servidor deja la consulta abierta? (para «Estado» y las pruebas)
+      luego = dur > 2500 ? 150 : Math.max(250, 2000 - dur);
       if (tomadas.length) {
-        AUTO.rapidas = (AUTO.rapidas || 0) + tomadas.length; AUTO.activo = true; AUTO.ultimo = Date.now();
-        tomadas.forEach(x => upsertLocal('impresiones', x.impresion)); emit();
+        AUTO.rapidas = (AUTO.rapidas || 0) + tomadas.length; AUTO.activo = true; AUTO.ultimo = Date.now(); if (r.directo) AUTO.directas = (AUTO.directas || 0) + tomadas.length;
+        tomadas.forEach(x => { if (x.directo) EN_CURSO.set(x.impresion.id, Date.now()); upsertLocal('impresiones', x.directo ? Object.assign({}, x.impresion, { estado: 'Enviando' }) : x.impresion); }); emit();
         for (const x of tomadas) {
           let o = byId('pedidos', x.impresion.pedidoId);
           if (!o) { await pull(); o = byId('pedidos', x.impresion.pedidoId); } // un pedido recién creado en otro aparato
-          if (o) await E.imprimirTomada(o, x.impresion); else api('impresiones.resultado', { id: x.impresion.id, ok: false, error: 'No encuentro el pedido en este PC' }, { quiet: true }).catch(() => { });
+          if (o) await E.imprimirTomada(o, x.impresion, !!x.directo); else api('impresiones.resultado', { id: x.impresion.id, ok: false, error: 'No encuentro el pedido en este PC', directo: !!x.directo }, { quiet: true }).catch(() => { });
         }
-        visto = null; pull().catch(() => { });
+        visto = null; luego = 100; pull().catch(() => { });
       } else { if (visto !== null && v !== visto) { AUTO.cambios = (AUTO.cambios || 0) + 1; pull().catch(() => { }); } visto = v; } // la sincronización va por su lado: esta consulta no espera a nadie
-    } catch (e) { } finally { latiendo = false; }
-  }, 2000);
+    } catch (e) { fallos++; luego = Math.min(20000, 2000 * fallos); }
+    finally { if (rapido) rapido = setTimeout(vuelta, luego); }
+  };
+  rapido = setTimeout(vuelta, 2000);
+  setTimeout(calentarEtiquetas, 9000);
   setTimeout(autoTick, 6000);
 }
-export function stopAutoPrint() { clearInterval(timer); clearInterval(rapido); rapido = null; timer = null; if (unsub) unsub(); unsub = null; }
+export function stopAutoPrint() { clearInterval(timer); clearTimeout(rapido); rapido = null; timer = null; if (unsub) unsub(); unsub = null; }
 // Reintento manual (botón «Reintentar» de Hoy): olvida los fallos y vuelve a intentarlo ya
 export function reintentar(id) { if (id) AUTO.fallos.delete(id); else AUTO.fallos.clear(); return autoTick(); }
