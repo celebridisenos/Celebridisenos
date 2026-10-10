@@ -197,3 +197,41 @@ body.suelta-3d::after { content: "⚡  Suelta aquí tu STL: te digo lo que mide,
 .r8-nums button { padding: 9px 0; border-radius: 10px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); font: 700 15px var(--font-d); cursor: pointer; }
 .r8-nums button:hover { border-color: var(--a1); } .r8-nums button.on { background: var(--grad, var(--brand)); border-color: transparent; color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--a1) 40%, transparent); }
 .r8-mias-ok { margin: 0; font-size: 13px; color: var(--text-2); } .r8-mias .r8-ojo:empty { display: none; }
+
+/* ===== v20.1 · El estreno de la 20: «Mira cómo nace» (un «20» imprimiéndose capa a capa en 3D) ===== */
+.est20 { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; color: #eef1fb; background: radial-gradient(900px 520px at 50% 45%, #141a33 0%, #04060c 72%); animation: est18ap .5s ease both; overflow: hidden; font-family: var(--font); }
+.est20-3d { position: absolute; inset: 0; pointer-events: none; }
+.est20-3d canvas { display: block; width: 100% !important; height: 100% !important; }
+.est20-inicio { position: relative; text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; transition: opacity .5s, transform .5s; }
+.est20-sello { font-family: var(--font-d); letter-spacing: .42em; font-size: 12px; color: #9aa4c7; padding-left: .42em; }
+.est20-inicio h1 { font-family: var(--font-d); font-size: clamp(34px, 6vw, 68px); font-weight: 700; letter-spacing: -.01em; margin: 0; }
+.est20-inicio h1 span, .est20-tarjeta h2 span { background: linear-gradient(115deg, #8f82ff, #f472b6 55%, #22d3ee); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.est20-inicio p { color: #aab3d1; font-size: 17px; margin: 0 0 10px; }
+.est20-play { font: 700 18px var(--font-d); letter-spacing: .08em; color: #fff; border: 0; cursor: pointer; padding: 16px 38px; border-radius: 999px; background: linear-gradient(115deg, #8f82ff, #22d3ee); box-shadow: 0 0 0 0 rgba(143, 130, 255, .55); animation: est20late 2.2s ease-in-out infinite; }
+@keyframes est20late { 50% { box-shadow: 0 0 0 16px rgba(143, 130, 255, 0); } }
+.est20-play:hover { filter: brightness(1.12); }
+.est20-saltar { background: none; border: 0; color: #7780a0; cursor: pointer; text-decoration: underline; font-size: 13px; }
+.est20-hud { position: absolute; left: 50%; bottom: 7vh; transform: translateX(-50%); width: min(440px, calc(100% - 32px)); text-align: center; opacity: 0; transition: opacity .6s; pointer-events: none; }
+.est20-capa { font-family: var(--font-d); letter-spacing: .22em; font-size: 13px; color: #c9d0ec; text-transform: uppercase; margin-bottom: 10px; }
+.est20-avance { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.est20-avance i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #8f82ff, #f472b6, #22d3ee); }
+.est20.en-marcha { background: radial-gradient(900px 520px at 50% 55%, #10162b 0%, #03050a 75%); }
+.est20.en-marcha .est20-inicio { opacity: 0; transform: scale(.94); pointer-events: none; }
+.est20.en-marcha .est20-hud { opacity: 1; }
+.est20.impreso .est20-capa { color: #fff; text-shadow: 0 0 18px rgba(244, 114, 182, .8); }
+.est20-final { position: absolute; inset: 0; display: none; place-items: center; padding: 20px; background: rgba(3, 5, 12, .55); }
+.est20.fin .est20-final { display: grid; animation: est18ap .45s ease both; }
+.est20.fin .est20-hud { opacity: 0; }
+.est20-tarjeta { position: relative; width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: rgba(12, 16, 28, .94); border: 1px solid #293150; border-radius: 24px; padding: 30px 28px 22px; text-align: center; box-shadow: 0 30px 80px rgba(0, 0, 0, .6); }
+.est20-tarjeta::before { content: ""; position: absolute; left: 30px; right: 30px; top: -1px; height: 2px; background: linear-gradient(115deg, #8f82ff, #f472b6 55%, #22d3ee); border-radius: 2px; }
+.est20-tarjeta h2 { font-family: var(--font-d); font-size: 28px; margin: 8px 0 6px; color: #eef1fb; }
+.est20-tarjeta p { color: #aab3d1; margin: 0 0 16px; }
+.est20-tarjeta p.tiny { margin: 14px 0 0; font-size: 12px; color: #7780a0; }
+.est20-nov { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 18px; text-align: left; }
+.est20-nov button { display: grid; grid-template-columns: 34px 1fr; gap: 0 10px; align-items: center; text-align: left; padding: 12px; border-radius: 14px; border: 1px solid #1f2742; background: #121728; color: #eef1fb; cursor: pointer; font: inherit; transition: border-color .2s, transform .2s; }
+.est20-nov button:hover { border-color: #8f82ff; transform: translateY(-2px); }
+.est20-nov button span { grid-row: 1 / 3; font-size: 24px; }
+.est20-nov button small { color: #8e97b8; font-size: 12px; }
+@media (max-width: 560px) { .est20-tarjeta { padding: 24px 16px 18px; } .est20-tarjeta h2 { font-size: 22px; } }
+.est20 .est20-seguir { color: #c9d0ec; background: transparent; border: 1px solid #2f3858; }
+.est20 .est20-seguir:hover { border-color: #8f82ff; color: #fff; }

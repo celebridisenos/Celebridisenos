@@ -5,6 +5,7 @@ import { aplicarColor, colorActual, dialogoColores, dialogoPlan } from './v17.js
 import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
 import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
+import { debeEstrenar20 } from './estreno20.js'; // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
 import { desktop } from './desktop.js';
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
@@ -162,6 +163,7 @@ async function route() {
     entrada(content); // v14.0: el contenido entra suave
     if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); } // v16.1
     if (!route._est && debeEstrenar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer')) estreno({ ir: go }); else route._est = false; }, 900); }
+    else if (!route._est && debeEstrenar20()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno20.js').then(m => m.estreno20({ ir: go })); else route._est = false; }, 900); } // v20.1 (la 18 va primero si no se vio)
     if (!route._inau && debeInaugurar()) { route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full')) inauguracion({ ir: go }); }, 700); }
   } catch (e) {
     console.error(e);
@@ -478,6 +480,7 @@ export function accionesPaleta() {
     fn('Sonido al entrar un pedido nuevo (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().sonido; m.guardarPrefs({ sonido: v }); if (v) m.sonar(); toast(v ? '🔔 Sonido de pedido nuevo activado' : 'Sonido de pedido nuevo apagado'); }), 'pedidos.ver', 'pedido nuevo sonido campana'),
     fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),
     fn(es18() ? 'Interfaz de antes (14)' : 'Sala de mando (interfaz 18)', 'sparkles', () => { const k = es18() ? 'nueva' : 'v18'; ponInterfaz(k); toast(k === 'v18' ? '🛰️ Sala de mando (18)' : '✨ Interfaz 14', 'ok', 2500); }, '', 'aspecto diseño antes nueva clásica interfaz sala mando noche día'),
+    fn('Ver el estreno de la 20 (el «20» imprimiéndose en 3D)', 'sparkles', () => import('./estreno20.js').then(m => m.estreno20({ ir: go })), '', 'estreno inauguración fiesta novedades cine 20 celebrir8 imprimir'),
     fn('Ver el estreno de la 18', 'sparkles', () => estreno({ ir: go }), '', 'estreno inauguración fiesta novedades cine'),
     fn('Tema oscuro / claro', 'sparkles', () => { if (es18()) return ponInterfaz('v18', document.documentElement.dataset.modo === 'noche' ? 'dia' : 'noche'); const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
     fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),

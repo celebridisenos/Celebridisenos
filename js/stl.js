@@ -40,15 +40,36 @@ function parseOBJ(txt) {
   return new Float32Array(out);
 }
 // 3MF = ZIP con XML. Leemos el ZIP a mano y descomprimimos con DecompressionStream.
+// v20: como manda el estándar: las piezas de <build> con su «transform» (colocación), las piezas hechas de componentes y los
+// componentes que están en otro archivo del 3MF (así guarda Bambu Studio sus proyectos). Sin <build>, se leen todas las
+// mallas tal cual (como antes).
 async function parse3MF(buf) {
-  const files = await unzip(buf, n => /\.model$/i.test(n));
+  const files = await unzip(buf, n => /\.model$/i.test(n)), docs = {};
+  const norm = p => String(p || '').replace(/^\//, '');
+  for (const name of Object.keys(files)) docs[norm(name)] = new DOMParser().parseFromString(new TextDecoder().decode(files[name]), 'application/xml');
+  const raiz = Object.keys(docs).find(n => /^3D\/3dmodel\.model$/i.test(n)) || Object.keys(docs)[0];
   const out = [];
-  for (const name of Object.keys(files)) {
-    const xml = new DOMParser().parseFromString(new TextDecoder().decode(files[name]), 'application/xml');
-    xml.querySelectorAll('mesh').forEach(mesh => {
-      const verts = Array.from(mesh.querySelectorAll('vertex')).map(v => [+v.getAttribute('x'), +v.getAttribute('y'), +v.getAttribute('z')]);
-      mesh.querySelectorAll('triangle').forEach(t => ['v1', 'v2', 'v3'].forEach(a => { const q = verts[+t.getAttribute(a)] || [0, 0, 0]; out.push(q[0], q[1], q[2]); }));
-    });
+  const matriz = t => { const v = String(t || '').trim().split(/\s+/).map(Number); return v.length === 12 && v.every(isFinite) ? v : null; };
+  const compone = (A, B) => { // primero A, luego B (filas 3MF: p' = p·M)
+    if (!A) return B; if (!B) return A; const M = (m, i, j) => m[i * 3 + j];
+    const r = []; for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { let x = (i === 3 ? M(B, 3, j) : 0); for (let k = 0; k < 3; k++) x += M(A, i, k) * M(B, k, j); r.push(x); } return r;
+  };
+  const objeto = (doc, id) => { for (const o of doc.getElementsByTagName('object')) if (o.getAttribute('id') === String(id)) return o; return null; };
+  const pinta = (archivo, id, T, prof) => {
+    const doc = docs[archivo]; if (!doc || prof > 8) return; const o = objeto(doc, id); if (!o) return;
+    const mesh = o.getElementsByTagName('mesh')[0];
+    if (mesh) {
+      const verts = Array.from(mesh.getElementsByTagName('vertex')).map(v => { const x = +v.getAttribute('x'), y = +v.getAttribute('y'), z = +v.getAttribute('z'); return T ? [x * T[0] + y * T[3] + z * T[6] + T[9], x * T[1] + y * T[4] + z * T[7] + T[10], x * T[2] + y * T[5] + z * T[8] + T[11]] : [x, y, z]; });
+      for (const t of mesh.getElementsByTagName('triangle')) ['v1', 'v2', 'v3'].forEach(a => { const q = verts[+t.getAttribute(a)] || [0, 0, 0]; out.push(q[0], q[1], q[2]); });
+      return;
+    }
+    for (const c of o.getElementsByTagName('component')) { const ruta = c.getAttribute('p:path') || c.getAttributeNS('http://schemas.microsoft.com/3dmanufacturing/production/2015/06', 'path'); pinta(ruta ? norm(ruta) : archivo, c.getAttribute('objectid'), compone(matriz(c.getAttribute('transform')), T), prof + 1); }
+  };
+  const items = docs[raiz] ? Array.from(docs[raiz].getElementsByTagName('item')) : [];
+  if (items.length) items.forEach(it => pinta(raiz, it.getAttribute('objectid'), matriz(it.getAttribute('transform')), 0));
+  else for (const name of Object.keys(docs)) for (const mesh of docs[name].getElementsByTagName('mesh')) {
+    const verts = Array.from(mesh.getElementsByTagName('vertex')).map(v => [+v.getAttribute('x'), +v.getAttribute('y'), +v.getAttribute('z')]);
+    for (const t of mesh.getElementsByTagName('triangle')) ['v1', 'v2', 'v3'].forEach(a => { const q = verts[+t.getAttribute(a)] || [0, 0, 0]; out.push(q[0], q[1], q[2]); });
   }
   if (!out.length) throw new Error('No he encontrado piezas dentro del 3MF.');
   return new Float32Array(out);

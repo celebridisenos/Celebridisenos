@@ -543,7 +543,7 @@ function drawCard(el) {
       h('p.small.muted', 'Cada diseño puede tener su forma: círculo, rectángulo, esquinas redondeadas u óvalo. Se usa en la vista previa, al imprimir (PC, Bluetooth), en el PDF y en la hoja A4. Las etiquetas de envío siempre son rectangulares (las pide el transportista).'),
       shapeBox, h('label.check', contorno, 'Dibujar la línea de corte de la forma (quítala si usas etiquetas ya troqueladas con esa forma)'),
       editCfg ? h('p.tiny.muted', 'Pulsa «Guardar» abajo para que la forma quede para todo el equipo.') : null),
-    h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Imprimir hojas de tarjetas'), h('div', { id: 'card-print' })),
+    h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Imprimir hojas de tarjetas'), stockTarjetas(), h('div', { id: 'card-print' })),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '📦 Qué va con cada paquete'),
       ck('paquete', 'Etiqueta del paquete con su QR (CEB-…) para escanearlo'),
       h('label.row', { style: { gap: '8px', alignItems: 'center', margin: '2px 0 8px 26px' } }, h('span.small', 'Formato:'), fmtPq), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
@@ -556,6 +556,32 @@ function drawCard(el) {
   paint();
   cardPrintBox(el.querySelector('#card-print'), () => E.universalCard(curG(), curT(), formas.tarjetas));
   labelPrinterBox(el.querySelector('#lbl-printers'));
+}
+// v20.1 · Cuántas tarjetas YA IMPRESAS quedan (suben al imprimir hojas aquí, bajan al marcar «Metida en el paquete»)
+function stockTarjetas() {
+  const box = h('div.tarj-stock');
+  const pinta = () => {
+    const q = E.tarjetasQuedan(), mover = can('stock.mover');
+    const tengo = inp({ type: 'number', min: 0, max: 5000, step: 1, value: q ? q.n : '', placeholder: 'cuéntalas', style: { width: '110px' }, 'aria-label': 'Tarjetas impresas que tengo' });
+    const aviso = inp({ type: 'number', min: 0, max: 500, step: 1, value: q && q.min !== null ? q.min : 10, style: { width: '90px' }, 'aria-label': 'Avisar cuando queden' });
+    const msg = h('span.small');
+    mount(box,
+      h('div.row.wrap', { style: { gap: '10px', alignItems: 'center' } },
+        h('span.tarj-num' + (q ? (q.n <= 0 ? '.bad-t' : q.pocas ? '.warn-t' : '') : '.muted'), q ? (q.n <= 0 ? '⛔ No te quedan tarjetas impresas' : (q.pocas ? '⚠️ ' : '📦 ') + 'Te quedan ' + q.n + ' tarjetas impresas') : '📦 Todavía no se lleva la cuenta de las tarjetas impresas'),
+        q && q.min !== null ? h('span.tiny.muted', 'Aviso cuando queden ' + q.min) : null),
+      h('p.tiny.muted', 'Suben solas al imprimir hojas desde aquí y bajan una cada vez que marcas «Metida en el paquete». Cuando quedan pocas, el programa avisa a todo el equipo. Se ven también en Inventario → Embalaje.'),
+      mover ? h('div.row.wrap', { style: { gap: '8px', alignItems: 'end' } }, field('Tengo ahora (recuento)', tengo), field('Avisar si quedan', aviso),
+        btn('Apuntar recuento', async ev => {
+          const b = ev.target.closest('button'), nv = Number(tengo.value), av = Number(aviso.value);
+          if (tengo.value === '' || !(nv >= 0)) { msg.className = 'small bad-t'; msg.textContent = 'Escribe cuántas tarjetas impresas tienes (cuéntalas: no se inventa).'; return; }
+          b.disabled = true;
+          try { await E.recuentoTarjetas(nv, av >= 0 ? av : 10); toast('Recuento guardado: ' + nv + ' tarjetas impresas', 'ok'); pinta(); }
+          catch (e) { b.disabled = false; msg.className = 'small bad-t'; msg.textContent = e.message || String(e); }
+        }, { cls: 'sm' }), msg) : h('p.tiny.muted', 'Para apuntar el recuento hace falta el permiso de mover stock.'));
+  };
+  pinta();
+  box.pinta = pinta;
+  return box;
 }
 // Imprimir hojas de tarjetas: impresora de folios/fotos, calidad máxima que dice SU controlador, papel fotográfico
 async function cardPrintBox(el, getCard) {
@@ -593,7 +619,7 @@ async function cardPrintBox(el, getCard) {
   mount(el, h('div.form', prSel ? field('Impresora', prSel) : null, h('label.field', h('span.lbl', nLbl), hojas), field('Calidad', calidad)), info,
     h('div.row', { style: { marginTop: '8px' } }, btn('🖨️ IMPRIMIR TARJETAS', async ev => {
       const b = ev.target.closest('button'); b.disabled = true;
-      try { const d = getCard(); const pn = D.desktop.on && prSel ? prSel.value : undefined; const r = esEtiqueta() ? await E.printCardLabels(d, { copias: hojas.value, printer: pn }) : await E.printCardSheets(d, { hojas: hojas.value, dpi: Number(calidad.value), printer: pn }); mount(out, h('p.small.ok-t', r.how === 'printer' ? '✓ Enviado a ' + r.printer : '✓ PDF listo')); }
+      try { const d = getCard(); const pn = D.desktop.on && prSel ? prSel.value : undefined; const r = esEtiqueta() ? await E.printCardLabels(d, { copias: hojas.value, printer: pn }) : await E.printCardSheets(d, { hojas: hojas.value, dpi: Number(calidad.value), printer: pn }); mount(out, h('p.small.ok-t', r.how === 'printer' ? '✓ Enviado a ' + r.printer : '✓ PDF listo')); const sb = el.closest('.card') && el.closest('.card').querySelector('.tarj-stock'); if (sb && sb.pinta) sb.pinta(); }
       catch (e) { toast('No se pudo imprimir: ' + e.message, 'bad', 8000); } b.disabled = false;
     }, { cls: 'primary' }),
     // v16: EXPORTAR de verdad (PDF a tamaño real o una imagen), además de imprimir

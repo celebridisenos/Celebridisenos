@@ -1,0 +1,223 @@
+// ================= v20 · 🧊 CelebriR8 · LA VISTA 3D DEL ESTUDIO =================
+// Una vista como la de Fusion o Bambu Studio: la cama de la impresora con su cuadrícula, la pieza con su COLOR y su ACABADO
+// (mate, seda, brillo, translúcido, arcoíris… y hasta las capas de impresión), las flechas para mover, girar y escalar,
+// la regla para medir y el plano del corte. Hecha con three.js (MIT, vendor/three). Z hacia arriba, en milímetros.
+import * as T from '../../vendor/three/three_r8.js';
+
+export const ACABADOS = {
+  mate: { t: 'Mate (PLA normal)', r: 0.72, m: 0 },
+  seda: { t: 'Seda (brillo metálico)', r: 0.26, m: 0.62 },
+  brillo: { t: 'Brillante (PETG)', r: 0.18, m: 0.05, cc: 0.7 },
+  transl: { t: 'Translúcido', r: 0.2, m: 0, op: 0.62 },
+  arcoiris: { t: 'Arcoíris (multicolor)', r: 0.3, m: 0.45, arco: 1 },
+  marmol: { t: 'Mármol', r: 0.55, m: 0, marmol: 1 },
+  madera: { t: 'Madera', r: 0.8, m: 0, madera: 1 }
+};
+// Colores de filamento (los de la gama básica que más se ven). El tono en pantalla es APROXIMADO.
+export const COLORES = [
+  ['#f4f4f2', 'Blanco'], ['#1b1b1d', 'Negro'], ['#8e9196', 'Gris'], ['#c8102e', 'Rojo'], ['#ff6a13', 'Naranja'], ['#f7d117', 'Amarillo'], ['#00ae42', 'Verde'], ['#7ed957', 'Verde manzana'],
+  ['#0a2989', 'Azul'], ['#00a4e4', 'Azul cielo'], ['#41c3bd', 'Turquesa'], ['#5e43b7', 'Morado'], ['#c08ee8', 'Lila'], ['#f55a9b', 'Rosa'], ['#f9c6d9', 'Rosa palo'], ['#9d6d3f', 'Marrón'],
+  ['#e9d8b4', 'Beige'], ['#c9a227', 'Dorado'], ['#b8bec4', 'Plata'], ['#b87333', 'Cobre']
+];
+const tono = hex => new T.Color(hex || '#9b8cff');
+
+function material(color, acabado, capas) {
+  const A = ACABADOS[acabado] || ACABADOS.mate;
+  const M = new T.MeshPhysicalMaterial({ color: tono(color), roughness: A.r, metalness: A.m, clearcoat: A.cc || 0, clearcoatRoughness: 0.25, side: T.FrontSide });
+  if (A.op) { M.transparent = true; M.opacity = A.op; M.depthWrite = true; }
+  if (capas || A.arco || A.marmol || A.madera) {
+    M.onBeforeCompile = sh => {
+      sh.vertexShader = 'varying vec3 vMundo;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vMundo = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      let f = '';
+      if (A.arco) f += ' { float t = vMundo.z * 0.045; diffuseColor.rgb = 0.55 + 0.45 * cos(6.2831 * (t + vec3(0.0, 0.33, 0.67))); }\n';
+      if (A.marmol) f += ' { float v = sin(vMundo.x * 0.21 + sin(vMundo.y * 0.37 + vMundo.z * 0.11) * 3.0 + sin(vMundo.z * 0.23) * 2.0); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.32), smoothstep(0.86, 1.0, abs(v)) * 0.75); }\n';
+      if (A.madera) f += ' { float v = fract(length(vMundo.xy) * 0.18 + sin(vMundo.z * 0.4) * 0.15); diffuseColor.rgb *= 0.82 + 0.18 * smoothstep(0.0, 0.5, abs(v - 0.5) * 2.0); }\n';
+      if (capas) f += ' { float l = abs(fract(vMundo.z / 0.2) - 0.5) * 2.0; diffuseColor.rgb *= 0.86 + 0.14 * smoothstep(0.0, 0.7, l); }\n';
+      sh.fragmentShader = 'varying vec3 vMundo;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n' + f);
+    };
+    M.customProgramCacheKey = () => acabado + (capas ? '+capas' : '');
+  }
+  return M;
+}
+function geometria(v) {
+  const g = new T.BufferGeometry();
+  g.setAttribute('position', new T.BufferAttribute(v.pos, 3)); g.setAttribute('normal', new T.BufferAttribute(v.nor, 3)); g.setIndex(new T.BufferAttribute(v.idx, 1));
+  if (v.col) g.setAttribute('color', new T.BufferAttribute(v.col, 3)); // v20: colores por punto (mapa de desviación)
+  g.computeBoundingBox(); g.computeBoundingSphere(); return g;
+}
+export const eulerDe = rot => new T.Euler(...(rot || [0, 0, 0]).map(x => x * Math.PI / 180), 'ZYX'); // = Manifold.rotate([x,y,z])
+
+export function crearEscena(lienzo, opts = {}) {
+  const ren = new T.WebGLRenderer({ canvas: lienzo, antialias: true, alpha: true, preserveDrawingBuffer: !!opts.foto });
+  ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); ren.outputColorSpace = T.SRGBColorSpace; ren.toneMapping = T.ACESFilmicToneMapping; ren.toneMappingExposure = 1.05;
+  ren.shadowMap.enabled = true; ren.shadowMap.type = T.PCFShadowMap; // (PCFSoft ya no existe en three r186: avisaba en cada vista)
+  const esc = new T.Scene();
+  const pm = new T.PMREMGenerator(ren); esc.environment = pm.fromScene(new T.RoomEnvironment(), 0.04).texture; pm.dispose();
+  const cam = new T.PerspectiveCamera(38, 1, 0.5, 6000); cam.up.set(0, 0, 1); cam.position.set(170, -230, 170);
+  const ctl = new T.OrbitControls(cam, lienzo); ctl.enableDamping = true; ctl.dampingFactor = 0.12; ctl.screenSpacePanning = true; ctl.target.set(0, 0, 10);
+  ctl.mouseButtons = { LEFT: T.MOUSE.ROTATE, MIDDLE: T.MOUSE.PAN, RIGHT: T.MOUSE.PAN }; ctl.zoomToCursor = true;
+  esc.add(new T.HemisphereLight(0xdfe6ff, 0x2a2238, 0.55));
+  const sol = new T.DirectionalLight(0xffffff, 1.7); sol.position.set(120, -160, 260); sol.castShadow = true; sol.shadow.mapSize.set(2048, 2048); sol.shadow.bias = -0.0004;
+  Object.assign(sol.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, near: 10, far: 900 }); esc.add(sol); esc.add(sol.target);
+  const rel = new T.DirectionalLight(0xa9b8ff, 0.45); rel.position.set(-200, 160, 90); esc.add(rel);
+
+  let raf = 0, vivo = true, alDibujar = null; // (antes que nada: pintaCama() ya pide dibujar)
+  // ---- la cama ----
+  const cama = new T.Group(); esc.add(cama); let lado = opts.cama || 256;
+  function pintaCama() {
+    cama.clear();
+    const base = new T.Mesh(new T.PlaneGeometry(lado, lado), new T.MeshStandardMaterial({ color: opts.dia ? 0xe9ecf4 : 0x151a2e, roughness: 0.92, metalness: 0 }));
+    base.receiveShadow = true; base.position.z = -0.05; cama.add(base);
+    const fina = [], gorda = [];
+    for (let v = -lado / 2; v <= lado / 2 + 0.01; v += 10) { const L = Math.abs(Math.round(v) % 50) === 0 ? gorda : fina; L.push(v, -lado / 2, 0, v, lado / 2, 0, -lado / 2, v, 0, lado / 2, v, 0); }
+    const lin = (a, c, o) => { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(a, 3)); const l = new T.LineSegments(g, new T.LineBasicMaterial({ color: c, transparent: true, opacity: o })); l.position.z = 0.02; cama.add(l); };
+    lin(fina, opts.dia ? 0x9aa3bd : 0x2c3558, 0.55); lin(gorda, opts.dia ? 0x6d7798 : 0x45507e, 0.9);
+    const borde = []; [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]].forEach(([a, b], i, L) => { if (i) borde.push(L[i - 1][0] * lado / 2, L[i - 1][1] * lado / 2, 0, a * lado / 2, b * lado / 2, 0); }); lin(borde, 0x7c6cff, 1);
+    // ejes: X rojo, Y verde
+    lin([0, 0, 0.05, 30, 0, 0.05], 0xff4d6d, 1); lin([0, 0, 0.05, 0, 30, 0.05], 0x3ddc84, 1);
+    pide();
+  }
+  pintaCama();
+
+  const partes = new T.Group(), huecos = new T.Group(), marca = new T.Group(), extra = new T.Group(); esc.add(partes, huecos, marca, extra);
+  const proxies = new T.Group(); // no se dibujan: sirven para saber qué cuerpo tocas
+  let capas = false;
+  const tira = g => g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) [].concat(o.material).forEach(m => m.dispose()); });
+  // partes = [{ id, vista, color, acabado }]  · huecos = [{ id, vista }] (cristal rojo, como en Tinkercad)
+  function ponPartes(L, H = []) {
+    tira(partes); partes.clear(); tira(huecos); huecos.clear();
+    L.forEach(p => { const m = new T.Mesh(geometria(p.vista), p.resalta ? new T.MeshBasicMaterial({ color: tono(p.color), transparent: true, opacity: 0.8, depthTest: false }) : p.fantasma ? new T.MeshStandardMaterial({ color: tono(p.color), transparent: true, opacity: 0.22, depthWrite: false, roughness: 0.6 }) : p.vista.col ? new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0 }) : material(p.color, p.acabado, capas)); if (p.resalta) m.renderOrder = 7; else m.castShadow = m.receiveShadow = true; m.userData.id = p.id; partes.add(m); });
+    H.forEach(p => {
+      const g = geometria(p.vista), m = new T.Mesh(g, new T.MeshStandardMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.22, depthWrite: false, roughness: 0.4 })); m.userData.id = p.id; huecos.add(m);
+      huecos.add(new T.LineSegments(new T.EdgesGeometry(g, 30), new T.LineBasicMaterial({ color: 0xff7a8f, transparent: true, opacity: 0.7 })));
+    });
+    pide();
+  }
+  // proxies = [{ id, vista (en su sitio local), matriz (T.Matrix4) }]
+  function ponProxies(L) {
+    tira(proxies); proxies.clear();
+    L.forEach(p => { const m = new T.Mesh(geometria(p.vista), new T.MeshBasicMaterial({ side: T.DoubleSide })); m.matrixAutoUpdate = false; m.matrix.copy(p.matriz); m.userData.id = p.id; proxies.add(m); });
+    proxies.updateMatrixWorld(true);
+  }
+  const matrizDe = t => { const m = new T.Matrix4(); m.compose(new T.Vector3(...(t.pos || [0, 0, 0])), new T.Quaternion().setFromEuler(eulerDe(t.rot)), new T.Vector3(...(t.esc || [1, 1, 1]))); return m; };
+  function moverProxy(id, t) { proxies.children.forEach(m => { if (m.userData.id === id) { m.matrix.copy(matrizDe(t)); } }); proxies.updateMatrixWorld(true); marca.children.forEach(o => { if (o.userData.id === id) { o.matrix.copy(matrizDe(t)); } }); pide(); }
+
+  // ---- selección: el contorno del cuerpo elegido ----
+  function marcar(L) { // [{ id, vista, t }]
+    tira(marca); marca.clear();
+    L.forEach(s => { const e = new T.LineSegments(new T.EdgesGeometry(geometria(s.vista), 28), new T.LineBasicMaterial({ color: 0x5ce1ff, depthTest: false, transparent: true, opacity: 0.95 })); e.renderOrder = 5; e.matrixAutoUpdate = false; e.matrix.copy(matrizDe(s.t)); e.userData.id = s.id; marca.add(e); });
+    pide();
+  }
+
+  // ---- flechas (mover · girar · escalar) ----
+  const manija = new T.Object3D(); esc.add(manija);
+  const tc = new T.TransformControls(cam, lienzo); tc.setSpace('local'); tc.setTranslationSnap(1); tc.setRotationSnap(T.MathUtils.degToRad(15)); tc.setScaleSnap(0.05); tc.setSize(0.9);
+  const ayudante = tc.getHelper ? tc.getHelper() : tc; esc.add(ayudante);
+  let alMover = null, alSoltar = null, arrastrando = false;
+  tc.addEventListener('dragging-changed', e => { ctl.enabled = !e.value; arrastrando = e.value; if (!e.value && alSoltar) alSoltar(leeManija()); });
+  tc.addEventListener('objectChange', () => { if (alMover) alMover(leeManija()); });
+  tc.addEventListener('change', pide);
+  const r1 = x => Math.round(x * 1000) / 1000;
+  function leeManija() { const e = new T.Euler().setFromQuaternion(manija.quaternion, 'ZYX'); return { pos: manija.position.toArray().map(r1), rot: [e.x, e.y, e.z].map(a => r1(T.MathUtils.radToDeg(a))), esc: manija.scale.toArray().map(r1) }; }
+  function flechas(modo, t, mover, soltar) {
+    alMover = mover; alSoltar = soltar;
+    if (!modo || !t) { tc.detach(); pide(); return; }
+    manija.position.set(...(t.pos || [0, 0, 0])); manija.quaternion.setFromEuler(eulerDe(t.rot)); manija.scale.set(...(t.esc || [1, 1, 1]));
+    tc.setMode({ mover: 'translate', girar: 'rotate', escalar: 'scale' }[modo] || 'translate'); tc.setSpace(modo === 'mover' ? 'world' : 'local'); tc.attach(manija); pide();
+  }
+  const fino = on => { tc.setTranslationSnap(on ? 0.1 : 1); tc.setRotationSnap(T.MathUtils.degToRad(on ? 1 : 15)); };
+
+  // ---- tocar: qué cuerpo y qué punto ----
+  const ray = new T.Raycaster(), nd = new T.Vector2();
+  const aNdc = e => { const r = lienzo.getBoundingClientRect(); nd.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(nd, cam); };
+  function cuerpoEn(e) { aNdc(e); const h = ray.intersectObjects(proxies.children, false)[0]; return h ? h.object.userData.id : null; }
+  function puntoEn(e) {
+    aNdc(e); const h = ray.intersectObjects(partes.children.concat(huecos.children.filter(o => o.isMesh)), false)[0]; if (!h) return null;
+    // se pega a la esquina más cercana si está a menos de 1,5 mm
+    let p = h.point.clone(); const g = h.object.geometry, P = g.attributes.position, f = h.face; let mejor = null, md = 1.5;
+    [f.a, f.b, f.c].forEach(i => { const v = new T.Vector3().fromBufferAttribute(P, i); const d = v.distanceTo(p); if (d < md) { md = d; mejor = v; } }); if (mejor) p = mejor;
+    const n = f.normal.clone(); return { p: p.toArray(), n: n.toArray(), esquina: !!mejor };
+  }
+  // ---- regla de medir ----
+  let regla = null; const etiquetas = [];
+  function medida(a, b) {
+    if (regla) { tira(regla); extra.remove(regla); regla = null; }
+    if (!a) { pide(); return; }
+    regla = new T.Group(); const bola = q => { const s = new T.Mesh(new T.SphereGeometry(1.2, 16, 12), new T.MeshBasicMaterial({ color: 0xffd23f, depthTest: false })); s.position.set(...q); s.renderOrder = 9; regla.add(s); };
+    bola(a); if (b) { bola(b); const g = new T.BufferGeometry().setFromPoints([new T.Vector3(...a), new T.Vector3(...b)]); const l = new T.Line(g, new T.LineBasicMaterial({ color: 0xffd23f, depthTest: false })); l.renderOrder = 9; regla.add(l); }
+    extra.add(regla); pide();
+  }
+  // ---- plano del corte y sitios de los conectores ----
+  let plano = null;
+  function planoCorte(o) { // { normal, punto, tam, sitios: [[x,y,z]], d }
+    if (plano) { tira(plano); extra.remove(plano); plano = null; }
+    if (!o) { pide(); return; }
+    plano = new T.Group(); const n = new T.Vector3(...o.normal).normalize();
+    const m = new T.Mesh(new T.PlaneGeometry(o.tam, o.tam), new T.MeshBasicMaterial({ color: 0x29d3ff, transparent: true, opacity: 0.18, side: T.DoubleSide, depthWrite: false }));
+    m.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), n); m.position.set(...o.punto); plano.add(m);
+    const borde = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(o.tam, o.tam)), new T.LineBasicMaterial({ color: 0x29d3ff })); borde.quaternion.copy(m.quaternion); borde.position.copy(m.position); plano.add(borde);
+    (o.sitios || []).forEach(q => { const c = new T.Mesh(new T.CylinderGeometry(o.d / 2, o.d / 2, 1.2, 24), new T.MeshBasicMaterial({ color: 0xffd23f, depthTest: false })); c.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), n); c.position.set(...q); c.renderOrder = 8; plano.add(c); });
+    extra.add(plano); pide();
+  }
+
+  // ---- marcadores (p. ej. las zonas de pared fina, en rojo) ----
+  let marcas = null;
+  function marcadores(L, color = 0xff3b5c, r = 1.6) {
+    if (marcas) { tira(marcas); extra.remove(marcas); marcas = null; }
+    if (!L || !L.length) { pide(); return; }
+    marcas = new T.Group(); const g = new T.SphereGeometry(1, 14, 10), mt = new T.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.85 });
+    L.forEach(q => { const s = new T.Mesh(g, mt); s.position.set(...q.p); s.scale.setScalar(q.r || r); s.renderOrder = 9; marcas.add(s); });
+    extra.add(marcas); pide();
+  }
+  // ---- cámara ----
+  function encuadrar(dir) {
+    const b = new T.Box3(); partes.children.forEach(m => b.expandByObject(m)); huecos.children.forEach(m => b.expandByObject(m));
+    if (b.isEmpty()) b.set(new T.Vector3(-40, -40, 0), new T.Vector3(40, 40, 40));
+    const c = b.getCenter(new T.Vector3()), r = Math.max(20, b.getSize(new T.Vector3()).length() / 2);
+    const d = { iso: [0.62, -0.95, 0.72], frente: [0, -1, 0.0001], arriba: [0, -0.0001, 1], derecha: [1, 0, 0.0001], izquierda: [-1, 0, 0.0001], detras: [0, 1, 0.0001] }[dir] || null;
+    const v = d ? new T.Vector3(...d).normalize() : cam.position.clone().sub(ctl.target).normalize();
+    const dist = r / Math.sin(T.MathUtils.degToRad(cam.fov / 2)) * 1.08;
+    cam.position.copy(c.clone().add(v.multiplyScalar(dist))); ctl.target.copy(c); cam.near = Math.max(0.1, dist / 200); cam.far = dist * 40; cam.updateProjectionMatrix(); ctl.update(); pide();
+  }
+
+  // ---- dibujar (solo cuando hace falta) ----
+  function pide() { if (!raf && vivo) raf = requestAnimationFrame(dibuja); }
+  function dibuja() {
+    raf = 0; if (!vivo) return;
+    const w = lienzo.clientWidth || 300, h = lienzo.clientHeight || 200;
+    if (lienzo.width !== Math.round(w * ren.getPixelRatio()) || lienzo.height !== Math.round(h * ren.getPixelRatio())) { ren.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+    const mov = ctl.update(); ren.render(esc, cam); if (alDibujar) alDibujar(); if (mov) pide();
+  }
+  ctl.addEventListener('change', pide);
+  const ro = window.ResizeObserver ? new ResizeObserver(pide) : null; if (ro) ro.observe(lienzo);
+  // de un punto del mundo a la pantalla (para las etiquetas de las medidas)
+  function aPantalla(q) { const v = new T.Vector3(...q).project(cam), r = lienzo.getBoundingClientRect(); return { x: (v.x + 1) / 2 * r.width, y: (1 - v.y) / 2 * r.height, delante: v.z < 1 }; }
+  function foto(tipo = 'image/png', q) { ren.render(esc, cam); return lienzo.toDataURL(tipo, q); }
+
+  dibuja();
+  return {
+    T, esc, cam, ctl, ponPartes, ponProxies, moverProxy, marcar, flechas, fino, cuerpoEn, puntoEn, medida, planoCorte, marcadores, encuadrar, aPantalla, foto, pide,
+    get arrastrando() { return arrastrando; },
+    set alDibujar(f) { alDibujar = f; },
+    capas(on) { capas = !!on; }, cama(l) { lado = l; pintaCama(); },
+    destruir() { vivo = false; cancelAnimationFrame(raf); if (ro) ro.disconnect(); tc.detach(); tc.dispose(); ctl.dispose(); tira(esc); ren.dispose(); try { ren.forceContextLoss(); } catch (e) { } }
+  };
+}
+
+// Una miniatura de una pieza (para el catálogo): un renderizador compartido fuera de la pantalla
+let mini = null;
+export function miniatura(vista, color = '#7c6cff', acabado = 'mate', tam = 320, dir = [0.62, -0.95, 0.66]) { // v20: dir = desde dónde se mira (frente [0,-1,0.15], lado, espalda…)
+  if (!mini) {
+    const c = document.createElement('canvas'); c.width = c.height = tam;
+    const ren = new T.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true }); ren.outputColorSpace = T.SRGBColorSpace; ren.toneMapping = T.ACESFilmicToneMapping;
+    const esc = new T.Scene(), pm = new T.PMREMGenerator(ren); esc.environment = pm.fromScene(new T.RoomEnvironment(), 0.04).texture; pm.dispose();
+    esc.add(new T.HemisphereLight(0xffffff, 0x333344, 0.6)); const s = new T.DirectionalLight(0xffffff, 1.6); s.position.set(1, -1.4, 2); esc.add(s);
+    const cam = new T.PerspectiveCamera(30, 1, 0.1, 5000); cam.up.set(0, 0, 1); mini = { c, ren, esc, cam };
+  }
+  const { ren, esc, cam } = mini; ren.setSize(tam, tam, false);
+  const m = new T.Mesh(geometria(vista), material(color, acabado, false)); esc.add(m);
+  const b = new T.Box3().setFromObject(m), c = b.getCenter(new T.Vector3()), r = Math.max(1, b.getSize(new T.Vector3()).length() / 2);
+  const d = r / Math.sin(T.MathUtils.degToRad(15)) * 1.02; cam.position.copy(c.clone().add(new T.Vector3(...dir).normalize().multiplyScalar(d))); cam.near = d / 50; cam.far = d * 10; cam.lookAt(c); cam.updateProjectionMatrix();
+  ren.setClearColor(0x000000, 0); ren.render(esc, cam); const url = mini.c.toDataURL('image/png');
+  esc.remove(m); m.geometry.dispose(); m.material.dispose(); return url;
+}

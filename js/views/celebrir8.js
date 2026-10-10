@@ -20,10 +20,10 @@ const opsEncaje = () => [['justo', 'Justo: encaja (' + cm2(ENCAJES.justo) + ' mm
 const encaje = (t = 'Encaje', v = 'justo') => Object.assign(sel('encaje', t, v, opsEncaje()), { enc: 1 }); // enc: las opciones se pintan con TUS holguras de ahora
 // las holguras medidas con la «Prueba de holgura» se recuerdan en este aparato
 try { ponEncajes(JSON.parse(localStorage.getItem('cd.r8.encajes') || 'null')); } catch (e) { }
-const MOTIVO = [sel('motivo', 'Lleva…', 'nombre', [['nombre', 'Un nombre grabado'], ['figura', 'Una figura grabada'], ['liso', 'Nada (liso)']]), { k: 'texto', t: 'Nombre o figura', v: '', txt: 1, ayuda: 'Un nombre, o una figura: ❤ ★ 🏍 🚗 🐾' }, { k: 'mask', t: 'O una imagen tuya (para la figura)', img: 1 }, sel('fuente', 'Letra', 'gorda', FU)];
+const MOTIVO = [sel('motivo', 'Lleva…', 'nombre', [['nombre', 'Un nombre grabado'], ['figura', 'Una figura grabada'], ['liso', 'Nada (liso)']]), { k: 'texto', t: 'Nombre o figura', v: '', txt: 1, ayuda: 'Un nombre, o una figura: ❤ ★ 🐱 🦋 🐾' }, { k: 'mask', t: 'O una imagen tuya (para la figura)', img: 1 }, sel('fuente', 'Letra', 'gorda', FU)];
 // Los apartados de arriba: qué plantillas enseña cada uno
-export const GRUPOS = [['', 'Todas'], ['regalo', '🎁 Regalos'], ['coche', '🚗 Coche'], ['moto', '🏍️ Moto'], ['repuesto', '🔧 Repuestos'], ['movil', '📱 Móvil']];
-const EN = { regalo: ['matricula', 'ficha', 'colgante', 'pata', 'posavasos', 'nombre', 'funda', 'figura', 'molde', 'cortador'], coche: ['matricula', 'posavasos', 'colgante', 'ficha', 'clip', 'gancho', 'tapon', 'arandela', 'pletina'], moto: ['matricula', 'pata', 'colgante', 'clip', 'tapon', 'arandela', 'pletina'], repuesto: ['engranaje', 'arandela', 'tapon', 'pomo', 'pletina', 'gancho', 'clip', 'caja', 'holgura', 'editar'], movil: ['funda'] };
+export const GRUPOS = [['', 'Todas'], ['regalo', '🎁 Regalos'], ['repuesto', '🔧 Repuestos']]; // v20: las fundas tienen su taller (pestaña 📱 Fundas) // v20: fuera «Coche» y «Moto» (la dueña: «quítalos, pon cosas que se vendan»)
+const EN = { regalo: ['ficha', 'colgante', 'nombre', 'figura', 'molde', 'cortador'], repuesto: ['engranaje', 'arandela', 'tapon', 'pomo', 'pletina', 'gancho', 'clip', 'caja', 'holgura', 'editar'], movil: ['funda'] };
 const FO = [['silueta', 'Con la forma de las letras'], ['placa', 'Placa redondeada']].concat(Object.entries(FORMAS).map(([k, f]) => [k, f.t]));
 const FIG = [{ k: 'texto', t: 'Figura (letra, palabra o emoji)', v: '❤', txt: 1, ayuda: 'Escribe una letra, una palabra o pega un emoji: ❤ ★ 🐱 🦋' }, { k: 'mask', t: 'O una imagen tuya (silueta)', img: 1 }, sel('fuente', 'Letra', 'gorda', FU)];
 export const HERRAMIENTAS = {
@@ -38,16 +38,10 @@ export const HERRAMIENTAS = {
     nota: p => (p.modelo === 'otro' ? 'Medidas puestas a mano. ' : 'Alto, ancho y grosor: las medidas oficiales del ' + p.modelo + '. ') + 'La ventana de la cámara, las aberturas y el redondeo son ESTIMADOS y van amplios: imprime primero la «prueba rápida» y pon el móvil encima; si algo no coincide, muévelo aquí y listo.',
     // al elegir el móvil se ponen sus medidas; al elegir el material, su holgura, su labio y su pared
     alCambiar(k, v) { if (k === 'modelo') { const m = movil(v.modelo); if (m) Object.assign(v, { alto: m.alto, ancho: m.ancho, grosor: m.grosor, camara: m.camara, camAncho: m.camAncho, camAlto: m.camAlto, radio: m.radio }); return !!m; } if (k === 'material') { Object.assign(v, MATERIAL[v.material] || {}); return true; } return false; } },
-  matricula: { e: '🪪', t: 'Llavero matrícula', d: 'De coche o de moto', c: [{ k: 'texto', t: 'Matrícula o nombre', v: '1234 ABC', txt: 1, ayuda: 'Tu matrícula, o un nombre corto.' }, sel('tipo', 'Forma', 'coche', [['coche', 'De coche (alargada)'], ['moto', 'De moto (en dos líneas)']]), num('ancho', 'Ancho', 70, 35, 160), { k: 'banda', t: 'Con la banda de la izquierda', v: true, chk: 1 }, { k: 'anilla', t: 'Con agujero para la anilla', v: true, chk: 1 }, num('base', 'Grosor de la base', 2, 1.2, 6, 0.2), num('saliente', 'Relieve', 0.8, 0.4, 3, 0.2)],
-    nombre: p => 'matricula_' + p.texto, nota: p => 'El marco, la banda y las letras van en relieve. Si en el laminador pones un cambio de color a los ' + String(p.base).replace('.', ',') + ' mm, salen en otro color (por ejemplo, negro sobre blanco).', alCambiar(k, v) { if (k === 'tipo') { v.ancho = v.tipo === 'moto' ? 46 : 70; return true; } return false; } },
   ficha: { e: '🪙', t: 'Ficha del carro', d: 'Moneda con tu nombre', c: [sel('moneda', 'Como la moneda de…', '1', [['1', '1 € (23,25 mm de diámetro, 2,33 de grosor)'], ['2', '2 € (25,75 mm de diámetro, 2,20 de grosor)']]), { k: 'texto', t: 'Nombre en el mango', v: 'Ana', txt: 1, ayuda: 'Vacío = sin nombre.' }, sel('fuente', 'Letra', 'gorda', FU)],
     nombre: p => 'ficha_carro_' + (p.texto || 'lisa'), nota: () => 'La parte redonda mide exactamente lo que la moneda (medidas oficiales del euro). El mango lleva el agujero para el llavero.' },
-  colgante: { e: '🧷', t: 'Colgante', d: 'Retrovisor o llaves', c: [{ k: 'figura', t: 'Figura', v: '🏍', txt: 1, ayuda: 'Un emoji o una letra: 🏍 🚗 ❤ ★ 🐾 ⚽' }, { k: 'mask', t: 'O una imagen tuya (silueta)', img: 1 }, { k: 'texto', t: 'Nombre debajo', v: 'Leo', txt: 1, ayuda: 'Vacío = solo la figura.' }, sel('fuente', 'Letra', 'gorda', FU), num('ancho', 'Ancho', 55, 25, 150), num('base', 'Grosor de la base', 2.4, 1.2, 6, 0.2), num('saliente', 'Relieve', 1.2, 0.4, 4, 0.2)],
+  colgante: { e: '🧷', t: 'Colgante', d: 'Para llaves o el bolso', c: [{ k: 'figura', t: 'Figura', v: '🦋', txt: 1, ayuda: 'Un emoji o una letra: 🦋 ❤ ★ 🐾 ⚽ 🌙' }, { k: 'mask', t: 'O una imagen tuya (silueta)', img: 1 }, { k: 'texto', t: 'Nombre debajo', v: 'Leo', txt: 1, ayuda: 'Vacío = solo la figura.' }, sel('fuente', 'Letra', 'gorda', FU), num('ancho', 'Ancho', 55, 25, 150), num('base', 'Grosor de la base', 2.4, 1.2, 6, 0.2), num('saliente', 'Relieve', 1.2, 0.4, 4, 0.2)],
     nombre: p => 'colgante_' + (p.texto || 'figura'), nota: () => 'La figura y el nombre van en relieve sobre una base que los une: sale de una pieza, con su anilla arriba.' },
-  pata: { e: '🏍️', t: 'Base pata de cabra', d: 'Para que la moto no se hunda', c: [sel('forma', 'Forma', 'redonda', [['redonda', 'Redonda'], ['hexagono', 'Hexágono'], ['escudo', 'Escudo'], ['corazon', 'Corazón']]), num('ancho', 'Ancho', 80, 50, 140), num('grosor', 'Grosor', 5, 3, 12, 0.5)].concat(MOTIVO, [num('hondo', 'Profundidad del grabado', 1.2, 0.4, 3, 0.2), { k: 'cordon', t: 'Con agujero para un cordón', v: true, chk: 1 }]),
-    nombre: p => 'base_pata_' + (p.motivo === 'liso' ? 'lisa' : p.texto || p.motivo), nota: () => 'Va a aguantar el peso de la moto: imprímela con mucho relleno (60 % o más) y 4 paredes. Mejor en PETG que en PLA si va a estar al sol.' },
-  posavasos: { e: '🥤', t: 'Posavasos de coche', d: 'A la medida del hueco', c: [num('diametro', 'Diámetro del hueco del coche', 70, 40, 110, 0.5), num('grosor', 'Grosor', 4, 2, 10, 0.5)].concat(MOTIVO, [{ k: 'borde', t: 'Con borde que sujeta el vaso', v: true, chk: 1 }, { k: 'muesca', t: 'Con muesca para sacarlo con el dedo', v: true, chk: 1 }, encaje('Holgura para que entre y salga', 'gira')]),
-    nombre: p => 'posavasos_coche_' + p.diametro, nota: () => 'Mide el hueco con un calibre (o una regla, de lado a lado). En TPU no resbala ni hace ruido.' },
   caja: { e: '📦', t: 'Caja', d: 'Con tapa que encaja', c: [num('x', 'Ancho', 80, 12, 250), num('y', 'Largo', 60, 12, 250), num('z', 'Alto', 40, 4, 250), num('pared', 'Grosor de la pared', 1.6, 0.8, 5, 0.2), num('radio', 'Esquinas redondeadas', 6, 0, 40, 0.5), { k: 'tapa', t: 'Con tapa', v: true, chk: 1 }, encaje('Encaje de la tapa')], nombre: p => 'caja_' + p.x + 'x' + p.y + 'x' + p.z },
   nombre: { e: '🏷️', t: 'Nombre', d: 'Llavero o placa', c: [{ k: 'texto', t: 'Nombre o frase', v: 'Lucía', txt: 1 }, sel('fuente', 'Letra', 'gorda', FU), num('alto', 'Altura de las letras', 14, 5, 80), sel('estilo', 'Forma', 'silueta', FO), sel('relieve', 'Las letras', 'alto', [['alto', 'En relieve'], ['grabado', 'Grabadas (en placa o figura)']]), { k: 'anilla', t: 'Con agujero para la anilla', v: true, chk: 1 }, num('base', 'Grosor de la base', 2.4, 1.2, 8, 0.2), num('saliente', 'Relieve de las letras', 1.2, 0.4, 5, 0.2)], nombre: p => 'nombre_' + p.texto },
   engranaje: { e: '⚙️', t: 'Engranaje', d: 'Dientes de verdad', c: [num('dientes', 'Dientes', 20, 6, 100, 1, ''), num('modulo', 'Tamaño del diente (módulo)', 2, 0.5, 6, 0.25, ''), num('grosor', 'Grosor', 8, 1, 60), num('eje', 'Agujero del eje (diámetro del eje)', 5, 0, 60, 0.5), encaje('Encaje en el eje')], nombre: p => 'engranaje_' + p.dientes + 'd_m' + p.modulo, nota: p => 'Diámetro total: ' + (Math.round(p.modulo * (Number(p.dientes) + 2) * 10) / 10).toLocaleString('es-ES') + ' mm. Dos engranajes encajan si tienen el mismo módulo; entre ejes: (dientes A + dientes B) × módulo ÷ 2.' },
@@ -65,7 +59,7 @@ export const HERRAMIENTAS = {
   editar: { e: '✏️', t: 'Editar un STL', d: 'Nombre, corte y tamaño', c: [num('escala', 'Tamaño', 100, 10, 400, 5, '%'), sel('modo', 'Cortar', 'entera', [['entera', 'No cortar'], ['partir', 'Partir en dos con pasadores (encaje automático)'], ['abajo', 'Quedarme solo con una parte']]), sel('eje', 'El corte va…', 'z', [['z', 'Tumbado (a una altura)'], ['x', 'De pie, de lado a lado'], ['y', 'De pie, de delante atrás']]), num('corte', '¿A cuántos mm?', 10, 0.5, 250, 0.5), num('pasadores', 'Pasadores', 2, 0, 4, 1, ''), num('diam', 'Diámetro del pasador', 4, 2, 12, 0.5), encaje('Encaje de los pasadores'), { k: 'texto', t: 'Nombre o texto que le pongo', v: '', txt: 1, ayuda: 'Déjalo vacío si no quieres texto.' }, sel('fuente', 'Letra', 'gorda', FU), num('alto', 'Altura de las letras', 8, 2, 80, 0.5), num('saliente', 'Relieve de las letras', 1, 0.3, 6, 0.1), sel('cara', '¿Dónde va?', 'arriba', [['arriba', 'Encima de la pieza'], ['frente', 'En la cara de delante']]), num('dx', 'Mover a los lados', 0, -150, 150, 0.5), num('dy', 'Mover adelante / arriba', 0, -150, 150, 0.5), { k: 'tapar', t: 'Tapar el nombre que tenía con una plaquita', v: false, chk: 1 }, num('parche', 'Grosor de la plaquita', 1.2, 0.4, 6, 0.2)], nombre: (p, E) => String(E.archivo || 'pieza').replace(/\.[^.]+$/, '') + '_editado' }
 };
 // lo último que estabas haciendo se conserva al cambiar de pantalla y volver
-const E = { k: 'caja', v: {}, base: null, archivo: '', g: '' };
+const E = { k: 'caja', v: {}, base: null, archivo: '', g: '' }; // (si alguien tenía la funda abierta, vuelve a la caja)
 const valores = k => (E.v[k] = E.v[k] || Object.fromEntries(HERRAMIENTAS[k].c.map(c => [c.k, c.img ? null : c.v])));
 
 // Una imagen → su silueta (lo que no es transparente; si la imagen no tiene transparencia, lo oscuro)
@@ -78,7 +72,7 @@ export function silueta(img) {
   g.putImageData(I, 0, 0); return c;
 }
 
-export function render(el) {
+export function renderPlantillas(el) {
   const cv0 = () => h('canvas.r8-cv', { 'aria-label': 'La pieza en 3D: arrastra para girarla' });
   let cv = cv0(), visor = null, pos = null, info = null, tic = 0;
   const grupos = h('div.r8-grupos'), tipos = h('div.r8-tipos'), panel = h('div.r8-campos'), datos = h('div.r8-datos'), aviso = h('div.r8-aviso'), chips = h('div.r8-chips'), hueco = h('div.r8-hueco');
@@ -90,7 +84,6 @@ export function render(el) {
   const pedir = t => { if (t !== undefined) frase.value = t; const r = entiende(frase.value); mount(entendido, r.error ? h('span.r8-no', '🤔 ' + r.error) : [h('b', '✨ He entendido: '), r.dicho]); if (r.error) return; E.k = r.k; { const H = HERRAMIENTAS[r.k], v = valores(r.k); Object.assign(v, r.v); if (H.alCambiar) Object.keys(r.v).forEach(c => H.alCambiar(c, v)); } pintaTipos(); monta(); genera(0); window.__r8dicho = r; };
   const pide = h('div.card.r8-pide', h('div.r8-pide-f', h('span', '✨'), frase, btn('Crear', () => pedir(), { cls: 'primary r8-crear' })), h('div.r8-ej', h('small', 'Por ejemplo:'), EJEMPLOS.slice(0, 4).map(x => h('button', { type: 'button', onclick: () => pedir(x) }, x))), entendido, h('small.muted', 'Lo entiende el propio programa, sin internet. Lo que no digas se queda con la medida de siempre, y lo ajustas a la derecha.'));
   el.appendChild(h('div.r8', elegir,
-    h('div.page-head', h('div', h('h1', '🧊 CelebriR8'), h('div.muted', 'Diseña piezas sin saber de 3D: elige una plantilla, mueve las medidas y descarga el STL.'))),
     pide, grupos, tipos, h('div.r8-g', escena, h('div.card.r8-panel', panel, aviso, datos, acciones))));
 
   const nombre = () => String(HERRAMIENTAS[E.k].nombre(valores(E.k), E) || 'pieza').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'pieza';
@@ -101,7 +94,7 @@ export function render(el) {
   }
   function pintaTipos() {
     mount(grupos, GRUPOS.map(([g, t]) => h('button.r8-grupo' + (E.g === g ? '.on' : ''), { type: 'button', 'data-g': g, 'aria-pressed': String(E.g === g), onclick: () => { E.g = g; pintaTipos(); } }, t)));
-    const lista = E.g && EN[E.g] ? EN[E.g].map(k => [k, HERRAMIENTAS[k]]) : Object.entries(HERRAMIENTAS);
+    const lista = (E.g && EN[E.g] ? EN[E.g].map(k => [k, HERRAMIENTAS[k]]) : Object.entries(HERRAMIENTAS)).filter(([k]) => k !== 'funda'); // v20: la funda vive en su taller
     mount(tipos, lista.map(([k, H]) => h('button.r8-tipo' + (k === E.k ? '.on' : ''), { type: 'button', 'data-k': k, title: H.d, 'aria-pressed': String(k === E.k), onclick: () => { E.k = k; pintaTipos(); monta(); genera(0); } }, h('span', H.e), h('b', H.t), h('small', H.d))));
   }
   function monta() {
@@ -166,4 +159,81 @@ export function render(el) {
   pintaTipos(); monta(); hacer();
   window.__r8abrir = abrir;
   return { destroy: () => { clearTimeout(tic); try { visor && visor.destroy(); } catch (e) { } delete window.__r8; delete window.__r8abrir; } };
+}
+
+// ================= v20 · 🧊 CelebriR8 · EL MARCO (pestañas por tareas, modo taller, ayuda y barra de estado) =================
+// Las pestañas van por lo que quieres HACER: CREAR (Estudio, Catálogo, Foto → 3D, Smart Lab, Precision Lab, Fundas,
+// Plantillas) · MEJORAR (Blender Workshop) · IMPRIMIR (Print Doctor). En el PC, CelebriR8 ocupa la pantalla entera
+// («modo taller»: el menú del negocio se esconde y vuelve con «← Negocio»). Abajo, la barra de estado dice qué se está
+// haciendo y qué hay en este PC (tarjeta gráfica, Blender, motores). Se recuerda la última pestaña.
+const PESTANAS = [
+  ['inicio', '🏠', 'Inicio', 'Empieza aquí', ''],
+  ['estudio', '🧰', 'Estudio', 'Diseña como en Fusion', 'CREAR'], ['catalogo', '🛍️', 'Catálogo', 'Diseños listos', 'CREAR'], ['foto', '🪄', 'Foto → 3D', 'Con IA', 'CREAR'],
+  ['lab', '🧪', 'Smart Lab', 'El mejor motor, solo', 'CREAR'], ['precision', '📏', 'Precisión', 'Repuestos a medida', 'CREAR'], ['fundas', '📱', 'Fundas', 'Tu móvil, mil estilos', 'CREAR'], ['plantillas', '📐', 'Plantillas', 'Las de siempre', 'CREAR'],
+  ['taller', '🛠️', 'Reparar', 'Blender Workshop', 'MEJORAR'],
+  ['doctor', '🩺', 'Imprimir', 'Print Doctor', 'IMPRIMIR']];
+const VISTAS = { inicio: ['./r8_inicio.js', 'montarInicio'], estudio: ['./r8_estudio.js', 'montarEstudio'], fundas: ['./r8_fundas.js', 'montarFundas'], catalogo: ['./r8_catalogo.js', 'montarCatalogo'], foto: ['./r8_foto.js', 'montarFoto'], lab: ['./r8_lab.js', 'montarLab'], precision: ['./r8_precision.js', 'montarPrecision'], taller: ['./r8_taller.js', 'montarTaller'], doctor: ['./r8_doctor.js', 'montarDoctor'] };
+const guardado = (k, def) => { try { return localStorage.getItem(k) ?? def; } catch (e) { return def; } };
+const apunta = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
+let PEST = guardado('cd.r8.pest', 'inicio');
+if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio';
+export function render(el) {
+  PEST = guardado('cd.r8.pest', PEST); if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio'; // v20.1: el estreno puede pedir una pestaña
+  const tabs = h('div.r8v-tabs', { role: 'tablist', 'aria-label': 'Partes de CelebriR8' }), cuerpo = h('div.r8v-cuerpo');
+  const ancho = () => window.innerWidth >= 900;
+  let foco = guardado('cd.r8.foco', '1') === '1';
+  const ponFoco = v => { foco = v; apunta('cd.r8.foco', v ? '1' : '0'); document.documentElement.classList.toggle('r8-foco', v && ancho()); pintaCab(); };
+  const bFoco = h('button.r8v-bt', { type: 'button', onclick: () => ponFoco(!foco) }), bAyuda = h('button.r8v-bt.r8v-ayuda', { type: 'button', title: 'Aprender a utilizar CelebriR8 (visita guiada)', onclick: () => visita() }, '❓ ', h('span', 'Aprender'));
+  // Noche / Día también dentro de CelebriR8 (en modo taller la barra del negocio no se ve)
+  const bModo = h('button.r8v-bt.r8v-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: async () => { const U = await import('../ui18.js'); const m = U.cambiaModo(); bModo.textContent = m === 'noche' ? '🌙' : '☀️'; const b = document.querySelector('.topbar .u18-modo'); if (b) b.textContent = bModo.textContent; } }, document.documentElement.getAttribute('data-modo') === 'dia' ? '☀️' : '🌙');
+  const bNegocio = h('button.r8v-bt.r8v-negocio', { type: 'button', title: 'Volver al programa del negocio (pedidos, clientes…)', onclick: () => go('puente') }, '← ', h('span', 'Negocio'));
+  const barra = h('div.r8v-estado', { role: 'status', 'aria-live': 'polite' });
+  let actual = null, turno = 0;
+  const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO 20'))), tabs, h('div.r8v-acc', bAyuda, bModo, bFoco)), cuerpo, barra);
+  el.appendChild(raiz);
+  function pintaCab() { bFoco.title = foco ? 'Ver también el menú del negocio' : 'Modo taller: CelebriR8 a pantalla completa'; mount(bFoco, foco ? '⤡' : '⤢'); bFoco.setAttribute('aria-label', bFoco.title); bNegocio.hidden = !(foco && ancho()); }
+  const pinta = () => {
+    const grupos = []; PESTANAS.forEach(p => { const g = p[4]; if (!grupos.length || grupos[grupos.length - 1].g !== g) grupos.push({ g, L: [] }); grupos[grupos.length - 1].L.push(p); });
+    mount(tabs, grupos.map(({ g, L }) => h('div.r8v-g', { 'data-g': g || 'inicio' }, g ? h('small.r8v-grupo', g) : null, h('div.r8v-gb', L.map(([k, ic, t, d]) => h('button.r8v-tab' + (PEST === k ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': String(PEST === k), 'data-pest': k, title: t + ' · ' + d, onclick: () => ir(k) }, h('span', ic), h('b', t), h('small', d)))))));
+  };
+  async function ir(k, despues) {
+    const yo = ++turno; PEST = k; apunta('cd.r8.pest', k); pinta();
+    try { actual && actual.destroy && actual.destroy(); } catch (e) { } actual = null; mount(cuerpo);
+    const caja = h('div.r8v-pest.r8v-' + k); cuerpo.appendChild(caja);
+    try {
+      let r;
+      const ext = { irA: ir, go, visita: () => visita(), alEstudio: (dk, v, o) => ir('estudio', est => est.añadeDiseno(dk, v, o)), alEstudioMalla: (sopa, nombre) => ir('estudio', est => est.añadeMalla(sopa, nombre)) };
+      if (VISTAS[k]) { const [mod, fn] = VISTAS[k]; const m = await import(mod); if (yo !== turno) return; r = await m[fn](caja, ext); }
+      else r = renderPlantillas(caja);
+      if (yo !== turno) { try { r && r.destroy && r.destroy(); } catch (e) { } return; }
+      actual = r; if (despues && r) despues(r);
+    } catch (e) { console.error(e); mount(caja, h('div.card', h('p.r8e-mal', '⚠️ No se ha podido abrir: ' + (e.message || e)))); }
+    window.__r8pest = k;
+  }
+  // ---------- la barra de estado ----------
+  let E = null, quita = [];
+  const pintaBarra = () => {
+    const S = E ? E.SIS : null, T = E ? E.enMarcha() : [], ult = E ? [...E.TAREAS.values()].filter(t => t.estado !== 'va').sort((a, b) => b.fin - a.fin)[0] : null;
+    const chip = (ok, txt, tit) => h('span.r8v-chip' + (ok === true ? '.ok' : ok === false ? '.no' : ''), { title: tit || txt }, txt);
+    const tarj = S && S.tarjeta, gb = tarj && tarj.total_mb ? (tarj.libre_mb / 1024).toLocaleString('es-ES', { maximumFractionDigits: 1 }) : null;
+    mount(barra,
+      h('div.r8v-est-tarea', T.length ? T.map(t => h('span.r8v-tar', h('i.r8v-giro'), h('b', t.nombre), t.txt ? h('small', t.txt) : null, t.pct != null ? h('span.r8v-pbar', h('span', { style: { width: t.pct + '%' } })) : null, h('small', Math.round((Date.now() - t.t0) / 1000) + ' s')))
+        : ult ? h('span.r8v-tar.' + ult.estado, ult.estado === 'bien' ? '✅ ' : '⚠️ ', h('b', ult.nombre), h('small', ult.txt || '')) : h('small.muted', 'Listo')),
+      h('div.r8v-est-sis', !S || !S.listo ? h('small.muted', 'Mirando este PC…') : !S.pc ? chip(null, '📱 Sin el programa del PC: la IA y Blender no están aquí') : [
+        tarj ? chip(tarj.libre_mb >= 3400, '🎮 ' + tarj.nombre.replace('NVIDIA GeForce ', '') + ' · ' + gb + ' GB libres', 'Memoria libre de la tarjeta gráfica ahora mismo (Bambu Studio y el navegador también la usan)') : chip(false, '🎮 Sin tarjeta NVIDIA'),
+        chip(S.blender, S.blender ? '🎨 Blender' + (S.blenderVer ? ' ' + S.blenderVer : '') : '🎨 Sin Blender'),
+        chip(S.motores.some(m => m.listo), '🤖 ' + (S.motores.filter(m => m.listo).map(m => m.nombre).join(' · ') || 'sin motores 3D'), 'Motores de IA instalados en este PC'),
+        chip(!!(S.nube.trellis2 && S.nube.trellis2.sesion), (S.nube.trellis2 && S.nube.trellis2.sesion) ? '☁️ Nube gratis lista' : '☁️ Nube gratis: falta entrar', 'TRELLIS.2 en la nube gratuita de Hugging Face')]));
+  };
+  let reloj = null;
+  import('../r8/estado.js').then(m => { E = m; quita = [m.escucha('tareas', pintaBarra), m.escucha('sistema', pintaBarra)]; m.sistema().catch(() => { }); pintaBarra(); reloj = setInterval(() => { if (m.enMarcha().length) pintaBarra(); }, 1000); });
+  const vigia = setInterval(() => { if (E && !E.enMarcha().length) E.sistema(true).catch(() => { }); }, 30000);
+  // ---------- la visita guiada ----------
+  async function visita(desde) { const V = await import('../r8/visita.js'); V.empezar({ ir, desde, alSalir: () => { } }); }
+  const alCambiarTam = () => document.documentElement.classList.toggle('r8-foco', foco && ancho());
+  window.addEventListener('resize', alCambiarTam);
+  ponFoco(foco); pinta(); ir(PEST);
+  if (guardado('cd.r8.visita', '') === '') setTimeout(() => { if (document.body.contains(raiz)) visita(); }, 900);
+  window.__r8ir = ir;
+  return { destroy: () => { turno++; clearInterval(reloj); clearInterval(vigia); quita.forEach(f => f()); window.removeEventListener('resize', alCambiarTam); document.documentElement.classList.remove('r8-foco'); try { actual && actual.destroy && actual.destroy(); } catch (e) { } import('../r8/visita.js').then(V => V.cerrar()).catch(() => { }); } };
 }

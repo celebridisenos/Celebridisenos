@@ -6,7 +6,7 @@
 //   ⬇️ Descargas: lo que se puede añadir, con su tamaño. NADA se descarga sin pulsar y confirmar.
 // Lo pesado se hace SOLO en el PC: en el móvil se ve el estado y se encarga al PC del taller.
 import { h, mount, btn, toast, sel, inp, area, copyText, confirmDlg, bytes, ago, sw } from '../ui.js';
-import { S, can, api, byId, APP_VERSION } from '../store.js';
+import { S, can, api, byId, SERVIDOR_NECESARIO } from '../store.js';
 import { go } from '../app.js';
 import { desktop } from '../desktop.js';
 
@@ -38,7 +38,8 @@ export function render(el, params) {
     // servidor
     todo.push((async () => {
       try { const t0 = Date.now(), p = await api('sys.ping', {}, { quiet: true, timeout: 15000 }); const v = p.version;
-        if (v && v !== APP_VERSION) pon('servidor', 'warn', 'Responde, pero tiene la versión ' + v + ' y la app la ' + APP_VERSION + '.', () => ayuda('Actualizar el servidor', ['Abre script.google.com → proyecto CelebriDiseños.', 'Pega el Servidor.gs nuevo y guarda (Ctrl + S).', 'Implementar → Gestionar implementaciones → ✏️ → Nueva versión → Implementar.']));
+        const viejo = (x, y) => { const A = String(x).split('.').map(Number), B = String(y).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((A[i] || 0) !== (B[i] || 0)) return (A[i] || 0) < (B[i] || 0); } return false; };
+        if (v && viejo(v, SERVIDOR_NECESARIO)) pon('servidor', 'warn', 'Responde, pero tiene la versión ' + v + ' y esta app necesita la ' + SERVIDOR_NECESARIO + ' o más nueva.', () => ayuda('Actualizar el servidor', ['Abre script.google.com → proyecto CelebriDiseños.', 'Pega el Servidor.gs nuevo y guarda (Ctrl + S).', 'Implementar → Gestionar implementaciones → ✏️ → Nueva versión → Implementar.']));
         else pon('servidor', 'ok', 'Responde en ' + (Date.now() - t0) + ' ms · versión ' + v + '.');
       } catch (e) { pon('servidor', 'bad', 'No responde: ' + e.message, () => ayuda('Sin conexión con el servidor', ['Mira que haya Internet.', 'Si sigue, abre «Estado del sistema» para ver más detalles.'], () => go('estado'))); }
     })());

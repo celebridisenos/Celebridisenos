@@ -16,6 +16,8 @@ export const desktop = {
   version: H ? H.version : '',
   portable: !!(H && H.portable), // programa abierto desde un USB
   info: () => H ? call('info') : null,
+  bambuPerfiles: () => H ? call('bambu-perfiles') : Promise.resolve(null),
+  bambuAbrir: (blob, nombre, abrir = true) => call('bambu-abrir?' + q({ nombre, abrir: abrir ? '1' : '0' }), { method: 'POST', body: blob }), // v20: guardar el 3MF en Documentos y abrirlo en Bambu Studio // v20: sus perfiles de Bambu Studio (solo lectura)
   getConfig: async k => { if (!H) return null; try { return (await call('config?' + q({ k }))).v || null; } catch (e) { return null; } },
   setConfig: async (k, v) => { if (H) await call('config?' + q({ k }), { method: 'POST', body: JSON.stringify({ v }) }); },
   secretGet: async k => { if (!H) return null; try { return (await call('secret?' + q({ k }))).v || null; } catch (e) { return null; } },
@@ -96,6 +98,35 @@ export const desktop = {
   },
   // v15.2 · motor de fotos del PC (Python de EDITOR_VIDEO): fondo con IA y caras con ojos, nariz y boca
   motorEstado: forzar => call('motor/estado' + (forzar ? '?forzar=1' : '')),
+  nube3dEstado: () => call('nube3d/estado'), // v20: Tripo AI y Meshy AI (solo dice si hay clave, nunca cuál)
+  nube3dClave: (proveedor, clave) => call('nube3d/clave', { method: 'POST', body: JSON.stringify({ proveedor, clave }) }),
+  nube3dFigura: (blob, o = {}) => call('nube3d/figura?' + q({ proveedor: o.proveedor, alto: o.alto || 100 }), { method: 'POST', body: blob }),
+  nube3dAvance: () => call('nube3d/avance'),
+  motor3dEstado: () => call('motor3d/estado'),
+  motor3dInstalar: o => call('motor3d-instalar/empezar', { method: 'POST', body: JSON.stringify(o || {}) }), // v20: instalar el motor 3D desde un botón
+  motor3dInstalarEstado: () => call('motor3d-instalar/estado'),
+  motor3dInstalarCancelar: () => call('motor3d-instalar/cancelar', { method: 'POST' }),
+  motor3dElegirCarpeta: () => call('motor3d-instalar/elegir-carpeta', { method: 'POST' }),
+  r8Sistema: () => call('r8/sistema'), // v20: Bambu Studio y Blender instalados, y la carpeta de CelebriR8
+  r8Guardar: (blob, carpeta, nombre) => call('r8/guardar?' + q({ carpeta, nombre }), { method: 'POST', body: blob }), // v20: Documentos\CelebriDiseños_R8\<carpeta>
+  r8Carpeta: (carpeta = '') => call('r8/carpeta?' + q({ carpeta }), { method: 'POST' }),
+  r8Archivos: () => call('r8/archivos'),
+  r8Abrir: (ruta, con) => call('r8/abrir?' + q({ ruta, con: con || '' }), { method: 'POST' }),
+  mallaBlender: (stl, ops) => call('motor3d/blender?' + q({ ops: JSON.stringify(ops || {}) }), { method: 'POST', body: stl }), // v20: taller de Blender
+  mallaInspeccionar: (stl, pared) => call('motor3d/inspeccionar?' + q({ pared: pared || 0.8 }), { method: 'POST', body: stl }), // v20: comprobar cualquier malla
+  mallaReparar: (stl, o = {}) => call('motor3d/reparar?' + q({ pared: o.pared || 0.8, engrosar: o.engrosar || 0, rehacer: o.rehacer ? '1' : '0', migas: o.migas === false ? '0' : '1', cerrar: o.cerrar === false ? '0' : '1' }), { method: 'POST', body: stl }), // v20: CelebriR8 · figura 3D completa
+  motor3dAvance: () => call('motor3d/avance'),
+  mallaComparar: (actual, original) => { const f = new FormData(); f.append('actual', actual, 'actual.stl'); f.append('original', original, 'original.stl'); return call('motor3d/comparar', { method: 'POST', body: f }); }, // v20.1: Blender mide cuánto se ha alejado del original
+  hfLogin: () => call('nube3d/hf-login', { method: 'POST' }),
+  // v20.1 · Hugging Face en un paso: la clave se pega en el programa, se comprueba y se guarda en el PC (nunca vuelve)
+  hfClave: clave => call('nube3d/hf-clave', { method: 'POST', body: JSON.stringify({ clave }) }),
+  hfQuien: () => call('nube3d/hf-quien'),
+  hfSalir: () => call('nube3d/hf-salir', { method: 'POST' }),
+  sf3dBajar: probar => call('nube3d/sf3d-bajar' + (probar ? '?probar=1' : ''), { method: 'POST' }),
+  sf3dEstado: () => call('nube3d/sf3d-estado'),
+  sf3dCancelar: () => call('nube3d/sf3d-cancelar', { method: 'POST' }),
+  motor3dFigura: (blob, o = {}) => call('motor3d/figura?' + q({ motor: o.motor || 'triposr', alto: o.alto || 100, resolucion: o.resolucion || 256, detalle: o.detalle || 'normal', recortar: o.recortar === false ? '0' : '1', cpu: o.cpu ? '1' : '0', metricas: o.metricas ? '1' : '0' }), { method: 'POST', body: blob }),
+  motorProfundidad: (blob, uso) => call('motor/profundidad' + (uso ? '?' + q({ uso }) : ''), { method: 'POST', body: blob }), // v20: CelebriR8 · Foto → 3D
   motorFondo: (blob, modelo, calidad) => call('motor/fondo' + (modelo || calidad ? '?' + q({ modelo: modelo || '', calidad: calidad || '' }) : ''), { method: 'POST', body: blob }),
   motorCaras: blob => call('motor/caras', { method: 'POST', body: blob }),
   motorDescargar: id => call('motor/descargar', { method: 'POST', body: JSON.stringify({ ID: id }) }),

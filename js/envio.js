@@ -104,7 +104,59 @@ export async function printCardSheets(d, opts = {}) {
   const r = await L.sendLabel('tarjetas', () => Array.from({ length: hojas }, () => L.drawCardSheet(d, dpi)), { printer: opts.printer, pdf: !!opts.pdf, calidad: 'foto', fileName: 'tarjetas_agradecimiento' });
   if (opts.pdf) return r; // v16: exportar no cuenta como impresión
   api('etiquetas.registrar', { plantilla: 'tarjetas', entidad: 'etiqueta', entidadId: 'tarjetas-A4', titulo: hojas + ' hoja(s) de tarjetas ' + d.tam, impresora: r.printer, copias: hojas }, { quiet: true }).catch(() => { });
+  if (r.how === 'printer') await sumaTarjetas(hojas * L.cardLayout(d.tam, d.n, d.forma).per, hojas + ' hoja(s) de tarjetas impresas (' + d.tam + ')').catch(() => { }); // v20.1
   return r;
+}
+
+// ---------- v20.1 · TARJETAS YA IMPRESAS: cuántas quedan ----------
+// Son un material más del inventario (Embalaje): suben al imprimir hojas (o tarjetas en etiquetas) desde el programa, bajan
+// una cada vez que se marca «Metida en el paquete», y el servidor avisa solo («⚠️ STOCK BAJO») al llegar a las que digas.
+// Sin cambiar el servidor de Google: usa las rutas de Materiales que ya existen. Si nadie ha apuntado cuántas hay, no se inventa.
+export const TARJETAS_MAT = 'Tarjetas de agradecimiento impresas';
+export const matTarjetas = () => (S.t.materiales || []).find(m => CL.norm(m.nombre) === CL.norm(TARJETAS_MAT) && CL.norm(m.activo) !== 'no') || null;
+export function tarjetasQuedan() {
+  const m = matTarjetas();
+  if (!m || m.stock === '' || m.stock === null || m.stock === undefined) return null;
+  const min = m.stockMin === '' || m.stockMin === null || m.stockMin === undefined ? null : Number(m.stockMin);
+  const n = Math.max(0, Math.round(Number(m.stock) || 0));
+  return { m, n, min, pocas: min !== null && n <= min };
+}
+async function creaMatTarjetas(aviso) {
+  const r = await api('materiales.guardar', { datos: { tipo: 'embalaje', nombre: TARJETAS_MAT, categoria: 'Embalaje', unidad: 'ud', stock: 0, stockMin: aviso,
+    notas: 'Tarjetas de agradecimiento ya impresas (hojas A4 o etiquetas) y recortadas, listas para meter en los paquetes. Suben al imprimir desde el programa y bajan una cada vez que se marca «Metida en el paquete».' } }, { quiet: true });
+  upsertLocal('materiales', r.material); emit();
+  return r.material;
+}
+// n tarjetas más (al imprimir hojas). Si el material no existe y se puede crear, se crea.
+export async function sumaTarjetas(n, motivo) {
+  n = Math.round(Number(n) || 0); if (n <= 0 || !can('stock.mover')) return null;
+  let m = matTarjetas();
+  if (!m) { if (!can('costes.editar')) return null; m = await creaMatTarjetas(10); }
+  const r = await api('materiales.stock', { id: m.id, cambio: n, motivo: motivo || 'Tarjetas impresas' }, { quiet: true });
+  upsertLocal('materiales', r.material); emit();
+  return r.material;
+}
+// «Tengo N» (recuento a mano) y desde cuántas avisar
+export async function recuentoTarjetas(n, aviso) {
+  let m = matTarjetas();
+  if (!m) m = await creaMatTarjetas(aviso);
+  else if (aviso !== undefined && Number(m.stockMin) !== Number(aviso)) {
+    const r = await api('materiales.guardar', { id: m.id, datos: { stockMin: aviso }, motivo: 'Aviso de tarjetas impresas' });
+    upsertLocal('materiales', r.material); m = r.material;
+  }
+  const r = await api('materiales.stock', { id: m.id, nuevo: Math.max(0, Math.round(Number(n) || 0)), motivo: 'Recuento de tarjetas impresas' });
+  upsertLocal('materiales', r.material); emit();
+  return tarjetasQuedan();
+}
+// una menos al meterla en el paquete (nunca por debajo de 0)
+async function restaTarjeta(o) {
+  const q = tarjetasQuedan();
+  if (!q || q.n <= 0 || !can('stock.mover')) return q;
+  try {
+    const r = await api('materiales.stock', { id: q.m.id, cambio: -1, motivo: 'Metida en el paquete del pedido nº ' + o.numero }, { quiet: true });
+    upsertLocal('materiales', r.material); emit();
+  } catch (e) { return q; }
+  return tarjetasQuedan();
 }
 
 // v13.10 · Tarjetas por la IMPRESORA DE ETIQUETAS: una tarjeta por etiqueta, al tamaño de la tarjeta (ej. 85 × 55 mm)
@@ -117,6 +169,7 @@ export async function printCardLabels(d, opts = {}) {
   const r = await L.sendLabel('tarjeta1', dpi => Array.from({ length: n }, () => L.drawOneCardCanvas(d, dpi)), { printer: opts.printer, pdf: !!opts.pdf, fileName: 'tarjetas_etiqueta' });
   if (opts.pdf) return r;
   api('etiquetas.registrar', { plantilla: 'tarjeta1', entidad: 'etiqueta', entidadId: 'tarjetas-etiqueta', titulo: n + ' tarjeta(s) ' + d.tam + ' en etiqueta', impresora: r.printer, copias: n }, { quiet: true }).catch(() => { });
+  if (r.how === 'printer' && cardMode() === 'hoja') await sumaTarjetas(n, n + ' tarjeta(s) impresas en etiquetas').catch(() => { }); // v20.1: también son tarjetas «de reserva»
   return r;
 }
 // ---------- Estado de impresión de cada cosa del paquete ----------
@@ -276,7 +329,12 @@ export async function cardIncluded(o) {
   catch (e) { toast(e.code === 'YA_IMPRESO' ? 'La tarjeta ya estaba metida en este paquete.' : e.message, 'warn'); return null; }
   upsertLocal('impresiones', row); emit();
   const r = await api('impresiones.resultado', { id: row.id, ok: true, impresora: 'Tarjetas de las hojas A4' });
-  upsertLocal('impresiones', r.impresion); emit(); toast('💌 Tarjeta metida en el paquete', 'ok');
+  upsertLocal('impresiones', r.impresion); emit();
+  // v20.1: una tarjeta impresa menos (si se lleva la cuenta) y aviso si quedan pocas
+  const q = await restaTarjeta(o);
+  if (q && q.n <= 0) toast('💌 Tarjeta metida. ⛔ Ya no te quedan tarjetas impresas: imprime más hojas (Embalaje → Tarjeta y mensajes).', 'warn', 9000);
+  else if (q && q.pocas) toast('💌 Tarjeta metida. ⚠️ Solo te quedan ' + q.n + ' tarjetas impresas: imprime más hojas pronto.', 'warn', 8000);
+  else toast('💌 Tarjeta metida en el paquete' + (q ? ' · quedan ' + q.n + ' impresas' : ''), 'ok');
   return r.impresion;
 }
 // ---------- v14.1 · IMPRIMIR EN EL PC DEL TALLER desde el móvil o el portátil ----------
@@ -488,7 +546,9 @@ export function printBlock(o, opts = {}) {
     if (tipo === 'gracias' && cardMode() === 'hoja') {
       const st = statusOf(o, 'gracias'), inc = st.estado === 'Impreso', last = st.done[st.done.length - 1];
       return h('div.item', { style: { cursor: 'default', flexWrap: 'wrap' } }, h('span', '💌'), h('span.grow.small', h('b', 'Tarjeta de agradecimiento'), h('span.tiny.muted', ' · de las hojas A4'),
-        last ? h('div.tiny.muted', (/A4/.test(last.impresora || '') ? 'Metida ' : 'Impresa ') + fdt(last.fecha) + ' por ' + last.usuario) : h('div.tiny.muted', '¿La tienes ya en hojas? Pulsa «Metida en el paquete». ¿No? Imprímela aquí mismo.')),
+        last ? h('div.tiny.muted', (/A4/.test(last.impresora || '') ? 'Metida ' : 'Impresa ') + fdt(last.fecha) + ' por ' + last.usuario) : h('div.tiny.muted', '¿La tienes ya en hojas? Pulsa «Metida en el paquete». ¿No? Imprímela aquí mismo.'),
+        (q => q ? h('div.tiny.tarj-quedan' + (q.n <= 0 ? '.bad-t' : q.pocas ? '.warn-t' : '.muted'), q.n <= 0 ? '⛔ No te quedan tarjetas impresas' : (q.pocas ? '⚠️ ' : '📦 ') + 'Te quedan ' + q.n + ' tarjeta' + (q.n === 1 ? '' : 's') + ' impresa' + (q.n === 1 ? '' : 's'))
+          : h('div.tiny.muted.tarj-quedan', '¿Cuántas te quedan impresas? Apúntalo en Embalaje → Tarjeta y mensajes.'))(tarjetasQuedan())),
         pill(inc ? 'INCLUIDA' : 'PENDIENTE', inc ? 'ok' : 'warn'),
         edit ? btn(inc ? 'Otra' : 'Imprimir', () => printOne(o, 'gracias', Object.assign({ imprimir: true }, inc ? { reimprimir: true, motivo: 'Otra copia' } : {})).then(() => opts.redraw && opts.redraw()).catch(err => toast(err.message, 'bad', 8000)), { cls: 'sm gr-imprime', icon: 'printer', title: 'Imprime la tarjeta de agradecimiento de este pedido' }) : null, // v17.1
         edit && !inc ? btn('✓ Metida en el paquete', () => cardIncluded(o).then(() => opts.redraw && opts.redraw()), { cls: 'sm ghost', title: 'Ya va dentro del paquete (la tenías impresa en hojas)' }) : null);
