@@ -661,7 +661,14 @@ export function orderForm(o, duplicate, opts = {}) {
   };
   const updPrice = () => {
     const p = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value));
-    if (p && !f.precio.value) { const calc = S.t.calculadora.find(c => c.nombre === p.nombre); const pr = p.precio || (calc && calc.precioVenta) || ''; if (pr) f.precio.value = pr; }
+    if (p && !f.precio.value) {
+      const calc = S.t.calculadora.find(c => c.nombre === p.nombre);
+      // v20.2: el precio del catálogo + el embalaje (el de la calculadora ya lo lleva dentro)
+      let ev0 = null; try { ev0 = envW.value(); } catch (e) { } // (envW se crea más abajo)
+      const a = Number(p.precio) > 0 ? CL.orderAssist({ id: o.id, producto: p.nombre, productoId: p.id, cantidad: f.cantidad.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy) : null;
+      const pr = Number(p.precio) > 0 ? Math.round((Number(p.precio) + (a ? a.embalajeUnidad : 0)) * 100) / 100 : (calc && calc.precioVenta) || '';
+      if (pr) f.precio.value = pr;
+    }
   };
   // ---- Asistente de precio: coste, beneficio, margen y descuento con los datos reales ----
   // v13.9/13.10: EMBALAJE DEL PEDIDO al principio: lo que cuesta se suma al precio recomendado
@@ -693,7 +700,7 @@ export function orderForm(o, duplicate, opts = {}) {
           price ? h('i.cur.' + (a.sugerencia ? a.sugerencia.nivel : ''), { style: { left: pos(price) }, title: 'Precio acordado' }) : null),
         h('div.lbls', costs && a.minimo ? h('span', { style: { left: pos(a.minimo) } }, 'mín. ' + e0(a.minimo)) : null, h('span.b', { style: { left: 'calc((' + pos(rg[0]) + ' + ' + pos(rg[1]) + ') / 2)' } }, e0(rg[0]) + ' – ' + e0(rg[1])))) : null,
       a.sugerencia ? h('div.pi-tip.' + a.sugerencia.nivel, a.sugerencia.nivel === 'ok' ? '✓ ' : a.sugerencia.nivel === 'bad' ? '⛔ ' : '💡 ', costs || a.sugerencia.nivel !== 'bad' ? a.sugerencia.texto : 'Precio muy bajo para este producto.') : !costs || a.coste !== null ? null : h('div.pi-tip.warn', 'Este producto no tiene costes guardados: añádelos para saber el beneficio.'),
-      a.embalaje ? h('div.tiny', '📦 Embalaje: ' + a.embalaje.lineas.map(l => l.nombre + (l.unidad === 'm' ? ' ' + String(l.cantidad).replace('.', ',') + ' m' : '')).join(' + ') + ' = ' + eur(a.embalaje.total) + ' · ya está sumado al coste y al recomendado') : null,
+      a.embalaje ? h('div.tiny.pi-emb', '📦 Embalaje' + (a.embalaje.elegido ? '' : ' (' + (a.embalaje.origen === 'producto' ? 'el de este producto' : 'el estándar') + ')') + ': ' + (a.embalaje.lineas || []).map(l => l.nombre + (l.unidad === 'm' ? ' ' + String(l.cantidad).replace('.', ',') + ' m' : '')).join(' + ') + ' = ' + eur(a.embalaje.total) + ' · SIEMPRE va sumado al precio' + (a.catalogo ? ' (catálogo ' + eur(a.catalogo) + ' + embalaje ' + eur(a.embalajeUnidad) + ')' : '')) : null,
       a.anteriorCliente ? h('div.tiny.muted', 'Este cliente pagó ' + eur(a.anteriorCliente) + ' la última vez.') : a.anterior ? h('div.tiny.muted', 'Último precio de venta: ' + eur(a.anterior) + ' (' + a.ventasPrevias + ' ventas).') : null,
       a.notas.map(n => h('div.tiny', '💡 ' + n)),
       costs ? a.avisos.filter(x => !/margen bajo/i.test(x)).map(n => h('div.tiny.warn-t', n)) : null,

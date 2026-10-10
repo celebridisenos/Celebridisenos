@@ -99,9 +99,9 @@ function bloquePlantilla(o, redraw) {
   const sel = edit && !cerrado && embs.length > 1 ? h('select.inp.sm', { 'aria-label': 'Plantilla de embalaje', style: { maxWidth: '210px', minHeight: '34px' }, onchange: ev => cambiar(ev.target.value) }, embs.map(x => h('option', { value: x.id, selected: x.id === pl.plantilla.id }, (/^s/i.test(String(x.predeterminado || '')) ? '⭐ ' : '') + x.nombre))) : null;
   return h('div.card.flat.envase-ficha', { style: { marginTop: '10px' } },
     h('div.row.wrap', h('b.grow', '📦 EMBALAJE · ' + pl.plantilla.nombre), sel, edit && !cerrado ? btn('A mano', () => embalajeDialog(o, redraw), { cls: 'sm ghost', title: 'Elegir caja, sobre o bolsa y los metros de papel para este pedido' }) : null),
-    h('div.tiny.muted', por + ' · se descuenta del stock al cerrar el paquete · no se suma al precio del cliente'),
+    h('div.tiny.muted', por + ' · se descuenta del stock al cerrar el paquete · se suma al precio del cliente'),
     h('div.small', { style: { marginTop: '4px' } }, pl.lineas.map(l => l.nombre + (l.unidad && l.unidad !== 'ud' ? ' ' + fmt(l.cantidad) + ' ' + l.unidad : (l.cantidad > 1 ? ' × ' + l.cantidad : ''))).join(' · ') || 'Sin materiales: duplica la plantilla y pon lo que lleve.'),
-    can('productos.costes') ? h('div.row', { style: { borderTop: '1px solid var(--line)', paddingTop: '4px', marginTop: '4px' } }, h('b.grow', 'Coste interno del embalaje' + (pl.estado === 'estimado' ? ' (estimado)' : '')), h('b', pl.coste === null ? 'al menos ' + eur(pl.conocido) : eur(pl.coste))) : null);
+    can('productos.costes') ? h('div.row', { style: { borderTop: '1px solid var(--line)', paddingTop: '4px', marginTop: '4px' } }, h('b.grow', 'Coste del embalaje (va en el precio)' + (pl.estado === 'estimado' ? ' (estimado)' : '')), h('b', pl.coste === null ? 'al menos ' + eur(pl.conocido) : eur(pl.coste))) : null);
 }
 export function bloquePedido(o, redraw) {
   const s = o.embalaje && o.embalaje.simple, edit = can('pedidos.editar');

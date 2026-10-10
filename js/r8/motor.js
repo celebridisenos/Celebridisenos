@@ -179,8 +179,15 @@ export function abierta(p) {
   for (let i = 0; i < p.length; i += 9) { const a = k(i), b = k(i + 3), c = k(i + 6); if (a === b || b === c || a === c) continue; [[a, b], [b, c], [c, a]].forEach(([u, v]) => { const bw = v + '>' + u; if (m.get(bw) > 0) m.set(bw, m.get(bw) - 1); else m.set(u + '>' + v, (m.get(u + '>' + v) || 0) + 1); }); }
   let n = 0; m.forEach(v => { n += v; }); return n;
 }
+// v20.2 · la dueña: «todo lo que crees, ponlo a mi licencia: es mío, a mi nombre». Lo que sale del programa (STL y 3MF) lleva
+// DENTRO quién es la dueña del diseño y su licencia (todos los derechos reservados). El nombre es el de Configuración → Empresa.
+export const AUTORIA = { quien: 'CelebriDiseños', licencia: 'Todos los derechos reservados', anio: new Date().getFullYear() };
+export function ponAutoria(quien) { if (quien && String(quien).trim()) AUTORIA.quien = String(quien).trim().slice(0, 60); return AUTORIA; }
+export const sinAcentos = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '');
+// la cabecera de 80 letras de un STL (solo ASCII y sin empezar por «solid», que es la marca de los STL de texto)
+export const cabeceraStl = nombre => sinAcentos('(c) ' + AUTORIA.anio + ' ' + AUTORIA.quien + ' - ' + AUTORIA.licencia + ' - ' + (nombre || '')).slice(0, 80);
 export function stlBinario(p, nombre) {
-  const n = p.length / 9, buf = new ArrayBuffer(84 + n * 50), dv = new DataView(buf), cab = new TextEncoder().encode('CelebriR8 ' + String(nombre || '').replace(/[^\w .-]/g, '').slice(0, 60));
+  const n = p.length / 9, buf = new ArrayBuffer(84 + n * 50), dv = new DataView(buf), cab = new TextEncoder().encode(cabeceraStl(String(nombre || '').replace(/[^\w .-]/g, '').slice(0, 40)));
   new Uint8Array(buf, 0, 80).set(cab.subarray(0, 80)); dv.setUint32(80, n, true);
   for (let i = 0; i < n; i++) {
     const s = i * 9, o = 84 + i * 50, ux = p[s + 3] - p[s], uy = p[s + 4] - p[s + 1], uz = p[s + 5] - p[s + 2], vx = p[s + 6] - p[s], vy = p[s + 7] - p[s + 1], vz = p[s + 8] - p[s + 2];

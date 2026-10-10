@@ -51,7 +51,7 @@ export function render(el) {
           h('h3', '🧮 De lo cobrado al beneficio'),
           fila('Cobrado', eur(d.ingresos)),
           fila('Coste de materiales', '− ' + eur(d.materiales), d.sinCoste ? d.sinCoste + ' sin coste apuntado' : ''),
-          fila('Coste de embalaje', '− ' + eur(d.embalaje), 'interno: no se suma al precio'),
+          fila('Coste de embalaje', '− ' + eur(d.embalaje), 'ya va sumado a tus precios (lo paga el cliente)'),
           fila('Costes asociados', '− ' + eur(d.asociados), 'envío, comisiones y otros' + (d.estimados ? ' (parte estimada)' : '')),
           fila('Beneficio neto estimado', d.pedidos ? eur(d.beneficio) : '—', '', 'total'))),
       d.meses.length ? h('div.card',

@@ -77,6 +77,10 @@ export async function quitaReciente(id) { await tx('readwrite', s => s.delete(id
 // ---------- la foto con la que estás (Foto → 3D se la pasa al Smart Lab) ----------
 let FOTO = null;
 export const compartirFoto = f => { FOTO = f; };
+// v20.2 · un archivo 3D que otra pantalla (Productos → «🧰 Abrir en el Estudio») deja para el Estudio: el Estudio lo recoge al abrirse
+let PARA_ESTUDIO = null;
+export const paraEstudio = f => { PARA_ESTUDIO = f; try { localStorage.setItem('cd.r8.pest', 'estudio'); } catch (e) { } };
+export const tomaParaEstudio = () => { const f = PARA_ESTUDIO; PARA_ESTUDIO = null; return f; };
 export const fotoCompartida = () => FOTO;
 
 // ---------- utilidades ----------

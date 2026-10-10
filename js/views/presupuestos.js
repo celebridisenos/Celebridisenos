@@ -109,7 +109,7 @@ function priceHelper(onUse) {
     envSt.tipo && envSt.tipo !== 'nada' ? h('label.check', { style: { marginTop: '4px' } }, h('input', { type: 'checkbox', checked: envSt.cinta, onchange: e => { envSt.cinta = e.target.checked; calc(); } }), '🧻 Con cinta (' + eur(sc.cinta) + ')') : null);
   const calc = () => {
     const c = { gramos: n(f.gramos.value), horas: n(f.horas.value), horasMO: n(f.horasMO.value), pintado: n(f.costePintado.value) > 0 ? 'Sí' : 'No', costePintado: n(f.costePintado.value), gasto1: f.gasto1.value };
-    const ec = envCoste(); if (ec !== null) c.embalaje = ec;
+    const ec = envCoste(); if (ec !== null) c.embalaje = ec; if (envSt.tipo === 'nada') c.sinEmbalaje = true; // v20.2: si no eliges, va el estándar
     if (!c.gramos && !c.horas && !c.horasMO) { mount(out, h('span.muted', 'Rellena gramos y horas.')); rec = null; return; }
     const r = CL.prices(c, pp, gastos);
     rec = r.recomendado[f.plat.value]; const min = r.minimo[f.plat.value];

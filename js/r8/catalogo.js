@@ -12,9 +12,14 @@ import { ENCAJES, perfilEngranaje, circulo, rectR } from './motor.js';
 import { registrar } from './proyecto.js';
 import { MOVILES, movil, MATERIAL } from './moviles.js';
 import { funda, kitFunda, ESTILOS_FUNDA } from './fundas.js';
+import * as RI from './rodamiento_impreso.js';
+import * as CPR from './calibracion.js'; // v20.4: probeta de precisión // v20.3: rodamientos que se IMPRIMEN (lo que la dueña pidió de verdad)
+import { DISENOS_RC } from './rc_mas.js';
+import { DISENOS_PREMIUM } from './catalogo_premium.js'; // v20.4: miniaturas, jarrones de lujo, esculturas de equilibrio, tornillos, autorriego // v20.2: spool, diferencial de rectos, accesorios y repuestos (con su prueba de encaje)
+import { asiento, plantilla, medidasRod, OPS_RODAMIENTOS, APRETES, n2 as n2r, ajusteParaDiseno, OPS_AJUSTE, textoAjuste } from './rodamientos.js'; // v20.2: rodamientos que funcionan en plástico
 
 export const CATEGORIAS = [['', '✨ Todo'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
-  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas'], ['movil', '📱 Fundas de móvil'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
+  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
 const n = (k, t, v, min, max, paso = 0.5, u = 'mm') => ({ k, t, v, min, max, paso, u });
 const s = (k, t, v, ops) => ({ k, t, v, ops });
 const c = (k, t, v) => ({ k, t, v: !!v, chk: 1 });
@@ -52,6 +57,260 @@ const deforma = (m, L) => N.deformar(m, L.filter(Boolean));
 
 // ---------- LOS DISEÑOS ----------
 // uso: deco (decorativo) · funcional (aguanta esfuerzo) · jarron (se imprime en «Jarrón en espiral») · flexible (TPU) · encaje (lleva holguras)
+// ================= v20.2 · FUNCIONALES «de los que más se buscan» (diseño propio, comprobados al montarlos) =================
+// BISAGRA QUE SE IMPRIME DE UNA VEZ: dos hojas con nudos alternos; el eje es de la hoja A y pasa por los nudos de la hoja B con
+// holgura (para imprimir de una vez hace falta algo más que tu «gira»: 0,35 de partida, y se prueba). Sale montada: dos piezas.
+export function bisagraPiezas(p) {
+  const t = p.grosor, Rk = t + 1, gap = p.holgura, ga = 0.4, n = Math.max(3, Math.round(p.nudos) | 1), L = p.largo, rp = Rk - 1.4;
+  if (rp < 1) N.mal('La bisagra es muy fina para su eje: sube el grosor.');
+  const s = (L - (n - 1) * ga) / n; if (s < 3) N.mal('Demasiados nudos para ese largo: pon menos.');
+  const cilX = (r, x0, x1) => M().cylinder(x1 - x0, r, r, seg(2 * r)).rotate([0, 90, 0]).translate([x0, 0, Rk]);
+  const caja3 = (x0, x1, y0, y1, z0, z1) => M().cube([x1 - x0, y1 - y0, z1 - z0], false).translate([x0, y0, z0]);
+  const nud = i => [-L / 2 + i * (s + ga), -L / 2 + i * (s + ga) + s];
+  let A = caja3(-L / 2, L / 2, -p.ancho, 0, 0, t), B = caja3(-L / 2, L / 2, 0, p.ancho, 0, t);
+  for (let i = 0; i < n; i++) { const [x0, x1] = nud(i); if (i % 2 === 0) { A = A.add(cilX(Rk, x0, x1)); B = B.subtract(cilX(Rk + gap, x0 - ga, x1 + ga)); } else { B = B.add(cilX(Rk, x0, x1)); A = A.subtract(cilX(Rk + gap, x0 - ga, x1 + ga)); } }
+  A = A.add(cilX(rp, -L / 2 + 0.01, L / 2 - 0.01)); // el eje, de la hoja A
+  for (let i = 1; i < n; i += 2) { const [x0, x1] = nud(i); B = B.subtract(cilX(rp + gap, x0 - 0.01, x1 + 0.01)); }
+  if (p.agujeros > 0) { const ag = (x, y) => cil(3.5, t + 2, -1).translate([x, y, 0]).add(M().cylinder(1.8, 1.75, 3.6, 24).translate([x, y, t - 1.79])); for (let k = 0; k < p.agujeros; k++) { const x = -L / 2 + (k + 0.5) * L / p.agujeros, y = (p.ancho + Rk + gap) / 2; A = A.subtract(ag(x, -y)); B = B.subtract(ag(x, y)); } }
+  return { A, B, Rk, rp, gap, eje: { y: 0, z: Rk } };
+}
+export function giroBisagra(p) { // hasta cuántos grados se abre la hoja B HACIA ARRIBA (doblándose sobre la A) sin chocar (de 5 en 5)
+  try { const H = bisagraPiezas(p); let ok = 0; for (let a = 5; a <= 200; a += 5) { const Bg = H.B.translate([0, 0, -H.Rk]).rotate([a, 0, 0]).translate([0, 0, H.Rk]); if (Bg.intersect(H.A).volume() > 0.01) break; ok = a; } return ok; } finally { N.limpia(); }
+}
+// v20.2 · AGUJERO EXACTO: un círculo en el STL es un polígono; si sus esquinas tocan el círculo, el agujero sale MÁS PEQUEÑO (sus caras
+// quedan dentro). Para los agujeros que tienen que encajar, el polígono va POR FUERA del círculo (sus caras lo tocan) y con muchos lados.
+const ladosFinos = d => 4 * Math.max(16, Math.round(d * 5 / 4));
+export const agujeroExacto = (r, alto, z0 = 0) => { const n = ladosFinos(2 * r), rc = r / Math.cos(Math.PI / n); return M().cylinder(alto, rc, rc, n).translate([0, 0, z0]); };
+// CLIP PARA TUBO A PRESIÓN: una «C» que abraza el tubo (con tu holgura «a presión») y cuya boca es MÁS ESTRECHA que el tubo: entra
+// empujando (los brazos ceden) y no se sale solo. Con su pata para atornillar a la pared o al tablero.
+export function clipTuboPieza(p) {
+  const D = p.d, R = D / 2 + ENCAJES.presion, e = p.grueso, Ro = R + e, boca = D * p.boca / 100, alto = p.alto;
+  if (boca >= D - 0.4) N.mal('La boca tiene que ser más estrecha que el tubo para que sujete: bájala (lo normal, 80–88 %).');
+  if (boca < D * 0.6) N.mal('Con una boca tan estrecha el tubo no entraría sin partir el clip: súbela (mínimo 60 %).');
+  const yb = Math.sqrt(Math.max(0, R * R - (boca / 2) * (boca / 2))); // dónde corta la boca (arriba)
+  let m = M().cylinder(alto, Ro, Ro, seg(2 * Ro)).subtract(agujeroExacto(R, alto + 2, -1));
+  m = m.subtract(M().cube([boca, Ro + 2, alto + 2], false).translate([-boca / 2, yb, -1])); // la boca
+  const pata = M().cube([2 * Ro + 2 * p.ala, e, alto], false).translate([-Ro - p.ala, -Ro, 0]);
+  m = m.add(pata);
+  if (p.tornillo > 0) [-1, 1].forEach(k => { m = m.subtract(M().cylinder(e + 2, (p.tornillo + 2 * ENCAJES.gira) / 2, (p.tornillo + 2 * ENCAJES.gira) / 2, 24).rotate([-90, 0, 0]).translate([k * (Ro + p.ala / 2), -Ro - 1, alto / 2])); });
+  return { m: m.rotate([90, 0, 0]).translate([0, 0, 0]), R, boca, yb, Ro, plano: m }; // se imprime con el canto en la cama (la C de pie)
+}
+// ABRAZADERA DE DOS MITADES: se cierra con dos tornillos; al apretar, las mitades se juntan (queda 1 mm de luz entre ellas) y el
+// agujero APRIETA el tubo «apriete» mm por lado (lo que sujeta sin que gire).
+export function abrazaderaPiezas(p) {
+  const D = p.d, luzM = 1, R = D / 2 - p.apriete, e = p.grueso, Ro = D / 2 + e, ala = p.tornillo * 2 + 4, alto = p.alto;
+  const media = () => { let m = M().cylinder(alto, Ro, Ro, seg(2 * Ro)).add(M().cube([2 * (Ro + ala), 2 * e, alto], false).translate([-(Ro + ala), -e, 0]));
+    m = m.intersect(M().cube([4 * Ro + 4 * ala, 2 * Ro + 2, alto + 2], false).translate([-2 * Ro - 2 * ala, luzM / 2, -1])); // solo la mitad de arriba (y media luz)
+    m = m.subtract(agujeroExacto(R, alto + 2, -1));
+    return m; };
+  const arriba = media(), abajo = media().mirror([0, 1, 0]);
+  const xt = Ro + ala / 2, pasa = (p.tornillo + 2 * ENCAJES.gira) / 2, rosca = p.tornillo * 0.85 / 2;
+  const agujero = (r, y0, y1) => M().cylinder(y1 - y0, r, r, 24).rotate([-90, 0, 0]).translate([0, y0, alto / 2]);
+  let A = arriba, B = abajo;
+  [-1, 1].forEach(k => { A = A.subtract(agujero(pasa, -1, 2 * e + 2).translate([k * xt, 0, 0])); B = B.subtract(agujero(rosca, -2 * e - 2, 1).translate([k * xt, 0, 0])); });
+  return { A, B, R, xt, alto, luzM };
+}
+// CAJA CON TAPA CORREDERA: la tapa entra por delante y corre por unas ranuras en las paredes (con tu holgura «gira» arriba, abajo y
+// a los lados); el labio de arriba no la deja levantarse y no se sale de lado.
+export function cajaCorrederaPiezas(p) {
+  const L = p.x, W = p.y, H = p.z, pr = p.pared, tg = p.tapa, hol = ENCAJES.gira, g = Math.min(1.2, pr - 0.8), labio = 1.2;
+  if (g < 0.6) N.mal('Con paredes de ' + n2(pr) + ' mm no cabe la ranura de la tapa: usa paredes de 2 mm o más.');
+  const caja3 = (x0, x1, y0, y1, z0, z1) => M().cube([x1 - x0, y1 - y0, z1 - z0], false).translate([x0, y0, z0]);
+  const zg1 = H - labio, zg0 = zg1 - (tg + 2 * hol);
+  if (zg0 < pr + 3) N.mal('La caja es muy baja para la tapa: súbela.');
+  let caja = caja3(-L / 2, L / 2, -W / 2, W / 2, 0, H).subtract(caja3(-L / 2 + pr, L / 2 - pr, -W / 2 + pr, W / 2 - pr, pr, H + 1));
+  caja = caja.subtract(caja3(-L / 2 + pr - g, L / 2 + 1, -W / 2 + pr - g, W / 2 - pr + g, zg0, zg1)); // las ranuras (y la boca por delante)
+  caja = caja.subtract(caja3(L / 2 - pr - 0.01, L / 2 + 1, -W / 2 + pr - g, W / 2 - pr + g, zg0, H + 1)); // la pared de delante, más baja: por ahí entra la tapa
+  const x0 = -L / 2 + pr - g + hol, x1 = L / 2, y0 = -W / 2 + pr - g + hol, y1 = W / 2 - pr + g - hol;
+  let tapa = caja3(x0, x1, y0, y1, 0, tg).subtract(M().cylinder(tg + 2, 6, 6, 32).scale([1, 1.6, 1]).translate([x1 - 9, 0, tg * 0.45])); // con hueco para el dedo
+  return { caja, tapa, enSitio: tapa.translate([0, 0, zg0 + hol]), zg0, zg1, hol, recorrido: x1 - x0 };
+}
+
+// ================= v20.2 · LAS ESQUINAS DEL COCHE: piezas COMPATIBLES POR CONSTRUCCIÓN (el kit de la foto de la dueña) =================
+// «Tienes que crear estos repuestos, todo funcional y probado, que giran». Diseño propio (no se copia ninguna pieza de marca): el
+// trapecio, la copa en C y la mangueta salen de las MISMAS medidas, así que encajan entre sí; y se MONTAN VIRTUALMENTE para
+// comprobar que los pasadores entran alineados, que la dirección gira y que la suspensión sube y baja sin chocar.
+const LUZ = 2 * ENCAJES.gira; // aire entre caras que se mueven una contra otra (0,30)
+const roscaDe = d => Math.round(d * 0.85 * 100) / 100; // agujero para ROSCAR un tornillo en plástico (≈ 0,85 × métrica)
+// ================= v20.4 · REPASO DE LA MECÁNICA DE LAS ESQUINAS (la dueña, 10-10-2026: «esto es primordial») =================
+// Fallos medidos con test/auditoria_imprimible.js: la mangueta salía apoyada en la PUNTA del brazo (no se podía imprimir); la copa tenía
+// una lengüeta maciza a 1 mm del rodamiento de dentro (NO CABÍA nada para sujetar el eje de la rueda); el portamangueta se imprimía con
+// los rodamientos tumbados; la rosca de la bieleta de caída caía medio en el aire. AHORA, como en los coches de verdad: la copa es una C
+// que abraza la mangueta POR FUERA (dos brazos con la rosca de dos tornillos de pivote) y deja el centro LIBRE (eje, tuerca o palier,
+// con ventana); la bisagra es una OREJETA maciza de la copa / del portamangueta y el trapecio acaba en HORQUILLA. La copa y el
+// portamangueta se imprimen sin nada en el aire y los asientos de los rodamientos salen SIEMPRE con el eje en vertical.
+const LUG_W = 16, LUG_E = 3.5; // ancho de la orejeta y grosor de cada oreja de la horquilla
+const cilY3 = (r, y0, y1, x = 0, z = 0) => M().cylinder(y1 - y0, r, r, seg(2 * r)).rotate([-90, 0, 0]).translate([x, y0, z]);
+const caja6 = (x0, x1, y0, y1, z0, z1) => M().cube([x1 - x0, y1 - y0, z1 - z0], false).translate([x0, y0, z0]);
+export function trapecioPieza(p) {
+  const D = p.pin + 2 * ENCAJES.gira, Rb = D / 2 + 2.2, Rl = Rb + 2, tubo = (largo, x) => cilY3(Rb, -largo / 2, largo / 2, x, Rb);
+  const lb = p.forma === 'A' ? Math.min(10, p.ancho / 3) : p.ancho, piezas = [];
+  if (p.forma === 'A') [-1, 1].forEach(k => piezas.push(tubo(lb, 0).translate([0, k * (p.ancho - lb) / 2, 0]))); else piezas.push(tubo(p.ancho, 0));
+  const Wf = LUG_W + 2 * LUZ + 2 * LUG_E, xP = p.largo - (Rl + LUZ + 0.8), lp = 4; // la horquilla: puente + dos orejas
+  if (xP - lp < Rb + 2) N.mal('El trapecio es muy corto para su horquilla: súbele el largo.');
+  const puente = caja6(xP - lp, xP, -Wf / 2, Wf / 2, 0, p.g);
+  const orejas = [-1, 1].map(k => { const y0 = k > 0 ? LUG_W / 2 + LUZ : -LUG_W / 2 - LUZ - LUG_E, y1 = y0 + LUG_E; return M().hull([cilY3(Rb, y0, y1, p.largo, Rb), caja6(xP - lp, p.largo, y0, y1, 0, Math.min(p.g, 2 * Rb))]); });
+  const alma = piezas.map(t => M().hull([t, puente]).intersect(caja(1000, 1000, p.g)));
+  let m = N.union(alma.concat(piezas, [puente], orejas));
+  if (p.amort > 0 && p.amort < xP - lp) m = m.add(cil(p.agAm + 5, 2 * Rb, 0).translate([p.amort, 0, 0])).subtract(cil(p.agAm + 2 * ENCAJES.justo - 0.4, 2 * Rb + 2, -1).translate([p.amort, 0, 0]));
+  const ag = l => M().cylinder(l, D / 2, D / 2, seg(D)).rotate([-90, 0, 0]);
+  return m.subtract(ag(p.ancho + 4).translate([0, -p.ancho / 2 - 2, Rb])).subtract(ag(Wf + 4).translate([p.largo, -Wf / 2 - 2, Rb]));
+}
+export const OREJA_MANG = 4;
+export function manguetaPieza(p) { // eje de la rueda = Y (rueda hacia +Y); pivote vertical (Z) en y = yk
+  const [di, de, bw] = p.rod.split('x').map(Number), Lb = 2 * bw + 3, oR = de / 2 + 2.6, eLen = 11, wX = 2 * oR, A = p.alto;
+  if (A - 2 * OREJA_MANG < de + 1) N.mal('La mangueta es muy baja para ese rodamiento: sube «Alto» (mínimo ' + n2(de + 1 + 2 * OREJA_MANG) + ' mm).');
+  const yz = CS().ofPolygons([N.ccw([[-Lb / 2 - eLen, -A / 2], [Lb / 2, -A / 2], [Lb / 2, A / 2], [-Lb / 2 - eLen, A / 2]])]).subtract(rr(eLen + 2, A - 2 * OREJA_MANG).translate([-Lb / 2 - eLen / 2 - 1, 0]));
+  let m = yz.extrude(wX).translate([0, 0, -wX / 2]).rotate([90, 0, 90]);
+  const Aj = ajusteParaDiseno(p, di, de, bw), As = asiento({ d: di, D: de, B: bw, grosor: Lb / 2, modo: Aj.modo, extra: Aj.extra });
+  m = m.subtract(As.m.rotate([-90, 0, 0])).subtract(As.m.rotate([90, 0, 0]));
+  const yk = -Lb / 2 - eLen + 4.5, zB = A / 2 - OREJA_MANG;
+  m = m.add(cil(9, OREJA_MANG, zB).translate([0, yk, 0]).add(cil(9, OREJA_MANG, -A / 2).translate([0, yk, 0])));
+  // brazo de dirección con CARTELA a 45° hasta el cuerpo (o hasta la cama): con la cara de la rueda en la cama, sin soportes
+  const ak = p.ack * Math.PI / 180, punta = [-p.brazo * Math.cos(ak), yk - p.brazo * Math.sin(ak)], rP = 3.75;
+  let xa = -wX / 2 + 0.6, ya = punta[1] + rP * Math.SQRT2 + (xa - punta[0]);
+  if (ya > Lb / 2 - 0.6) { ya = Lb / 2 - 0.6; xa = punta[0] + (ya - punta[1] - rP * Math.SQRT2); }
+  m = m.add(M().hull([cil(8, OREJA_MANG, zB).translate([0, yk, 0]), cil(2 * rP, OREJA_MANG, zB).translate([punta[0], punta[1], 0]), cil(1.2, OREJA_MANG, zB).translate([xa, ya, 0])])).subtract(cil(p.rotula, 6, A / 2 - 5).translate([punta[0], punta[1], 0]));
+  m = m.subtract(cil(p.pin + 2 * ENCAJES.gira, A + 2, -A / 2 - 1).translate([0, yk, 0]));
+  return { m, yk, A, Lb, eLen, wX, di, de, bw, libre: A - 2 * OREJA_MANG };
+}
+export const manguetaImp = (K, izq) => (izq ? K.m.mirror([1, 0, 0]) : K.m).rotate([-90, 0, 0]); // la cara de la rueda en la cama
+export function copaCPieza(p) { // marco del coche: X hacia fuera, Z arriba, el pivote es el eje Z (la del lado izquierdo es su espejo)
+  const K = manguetaPieza(Object.assign({}, p, { pin: p.pinK })), A = K.A, tA = 5, tW = 6, W = LUG_W;
+  const Rs = Math.hypot(4.5, K.wX / 2) + 0.8; // lo que barren las orejas de la mangueta
+  const D = p.pin + 2 * ENCAJES.gira, Rb = D / 2 + 2.2, Rl = Rb + 2;
+  const z1 = A / 2 + LUZ, zT = z1 + tA, xw = -Rs - tW, xh = -Rs - Rb - 0.6, zh = -zT + Rl, xB = 5.5;
+  let m = N.union([caja6(xw, -Rs, -W / 2, W / 2, -zT, zT), caja6(xw, xB, -W / 2, W / 2, z1, zT), caja6(xw, xB, -W / 2, W / 2, -zT, -z1),
+    cilY3(Rl, -W / 2, W / 2, xh, zh).intersect(caja6(xh - Rl - 1, -Rs, -W / 2 - 1, W / 2 + 1, -zT, zT))]);
+  m = m.subtract(cil(roscaDe(p.pinK), 2 * zT + 2, -zT - 1)); // dos tornillos de pivote, roscados en los brazos
+  m = m.subtract(cilY3((p.pin + 2 * ENCAJES.presion) / 2, -W / 2 - 1, W / 2 + 1, xh, zh)).subtract(cilY3((p.pin + 2 * ENCAJES.justo) / 2, -W / 2 + 4, W / 2 - 4, xh, zh));
+  const wz = A / 2 - OREJA_MANG - 1.5, wy = W / 2 - 3.5;
+  m = m.subtract(caja6(xw - 1, -Rs + 1, -wy, wy, -wz, wz)); // la ventana del palier
+  // un REBAJE en el alma, a la altura del brazo de dirección y solo por detrás (+Y): sin él, el brazo tropezaba a los 24° de giro
+  m = m.subtract(caja6(xw - 1, -Rs + 0.01, 1.5, W / 2 + 1, A / 2 - OREJA_MANG - LUZ - 0.5, z1));
+  if (p.rotulaC > 0) m = m.subtract(cil(roscaDe(p.rotulaC), tA + 1, z1).translate([xw + tW / 2, 0, 0])); // bieleta de caída: rosca en el macizo de arriba
+  return { m, xh, zh, Rb, Rl, Rs, W, K, zT, z1, tA, xw, wz, wy };
+}
+export const copaImp = C => C.m.rotate([90, 0, 0]); // de canto
+export function portaTraseroPieza(p) { // mB = marco de los rodamientos (así se imprime, eje en vertical) · m = marco del coche
+  const [di, de, bw] = p.rod.split('x').map(Number), Lb = 2 * bw + 3, oR = de / 2 + 2.6, W = LUG_W;
+  const D = p.pin + 2 * ENCAJES.gira, Rb = D / 2 + 2.2, Rl = Rb + 2, toe = Number(p.toe) || 0;
+  const Aj = ajusteParaDiseno(p, di, de, bw), As = asiento({ d: di, D: de, B: bw, grosor: Lb / 2, modo: Aj.modo, extra: Aj.extra });
+  const zTop = -(As.Rp + As.chaflan + 0.6), zh = zTop - Rl, xh = -Lb / 2 - Rb - 4;
+  const cuerpo = N.union([caja6(xh, Lb / 2 + 3, -W / 2, W / 2, zh - Rl, zTop), cilY3(Rl, -W / 2, W / 2, xh, zh)]);
+  const pas = cilY3((p.pin + 2 * ENCAJES.presion) / 2, -W / 2 - 1, W / 2 + 1, xh, zh).add(cilY3((p.pin + 2 * ENCAJES.justo) / 2, -W / 2 + 4, W / 2 - 4, xh, zh));
+  let mB = N.union([M().cylinder(Lb, oR, oR, seg(2 * oR)).translate([0, 0, -Lb / 2]).rotate([0, 90, 0]), caja6(-Lb / 2, Lb / 2, -W / 2, W / 2, zh - Rl, 0), toe ? cuerpo.rotate([0, 0, toe]) : cuerpo]);
+  if (p.rotulaC > 0) mB = mB.add(caja6(-3.5, Lb / 2, -3.5, 3.5, oR - 1, oR + 4));
+  mB = mB.subtract(As.m.rotate([0, 90, 0])).subtract(As.m.rotate([0, -90, 0])).subtract(toe ? pas.rotate([0, 0, toe]) : pas);
+  if (p.rotulaC > 0) mB = mB.subtract(cil(roscaDe(p.rotulaC), 7, oR - 2.5));
+  mB = mB.intersect(caja6(-500, Lb / 2, -500, 500, -500, 500));
+  return { m: toe ? mB.rotate([0, 0, -toe]) : mB, mB, xh, zh, Rb, Rl, Lb, oR, toe, di, de, bw, tope: As.tope, Rp: As.Rp, W, zTop };
+}
+export const portaImp = (Q, izq) => (izq ? Q.mB.mirror([0, 1, 0]) : Q.mB).rotate([0, 90, 0]); // la cara de fuera en la cama
+// MONTAJE VIRTUAL de una esquina (todo en el marco del coche). giro = dirección (°, alrededor del pivote) · sube = suspensión (°)
+export function montaEsquina(p, tipo = 'del', giro = 0, sube = 0) {
+  const T = trapecioPieza(p), D = p.pin + 2 * ENCAJES.gira, Rb = D / 2 + 2.2;
+  const out = { tipo };
+  if (tipo === 'del') {
+    const C = copaCPieza(p), K = C.K;
+    let mang = K.m.rotate([0, 0, -90]).translate([-K.yk, 0, 0]); // su eje de rueda hacia fuera (+X) y el pivote en el origen
+    if (giro) mang = mang.rotate([0, 0, giro]);
+    out.copa = C.m; out.mangueta = mang; out.bisagra = { x: C.xh, z: C.zh }; out.C = C;
+  } else {
+    const Q = portaTraseroPieza(p);
+    out.porta = Q.m; out.bisagra = { x: Q.xh, z: Q.zh }; out.Q = Q;
+  }
+  let brazo = T.translate([out.bisagra.x - p.largo, 0, out.bisagra.z - Rb]);
+  if (sube) brazo = brazo.translate([-out.bisagra.x, 0, -out.bisagra.z]).rotate([0, -sube, 0]).translate([out.bisagra.x, 0, out.bisagra.z]);
+  out.brazo = brazo;
+  return out;
+}
+const RECORRIDOS = new Map();
+// cuánto gira la dirección (a cada lado) y cuánto sube y baja la suspensión SIN CHOCAR (de 2 en 2 grados)
+export function recorridosEsquina(p, tipo = 'del') {
+  const k = tipo + JSON.stringify(p); if (RECORRIDOS.has(k)) return RECORRIDOS.get(k);
+  try {
+    const E = montaEsquina(p, tipo), fija = tipo === 'del' ? E.copa : E.porta, b = E.bisagra;
+    const giraB = a => E.brazo.translate([-b.x, 0, -b.z]).rotate([0, -a, 0]).translate([b.x, 0, b.z]);
+    const vol = (x, y) => x.intersect(y).volume();
+    const chocaS = a => { const B = giraB(a); return vol(B, fija) > 0.05 || (E.mangueta && vol(B, E.mangueta) > 0.05); };
+    const chocaG = a => { const Mg = E.mangueta.rotate([0, 0, a]); return vol(Mg, fija) > 0.05 || vol(Mg, E.brazo) > 0.05; };
+    if (chocaS(0) || (E.mangueta && chocaG(0))) N.mal('Montada, la esquina ya choca en reposo: revisa las medidas.');
+    const barre = (f, max) => { let ok = 0; for (let a = 2; a <= max; a += 2) { if (f(a)) break; ok = a; } return ok; };
+    const r = { sube: barre(a => chocaS(a), 40), baja: barre(a => chocaS(-a), 40) };
+    if (tipo === 'del') { r.izq = barre(a => chocaG(a), 50); r.der = barre(a => chocaG(-a), 50); }
+    if (RECORRIDOS.size > 20) RECORRIDOS.delete(RECORRIDOS.keys().next().value);
+    RECORRIDOS.set(k, r); return r;
+  } finally { N.limpia(); }
+}
+// el PALIER dentro de su COPA DE SALIDA (las dos con las mismas medidas): cuánto dobla sin rozar la boca
+export function doblaPalier(p) {
+  const k = 'palier' + JSON.stringify(p); if (RECORRIDOS.has(k)) return RECORRIDOS.get(k);
+  try {
+    const copa = DISENOS.copaSalida.gen(Object.assign(valores('copaSalida'), { dogD: p.dogD, pinD: p.pinD, pinL: p.pinL, prof: p.prof, dExt: p.dExt, entrada: 'hex', prueba: false }));
+    const Lc = N.caja(copa).max[2], zc = Lc - p.prof / 2; // la bola a media copa
+    const pin = M().cylinder(p.pinL, p.pinD / 2, p.pinD / 2, 24).rotate([0, 90, 0]).translate([-p.pinL / 2, 0, 0]);
+    const hueso = palierPieza(Object.assign({}, p, { largo: Math.max(p.largo, 20) })).translate([0, 0, -0.78 * p.dogD / 2]).add(pin); // (con su plano, si lo lleva: es la pieza de verdad) // bola de abajo en el origen
+    const pon = (ax, a) => hueso.rotate(ax === 'x' ? [a, 0, 0] : [0, a, 0]).translate([0, 0, zc]);
+    if (pon('x', 0).intersect(copa).volume() > 0.05) N.mal('El palier no entra en su copa con estas medidas.');
+    const barre = ax => { let ok = 0; for (let a = 2; a <= 45; a += 2) { if (pon(ax, a).intersect(copa).volume() > 0.05) break; ok = a; } return ok; };
+    const r = { a: barre('x'), b: barre('y') };
+    RECORRIDOS.set(k, r); return r;
+  } finally { N.limpia(); }
+}
+// el PALIER (dogbone): dos bolas con su pasador y el cuerpo entre ellas. Marco «de pie» (eje Z), bola de abajo con su centro en
+// z = 0,78·radio. v20.4: por defecto lleva un PLANO a lo largo (lado −Y) y se imprime TUMBADO sobre él: de pie se apoyaba en 12 mm²
+// (45 mm de alto sobre una punta: se cae) y las capas quedaban como discos (se parte al torcer). El plano va del lado en que el
+// pasador ya sujeta la bola dentro de la ranura de la copa: así la bola no baila hacia el plano.
+export function palierPieza(p) {
+  const L = p.largo, rB = p.dogD / 2, ej = p.ejeD;
+  if (ej > p.dogD - 0.8) N.mal('El cuerpo del palier (' + n2(ej) + ' mm) es casi tan gordo como la bola: no podría doblar en la copa.');
+  const bola = z => M().sphere(rB, seg(p.dogD)).translate([0, 0, z]);
+  let m = M().cylinder(L, ej / 2, ej / 2, seg(ej)).add(bola(0)).add(bola(L));
+  const ag = z => M().cylinder(p.dogD + 2, (p.pinD + 2 * ENCAJES.presion) / 2, (p.pinD + 2 * ENCAJES.presion) / 2, seg(p.pinD)).rotate([0, 90, 0]).translate([-p.dogD / 2 - 1, 0, z]);
+  m = m.subtract(ag(0)).subtract(ag(L)); // el pasador (varilla o clavo de acero) va a presión en la bola
+  if (p.orienta === 'pie') { const plano = 0.22 * rB; m = m.intersect(M().cylinder(L + 2 * rB - 2 * plano, rB + 1, rB + 1, 24).translate([0, 0, -rB + plano])); }
+  else m = m.intersect(caja6(-rB - 1, rB + 1, -(ej / 2 - 0.3), rB + 1, -rB - 1, L + rB + 1)); // el plano para tumbarlo
+  return m.translate([0, 0, 0.78 * rB]);
+}
+export const palierImp = p => p.orienta === 'pie' ? palierPieza(p) : palierPieza(p).rotate([90, 0, 0]);
+
+
+// ================= v20.4 · 🔗 ACOPLAMIENTO DE GARRAS (dos mitades + estrella): diseño propio, con montaje virtual =================
+// La dueña (10-10-2026): «a partir de una foto de un acople mecánico». Lo que se lee en la foto (garras, Ø exterior, agujero) entra
+// aquí. Las dos mitades llevan «garras» que se meten una entre otra con la ESTRELLA (en TPU, que amortigua) en medio.
+// Se monta en el ordenador y se MIDE: que nada choca en reposo y cuántos grados gira una mitad antes de apretar la estrella (el juego).
+export function acoplePiezas(p) {
+  const n = Math.max(2, Math.min(6, Math.round(p.garras))), R = p.D / 2, hg = p.altoGarra > 0 ? p.altoGarra : Math.max(6, 0.4 * p.D), Lb = p.largo, c = ENCAJES.justo;
+  const rh = Math.max(p.eje1, p.eje2) / 2 + 2.2, rc = Math.max(rh + 1.6, 0.3 * R); // la estrella abraza un núcleo; las garras empiezan en rc
+  if (R - rc < 3) N.mal('Con ese diámetro y ese eje no quedan garras: sube el diámetro de fuera (mínimo ' + n2(2 * (rc + 3)) + ' mm).');
+  const paso = 360 / n, beta = Math.min(Math.max(10, Number(p.ancho) || paso * 0.36), paso / 2 - 8); // ancho de cada garra (°)
+  const brazo = paso / 2 - beta; // lo que queda para cada brazo de la estrella (°), entre una garra de cada mitad
+  if (brazo < 6) N.mal('Las garras son muy anchas: no queda sitio para la estrella. Bájalas a ' + Math.floor(paso / 2 - 8) + '° o menos.');
+  const sector = (r0, r1, a0, a1, h, z0 = 0) => { const P = [], k = Math.max(8, Math.ceil((a1 - a0) / 3)); for (let i = 0; i <= k; i++) { const a = (a0 + (a1 - a0) * i / k) * Math.PI / 180; P.push([r1 * Math.cos(a), r1 * Math.sin(a)]); } for (let i = k; i >= 0; i--) { const a = (a0 + (a1 - a0) * i / k) * Math.PI / 180; P.push([r0 * Math.cos(a), r0 * Math.sin(a)]); } return N.cs([N.ccw(P)], 'Positive').extrude(h).translate([0, 0, z0]); };
+  const gAx = 1; // aire entre las garras de una mitad y la cara de la otra
+  const mitad = eje => { let m = cil(p.D, Lb); for (let i = 0; i < n; i++) m = m.add(sector(rc, R, i * paso - beta / 2, i * paso + beta / 2, hg, Lb - 0.01));
+    m = m.subtract(cil(eje + 2 * (ENCAJES[p.encaje] ?? ENCAJES.justo), Lb + hg + 2, -1));
+    if (p.prisionero) m = m.subtract(M().cylinder(R + 2, roscaDe(3) / 2, roscaDe(3) / 2, 24).rotate([0, 90, 0]).translate([0, 0, Lb / 2]).rotate([0, 0, paso / 2])); // M3 de lado, entre dos garras
+    return m; };
+  // la estrella: núcleo (anillo) + 2n brazos que rellenan entre garra y garra, con «c» de holgura por cada lado (medida a media garra)
+  const rm = (rc + R) / 2, dA = c / rm * 180 / Math.PI, alto = hg + gAx - 0.6;
+  let est = cil(2 * (rc - c), alto).subtract(cil(2 * rh, alto + 2, -1));
+  for (let i = 0; i < 2 * n; i++) { const a = i * paso / 2 + paso / 4; est = est.add(sector(rc - c - 0.01, R - 0.5, a - brazo / 2 + dA, a + brazo / 2 - dA, alto)); }
+  return { A: mitad(p.eje1), B: mitad(p.eje2), est, n, R, rc, rh, hg, Lb, beta, brazo, gAx, alto, c, paso };
+}
+// montaje virtual: A con las garras hacia arriba, B dada la vuelta encima (girada medio paso) y la estrella entre las dos caras
+export function montaAcople(p, giroB = 0) {
+  const K = acoplePiezas(p), zB = 2 * K.Lb + K.hg + K.gAx; // la cara de B queda a gAx de la punta de las garras de A
+  const B = K.B.rotate([180, 0, 0]).translate([0, 0, zB]).rotate([0, 0, K.paso / 2 + giroB]), E = K.est.translate([0, 0, K.Lb + 0.3]);
+  return { K, A: K.A, B, E };
+}
+export function juegoAcople(p) { // grados que gira B (con A quieta) hasta que aprieta la estrella; y si en reposo algo se toca
+  try { const M0 = montaAcople(p, 0), v = (a, b) => a.intersect(b).volume(), reposo = v(M0.A, M0.B) + v(M0.A, M0.E) + v(M0.B, M0.E);
+    let juego = 0; for (let a = 0.25; a <= 10; a += 0.25) { const X = montaAcople(p, a); if (v(X.B, X.E) > 0.01 || v(X.B, X.A) > 0.01) break; juego = a; }
+    return { reposo, juego, K: M0.K }; } finally { N.limpia(); }
+}
+
 export const DISENOS = {
   // ======================= 🌸 CUQUI =======================
   macetaAnimal: { cat: 'cuqui', e: '🐱', t: 'Maceta animalito', d: 'Gatito, osito, conejito o rana', uso: 'deco', color: '#f9c6d9',
@@ -569,17 +828,9 @@ export const DISENOS = {
     nota: p => 'El hexágono sale 0,1 mm más justo por cara para que entre en la llanta sin bailar. ' + (p.sujecion === 'prisionero' ? 'El prisionero M3 se rosca solo en el plástico (agujero de 2,6 mm).' : p.sujecion === 'd' ? 'Agujero en D con tu holgura «a presión».' : 'La ranura del pasador queda arriba: así se imprime sin soportes.') + ' Mejor en PETG o nailon: el PLA se deforma con el calor del motor y los golpes.' },
   trapecio: { cat: 'rc', e: '🦾', t: 'Trapecio de suspensión', d: 'Brazo en A o recto, con anclaje de amortiguador', uso: 'pieza', color: '#e2231a',
     campos: [n('largo', 'Largo (pasador interior → exterior)', 60, 25, 200), n('ancho', 'Separación de los anclajes al chasis', 30, 6, 120), n('pin', 'Pasador (varilla)', 3, 1.5, 6, 0.1), n('g', 'Grosor', 6, 3, 15, 0.5), s('forma', 'Forma', 'A', [['A', 'En A (dos anclajes)'], ['recto', 'Recto (un anclaje largo)']]), n('amort', 'Anclaje del amortiguador (desde dentro)', 42, 0, 200), n('agAm', 'Tornillo del amortiguador', 3, 2, 5, 0.1)],
-    gen(p) {
-      const D = p.pin + 2 * ENCAJES.gira, Rb = D / 2 + 2.2, tubo = (largo, x) => M().cylinder(largo, Rb, Rb, seg(2 * Rb)).rotate([-90, 0, 0]).translate([x, -largo / 2, Rb]);
-      const lb = p.forma === 'A' ? Math.min(10, p.ancho / 3) : p.ancho, piezas = [], fuera = tubo(Math.max(10, p.g * 2), p.largo);
-      if (p.forma === 'A') [-1, 1].forEach(k => piezas.push(tubo(lb, 0).translate([0, k * (p.ancho - lb) / 2, 0]))); else piezas.push(tubo(p.ancho, 0));
-      const alma = piezas.map(t => M().hull([t, fuera]).intersect(caja(1000, 1000, p.g))); // el alma, del grosor elegido
-      let m = N.union(alma.concat(piezas, [fuera]));
-      if (p.amort > 0 && p.amort < p.largo) m = m.add(cil(p.agAm + 5, 2 * Rb, 0).translate([p.amort, 0, 0])).subtract(cil(p.agAm + 2 * ENCAJES.justo - 0.4, 2 * Rb + 2, -1).translate([p.amort, 0, 0]));
-      const ag = l => M().cylinder(l, D / 2, D / 2, seg(D)).rotate([-90, 0, 0]);
-      return m.subtract(ag(p.ancho + 4).translate([0, -p.ancho / 2 - 2, Rb])).subtract(ag(40).translate([p.largo, -20, Rb]));
+    gen(p) { return trapecioPieza(p); // v20.2: la geometría está en trapecioPieza() (la usan también las esquinas)
     },
-    nota: p => 'Se imprime tumbado (como sale), sin soportes. Los pasadores son varilla de ' + n2(p.pin) + ' mm con tu holgura «gira». En PLA es para probar medidas; para correr, PETG o nailon con 4–5 paredes.' },
+    nota: p => 'Se imprime tumbado (como sale), sin soportes. Por fuera acaba en HORQUILLA (abraza la orejeta de 16 mm de la copa o del portamangueta de las «Esquinas»). Los pasadores son varilla de ' + n2(p.pin) + ' mm con tu holgura «gira». En PLA es para probar medidas; para correr, PETG o nailon con 4–5 paredes.' },
   torreAmort: { cat: 'rc', e: '🗼', t: 'Torre de amortiguadores', d: 'Varias alturas de anclaje', uso: 'pieza', color: '#e2231a',
     campos: [n('ancho', 'Ancho arriba', 120, 40, 260), n('base', 'Ancho de la base', 60, 20, 200), n('alto', 'Alto', 45, 15, 120), n('g', 'Grosor', 4, 2, 10, 0.5), n('nAg', 'Agujeros de amortiguador por lado', 3, 1, 6, 1, ''), n('agAm', 'Tornillo del amortiguador', 3, 2, 5, 0.1), n('sep', 'Separación de los tornillos de la base', 40, 10, 180), n('agBase', 'Tornillo de la base', 3, 2, 5, 0.1)],
     gen(p) {
@@ -676,24 +927,95 @@ export const DISENOS = {
     },
     nota: p => 'Necesitarás un tornillo o espárrago ' + n2(2 + p.extra) + ' mm más largo. Imprime con el hueco hacia arriba (sin soportes), en PETG o nailon.' },
   mangueta: { cat: 'rc', e: '🦿', t: 'Mangueta de dirección', d: 'Con rodamientos, pivotes y brazo de dirección', uso: 'pieza', color: '#e2231a',
-    campos: [s('rod', 'Rodamientos de la rueda', '5x11x4', [['5x10x4', '5 × 10 × 4'], ['5x11x4', '5 × 11 × 4'], ['6x10x3', '6 × 10 × 3'], ['8x12x3.5', '8 × 12 × 3,5'], ['10x15x4', '10 × 15 × 4']]), n('alto', 'Alto (entre las caras de arriba y abajo)', 26, 16, 60), n('pin', 'Tornillo de los pivotes', 3, 2, 5, 0.1), n('brazo', 'Largo del brazo de dirección', 14, 6, 40), n('ack', 'Ángulo Ackermann (hacia dentro)', 10, 0, 30, 1, '°'), n('rotula', 'Agujero de la rótula (para roscar)', 2.6, 1.5, 5, 0.1), s('lado', 'Cuáles', 'par', [['par', 'Las dos (izquierda y derecha)'], ['der', 'Solo la derecha'], ['izq', 'Solo la izquierda']])],
+    campos: [s('rod', 'Rodamientos de la rueda', '5x11x4', [['5x10x4', '5 × 10 × 4'], ['5x11x4', '5 × 11 × 4'], ['6x10x3', '6 × 10 × 3'], ['8x12x3.5', '8 × 12 × 3,5'], ['10x15x4', '10 × 15 × 4']]), n('alto', 'Alto (entre las caras de arriba y abajo)', 26, 16, 60), n('pin', 'Tornillo de los pivotes', 3, 2, 5, 0.1), n('brazo', 'Largo del brazo de dirección', 14, 6, 40), n('ack', 'Ángulo Ackermann (hacia dentro)', 10, 0, 30, 1, '°'), n('rotula', 'Agujero de la rótula (para roscar)', 2.6, 1.5, 5, 0.1), s('modoRod', 'Rodamientos: cómo sujetan', 'costillas', [['costillas', 'Costillas que se aplastan (lo mejor en plástico)'], ['liso', 'Liso, a presión']]), s('ajusteRod', 'Ajuste de los rodamientos (🧪 plantilla)', 'auto', OPS_AJUSTE), s('lado', 'Cuáles', 'par', [['par', 'Las dos (izquierda y derecha)'], ['der', 'Solo la derecha'], ['izq', 'Solo la izquierda']])],
     gen(p) {
-      const [di, de, bw] = p.rod.split('x').map(Number), Lb = 2 * bw + 3, oR = de / 2 + 2.6, eLen = 11, wX = 2 * oR, A = p.alto;
-      const yz = CS().ofPolygons([N.ccw([[-Lb / 2 - eLen, -A / 2], [Lb / 2, -A / 2], [Lb / 2, A / 2], [-Lb / 2 - eLen, A / 2]])]).subtract(rr(eLen + 2, A - 8).translate([-Lb / 2 - eLen / 2 - 1, 0]));
-      let m = yz.extrude(wX).translate([0, 0, -wX / 2]).rotate([90, 0, 90]);
-      const porY = (d, y0, l) => cil(d, l).rotate([-90, 0, 0]).translate([0, y0, 0]);
-      m = m.subtract(porY(de + 2 * ENCAJES.presion, Lb / 2 - bw, bw + 1)).subtract(porY(de + 2 * ENCAJES.presion, -Lb / 2 - 1, bw + 1)).subtract(porY(di + 1, -Lb, 2 * Lb));
-      const yk = -Lb / 2 - eLen + 4.5;
-      m = m.add(cil(9, 4, A / 2 - 4).translate([0, yk, 0]).add(cil(9, 4, -A / 2).translate([0, yk, 0])));
-      const ak = p.ack * Math.PI / 180, punta = [-p.brazo * Math.cos(ak), yk - p.brazo * Math.sin(ak)]; // hacia atrás y un poco hacia dentro
-      m = m.add(M().hull([cil(8, 4, A / 2 - 4).translate([0, yk, 0]), cil(7.5, 4, A / 2 - 4).translate([punta[0], punta[1], 0])])).subtract(cil(p.rotula, 6, A / 2 - 5).translate([punta[0], punta[1], 0]));
-      m = m.subtract(cil(p.pin + 2 * ENCAJES.gira, A + 2, -A / 2 - 1).translate([0, yk, 0]));
-      const imp = x => x.rotate([90, 0, 0]);
-      const der = imp(m), izq = imp(m.mirror([0, 1, 0]));
+      const K = manguetaPieza(p), der = manguetaImp(K, false), izq = manguetaImp(K, true); // (la geometría está en manguetaPieza(): la usan también las esquinas)
       if (p.lado === 'der') return der; if (p.lado === 'izq') return izq;
-      return der.add(izq.translate([wX + A + 6, 0, 0]));
+      return der.add(izq.translate([2 * K.wX + 2 * p.brazo + 10, 0, 0]));
     },
-    nota: p => 'Rodamientos ' + p.rod.replace(/x/g, ' × ') + ' a presión (tu holgura 0,05). Los pivotes son tornillos M' + n2(p.pin) + ' que atraviesan arriba y abajo. El brazo apunta hacia atrás con ' + Math.round(p.ack) + '° hacia dentro (Ackermann: la rueda de dentro gira más en las curvas). Se imprime con el agujero del eje en vertical, sin soportes, en PETG o nailon.' },
+    nota: p => 'Rodamientos ' + p.rod.replace(/x/g, ' × ') + (p.modoRod === 'liso' ? ' a presión' : ' con costillas que se aplastan') + ' (ajuste: ' + (() => { try { const [a, b, c] = p.rod.split('x').map(Number); return textoAjuste(ajusteParaDiseno(p, a, b, c)); } catch (e) { return 'el de tu plantilla'; } })() + '), con chaflán y el tabique del medio apoyando SOLO el aro de fuera. Los pivotes son DOS tornillos M' + n2(p.pin) + ' cortos (uno arriba y otro abajo) y entre las dos orejas queda LIBRE el sitio del eje de la rueda (' + n2(p.alto - 2 * OREJA_MANG) + ' mm de alto: cabe la cabeza de un tornillo, una tuerca o la copa de un palier).' + ' Lleva una cartela a 45° bajo el brazo de dirección. El brazo apunta hacia atrás con ' + Math.round(p.ack) + '° hacia dentro (Ackermann: la rueda de dentro gira más en las curvas). Se imprime con la CARA DE LA RUEDA en la cama (el agujero del eje en vertical, como en la prueba), sin soportes, en PETG o nailon.' },
+  acopleGarras: { cat: 'mecanica', e: '🔗', t: 'Acoplamiento de garras (con estrella)', d: 'Une dos ejes y amortigua: dos mitades + estrella de TPU, comprobado montado', uso: 'pieza', color: '#2457d6',
+    campos: [s('que', 'Qué imprimo', 'todo', [['todo', 'Las dos mitades y la estrella'], ['mitades', 'Solo las dos mitades'], ['estrella', 'Solo la estrella (TPU)']]), n('garras', 'Garras de cada mitad', 3, 2, 6, 1, ''), n('D', 'Diámetro de fuera (mídelo)', 30, 14, 120, 0.1),
+      n('eje1', 'Eje de una mitad (mídelo)', 5, 2, 40, 0.1), n('eje2', 'Eje de la otra mitad (mídelo)', 8, 2, 40, 0.1), s('encaje', 'Ajuste en los ejes', 'justo', [['presion', 'A presión (0,05)'], ['justo', 'Encaja (0,10)'], ['gira', 'Suelto (0,15)']]),
+      n('largo', 'Largo del buje de cada mitad', 12, 5, 80, 0.5), n('altoGarra', 'Alto de las garras (0 = automático)', 0, 0, 60, 0.5), n('ancho', 'Ancho de cada garra', 42, 10, 80, 1, '°'), c('prisionero', 'Agujero para un prisionero M3 en cada mitad', true)],
+    gen(p) {
+      const K = acoplePiezas(p), L = p.que === 'estrella' ? [K.est] : p.que === 'mitades' ? [K.A, K.B] : [K.A, K.B, K.est];
+      let x = 0; return N.union(L.map(m => { const b = N.caja(m), q = m.translate([x - b.min[0], -(b.min[1] + b.max[1]) / 2, -b.min[2]]); x += b.dims[0] + 5; return q; }));
+    },
+    nota: p => { let J = null; try { J = juegoAcople(p); } catch (e) { return '⚠️ ' + e.message; } const K = J.K;
+      return (J.reposo < 1e-6 ? 'MONTADO Y COMPROBADO (en el ordenador): en reposo no se toca nada' : '⚠️ Montado, algo se toca en reposo (' + n2(J.reposo) + ' mm³): revisa las medidas') + ' y cada mitad gira ' + n2(J.juego) + '° antes de apretar la estrella (holgura ' + n2(K.c) + ' mm por lado). ' + K.n + ' garras de ' + Math.round(K.beta) + '° por mitad y ' + 2 * K.n + ' brazos en la estrella. Ejes Ø' + n2(p.eje1) + ' y Ø' + n2(p.eje2) + (p.prisionero ? ', cada uno con su prisionero M3 (se rosca en el plástico)' : '') + '. Imprime las mitades con las garras hacia ARRIBA (sin soportes) en PETG o nailon, y la ESTRELLA tumbada en TPU (amortigua; en PETG queda rígida). Para un motor pequeño (impresora, RC, robótica): para mucho par, el de metal.'; } },
+  bisagraImpresa: { cat: 'mecanica', e: '🚪', t: 'Bisagra que se imprime de una vez', d: 'Sale montada y gira: comprobada al abrirla', uso: 'funcional', color: '#2457d6',
+    campos: [n('largo', 'Largo', 40, 15, 200), n('ancho', 'Ancho de cada hoja', 20, 8, 80), n('grosor', 'Grosor de las hojas', 3, 2, 8, 0.5), n('nudos', 'Nudos (impar)', 5, 3, 15, 2, ''), n('holgura', 'Holgura del eje (para imprimir de una vez)', 0.35, 0.2, 0.8, 0.05), n('agujeros', 'Agujeros de tornillo en cada hoja', 2, 0, 6, 1, '')],
+    gen(p) { const H = bisagraPiezas(p); return H.A.add(H.B); },
+    nota: p => { let a = null; try { a = giroBisagra(p); } catch (e) { return '⚠️ ' + e.message; }
+      return 'COMPROBADA: se abre de 0° a ' + (a >= 200 ? 'más de 200°' : a + '°') + ' sin rozar. Se imprime TUMBADA y de una vez (sale con el eje dentro de los nudos: dos piezas que ya están montadas). Holgura del eje ' + n2(p.holgura) + ' mm: si sale pegada, súbela 0,05; si baila, bájala. Al sacarla de la cama, gírala unas veces para soltarla.'; } },
+  clipTubo: { cat: 'taller', e: '🧷', t: 'Clip para tubo (a presión)', d: 'El tubo entra empujando y no se sale: comprobado', uso: 'funcional', color: '#1b1b1d',
+    campos: [n('d', 'Diámetro del tubo o palo (mídelo)', 22, 4, 120, 0.1), n('boca', 'Boca (en % del tubo)', 84, 60, 95, 1, '%'), n('grueso', 'Grosor del clip', 3, 1.6, 8, 0.2), n('alto', 'Ancho del clip', 12, 5, 60), n('ala', 'Pata para atornillar (a cada lado)', 8, 0, 30), n('tornillo', 'Tornillos (0 = sin)', 4, 0, 6, 0.5)],
+    gen(p) { return clipTuboPieza(p).m; },
+    nota: p => { try { const C = clipTuboPieza(p); return 'El tubo de Ø' + n2(p.d) + ' queda con ' + n2(ENCAJES.presion) + ' mm por lado (tu «a presión») y la boca mide ' + n2(C.boca) + ' mm: para meterlo, los brazos se abren ' + n2((p.d - C.boca) / 2) + ' mm cada uno. En PETG o nailon aguanta muchas veces; en PLA, pocas (es rígido). Imprímelo de pie, como sale.'; } catch (e) { return '⚠️ ' + e.message; } } },
+  abrazadera: { cat: 'taller', e: '🔩', t: 'Abrazadera de dos mitades', d: 'Aprieta el tubo al cerrar los tornillos: comprobada', uso: 'funcional', color: '#1b1b1d',
+    campos: [n('d', 'Diámetro del tubo (mídelo)', 25, 4, 150, 0.1), n('apriete', 'Apriete por lado', 0.2, 0, 1, 0.05), n('grueso', 'Grosor', 4, 2, 10, 0.5), n('alto', 'Ancho', 15, 6, 60), n('tornillo', 'Tornillos (M)', 4, 2, 6, 0.5)],
+    gen(p) { const P = abrazaderaPiezas(p), b = N.caja(P.A); return P.A.rotate([90, 0, 0]).add(P.B.rotate([-90, 0, 0]).translate([0, -(b.dims[1] + b.dims[2] + 8), 0])); },
+    nota: p => 'Dos mitades: la de arriba con los agujeros PASANTES (Ø' + n2(p.tornillo + 2 * ENCAJES.gira) + ') y la de abajo para ROSCAR el tornillo (Ø' + n2(p.tornillo * 0.85) + '). Cerrada, queda 1 mm de luz entre las mitades y el agujero aprieta el tubo ' + n2(p.apriete) + ' mm por lado. Se imprimen tumbadas, como salen.' },
+  cajaCorredera: { cat: 'organizar', e: '📦', t: 'Caja con tapa corredera', d: 'La tapa corre por unas ranuras: comprobada (no se levanta ni se sale de lado)', uso: 'encaje', color: '#9d6d3f',
+    campos: [n('x', 'Largo (por donde corre la tapa)', 80, 30, 240), n('y', 'Ancho', 50, 25, 240), n('z', 'Alto', 30, 12, 200), n('pared', 'Paredes', 2, 1.6, 5, 0.2), n('tapa', 'Grosor de la tapa', 2, 1.2, 5, 0.2)],
+    gen(p) { const C = cajaCorrederaPiezas(p), b = N.caja(C.caja); return C.caja.add(C.tapa.translate([0, b.max[1] - b.min[1] + 6, 0])); },
+    nota: p => { try { const C = cajaCorrederaPiezas(p); return 'La tapa (al lado de la caja) entra por delante y corre ' + n2(C.recorrido) + ' mm por las ranuras, con ' + n2(C.hol) + ' mm de holgura arriba, abajo y a cada lado (tu «gira»); el labio de arriba no la deja levantarse. Imprime las dos piezas tumbadas, como salen.'; } catch (e) { return '⚠️ ' + e.message; } } },
+  // ======================= v20.2 · LAS ESQUINAS (el kit de la foto: trapecio + copa en C + mangueta · trapecio + portamangueta) =======================
+  esquinaDel: { cat: 'rc', e: '🛞', t: 'Esquina delantera (trapecio + copa en C + mangueta)', d: 'Las tres piezas compatibles: montadas y comprobadas (giran sin chocar)', uso: 'pieza', color: '#2457d6',
+    campos: [s('que', 'Qué imprimo', 'todo', [['todo', 'Las tres piezas'], ['trapecio', 'Solo el trapecio'], ['copa', 'Solo la copa en C'], ['mangueta', 'Solo la mangueta']]), s('lado', 'Qué lado', 'der', [['der', 'Derecho'], ['izq', 'Izquierdo'], ['par', 'Los dos']]),
+      n('largo', 'Trapecio: largo (pasador interior → exterior, mídelo)', 60, 25, 200), n('ancho', 'Trapecio: separación de los anclajes al chasis (mídelo)', 30, 6, 120), n('pin', 'Pasadores del trapecio (varilla, mídela)', 3, 1.5, 6, 0.1), n('g', 'Trapecio: grosor', 6, 3, 15, 0.5), s('forma', 'Trapecio: forma', 'A', [['A', 'En A (dos anclajes)'], ['recto', 'Recto (un anclaje largo)']]), n('amort', 'Anclaje del amortiguador (desde dentro)', 42, 0, 200), n('agAm', 'Tornillo del amortiguador', 3, 2, 5, 0.1),
+      s('rod', 'Rodamientos de la rueda', '5x11x4', [['5x10x4', '5 × 10 × 4'], ['5x11x4', '5 × 11 × 4'], ['6x10x3', '6 × 10 × 3'], ['8x12x3.5', '8 × 12 × 3,5'], ['10x15x4', '10 × 15 × 4']]), n('alto', 'Mangueta: alto (entre sus caras de arriba y abajo)', 26, 18, 60), n('pinK', 'Tornillo del pivote de la mangueta', 3, 2, 5, 0.1), n('brazo', 'Brazo de dirección: largo', 14, 6, 40), n('ack', 'Ackermann (hacia dentro)', 10, 0, 30, 1, '°'), n('rotula', 'Rótula de la dirección (agujero para roscar)', 2.6, 1.5, 5, 0.1),
+      n('rotulaC', 'Bieleta de caída en la copa (tornillo, 0 = sin)', 3, 0, 5, 0.5), s('modoRod', 'Rodamientos: cómo sujetan', 'costillas', [['costillas', 'Costillas que se aplastan (lo mejor en plástico)'], ['liso', 'Liso, a presión']]), s('ajusteRod', 'Ajuste de los rodamientos (🧪 plantilla)', 'auto', OPS_AJUSTE), c('prueba', '🧪 Solo la PRUEBA DE ENCAJE (la copa en C: rosca del pivote, pasador y lengüeta)', false)],
+    gen(p) {
+      const C = copaCPieza(p), T = trapecioPieza(p), L = [];
+      const espejo = m => m.mirror([1, 0, 0]);
+      if (p.prueba) return copaImp(C); // la copa es pequeña: ella misma es la prueba (rosca del pivote, pasador a presión y la lengüeta entre las alas de la mangueta)
+      const lados = p.lado === 'par' ? ['der', 'izq'] : [p.lado];
+      lados.forEach(l => {
+        if (p.que === 'todo' || p.que === 'copa') L.push(copaImp(l === 'izq' ? { m: C.m.mirror([1, 0, 0]) } : C));
+        if (p.que === 'todo' || p.que === 'mangueta') L.push(manguetaImp(C.K, l === 'izq'));
+        if (p.que === 'todo' || p.que === 'trapecio') L.push(T);
+      });
+      let x = 0; const fila = L.map(m => { const b = N.caja(m), q = m.translate([x - b.min[0], -(b.min[1] + b.max[1]) / 2, -b.min[2]]); x += b.dims[0] + 6; return q; });
+      return N.union(fila);
+    },
+    nota: p => { let r = null; try { r = recorridosEsquina(p, 'del'); } catch (e) { return '⚠️ ' + e.message; }
+      return 'MONTADA Y COMPROBADA (virtualmente): la dirección gira ' + r.izq + '° a un lado y ' + r.der + '° al otro' + (r.izq >= 50 && r.der >= 50 ? ' (o más)' : '') + ', y la suspensión sube ' + r.sube + '° y baja ' + r.baja + '° sin que nada choque. ' +
+        'Pasadores del trapecio: varilla de ' + n2(p.pin) + ' mm (giran en la horquilla del trapecio y van a presión en las dos puntas de la copa). Pivote: DOS tornillos M' + n2(p.pinK) + ' × 8 o × 10 que se ROSCAN en los brazos de la copa, uno por arriba y otro por abajo (la mangueta gira en sus puntas). El centro queda LIBRE para el eje de la rueda (un tornillo con la cabeza por dentro) o para un palier, que pasa por la ventana de la copa. La copa se imprime de canto (como sale). ' +
+        'Rodamientos ' + p.rod.replace(/x/g, ' × ') + ' con ' + (() => { try { const [a, b, c] = p.rod.split('x').map(Number); return textoAjuste(ajusteParaDiseno(p, a, b, c)); } catch (e) { return 'el ajuste de tu plantilla'; } })() + '. Mide en tu coche el largo y los anclajes del trapecio, y la altura de la mangueta. PETG o nailon, perfil ⚙️ Pieza mecánica.'; } },
+  esquinaTras: { cat: 'rc', e: '🛞', t: 'Esquina trasera (trapecio + portamangueta)', d: 'Con la convergencia que digas: montada y comprobada', uso: 'pieza', color: '#2457d6',
+    campos: [s('que', 'Qué imprimo', 'todo', [['todo', 'Las dos piezas'], ['trapecio', 'Solo el trapecio'], ['porta', 'Solo el portamangueta']]), s('lado', 'Qué lado', 'der', [['der', 'Derecho'], ['izq', 'Izquierdo'], ['par', 'Los dos']]),
+      n('largo', 'Trapecio: largo (pasador interior → exterior, mídelo)', 60, 25, 200), n('ancho', 'Trapecio: separación de los anclajes al chasis (mídelo)', 30, 6, 120), n('pin', 'Pasadores del trapecio (varilla, mídela)', 3, 1.5, 6, 0.1), n('g', 'Trapecio: grosor', 6, 3, 15, 0.5), s('forma', 'Trapecio: forma', 'A', [['A', 'En A (dos anclajes)'], ['recto', 'Recto (un anclaje largo)']]), n('amort', 'Anclaje del amortiguador (desde dentro)', 42, 0, 200), n('agAm', 'Tornillo del amortiguador', 3, 2, 5, 0.1),
+      s('rod', 'Rodamientos del palier', '5x11x4', [['5x10x4', '5 × 10 × 4'], ['5x11x4', '5 × 11 × 4'], ['6x10x3', '6 × 10 × 3'], ['8x12x3.5', '8 × 12 × 3,5'], ['10x15x4', '10 × 15 × 4']]), n('toe', 'Convergencia (hacia dentro)', 2, -5, 8, 0.5, '°'), n('rotulaC', 'Bieleta de caída arriba (tornillo, 0 = sin)', 3, 0, 5, 0.5), s('modoRod', 'Rodamientos: cómo sujetan', 'costillas', [['costillas', 'Costillas que se aplastan (lo mejor en plástico)'], ['liso', 'Liso, a presión']]), s('ajusteRod', 'Ajuste de los rodamientos (🧪 plantilla)', 'auto', OPS_AJUSTE), c('prueba', '🧪 Solo la PRUEBA DE ENCAJE (el portamangueta solo)', false)],
+    gen(p) {
+      const Q = portaTraseroPieza(p), T = trapecioPieza(p), L = [], lados = p.lado === 'par' ? ['der', 'izq'] : [p.lado];
+      if (p.prueba) return portaImp(Q, false);
+      lados.forEach(l => { if (p.que !== 'trapecio') L.push(portaImp(Q, l === 'izq')); if (p.que !== 'porta') L.push(T); });
+      let x = 0; return N.union(L.map(m => { const b = N.caja(m), q = m.translate([x - b.min[0], -(b.min[1] + b.max[1]) / 2, -b.min[2]]); x += b.dims[0] + 6; return q; }));
+    },
+    nota: p => { let r = null; try { r = recorridosEsquina(p, 'tras'); } catch (e) { return '⚠️ ' + e.message; }
+      return 'MONTADA Y COMPROBADA (virtualmente): la suspensión sube ' + r.sube + '° y baja ' + r.baja + '° sin chocar. Convergencia de ' + n2(p.toe || 0) + '° hacia dentro (estabiliza la trasera). Se imprime con la cara de fuera en la cama (los rodamientos en vertical, como en la prueba). Los dos rodamientos ' + p.rod.replace(/x/g, ' × ') + ' entran cada uno por su lado (las bocas quedan libres) con ' + (() => { try { const [a, b, c] = p.rod.split('x').map(Number); return textoAjuste(ajusteParaDiseno(p, a, b, c)); } catch (e) { return 'el ajuste de tu plantilla'; } })() + '; el palier pasa por el medio sin rozar. PETG o nailon, perfil ⚙️ Pieza mecánica.'; } },
+  palier: { cat: 'rc', e: '🦴', t: 'Palier (dogbone)', d: 'Con sus bolas y pasadores: comprobado dentro de su copa de salida', uso: 'pieza', color: '#2b2b2b',
+    bambu: { brim_type: 'outer_only', brim_width: '4', enable_support: '0' }, // v20.4: pieza larga y estrecha: con borde no se despega
+    campos: [n('largo', 'Largo de centro a centro de las bolas (mídelo)', 40, 15, 200, 0.5), n('dogD', 'Bola (cabeza) (mídela)', 6, 3, 15, 0.1), n('ejeD', 'Cuerpo', 4, 2, 12, 0.1), n('pinD', 'Pasador de la bola (mídelo)', 2, 1, 4, 0.1), n('pinL', 'Pasador de punta a punta (mídelo)', 8.5, 4, 20, 0.1),
+      n('prof', 'Copa de salida: profundidad', 8, 4, 20, 0.5), n('dExt', 'Copa de salida: diámetro de fuera', 11, 6, 30, 0.5),
+      s('orienta', 'Cómo se imprime', 'tumbado', [['tumbado', 'Tumbado sobre un plano (más fuerte: recomendado)'], ['pie', 'De pie (bolas redondas enteras, más frágil)']])],
+    gen(p) { return palierImp(p); },
+    nota: p => { let r = null; try { r = doblaPalier(p); } catch (e) { return '⚠️ ' + e.message; }
+      return 'COMPROBADO dentro de la «Copa de salida» con las mismas medidas: dobla ' + r.a + '° de un lado y ' + r.b + '° del otro sin rozar la boca de la copa. Los pasadores (varilla o clavo de acero de ' + n2(p.pinD) + ' mm, de ' + n2(p.pinL) + ' mm) van a presión en las bolas. ' + (p.orienta === 'pie' ? 'Imprímelo DE PIE con borde (se apoya en muy poco)' : 'Se imprime TUMBADO sobre su plano (las capas van a lo largo: aguanta mucho más al torcer; el plano queda del lado del pasador, así la bola no baila)') + ', en nailon (PA) o PETG al 100 %: para un coche ligero o para probar; para correr fuerte, el de acero.'; } },
+  riostra: { cat: 'rc', e: '📏', t: 'Riostra central', d: 'Barra rígida con nervio y agujeros a tu medida', uso: 'pieza', color: '#2457d6',
+    campos: [n('largo', 'Largo total (mídelo)', 180, 40, 250), n('ancho', 'Ancho', 14, 6, 40), n('grosor', 'Grosor', 3, 2, 8, 0.5), n('nervio', 'Alto del nervio (refuerzo)', 4, 0, 12, 0.5), n('sepA', 'Separación entre los agujeros de cada punta (mídela)', 0, 0, 30, 0.5),
+      n('desde', 'Del extremo al primer agujero', 6, 3, 30, 0.5), n('tornillo', 'Tornillos', 3, 2, 5, 0.5), c('avellanado', 'Avellanados (la cabeza queda a ras)', true)],
+    gen(p) {
+      const g = p.grosor, L = p.largo, W = p.ancho, d = p.tornillo;
+      let m = caja(L, W, g, Math.min(W / 2 - 0.1, 3));
+      if (p.nervio > 0) { const ln = L - 2 * (p.desde + d + 3); if (ln > 10) m = m.add(caja(ln, 2.4, p.nervio + 0.01, 0).translate([0, 0, g - 0.01])); } // el nervio: una pared de 2,4 mm a lo largo (la hace rígida)
+      const pos = []; [-1, 1].forEach(k => { const x = k * (L / 2 - p.desde); if (p.sepA > 0) [-1, 1].forEach(j => pos.push([x, j * p.sepA / 2])); else pos.push([x, 0]); });
+      pos.forEach(([x, y]) => { m = m.subtract(cil(d + 2 * ENCAJES.gira, g + 2, -1).translate([x, y, 0])); if (p.avellanado) m = m.subtract(M().cylinder(d * 0.6 + 0.01, d / 2 + ENCAJES.gira, d + 0.2, 32).translate([x, y, g - d * 0.6])); });
+      return m;
+    },
+    nota: p => 'Agujeros pasantes de Ø' + n2(p.tornillo + 2 * ENCAJES.gira) + (p.sepA > 0 ? ' (dos en cada punta, a ' + n2(p.sepA) + ' mm)' : '') + ' a ' + n2(p.desde) + ' mm de cada extremo: ' + n2(p.largo - 2 * p.desde) + ' mm entre las dos puntas (mídelo en tu chasis). Imprímela TUMBADA (como sale): el nervio la hace rígida. PETG o nailon.' },
   balancines: { cat: 'rc', e: '🕹️', t: 'Dirección de balancines', d: 'Dos balancines y su barra (bellcrank)', uso: 'pieza', color: '#e2231a',
     campos: [n('sep', 'Separación entre los dos pivotes', 40, 15, 160), n('brazo', 'Brazo hacia la biela de la rueda', 14, 6, 40), n('brazoB', 'Brazo hacia la barra de unión', 12, 6, 40), n('servo', 'Brazo para el servo', 16, 6, 40), n('g', 'Grosor', 5, 3, 12, 0.5),
       s('pivote', 'Pivote', 'rod', [['rod', 'Rodamiento 5 × 10 × 4'], ['tornillo', 'Tornillo M3']]), n('rotula', 'Agujeros de rótulas (para roscar)', 2.6, 1.5, 5, 0.1)],
@@ -733,9 +1055,48 @@ export const DISENOS = {
   iman: { cat: 'componentes', e: '🧲', t: 'Hueco para imán', d: 'Redondo, a presión', uso: 'pieza', hueco: true, color: '#ff4d6d',
     campos: [n('d', 'Diámetro del imán', 6, 2, 30, 0.5), n('h', 'Grosor del imán', 3, 1, 10, 0.5), s('encaje', 'Encaje', 'justo', [['presion', 'A presión'], ['justo', 'Justo (con gota de pegamento)']])],
     gen(p) { return cil(p.d + 2 * (ENCAJES[p.encaje] ?? ENCAJES.justo), p.h + 0.2); } },
-  rodamiento: { cat: 'componentes', e: '⚙️', t: 'Alojamiento de rodamiento', d: '608, 625, 6000…', uso: 'pieza', hueco: true, color: '#ff4d6d',
-    campos: [s('r', 'Rodamiento', '608', [['608', '608 (22 × 8 × 7)'], ['625', '625 (16 × 5 × 5)'], ['6000', '6000 (26 × 10 × 8)'], ['688', '688 (16 × 8 × 5)']]), c('eje', 'Con agujero para el eje', true)],
-    gen(p) { const R = { 608: [22, 8, 7], 625: [16, 5, 5], 6000: [26, 10, 8], 688: [16, 8, 5] }[p.r]; let m = cil(R[0] + 2 * ENCAJES.presion, R[2] + 0.1); if (p.eje) m = m.add(cil(R[1] + 3, 30, -30)); return m; } },
+  // v20.2 · ALOJAMIENTO DE RODAMIENTO «para plástico» (la dueña: «rodamientos funcionales sabiendo que se imprime en plástico, sé
+  // perfeccionista»): costillas que se aplastan o liso, chaflán de entrada, alivio en el fondo, tope que apoya SOLO el aro de fuera y
+  // profundidad a capas enteras. El ajuste es el NÚMERO de la plantilla (🧪 Plantilla de rodamientos) que mejor te sujetó.
+  rodamiento: { cat: 'componentes', e: '⚙️', t: 'Alojamiento para rodamiento de METAL', d: 'El hueco para un rodamiento comprado: costillas, chaflán y tope (608, 625, MR105…)', uso: 'pieza', hueco: true, color: '#ff4d6d',
+    campos: [s('rod', 'Rodamiento', '608 · 8×22×7', OPS_RODAMIENTOS), n('rodD_int', 'A medida: interior (mídelo)', 8, 1, 60, 0.01), n('rodD_ext', 'A medida: exterior (mídelo)', 22, 3, 90, 0.01), n('rodB', 'A medida: ancho (mídelo)', 7, 1, 30, 0.01),
+      s('modo', 'Cómo sujeta', 'costillas', [['costillas', 'Costillas que se aplastan (lo mejor en plástico)'], ['liso', 'Liso, a presión']]), s('ajuste', 'Ajuste (🧪 plantilla)', 'auto', OPS_AJUSTE),
+      n('grosor', 'Grosor de la pieza donde va (0 = justo el rodamiento + 1,2)', 0, 0, 100, 0.1), s('capa', 'Altura de capa con que imprimes', '0.16', [['0.12', '0,12 mm'], ['0.16', '0,16 mm (pieza mecánica)'], ['0.2', '0,20 mm']]), c('sinTope', 'Sin tope (pasante: el rodamiento se puede meter por los dos lados)', false)],
+    gen(p) {
+      if (p.r && !p.rod) p = Object.assign({}, p, { rod: { 608: '608 · 8×22×7', 625: '625 · 5×16×5', 6000: '6000 · 10×26×8', 688: '688 · 8×16×5' }[p.r] || '608 · 8×22×7' }); // (los proyectos de antes)
+      const [d, D, B] = medidasRod(p), capa = Number(p.capa) || 0.16, prof = Math.ceil((B - 1e-6) / capa) * capa, g = p.grosor > 0 ? p.grosor : prof + 1.2;
+      const Aj = ajusteParaDiseno(p, d, D, B, 'modo', 'ajuste'), A = asiento({ d, D, B, grosor: g, modo: Aj.modo, extra: Aj.extra, capa, sinTope: p.sinTope });
+      return A.m.add(M().cylinder(0.5, 0.01, 0.01, 4).translate([0, 0, -0.5])); // (el hueco empieza 0,5 mm por debajo de la pieza: así «Cortar» lo pone a ras)
+    },
+    nota: p => { try { const [d, D, B] = medidasRod(p.r && !p.rod ? { rod: '608 · 8×22×7' } : p), capa = Number(p.capa) || 0.16, prof = Math.ceil((B - 1e-6) / capa) * capa, g = p.grosor > 0 ? p.grosor : prof + 1.2, Aj = ajusteParaDiseno(p, d, D, B, 'modo', 'ajuste'), A = asiento({ d, D, B, grosor: g, modo: Aj.modo, extra: Aj.extra, capa });
+      return 'Es un HUECO: ponlo en tu pieza con la boca hacia arriba (Al crear → ➖ Cortar). Rodamiento ' + n2r(d) + ' × ' + n2r(D) + ' × ' + n2r(B) + ' mm' + (p.modo === 'liso' ? ': hueco de Ø' + n2r(2 * A.Rp) : ': hueco de Ø' + n2r(2 * A.Rp) + ' con ' + A.nCost + ' costillas que aprietan hasta Ø' + n2r(2 * A.Rtip)) + ' · profundidad ' + n2r(A.prof) + ' (' + Math.round(A.prof / capa) + ' capas: queda ' + n2r(A.hundido) + ' mm hundido) · tope de Ø' + n2r(A.tope) + ' (solo toca el aro de fuera; por ahí se saca empujando). Pieza de ' + n2r(g) + ' mm de grosor. Ajuste: ' + textoAjuste(Aj) + '.'; } catch (e) { return e.message; } } },
+  // v20.3 · 🛞 RODAMIENTO IMPRESO (lo que la dueña pidió: «rodamientos funcionales sabiendo que se imprime en plástico»): sale montado y gira
+  rodamientoImpreso: { cat: 'mecanica', e: '🛞', t: 'Rodamiento impreso (de plástico)', d: 'Sale de la impresora YA MONTADO, gira y no suelta los rodillos: sin soportes', uso: 'pieza', color: '#2457d6',
+    bambu: { enable_support: '0', brim_type: 'no_brim', ironing_type: 'no ironing', wall_loops: '4', sparse_infill_density: '100%', sparse_infill_pattern: 'zig-zag', seam_position: 'random', top_shell_layers: '5', bottom_shell_layers: '4' },
+    campos: [n('d', 'Agujero del eje (mide tu eje)', 8, 3, 80, 0.1), n('D', 'Diámetro de fuera', 30, 16, 180, 0.5), n('B', 'Ancho', 9, 5, 40, 0.5),
+      s('eje', 'Cómo entra el eje', 'justo', [['presion', 'A presión (no se mueve)'], ['justo', 'Justo (entra con la mano)'], ['gira', 'Suelto (el eje gira dentro)']]), s('holgura', 'Holgura para que gire (🧪 prueba)', 'auto', RI.OPS_HOLGURA), s('ret', 'Cómo sujeta los rodillos (🧪 prueba)', 'auto', RI.OPS_RETENCION)],
+    gen(p) { return RI.rodamiento(p); },
+    nota: p => { try { const K = RI.cuentas(p); return 'Sale YA MONTADO: ' + K.n + ' rodillos de Ø' + n2(2 * K.r0) + ' en «V» entre dos pistas, con ' + RI.textoHolgura(K.H) + '. NO SUELTA LOS RODILLOS: para que uno se saliera, el plástico tendría que ceder ' + n2(K.interf.arriba) + ' mm por arriba y ' + n2(K.interf.abajo) + ' mm por abajo (retención ' + K.ret + '; el diseño de la 20.3 solo pedía 0,3–0,7 y se salían). Paredes de ' + n2(K.w) + ' mm' + (K.paredFina ? ' (finas para que quepan los rodillos: si lo quieres más robusto, súbele 4 mm al diámetro de fuera)' : '') + ', agujero del eje de Ø' + n2(2 * K.rb) + '. Sin soportes ni balsa (el 3MF ya lo deja puesto). Al sacarlo de la cama, aprieta el aro del centro y gíralo unas vueltas para soltarlo. En PETG o nailon dura mucho más que en PLA; una gota de aceite o grasa de litio y va fino. Es para peso y giro lentos o medios (ruedas, poleas, bandejas, carretes): para un motor a miles de vueltas, el de metal. Comprobado en el ordenador (piezas separadas, holgura, retención, sin soportes); la prueba en la mano es la 🧪.'; } catch (e) { return '⚠️ ' + e.message; } } },
+  pruebaRodImpreso: { cat: 'mecanica', e: '🧪', t: 'Prueba de rodamientos impresos', d: '4 rodamientos numerados y una llave: dime cuáles giran y cuáles no sueltan los rodillos', uso: 'pieza', color: '#00a4e4', sinCalibrar: true,
+    bambu: { enable_support: '0', brim_type: 'no_brim', ironing_type: 'no ironing', wall_loops: '4', sparse_infill_density: '100%', sparse_infill_pattern: 'zig-zag', seam_position: 'random', top_shell_layers: '5', bottom_shell_layers: '4' },
+    campos: [],
+    gen() { return RI.prueba().m; },
+    nota: () => { const T = RI.tanda(); return 'Cuatro rodamientos pequeños, cada uno con su NÚMERO en relieve: ' + T.map(v => 'nº ' + v.num + ' = ' + n2(v.c) + ' mm de holgura, retención ' + v.ret).join(' · ') + ' (el 4 lleva una rayita bajo el número). Y una LLAVE. Imprímela en el MISMO material y perfil que vayas a usar (laminada con tu Bambu Studio, PETG y «0.16mm CelebriR8 PRECISION»: 1 h 15 min y 15 g, sin soportes; los 33 rodillos salen separados en todas las capas). Cuando acabe: mete la llave en el centro de cada uno y gira; luego ponlo boca abajo, sacúdelo y aprieta los rodillos con la uña. Dime de cada uno si GIRA SUAVE y si SE SALE ALGÚN RODILLO (al abrir el programa te lo pregunta). Gana el más justo que gire y no suelte nada.'; } },
+  // v20.4 · 🎯 LA PROBETA DE PRECISIÓN (con su asistente: Ctrl K → «calibrar»): sin compensar, para medir tu impresora tal cual
+  pruebaPrecision: { cat: 'mecanica', e: '🎯', t: 'Probeta de precisión (calibrar tu impresora)', d: 'Imprímela, mídela con el calibre y el programa corrige solo tus piezas', uso: 'pieza', color: '#ff9f1a', sinCalibrar: true,
+    bambu: { enable_support: '0', brim_type: 'no_brim', ironing_type: 'no ironing', xy_hole_compensation: '0', xy_contour_compensation: '0', elefant_foot_compensation: '0', wall_loops: '3', sparse_infill_density: '20%', sparse_infill_pattern: 'grid', top_shell_layers: '5', bottom_shell_layers: '4' },
+    campos: [],
+    gen() { return CPR.probeta(); },
+    nota: () => 'Base de 70 × 40 con un bloque de 40 × 20 × 12, tres agujeros (F, G, H), dos salientes (I, J) y una ranura (K): cada cota con su letra. Va SIN compensaciones (para medir tu impresora tal cual). Imprímela con el perfil y el filamento de siempre, mídela con el calibre y escribe las medidas en «🎯 Calibrar» (Ctrl K → «calibrar»): desde ese momento tus piezas salen corregidas solas.' },
+  // v20.2 · 🧪 LA PLANTILLA: cinco anillos con cinco apretes (1 a 5 muescas) + ejes de prueba; en el MISMO material y perfil que la pieza
+  plantillaRodamientos: { cat: 'mecanica', e: '🧪', t: 'Plantilla para rodamientos de METAL (comprados)', d: 'Solo si tienes el rodamiento de metal en la mano: qué hueco lo sujeta', uso: 'pieza', color: '#00a4e4',
+    campos: [s('rod', 'Rodamiento', '608 · 8×22×7', OPS_RODAMIENTOS), n('rodD_int', 'A medida: interior (mídelo)', 8, 1, 60, 0.01), n('rodD_ext', 'A medida: exterior (mídelo)', 22, 3, 90, 0.01), n('rodB', 'A medida: ancho (mídelo)', 7, 1, 30, 0.01),
+      s('modo', 'Qué pruebo', 'costillas', [['costillas', 'Costillas que se aplastan (lo mejor en plástico)'], ['liso', 'Liso, a presión']]), s('capa', 'Altura de capa con que imprimes', '0.16', [['0.12', '0,12 mm'], ['0.16', '0,16 mm (pieza mecánica)'], ['0.2', '0,20 mm']]), c('ejes', 'Con 3 ejes de prueba para el aro de dentro', true)],
+    gen(p) { return plantilla(Object.assign({}, p, { capa: Number(p.capa) || 0.16 })).m; },
+    nota: p => { try { const [d, D, B] = medidasRod(p), L = APRETES[p.modo === 'liso' ? 'liso' : 'costillas'];
+      return '🧪 Cinco anillos para el rodamiento ' + n2r(d) + ' × ' + n2r(D) + ' × ' + n2r(B) + ', cada uno con su NÚMERO de muescas: ' + L.map((x, i) => (i + 1) + ' = ' + (x >= 0 ? '+' : '') + n2r(x)).join(' · ') + ' mm de apriete por lado sobre tu «a presión» (0,05). Imprímela en el MISMO material y perfil que la pieza final (⚙️ Pieza mecánica, PETG o nailon). ' +
+        'Mete el rodamiento RECTO (con el pulgar o con un tornillo de banco, nunca a martillazos). El bueno es el número más bajo que lo sujeta sin juego al girar el anillo de fuera con los dedos; si el anillo se raja o se pone blanco, es demasiado. Ese número lo pones en «Alojamiento de rodamiento» (y en las manguetas y portamanguetas). ' +
+        (p.ejes ? 'Los 3 ejes son para el aro de DENTRO (1 muesca = gira, 2 = justo, 3 = a presión). ' : '') + 'Pesa unos gramos: imprímela antes de cualquier pieza con rodamientos.'; } catch (e) { return e.message; } } },
   colgar: { cat: 'componentes', e: '🔐', t: 'Ojal para colgar', d: 'Ranura tipo cerradura', uso: 'pieza', hueco: true, color: '#ff4d6d',
     campos: [n('cabeza', 'Cabeza del tornillo', 8, 5, 14, 0.5), n('cana', 'Caña del tornillo', 4, 2.5, 7, 0.5), n('fondo', 'Profundidad', 6, 4, 15, 0.5)],
     gen(p) { const t = p.cabeza + 0.6, c2 = p.cana + 0.6; return cil(t, p.fondo).add(caja(c2, 12, p.fondo).translate([0, 6, 0])).add(caja(t, 12, p.fondo - 2.4).translate([0, 6, 0])); } },
@@ -794,6 +1155,8 @@ function aDir(v) { const ry = Math.atan2(Math.hypot(v[0], v[1]), v[2]) * 180 / M
 export const valores = k => Object.fromEntries((DISENOS[k].campos || []).map(x => [x.k, x.v]));
 export const especDe = k => (DISENOS[k].campos || []).map(x => (x.ops ? { k: x.k, t: x.t, ops: x.ops } : x.chk ? { k: x.k, t: x.t, chk: 1 } : x.txt ? { k: x.k, t: x.t, txt: 1, ayuda: x.ayuda } : { k: x.k, t: x.t, min: x.min, max: x.max, paso: x.paso, u: x.u }));
 export function genera(k, p) { const D = DISENOS[k]; if (!D) N.mal('No encuentro ese diseño.'); const v = Object.assign(valores(k), p || {}); const m = D.gen(v); if (!m || m.isEmpty()) N.mal('Con esas medidas no sale la pieza.'); return N.aLaCama(m); }
+Object.assign(DISENOS, DISENOS_RC); // v20.2
+Object.assign(DISENOS, DISENOS_PREMIUM); // v20.4
 Object.keys(DISENOS).forEach(k => registrar(k, p => genera(k, p)));
 export const porCategoria = cat => Object.entries(DISENOS).filter(([, d]) => !cat || d.cat === cat);
 void ico; void movil; void MATERIAL;

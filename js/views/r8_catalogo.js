@@ -62,7 +62,8 @@ export async function montarCatalogo(el, ext = {}) {
         h('div.r8e-paleta', COLORES.map(([c, t]) => h('button' + (color === c ? '.on' : ''), { type: 'button', title: t, style: { background: c }, onclick: () => { C.color[k] = c; MINIS.delete(k); abre(k); } }))),
         h('select.inp', { 'aria-label': 'Acabado', onchange: e => { C.acabado[k] = e.target.value; genera(); } }, Object.entries(ACABADOS).map(([a, x]) => h('option', { value: a, selected: a === acab }, x.t))),
         campos, h('div.r8c-nota'),
-        h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio' })))));
+        h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio' })),
+        h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })))));
     mount(campos, camposDe(K, k, v, () => genera()));
     detalle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try { escena = crearEscena(lienzo, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); } catch (e) { mount(info, '⚠️ ' + e.message); }
@@ -83,8 +84,10 @@ export async function montarCatalogo(el, ext = {}) {
     const { modal } = await import('../ui.js'), A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null), cuerpo = h('div.r8c-aj'); const D = K.DISENOS[k];
     modal('🖨️ ' + D.t + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const nombre = (D.t + '_' + Object.values(C.v[k] || {}).filter(x => typeof x === 'string' && x.length < 14 && /[a-z]/i.test(x)).slice(0, 1).join('')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
-    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => [{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }], N, uso: D.uso === 'pieza' ? 'funcional' : D.uso, texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => [{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }], N, uso: D.uso === 'pieza' ? 'mecanica' : D.uso, texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, sinCalibrar: !!D.sinCalibrar, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
   }
+  // v30 · 🎁 las dos sorpresas: Escaparate e Impresión fantasma
+  async function sorpresa(que, k) { const S = await import('../r8/sorpresas.js'), D = K.DISENOS[k]; let partes; try { partes = [{ vista: N.aVista(K.genera(k, C.v[k])), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]; } catch (e) { return toast(e.message || String(e), 'bad'); } finally { N.limpia(); } S[que](partes, { nombre: D.t }); }
   function alEstudio(k) { if (ext.alEstudio) ext.alEstudio(k, Object.assign({}, C.v[k]), { color: C.color[k], acabado: C.acabado[k] }); }
   function baja(blob, nombre) { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nombre }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); window.__r8c && (window.__r8c.bajado = { nombre, bytes: blob.size }); }
 

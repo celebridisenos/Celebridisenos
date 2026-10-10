@@ -13,20 +13,21 @@ const leer = k => { try { return localStorage.getItem(k); } catch (e) { return n
 const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 const de = document.documentElement;
 
-export const interfaz = () => { const v = leer(CLAVE); return v === 'v18' || v === 'clasica' ? v : 'nueva'; };
-export const es18 = () => interfaz() === 'v18';
+export const interfaz = () => { const v = leer(CLAVE); return v === 'v18' || v === 'v30' || v === 'clasica' ? v : 'nueva'; }; // v30: «Atelier 30» (la 18 por dentro, cara nueva)
+export const es18 = () => interfaz() === 'v18' || interfaz() === 'v30';
+export const es30 = () => interfaz() === 'v30';
 export const modo = () => (leer(MODO) === 'dia' ? 'dia' : 'noche');
 // El tema que de verdad se pinta: en la V18 manda el modo; fuera de ella, el del perfil
 export function tema18(real) {
   const on = es18();
-  de.classList.toggle('ui18', on);
+  de.classList.toggle('ui18', on); de.classList.toggle('ui30', es30());
   if (on) { de.classList.remove('ui14'); de.dataset.modo = modo(); return modo() === 'noche' ? 'oscuro' : 'claro'; }
   de.removeAttribute('data-modo');
   return real;
 }
 const avisa = () => { try { window.dispatchEvent(new Event('cd:interfaz')); } catch (e) { } };
 export function ponInterfaz(k, m) {
-  guardar(CLAVE, k === 'v18' ? 'v18' : k === 'clasica' ? 'clasica' : 'nueva');
+  guardar(CLAVE, k === 'v18' || k === 'v30' ? k : k === 'clasica' ? 'clasica' : 'nueva');
   if (m) guardar(MODO, m === 'dia' ? 'dia' : 'noche');
   aplicarUI(undefined, false); tema18(); avisa(); // app.js vuelve a aplicar el tema (y la paleta) al oír el aviso
   return interfaz();
@@ -83,7 +84,7 @@ export function estreno(opts = {}) {
   const cerrar = ruta => {
     if (estado === 'cerrado') return; estado = 'cerrado';
     cancelAnimationFrame(raf); guardar(VISTO, '1'); guardar('cd.inaug14', '1');
-    if (!es18()) ponInterfaz('v18', 'noche');
+    if (!es18()) ponInterfaz('v30', 'noche'); // v30: la cara nueva ya es «Atelier 30»
     raiz.remove(); if (snd) snd.cerrar();
     ir(ruta || 'puente'); if (opts.alCerrar) opts.alCerrar();
   };
@@ -125,7 +126,7 @@ export function estreno(opts = {}) {
     if (estado === 'formando' && t >= FORMA + QUIETO) {
       estado = 'estallando';
       if (snd) snd.golpe();
-      ponInterfaz('v18', 'noche'); guardar(VISTO, '1'); guardar('cd.inaug14', '1'); ir('puente'); // el programa nuevo ya está detrás
+      ponInterfaz('v30', 'noche'); guardar(VISTO, '1'); guardar('cd.inaug14', '1'); ir('puente'); // el programa nuevo ya está detrás
       raiz.classList.add('estalla');
       parts.forEach(q => { const dx = q.x - W / 2, dy = q.y - H * 0.47, d = Math.hypot(dx, dy) || 1, v = 9 + Math.random() * 22; q.vx = dx / d * v + (Math.random() - 0.5) * 6; q.vy = dy / d * v + (Math.random() - 0.5) * 6; });
       if (opts.alEstallar) opts.alEstallar();

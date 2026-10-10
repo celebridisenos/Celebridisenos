@@ -202,7 +202,10 @@ var CL = (function () {
     var luz = n(c.horas) * n(pp.luzHora), mo = n(c.horasMO) * n(pp.manoObraHora);
     var pint = (c.pintado === true || /^s/i.test(s(c.pintado))) ? n(c.costePintado) : 0;
     var ext = (gastos[norm(c.gasto1)] || 0) + (gastos[norm(c.gasto2)] || 0);
-    var emb = n(c.embalaje !== undefined && c.embalaje !== '' ? c.embalaje : pp.embalaje), env = n(c.envio !== undefined && c.envio !== '' ? c.envio : pp.envio);
+    // v20.2: el EMBALAJE se cobra SIEMPRE (la dueña: «siempre se aplica en todo»): el de la fila, el de Configuración o, si los dos
+    // están a 0, el coste REAL del embalaje estándar (pp.embalajeReal, lo calcula la app con el Stock: packStd)
+    // (c.sinEmbalaje: elegido A PROPÓSITO «Sin embalaje» / entrega en mano → 0)
+    var emb = c.sinEmbalaje ? 0 : n(c.embalaje) > 0 ? n(c.embalaje) : n(pp.embalaje) > 0 ? n(pp.embalaje) : n(pp.embalajeReal), env = n(c.envio !== undefined && c.envio !== '' ? c.envio : pp.envio);
     var R = fil + luz + mo + pint + ext, T = R * (1 + n(pp.iva)) + emb + env;
     var etsyPct = n(pp.etsyVenta) + n(pp.etsyPago) + n(pp.etsyReg), etsyFix = n(pp.etsyFijo) + n(pp.etsyAnuncioUSD) * n(pp.usdEur);
     function plat(m) { return { general: T / (1 - m), wallapop: T / (1 - m), vinted: T / (1 - m - n(pp.vinted)), etsy: (T + etsyFix) / (1 - m - etsyPct) }; }
@@ -247,7 +250,7 @@ var CL = (function () {
       // si la hoja aún no ha calculado la fórmula, se calcula igual que el Excel
       if (!(ct > 0) && pp && (n(c.gramos) > 0 || n(c.horas) > 0 || n(c.horasMO) > 0)) { try { ct = prices(c, pp).desglose.costeTotal; } catch (e) { ct = 0; } }
       if (!(ct > 0)) return;
-      var rec = { coste: ct, recomendado: n(c.precioVenta), minimo: n(c.precioMinimo), nombre: c.nombre, envio: n((pp || {}).envio) };
+      var rec = { coste: ct, recomendado: n(c.precioVenta), minimo: n(c.precioMinimo), nombre: c.nombre, envio: n((pp || {}).envio), emb: n(c.embalaje) > 0 ? n(c.embalaje) : n((pp || {}).embalaje) > 0 ? n(pp.embalaje) : n((pp || {}).embalajeReal) };
       if (c.id) byId[s(c.id)] = rec;
       if (c.nombre) byName[norm(c.nombre)] = rec;
     });
@@ -257,7 +260,7 @@ var CL = (function () {
     if ((data.recetas || []).length) (data.productos || []).forEach(function (p) {
       if (byId[s(p.id)] || byName[norm(p.nombre)]) return;
       var c = productCost(p.id, data, pp);
-      if (c.tieneReceta && c.total !== null) byId[s(p.id)] = { coste: c.total, recomendado: 0, minimo: 0, nombre: p.nombre, envio: 0, receta: true, estado: c.estado };
+      if (c.tieneReceta && c.total !== null) byId[s(p.id)] = { coste: c.total, recomendado: 0, minimo: 0, nombre: p.nombre, envio: 0, receta: true, estado: c.estado, emb: 0 }; // la receta no lleva embalaje
     });
     return function (o) {
       var p = o.productoId ? prodById[o.productoId] : null;
@@ -274,12 +277,17 @@ var CL = (function () {
     var costOf = costIndex(data, pp);
     var ci = costOf(o);
     // v13.10: el EMBALAJE elegido (caja/sobre/bolsa + papel + cinta) se suma al coste y al precio recomendado
+    // v20.2: SIEMPRE: si no se ha elegido, el de la receta del producto o el estándar (packStd). Lo que el coste ya traía de
+    // embalaje (calculadora / Configuración) se cambia por el real: nunca se suma dos veces.
     var emb = null;
     if (o.embalaje && o.embalaje.simple && o.embalaje.simple.tipo) {
       var pl = simplePlan(o, { materiales: data.materiales || [], simple: (cfg.embalaje || {}).simple });
-      emb = { total: r2x(pl.coste !== null ? pl.coste : pl.conocido), lineas: pl.lineas, nombre: pl.lineas[0] ? pl.lineas[0].nombre : '' };
-      if (ci) { var add = emb.total / qty; ci = Object.assign({}, ci, { coste: ci.coste + add, recomendado: ci.recomendado ? r2x(ci.recomendado + add) : ci.recomendado, minimo: ci.minimo ? r2x(ci.minimo + add) : ci.minimo }); }
+      emb = { total: r2x(pl.coste !== null ? pl.coste : pl.conocido), lineas: pl.lineas, nombre: pl.lineas[0] ? pl.lineas[0].nombre : '', elegido: true };
+    } else {
+      var ps = packStd(data, cfg, o);
+      if (ps && ps.coste > 0) emb = { total: r2x(ps.coste), lineas: ps.lineas, nombre: ps.nombre, elegido: false, origen: ps.origen };
     }
+    if (emb && ci) { var add = emb.total / qty - n(ci.emb); ci = Object.assign({}, ci, { coste: ci.coste + add, recomendado: ci.recomendado ? r2x(ci.recomendado + add) : ci.recomendado, minimo: ci.minimo ? r2x(ci.minimo + add) : ci.minimo }); }
     var prod = null;
     (data.productos || []).forEach(function (p) { if ((o.productoId && p.id === o.productoId) || (!o.productoId && norm(p.nombre) === norm(o.producto))) prod = prod || p; });
     var same = (data.pedidos || []).filter(function (x) { return x.id !== o.id && !stateOf(cp, x.estado).cancelled && n(x.precio) > 0 && ((o.productoId && x.productoId === o.productoId) || norm(x.producto) === norm(o.producto)); })
@@ -288,11 +296,11 @@ var CL = (function () {
     var last = sameClient[sameClient.length - 1] || null, lastAny = same[same.length - 1] || null;
     var out = { coste: ci ? r2(ci.coste) : null, catalogo: prod && n(prod.precio) > 0 ? n(prod.precio) : null, recomendado: ci && ci.recomendado ? ci.recomendado : null,
       minimo: prod && n(prod.precioMin) > 0 ? n(prod.precioMin) : (ci && ci.minimo ? ci.minimo : (ci ? r2(ci.coste / (1 - minM)) : null)), anteriorCliente: last ? n(last.precio) : null, anterior: lastAny ? n(lastAny.precio) : null,
-      ventasPrevias: same.length, cantidad: qty, notas: [], avisos: [], fuente: '', embalaje: emb };
+      ventasPrevias: same.length, cantidad: qty, notas: [], avisos: [], fuente: '', embalaje: emb, embalajeUnidad: emb ? r2x(emb.total / qty) : 0 };
     // Precio sugerido: el del catálogo o el recomendado por costes; al cliente habitual, su último precio
     var sug = null;
     if (out.anteriorCliente && (!out.minimo || out.anteriorCliente >= out.minimo)) { sug = out.anteriorCliente; out.fuente = 'Último precio que pagó este cliente'; }
-    else if (out.catalogo) { sug = out.catalogo; out.fuente = 'Precio del catálogo'; }
+    else if (out.catalogo) { sug = r2(out.catalogo + out.embalajeUnidad); out.fuente = out.embalajeUnidad ? 'Precio del catálogo + embalaje' : 'Precio del catálogo'; } // v20.2
     else if (out.recomendado) { sug = out.recomendado; out.fuente = 'Precio recomendado por costes (Excel)'; }
     else if (out.anterior) { sug = out.anterior; out.fuente = 'Último precio de venta de este producto'; }
     else if (ci) { sug = round10up(ci.coste / (1 - (n(pp.margen) || 0.3))); out.fuente = 'Coste + margen objetivo'; }
@@ -926,6 +934,16 @@ var CL = (function () {
       pendientes: tpl ? c.pendientes : [{ nombre: 'Embalaje', falta: 'No hay ningún embalaje estándar configurado' }],
       peso: medido ? n(tpl.pesoMedido) : (tpl ? c.peso : null), pesoFuente: medido ? 'medido' : (tpl && c.peso !== null ? 'calculado' : 'pendiente'), pesoConocido: c.pesoConocido, pesoFalta: c.pesoFalta,
       caja: caja ? { id: caja.id, nombre: caja.nombre, stock: filled(caja.stock) ? n(caja.stock) : null, stockMin: filled(caja.stockMin) ? n(caja.stockMin) : null } : null, cajas: cajaLine ? n(cajaLine.cantidad) : 0, sinPlantilla: !tpl };
+  }
+  // v20.2 · Coste del EMBALAJE ESTÁNDAR con lo que hay en Stock: el de la receta del producto (si se da), la plantilla marcada
+  // como estándar o, si no hay ninguna, el envase sencillo (caja a su precio + cinta). Nada inventado: si falta un precio, lo que
+  // se conoce (completo: false).
+  function packStd(data, cfg, o) {
+    data = data || {}; cfg = cfg || {};
+    var pl = packPlan(o && !(o.embalaje && o.embalaje.simple) ? o : {}, data, cfg.precios || {});
+    if (pl && !pl.sinPlantilla) return { coste: pl.coste !== null ? pl.coste : pl.conocido, completo: pl.coste !== null, nombre: pl.plantilla ? pl.plantilla.nombre : 'Embalaje', origen: pl.origen, lineas: pl.lineas };
+    var sp = simplePlan({ embalaje: { simple: { tipo: 'caja', cinta: true } } }, { materiales: data.materiales || [], simple: (cfg.embalaje || {}).simple });
+    return { coste: sp.coste !== null ? sp.coste : sp.conocido, completo: sp.coste !== null, nombre: 'Caja + cinta (envase sencillo)', origen: 'sencillo', lineas: sp.lineas };
   }
   // Foto del embalaje al cerrar el paquete (no cambia si luego suben los precios)
   function packSnap(plan, fecha) {
@@ -1597,7 +1615,7 @@ var CL = (function () {
 
   return { PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
-    LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
+    LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
     finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,

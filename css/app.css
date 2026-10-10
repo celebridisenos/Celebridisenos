@@ -2138,3 +2138,12 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .nc-estilos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; } .nc-mandos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; } .nc-mandos input[type=range], .nc-sec-in input[type=range] { width: 100%; }
 .nc-sec { margin: 0; } .nc-sec-in { display: grid; gap: 8px; } .nc-montar .nc-der { max-height: 72vh; overflow: auto; padding-right: 4px; }
 @media (max-width: 820px) { .nc-mandos { grid-template-columns: 1fr; } .nc-montar .nc-der { max-height: none; } }
+
+/* v20.2 · Productos: el archivo 3D arriba de la ficha (ver, abrir en Bambu Studio, editar en CelebriR8) */
+.prod-3d:empty { display: none; }
+.prod-3d { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card, transparent); }
+.prod-3d-t { display: flex; align-items: center; gap: 10px; flex: 1 1 220px; min-width: 0; }
+.prod-3d-ic { font-size: 1.6em; line-height: 1; }
+.prod-3d-t .grow { min-width: 0; }
+.prod-3d-sel { max-width: 100%; margin-top: 4px; }
+.prod-3d-b { gap: 6px; }

@@ -4,6 +4,7 @@
 // cada forma de apoyarla en la cama, cuánta superficie queda en voladizo (necesita soporte), cuánto apoya y lo alta que
 // queda. Todo son MEDIDAS de la malla (no estimaciones), salvo lo que se marca como estimado (gramos, tiempo).
 // Una «sopa» es Float32Array con x,y,z de cada vértice de cada triángulo (9 números por triángulo), como da stl.js.
+import { cabeceraStl } from './motor.js'; // v20.2: los STL salen a nombre de la dueña
 
 // ---------- soldar: sopa → vértices + triángulos ----------
 export function suelda(sopa, q = 1e5) { // 0,00001 mm: une los puntos repetidos sin juntar dos distintos (con 1e4 una figura de TripoSR salía con 2 aristas raras que no tiene)
@@ -101,7 +102,7 @@ export function subMalla(M, caras) { const T = new Uint32Array(caras.length * 3)
 // ---------- STL binario ----------
 export function stlDeSopa(sopa, nombre = 'CelebriR8') {
   const nt = sopa.length / 9, b = new ArrayBuffer(84 + nt * 50), dv = new DataView(b), u8 = new Uint8Array(b);
-  const cab = ('CelebriR8 · ' + nombre).slice(0, 79); for (let i = 0; i < cab.length; i++) u8[i] = cab.charCodeAt(i) & 0x7f;
+  const cab = cabeceraStl(nombre); for (let i = 0; i < cab.length; i++) u8[i] = cab.charCodeAt(i) & 0x7f; // v20.2: a nombre de la dueña
   dv.setUint32(80, nt, true);
   for (let t = 0; t < nt; t++) { const o = 84 + t * 50, p = t * 9; const ux = sopa[p + 3] - sopa[p], uy = sopa[p + 4] - sopa[p + 1], uz = sopa[p + 5] - sopa[p + 2], vx = sopa[p + 6] - sopa[p], vy = sopa[p + 7] - sopa[p + 1], vz = sopa[p + 8] - sopa[p + 2]; let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz) || 1;
     dv.setFloat32(o, nx / l, true); dv.setFloat32(o + 4, ny / l, true); dv.setFloat32(o + 8, nz / l, true); for (let j = 0; j < 9; j++) dv.setFloat32(o + 12 + j * 4, sopa[p + j], true); }

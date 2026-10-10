@@ -17,7 +17,8 @@ export const desktop = {
   portable: !!(H && H.portable), // programa abierto desde un USB
   info: () => H ? call('info') : null,
   bambuPerfiles: () => H ? call('bambu-perfiles') : Promise.resolve(null),
-  bambuAbrir: (blob, nombre, abrir = true) => call('bambu-abrir?' + q({ nombre, abrir: abrir ? '1' : '0' }), { method: 'POST', body: blob }), // v20: guardar el 3MF en Documentos y abrirlo en Bambu Studio // v20: sus perfiles de Bambu Studio (solo lectura)
+  bambuAbrir: (blob, nombre, abrir = true) => call('bambu-abrir?' + q({ nombre, abrir: abrir ? '1' : '0' }), { method: 'POST', body: blob }),
+  bambuAbrirRuta: (ruta, abrir = true) => call('bambu-abrir?' + q({ ruta, abrir: abrir ? '1' : '0' }), { method: 'POST' }), // v20.2: un STL/3MF que ya está en el PC, tal cual // v20: guardar el 3MF en Documentos y abrirlo en Bambu Studio // v20: sus perfiles de Bambu Studio (solo lectura)
   getConfig: async k => { if (!H) return null; try { return (await call('config?' + q({ k }))).v || null; } catch (e) { return null; } },
   setConfig: async (k, v) => { if (H) await call('config?' + q({ k }), { method: 'POST', body: JSON.stringify({ v }) }); },
   secretGet: async k => { if (!H) return null; try { return (await call('secret?' + q({ k }))).v || null; } catch (e) { return null; } },

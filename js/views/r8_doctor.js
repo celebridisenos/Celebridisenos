@@ -11,7 +11,7 @@ import * as C from '../r8/comun.js';
 import { estimarGramos } from '../datos3d.js';
 
 const MATERIALES = { PLA: 'PLA', PETG: 'PETG', TPU: 'TPU (flexible)' };
-const USOS = { deco: '🎀 Decoración', funcional: '💪 Tiene que aguantar', encaje: '🧩 Encaja con otra', flexible: '🪢 Flexible' };
+const USOS = { mecanica: '⚙️ Pieza mecánica que trabaja', deco: '🎀 Decoración', funcional: '💪 Tiene que aguantar', encaje: '🧩 Encaja con otra', flexible: '🪢 Flexible' };
 const ACABADOS = { rapido: ['⚡ Rápido', 'Capa 0,20 mm: la mitad de tiempo que la fina; se notan las capas en curvas y letras.'], equilibrado: ['⚖️ Equilibrado', 'Capa 0,16 mm: buen acabado sin tardar demasiado.'], fino: ['✨ Fino', 'Capa 0,12 mm: letras y caras nítidas; tarda bastante más.'] };
 const SOPORTES = { no: ['Sin soportes', 'Más rápido y sin marcas. Solo si casi nada queda en el aire.'], cama: ['Árbol, solo desde la cama', 'Los soportes salen solo de la placa: no tocan la pieza por encima. Lo mejor si lo que vuela está abajo.'], arbol: ['Árbol (orgánico)', 'Se quitan fácil y dejan poca marca. Es el que usas en tus perfiles.'], normal: ['Normal (rejilla)', 'Más firme para voladizos grandes y planos; cuesta más quitarlo y deja más marca.'] };
 
@@ -36,6 +36,7 @@ export async function montarDoctor(el, ext = {}) {
   }
   async function carga() {
     const M = E.mesa(); S.M = null; S.rev = null; S.insp = null; S.orient = null; S.export = null; S.giro = null;
+    if (M && M.origen === 'precision' && S.uso !== 'mecanica') { S.uso = 'mecanica'; recuerda(); } // v20.2: un repuesto con medidas es una pieza que TRABAJA (fuerte y a medida)
     if (!M) { pinta(); return; }
     const T = E.tarea('Revisando «' + M.nombre + '» para imprimir'); pinta(); await pausa();
     try {
@@ -99,7 +100,7 @@ export async function montarDoctor(el, ext = {}) {
     const M = E.mesa(), R = S.rev, I = S.insp && !S.insp.error ? S.insp : null, imp = impresora();
     const F = S.M ? MA.caja(mallaFinal().V) : null, o = (S.orient || []).find(x => x.k === S.giro);
     const procs = (PF.procesos || []).filter(p => !p.impresora || p.impresora === imp.k);
-    const gramos = R && R.volumen_cm3 ? estimarGramos(R.volumen_cm3 * 1000 * Math.pow(S.escala / 100, 3), R.area_cm2 * 100 * Math.pow(S.escala / 100, 2), { relleno: { deco: 12, funcional: 30, encaje: 20, flexible: 15 }[S.uso], paredes: { deco: 2, funcional: 4, encaje: 3, flexible: 3 }[S.uso], material: S.material }) : null;
+    const gramos = R && R.volumen_cm3 ? estimarGramos(R.volumen_cm3 * 1000 * Math.pow(S.escala / 100, 3), R.area_cm2 * 100 * Math.pow(S.escala / 100, 2), { relleno: { mecanica: 60, deco: 12, funcional: 30, encaje: 20, flexible: 15 }[S.uso], paredes: { mecanica: 6, deco: 2, funcional: 4, encaje: 3, flexible: 3 }[S.uso], material: S.material }) : null;
     mount(izq,
       h('div.r8p-tit', h('span', '🩺'), h('div', h('span.r8p-marca', 'PRINT DOCTOR'), h('b', 'Revisión antes de imprimir'), h('small', 'Lo que compruebo, lo marco como medido o aproximado. Nada sustituye a la vista previa por capas de Bambu Studio.'))),
       h('div.r8p-sec', h('b', 'El modelo'), M ? h('div.r8t-mod', h('b', M.nombre), h('small', (E.ORIGEN[M.origen] || M.origen) + (M.historial.length ? ' · ' + M.historial.length + ' cambio(s)' : '') + ' · el original se conserva')) : null, C.zonaSoltar(M ? 'Revisar otro modelo' : 'Abrir un modelo', abreArchivo)),

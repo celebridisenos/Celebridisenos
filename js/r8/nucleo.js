@@ -7,7 +7,7 @@
 // Memoria: Manifold vive fuera de JavaScript y no se borra solo. Todo lo que se crea entra en «vivos»; quien quiera
 // conservar algo lo saca con guarda() y, cuando ya no lo quiera, lo borra con suelta(). limpia() borra el resto.
 import Module from '../../vendor/manifold/manifold.js';
-import { texto, forma, ENCAJES, circulo, rectR, stlBinario, zip } from './motor.js';
+import { texto, forma, ENCAJES, circulo, rectR, stlBinario, zip, AUTORIA } from './motor.js';
 import earcut from '../../vendor/earcut/earcut.js';
 
 let W = null, prom = null;
@@ -199,6 +199,18 @@ export function coloca(m, t) {
   return m;
 }
 
+// v20.2 · una matriz de three.js (4 × 4, por columnas) aplicada a una pieza (lo mismo que coloca(), pero con cualquier matriz)
+export const transforma = (m, M4) => { const e = M4.elements || M4; return m.transform([e[0], e[1], e[2], 0, e[4], e[5], e[6], 0, e[8], e[9], e[10], 0, e[12], e[13], e[14], 1]); };
+// v20.2 · DESFASE de un cuerpo entero: más gordo (+d) o más fino (−d) por todas partes, como «Desfase» / «Engrosar» de Fusion.
+// Se hace con una bola de radio d (Minkowski): exacto pero lento en piezas muy detalladas (se avisa en la pantalla).
+export function desfase(m, d) {
+  d = Math.max(-50, Math.min(50, Number(d) || 0)); if (Math.abs(d) < 0.005) return m; // v20.2: holguras de 0,01 mm (chivatos)
+  const bola = w().Manifold.sphere(Math.abs(d), Math.abs(d) < 1 ? 24 : Math.max(12, Math.min(32, Math.round(Math.abs(d) * 6)))); // v20.2: holguras finas → bola más redonda (error < 0,01 mm)
+  const r = d > 0 ? m.minkowskiSum(bola) : m.minkowskiDifference(bola);
+  if (r.isEmpty()) mal('Con ese desfase la pieza desaparece: hazlo más pequeño.');
+  return r;
+}
+
 // ---------- BOCETO → pieza ----------
 // Un boceto es una lista de formas planas; cada una «suma» o es «agujero». Se puede extruir (con desmoldeo y giro),
 // girar alrededor de su eje (revolución) y redondear las esquinas del perfil.
@@ -225,6 +237,7 @@ export function perfil(formas) {
     if (f.t === 'texto') { if (!String(f.txt || '').trim()) return; s = centraCS(texto2(f.txt, f.fuente, Math.max(1, num(f.alto, 10)))); if (num(f.ang, 0)) s = s.rotate(num(f.ang, 0)); s = s.translate([num(f.x, 0), num(f.y, 0)]); }
     else if (f.t === 'trazo') s = trazo2(f);
     else { const c = contornoDe(f); if (!c.length) return; s = cs(c.map(ccw), 'Positive'); }
+    const df = num(f.desfase, 0); if (Math.abs(df) >= 0.01 && !s.isEmpty()) s = s.offset(Math.max(-100, Math.min(100, df)), 'Round', 2, 24); // v20.2: desfase del contorno
     (f.modo === 'agujero' ? quita : suma).push(s);
   });
   let r = csUnion(suma); if (quita.length) r = r.subtract(csUnion(quita));
@@ -261,7 +274,17 @@ export function boceto(p) {
 //  · imanes: alojamientos para imanes (p. ej. 6 × 3 mm) en las dos caras: se unen y se separan
 //  · cuadrada: espiga cuadrada (no gira)
 //  · cola: cola de milano que se desliza (no se separa tirando)
-export const CONECTORES = { ninguno: 'Sin conectores (solo cortar)', pasadores: 'Pasadores sueltos (agujero en las dos partes)', espiga: 'Espiga redonda (una parte entra en la otra)', cuadrada: 'Espiga cuadrada (no gira)', imanes: 'Imanes (alojamiento en las dos caras)', cola: 'Cola de milano (se desliza y no se suelta)' };
+export const CONECTORES = { ninguno: 'Sin conectores (solo cortar)', pasadores: 'Pasadores sueltos (agujero en las dos partes)', espiga: 'Tapón (una parte entra en la otra)', cuadrada: 'Tapón cuadrado (no gira)', clip: 'Clip a presión (bola que encaja: se oye «clac»)', imanes: 'Imanes (alojamiento en las dos caras)', cola: 'Cola de milano (se desliza y no se suelta)' };
+// v20.2 · como en Bambu Studio (Tapón / Pasador / Clip · Prisma / Cono · Redonda / Cuadrada / Hexagonal) pero con dibujos:
+export const CONECTOR_TIPOS = [
+  { k: 'espiga', e: '🔩', t: 'Tapón', d: 'Sale de una parte y entra en la otra. Sin piezas sueltas.' },
+  { k: 'pasadores', e: '📌', t: 'Pasadores', d: 'Agujero en las dos partes y un pasador suelto (lo imprimes aparte).' },
+  { k: 'clip', e: '🫧', t: 'Clip a presión', d: 'Una bola entra a presión en su casquillo partido: se oye «clac» y aguanta.' },
+  { k: 'imanes', e: '🧲', t: 'Imanes', d: 'Hueco para un imán en cada cara: se unen y se separan.' },
+  { k: 'cola', e: '🕊️', t: 'Cola de milano', d: 'Se desliza de lado y no se separa tirando.' },
+  { k: 'ninguno', e: '✂️', t: 'Sin conectores', d: 'Solo cortar (para pegar).' }];
+export const CONECTOR_FORMAS = { redonda: '● Redonda', cuadrada: '■ Cuadrada', hexagonal: '⬢ Hexagonal' };
+export const CONECTOR_ESTILOS = { recto: '▮ Recto', conico: '▼ Cónico (se centra solo)' };
 const giroA = (eje, inclina) => { // ángulos que llevan la normal del plano a +Z
   const i = num(inclina, 0);
   if (eje === 'x') return [0, -90 + i, 0];
@@ -276,7 +299,8 @@ const mat = (rx, ry, rz) => { // la misma rotación que Manifold.rotate([rx,ry,r
 };
 const aplica = (R, v) => [R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2], R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2], R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2]];
 const traspuesta = R => [[R[0][0], R[1][0], R[2][0]], [R[0][1], R[1][1], R[2][1]], [R[0][2], R[1][2], R[2][2]]];
-const aMat4x3 = R => [R[0][0], R[1][0], R[2][0], R[0][1], R[1][1], R[2][1], R[0][2], R[1][2], R[2][2], 0, 0, 0];
+// v20.2: Manifold quiere la matriz 4 × 4 ENTERA (16 números, por columnas). Con 12 escalaba la pieza (×6): «Partir en el diseño» la dejaba mal.
+const aMat4x3 = R => [R[0][0], R[1][0], R[2][0], 0, R[0][1], R[1][1], R[2][1], 0, R[0][2], R[1][2], R[2][2], 0, 0, 0, 0, 1];
 const dentroAnillos = (q, anillos) => { let d = false; anillos.forEach(r => { for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > q[1]) !== (b[1] > q[1]) && q[0] < (b[0] - a[0]) * (q[1] - a[1]) / (b[1] - a[1]) + a[0]) d = !d; } }); return d; };
 const distBorde = (q, anillos) => { let d = Infinity; anillos.forEach(r => { for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[j], b = r[i], dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1e-12))); d = Math.min(d, Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy)); } }); return d; };
 // Dónde van los conectores: dentro del corte, a «margen» del borde, lo más separados posible (uno por isla como mínimo)
@@ -303,12 +327,20 @@ export function sitiosConectores(seccion, radio, n, margen = 1.6) {
 // o = { eje: 'z'|'x'|'y', pos (mm, en la dirección del eje), inclina (°), tipo, n (0 = auto), d, largo, imanD, imanH, encaje }
 export function partir(m, o = {}) {
   const M = w().Manifold, CS = w().CrossSection;
-  const ang = giroA(o.eje || 'z', o.inclina), R = mat(...ang), Rt = traspuesta(R);
-  const m2 = m.rotate(ang), b = caja(m2);
-  // «pos» se cuenta desde el principio de la pieza en esa dirección (como la altura de corte de Bambu)
-  const b0 = caja(m), ax = { x: 0, y: 1, z: 2 }[o.eje || 'z'], pos = num(o.pos, b0.dims[ax] / 2);
-  const centro = [(b0.min[0] + b0.max[0]) / 2, (b0.min[1] + b0.max[1]) / 2, (b0.min[2] + b0.max[2]) / 2]; centro[ax] = b0.min[ax] + pos;
-  const zc = aplica(R, centro)[2];
+  let R, m2, zc; const b0 = caja(m);
+  if (o.plano && o.plano.n) { // v20.2 · por CUALQUIER plano (de construcción o de una cara): la normal del plano pasa a ser +Z
+    const ln = Math.hypot(...o.plano.n) || 1, n = o.plano.n.map(x => x / ln), a = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], pa = a[0] * n[0] + a[1] * n[1] + a[2] * n[2];
+    let u = [a[0] - n[0] * pa, a[1] - n[1] * pa, a[2] - n[2] * pa]; const lu = Math.hypot(...u); u = u.map(x => x / lu);
+    const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+    R = [u, v, n]; m2 = m.transform(aMat4x3(R)); zc = n[0] * o.plano.o[0] + n[1] * o.plano.o[1] + n[2] * o.plano.o[2];
+  } else {
+    const ang = giroA(o.eje || 'z', o.inclina); R = mat(...ang); m2 = m.rotate(ang);
+    // «pos» se cuenta desde el principio de la pieza en esa dirección (como la altura de corte de Bambu)
+    const ax = { x: 0, y: 1, z: 2 }[o.eje || 'z'], pos = num(o.pos, b0.dims[ax] / 2);
+    const centro = [(b0.min[0] + b0.max[0]) / 2, (b0.min[1] + b0.max[1]) / 2, (b0.min[2] + b0.max[2]) / 2]; centro[ax] = b0.min[ax] + pos;
+    zc = aplica(R, centro)[2];
+  }
+  const Rt = traspuesta(R), b = caja(m2);
   if (!(zc > b.min[2] + 0.05 && zc < b.max[2] - 0.05)) mal('El corte se sale de la pieza: muévelo hacia dentro.');
   const [arriba0, abajo0] = m2.splitByPlane([0, 0, 1], zc);
   if (arriba0.isEmpty() || abajo0.isEmpty()) mal('Por ahí no se parte nada: mueve el corte.');
@@ -319,14 +351,30 @@ export function partir(m, o = {}) {
     if (tipo === 'cola') { // colas de milano: atraviesan el corte de delante atrás, repartidas a lo ancho
       const b2 = cajaCS(sec), k = Math.max(1, Math.min(4, o.n > 0 ? Math.round(o.n) : Math.round(b2.w / 60) + 1));
       sitios = b2.w > d * 2.4 ? Array.from({ length: k }, (_, i) => [b2.min[0] + b2.w * (i + 0.5) / k, (b2.min[1] + b2.max[1]) / 2]) : [];
+    } else if (Array.isArray(o.sitios) && o.sitios.length) { // v20.2: los que pone ella tocando el corte
+      const dentro = sec.offset(-(d / 2 + hol + 0.8), 'Round', 2, 24), an = dentro.isEmpty() ? [] : dentro.toPolygons();
+      sitios = o.sitios.filter(q => an.length && dentroAnillos(q, an)); if (sitios.length < o.sitios.length) avisos.push((o.sitios.length - sitios.length) + ' conector(es) quedaban fuera o pegados al borde: no los pongo.');
     } else sitios = sitiosConectores(sec, d / 2 + hol, o.n, 1.6);
     if (!sitios.length) avisos.push('El corte es demasiado estrecho para conectores de ' + String(d).replace('.', ',') + ' mm: lo parto sin ellos (o prueba con uno más fino).');
     // cuánto «hondo» cabe en cada lado sin atravesar la pieza
     const cil = (dd, z0, z1, q, cuadrado) => (cuadrado ? M.cube([dd, dd, z1 - z0], true).translate([q[0], q[1], (z0 + z1) / 2]) : M.cylinder(z1 - z0, dd / 2, dd / 2, seg(dd)).translate([q[0], q[1], z0]));
+    // v20.2 · un prisma con su FORMA (redonda/cuadrada/hexagonal) y su ESTILO (recto o cónico: más estrecho en la punta, abajo)
+    const forma = o.forma || (tipo === 'cuadrada' ? 'cuadrada' : 'redonda'), conico = o.estilo === 'conico', kc = 0.72;
+    const seccion2 = dd => forma === 'cuadrada' ? CS.square([dd, dd], true) : forma === 'hexagonal' ? CS.circle(dd / 2 / Math.cos(Math.PI / 6), 6) : CS.circle(dd / 2, seg(dd));
+    const prisma = (dd, z0, z1, q, cono) => { const h0 = z1 - z0; if (!cono) return seccion2(dd).extrude(h0).translate([q[0], q[1], z0]); return seccion2(dd).extrude(h0, 0, 0, [kc, kc]).scale([1, 1, -1]).translate([q[0], q[1], z1]); };
     const H = [], A = [], Ab = [];
     sitios.forEach(q => {
-      if (tipo === 'pasadores') { H.push(cil(d + 2 * hol, zc - prof, zc + prof, q)); sueltas.push(M.cylinder(L - 0.4, d / 2, d / 2, seg(d)).translate([q[0], q[1], 0])); }
-      else if (tipo === 'espiga' || tipo === 'cuadrada') { const c = tipo === 'cuadrada'; A.push(cil(d, zc - L / 2, zc + 0.01, q, c)); Ab.push(cil(d + 2 * hol, zc - L / 2 - 0.4, zc + 0.01, q, c)); }
+      if (tipo === 'pasadores') { H.push(prisma(d + 2 * hol, zc - prof, zc + prof, q, false)); sueltas.push(seccion2(d).extrude(L - 0.4).translate([q[0], q[1], 0])); }
+      else if (tipo === 'espiga' || tipo === 'cuadrada') { A.push(prisma(d, zc - L / 2, zc + 0.01, q, conico)); Ab.push(prisma(d + 2 * hol, zc - L / 2 - 0.4, zc + 0.01, q, conico)); }
+      else if (tipo === 'clip') { // v20.2 · CLIP DE BOLA: tallo + bola en una parte; en la otra, casquillo partido en 4 «pétalos» con un foso alrededor para que cedan
+        const D = d * 1.5, cz = zc - Math.max(D / 2 + 1, L * 0.55), tallo = d * 0.75;
+        A.push(M.cylinder(zc + 0.01 - cz, tallo / 2, tallo / 2, seg(tallo)).translate([q[0], q[1], cz]), M.sphere(D / 2, seg(D)).translate([q[0], q[1], cz]));
+        const boca = Math.max(tallo + 2 * hol, D - 0.6); // la boca, 0,6 mm más estrecha que la bola: entra apretando y se queda
+        Ab.push(M.sphere(D / 2 + hol, seg(D)).translate([q[0], q[1], cz]), M.cylinder(zc + 0.02 - cz, boca / 2, boca / 2, seg(boca)).translate([q[0], q[1], cz]));
+        const pared = 1.2, foso = 0.8, rf = D / 2 + hol + pared; // foso alrededor de la pared del casquillo (de la boca hasta el centro de la bola)
+        Ab.push(M.cylinder(zc + 0.02 - cz, rf + foso, rf + foso, seg(2 * rf)).subtract(M.cylinder(zc + 0.04 - cz, rf, rf, seg(2 * rf)).translate([0, 0, -0.01])).translate([q[0], q[1], cz]));
+        [0, 90].forEach(a => Ab.push(M.cube([2 * rf + 2 * foso, 0.8, zc + 0.02 - cz], true).rotate([0, 0, a]).translate([q[0], q[1], (zc + cz) / 2]))); // los cortes que hacen los pétalos
+      }
       else if (tipo === 'imanes') { H.push(cil(d + 2 * ENCAJES.justo, zc - prof, zc + prof, q)); }
       else if (tipo === 'cola') { // cola de milano: trapecio en el plano del corte, se desliza en Y
         const ancho = d * 1.8, cuello = d * 1.1, alto = Math.min(L / 2, d), b2 = cajaCS(sec), largo = b2.h + 2;
@@ -343,8 +391,9 @@ export function partir(m, o = {}) {
   const abre = Math.max(4, Math.min(30, Math.max(...b0.dims) * 0.12)), nrm = aplica(Rt, [0, 0, 1]);
   const montadas = [{ t: 'arriba', m: vuelve(arriba.translate([0, 0, abre / 2])) }, { t: 'abajo', m: vuelve(abajo.translate([0, 0, -abre / 2])) }];
   const imprimir = [], pon = (t, x) => imprimir.push({ t, m: aLaCama(x) });
-  pon('parte_A', tipo === 'espiga' || tipo === 'cuadrada' || tipo === 'cola' ? arriba.rotate([180, 0, 0]) : arriba); // la espiga apunta hacia arriba al imprimir
-  pon('parte_B', tipo === 'espiga' || tipo === 'cuadrada' || tipo === 'cola' ? abajo : abajo.rotate([180, 0, 0]));
+  const saliente = ['espiga', 'cuadrada', 'cola', 'clip'].includes(tipo);
+  pon('parte_A', saliente ? arriba.rotate([180, 0, 0]) : arriba); // la espiga (o la bola) apunta hacia arriba al imprimir
+  pon('parte_B', saliente ? abajo : abajo.rotate([180, 0, 0]));
   sueltas.forEach((s, i) => pon('pasador_' + (i + 1), s.rotate([90, 0, 0])));
   return { montadas, imprimir, sitios, seccion: sec.area(), normal: nrm, avisos, plano: { R, zc } };
 }
@@ -466,7 +515,7 @@ export function tresMF(partes, nombre = 'pieza', ajustes = null) {
     build += '<item objectid="' + id + '" transform="1 0 0 0 1 0 0 0 1 ' + cx.toFixed(4) + ' ' + cy.toFixed(4) + ' ' + cz.toFixed(4) + '"/>';
     if (ajustes) ms += '  <object id="' + id + '">\n    <metadata key="name" value="' + nom + '"/>\n    <metadata key="extruder" value="' + (cols.indexOf((p.color || '#9b8cff').toUpperCase()) + 1) + '"/>\n' + Object.entries(ajustes).map(([a, b]) => '    <metadata key="' + esc(a) + '" value="' + esc(b) + '"/>\n').join('') + '  </object>\n';
   });
-  const modelo = '<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="es-ES" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><metadata name="Title">' + esc(nombre) + '</metadata><metadata name="Application">CelebriDiseños · CelebriR8</metadata><resources><basematerials id="1">' +
+  const modelo = '<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="es-ES" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><metadata name="Title">' + esc(nombre) + '</metadata><metadata name="Designer">' + esc(AUTORIA.quien) + '</metadata><metadata name="Copyright">© ' + AUTORIA.anio + ' ' + esc(AUTORIA.quien) + '</metadata><metadata name="LicenseTerms">' + esc(AUTORIA.licencia + '. Diseño propio de ' + AUTORIA.quien + '.') + '</metadata><metadata name="CreationDate">' + new Date().toISOString().slice(0, 10) + '</metadata><metadata name="Application">CelebriDiseños · CelebriR8</metadata><resources><basematerials id="1">' +
     cols.map((c, i) => '<base name="color ' + (i + 1) + '" displaycolor="' + c + 'FF"/>').join('') + '</basematerials>' + objs + '</resources><build>' + build + '</build></model>';
   const te = new TextEncoder(), extra = ajustes ? [{ nombre: 'Metadata/model_settings.config', datos: te.encode('<?xml version="1.0" encoding="UTF-8"?>\n<config>\n' + ms + '</config>\n') }] : [];
   return zip([

@@ -1,0 +1,132 @@
+/* ================= v30 · «ATELIER 30»: la cara de CelebriDiseños 30 =================
+   La dueña (10-10-2026): «sacar la 30, la definitiva, dejarlo irreconocible». Solo ASPECTO, encima de la 18 (html.ui18.ui30):
+   no cambia ni un botón de sitio ni un dato. NOCHE = obsidiana, oro y coral (de taller de joyería); DÍA = papel cálido y tinta.
+   Rápida como la 18: sin cristales desenfocados ni fondos que se mueven. Se puede volver a la 18 en Configuración → Interfaz. */
+html.ui30 {
+  --font-t: "Cambria", "Constantia", Georgia, "Times New Roman", serif; /* los títulos: con serifa, de estudio de diseño */
+  --radius: 18px; --radius-s: 11px; --radius-l: 24px;
+  --a1: var(--brand); --a2: var(--u30-coral); --a3: var(--u30-menta);
+  --grad: linear-gradient(115deg, var(--u30-oro) 0%, var(--u30-coral) 100%);
+  --grad3: linear-gradient(115deg, var(--u30-oro) 0%, var(--u30-coral) 60%, var(--u30-menta) 100%);
+}
+html.ui30[data-modo="noche"] {
+  --u30-oro: #e8b04b; --u30-coral: #ff7a59; --u30-menta: #3ee6b0;
+  --bg: #0a0908; --surface: #141210; --surface-2: #1b1815; --surface-3: #25211c;
+  --line: #2a251f; --line-2: #3d362c; --text: #f7f2e9; --text-2: #d2c9b9; --muted: #948a79;
+  --brand: #e8b04b; --brand-2: #d39a32; --brand-text: #1b1406;
+  --brand-soft: color-mix(in srgb, #e8b04b 16%, #141210);
+  --ok: #3ee6b0; --ok-soft: #0c2a22; --warn: #f5b942; --warn-soft: #2e2410; --bad: #ff6b6b; --bad-soft: #3a1717; --info: #7cc4ff; --info-soft: #10233a;
+  --shadow: 0 1px 0 rgba(255, 236, 200, .04) inset, 0 10px 28px rgba(0, 0, 0, .34);
+  --shadow-l: 0 1px 0 rgba(255, 236, 200, .06) inset, 0 28px 80px rgba(0, 0, 0, .72);
+  --focus: 0 0 0 3px color-mix(in srgb, #e8b04b 42%, transparent);
+  --u18-panel: #0f0d0b; --u18-brillo: rgba(255, 236, 200, .05);
+}
+html.ui30[data-modo="dia"] {
+  --u30-oro: #b8792a; --u30-coral: #e2553a; --u30-menta: #1f9e7a;
+  --bg: #f5f0e8; --surface: #fffdf9; --surface-2: #f6f1e8; --surface-3: #ece4d6;
+  --line: #e7dccb; --line-2: #d8c8ae; --text: #1e1a14; --text-2: #4b4337; --muted: #877a68;
+  --brand: #b8792a; --brand-2: #9c6420; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #b8792a 12%, #fffdf9);
+  --ok: #148a62; --ok-soft: #e2f4ec; --warn: #b8670a; --warn-soft: #fff1dc; --bad: #c8333d; --bad-soft: #fde8e8; --info: #2563eb; --info-soft: #e6efff;
+  --shadow: 0 1px 2px rgba(60, 40, 10, .06), 0 10px 26px rgba(60, 40, 10, .07);
+  --shadow-l: 0 26px 70px rgba(60, 40, 10, .22);
+  --focus: 0 0 0 3px color-mix(in srgb, #b8792a 30%, transparent);
+  --u18-panel: #fffdf9; --u18-brillo: rgba(255, 255, 255, .9);
+}
+
+/* ---------- el fondo: luz de oro arriba a la izquierda, coral a la derecha y un grano finísimo ---------- */
+html.ui30 body { background-color: var(--bg); background-image: radial-gradient(1000px 520px at 10% -14%, color-mix(in srgb, var(--u30-oro) 17%, transparent), transparent 70%), radial-gradient(820px 460px at 100% -8%, color-mix(in srgb, var(--u30-coral) 11%, transparent), transparent 72%), radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text) 5%, transparent) 1px, transparent 1.2px); background-size: auto, auto, 22px 22px; background-attachment: fixed; }
+html.ui30 ::selection { background: color-mix(in srgb, var(--u30-oro) 40%, transparent); }
+
+/* ---------- letras: títulos con serifa ---------- */
+html.ui30 h1, html.ui30 h2, html.ui30 .modal-h h2, html.ui30 .brand b { font-family: var(--font-t); letter-spacing: -.005em; }
+html.ui30 h1 { font-size: 34px; font-weight: 700; }
+html.ui30 h2 { font-size: 21px; font-weight: 700; }
+html.ui30 a { color: color-mix(in srgb, var(--u30-oro) 85%, var(--text)); }
+
+/* ---------- el menú: una columna de taller, pegada al borde, con su filo de oro ---------- */
+html.ui30 .sidebar { background: linear-gradient(180deg, color-mix(in srgb, var(--u18-panel) 96%, var(--u30-oro)), var(--u18-panel) 40%); border: 0; border-right: 1px solid var(--line); border-radius: 0; margin: 0; height: 100vh; box-shadow: none; padding-top: 16px; }
+html.ui30 .sidebar::after { content: ""; position: absolute; top: 0; right: -1px; bottom: 0; width: 1px; background: linear-gradient(180deg, transparent, var(--u30-oro) 30%, var(--u30-coral) 70%, transparent); opacity: .55; pointer-events: none; }
+html.ui30 body.nav-pinned .sidebar { box-shadow: none; top: 0; }
+html.ui30 .brand { border-bottom: 0; padding: 4px 14px 18px; }
+html.ui30 .brand .logo { border-radius: 50%; background: conic-gradient(from 200deg, var(--u30-oro), var(--u30-coral), var(--u30-menta), var(--u30-oro)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--u30-oro) 22%, transparent), 0 8px 22px color-mix(in srgb, var(--u30-oro) 35%, transparent); }
+html.ui30 .brand b { font-size: 19px; font-weight: 700; }
+html.ui30 .brand small { color: var(--u30-oro); letter-spacing: .22em; }
+html.ui30 .nav a { border-radius: 999px; padding: 8px 14px; color: var(--text-2); }
+html.ui30 .nav a:hover { background: color-mix(in srgb, var(--u30-oro) 9%, transparent); color: var(--text); transform: none; }
+html.ui30 .nav a.on { background: color-mix(in srgb, var(--u30-oro) 17%, transparent); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--u30-oro) 38%, transparent); }
+html.ui30 .nav a.on::before { left: 4px; top: 50%; bottom: auto; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--u30-oro); box-shadow: 0 0 10px var(--u30-oro); }
+html.ui30 .nav a.on svg.i { color: var(--u30-oro); }
+html.ui30 .nav .grp, html.ui30 .nav-grp { color: color-mix(in srgb, var(--u30-oro) 70%, var(--muted)); letter-spacing: .2em; }
+html.ui30 .nav a .count { background: var(--grad); color: #1b1406; }
+html.ui30 .sidebar .me { border-radius: 999px; background: var(--surface-2); }
+
+/* ---------- la barra de arriba: limpia, con un hilo de oro ---------- */
+html.ui30 .topbar { background: color-mix(in srgb, var(--bg) 92%, transparent); border-bottom: 0; box-shadow: 0 1px 0 var(--line); }
+html.ui30 .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--u30-oro) 70%, transparent), color-mix(in srgb, var(--u30-coral) 50%, transparent), transparent); pointer-events: none; }
+html.ui30 .search-btn { border-radius: 14px; }
+html.ui30 .search-btn:hover { border-color: var(--u30-oro); }
+html.ui30 .u18-modo { border-radius: 50%; }
+
+/* ---------- la cabecera de cada pantalla ---------- */
+html.ui30 .page-head { border-bottom: 0; padding-bottom: 12px; }
+html.ui30 .page-head::after { width: 100%; height: 1px; background: linear-gradient(90deg, var(--u30-oro), color-mix(in srgb, var(--u30-coral) 60%, transparent) 35%, transparent 80%); box-shadow: none; }
+
+/* ---------- tarjetas: más redondas, con su filo de luz arriba ---------- */
+html.ui30 .card { border-radius: var(--radius); position: relative; }
+html.ui30[data-modo="noche"] .card, html.ui30[data-modo="noche"] .kt, html.ui30[data-modo="noche"] .kpi { background-image: linear-gradient(180deg, rgba(255, 228, 180, .035), transparent 42%); }
+html.ui30 .card.click:hover, html.ui30 .kpi:hover, html.ui30 .att:hover, html.ui30 .kt:hover { border-color: color-mix(in srgb, var(--u30-oro) 60%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--u30-oro) 25%, transparent), var(--shadow); }
+html.ui30 .kpi .n, html.ui30 .kt .kv { color: var(--text); }
+html.ui30 .kpi .l, html.ui30 .kt .kl { color: color-mix(in srgb, var(--u30-oro) 60%, var(--muted)); }
+
+/* ---------- botones: el principal, de oro ---------- */
+html.ui30 .btn { border-radius: 999px; }
+html.ui30 .btn.sm { border-radius: 999px; }
+html.ui30 .btn.primary { background: var(--grad); color: #1b1406; text-shadow: none; box-shadow: 0 6px 20px color-mix(in srgb, var(--u30-oro) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, .35); }
+html.ui30[data-modo="dia"] .btn.primary { color: #fff; text-shadow: 0 1px 1px rgba(60, 30, 0, .35); }
+html.ui30 .btn.primary:hover { background: var(--grad); filter: brightness(1.07) saturate(1.05); }
+html.ui30 .btn:hover { border-color: color-mix(in srgb, var(--u30-oro) 50%, var(--line-2)); }
+html.ui30 .seg button.on, html.ui30 .chip.on { box-shadow: 0 0 0 1px color-mix(in srgb, var(--u30-oro) 45%, transparent); }
+html.ui30 .chip.on { background: var(--brand-soft); border-color: var(--u30-oro); }
+html.ui30 .tabs button.on { background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--u30-oro) 12%, transparent)); box-shadow: inset 0 -2px 0 var(--u30-oro); }
+html.ui30 .switch input:checked + span { background: var(--grad); }
+html.ui30 .fab { background: var(--grad); color: #1b1406; border-radius: 50%; }
+
+/* ---------- formularios ---------- */
+html.ui30[data-modo="noche"] .inp, html.ui30[data-modo="noche"] select.inp, html.ui30[data-modo="noche"] textarea.inp { background: #0d0b0a; }
+html.ui30 .inp:hover { border-color: color-mix(in srgb, var(--u30-oro) 40%, var(--line-2)); }
+html.ui30 .inp:focus, html.ui30 select.inp:focus, html.ui30 textarea.inp:focus { border-color: var(--u30-oro); box-shadow: var(--focus); }
+
+/* ---------- tablas ---------- */
+html.ui30 table.t th { color: color-mix(in srgb, var(--u30-oro) 65%, var(--muted)); }
+html.ui30 table.t tbody tr:hover, html.ui30 .item:hover { background: color-mix(in srgb, var(--u30-oro) 6%, var(--surface)); }
+
+/* ---------- ventanas y avisos ---------- */
+html.ui30 .modal { border-radius: var(--radius-l); }
+html.ui30 .modal::before { background: var(--grad3); }
+html.ui30 .overlay { background: rgba(8, 6, 4, .66); }
+html.ui30 .toast.ok { background: var(--u30-menta); color: #04130d; }
+
+/* ---------- CelebriR8 con la misma cara ---------- */
+html.ui30 .r8v-logo .r8v-cubo { filter: hue-rotate(160deg) saturate(1.3); }
+html.ui30 .r8v-tab.on { background: color-mix(in srgb, var(--u30-oro) 18%, var(--surface)); border-color: var(--u30-oro); box-shadow: 0 0 0 1px color-mix(in srgb, var(--u30-oro) 40%, transparent); }
+html.ui30 .r8v-grupo { color: color-mix(in srgb, var(--u30-oro) 75%, var(--muted)); }
+html.ui30 .r8p-vista, html.ui30 .r8e-vista, html.ui30 .sp-vista { background: radial-gradient(900px 560px at 50% 36%, #2b241d 0%, #110e0b 62%, #070605 100%); }
+html.ui30[data-modo="dia"] .r8p-vista, html.ui30[data-modo="dia"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #fbf6ee 0%, #ece2d2 62%, #ddd0bb 100%); }
+html.ui30 .r8p-marca { color: var(--u30-oro); }
+html.ui30 .r8cj-tapa.on, html.ui30 .r8cj-el.on { border-color: var(--u30-oro); box-shadow: inset 0 0 0 1px var(--u30-oro); background: color-mix(in srgb, var(--u30-oro) 13%, var(--surface)); }
+html.ui30 .r8cj-el { border-color: color-mix(in srgb, var(--u30-oro) 50%, var(--line)); }
+html.ui30 .r8cj-chipvuela { background: var(--grad); color: #1b1406; }
+
+/* ---------- elegir la interfaz (Configuración) ---------- */
+.ui-mini.v30n { background: linear-gradient(135deg, #0a0908 0 55%, #e8b04b 55% 78%, #ff7a59 78%); }
+.ui-mini.v30d { background: linear-gradient(135deg, #f5f0e8 0 55%, #b8792a 55% 78%, #e2553a 78%); }
+
+/* ---------- el estreno de la 30: oro y coral ---------- */
+.est30 { background: radial-gradient(900px 520px at 50% 45%, #2a1f12 0%, #070504 72%); color: #f7f2e9; }
+.est30 .est20-sello { color: #e8b04b; }
+.est30 .est20-inicio h1, .est30 .est20-tarjeta h2 { font-family: "Cambria", "Constantia", Georgia, serif; }
+.est30 .est20-inicio h1 span, .est30 .est20-tarjeta h2 span { background: linear-gradient(115deg, #e8b04b, #ff7a59 60%, #3ee6b0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.est30 .est20-play { background: linear-gradient(115deg, #e8b04b, #ff7a59); color: #1b1406; }
+.est30 .est20-nov button { background: #17130f; border-color: #3a3024; color: #f7f2e9; } .est30 .est20-nov button:hover { border-color: #e8b04b; }
+.est30 .est20-tarjeta { background: #100d0a; border-color: #3a3024; }

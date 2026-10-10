@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '20.1.0';
+export const APP_VERSION = '30.0.0';
 export const SERVIDOR_NECESARIO = '18.0.0'; // v20: la versión MÍNIMA del Servidor.gs que necesita esta app (la 20 no cambia nada del servidor)
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
@@ -23,7 +23,17 @@ let emitQueued = false;
 let statusCb = null;
 export function onStatus(fn) { statusCb = fn; }
 function status() { if (statusCb) { try { statusCb(S); } catch (e) { console.error(e); } } }
-export function emit() { if (emitQueued) return; emitQueued = true; requestAnimationFrame(() => { emitQueued = false; listeners.forEach(f => { try { f(S); } catch (e) { console.error(e); } }); }); }
+// v20.2 · El EMBALAJE se cobra SIEMPRE: el coste real del embalaje estándar (Stock) queda en S.cfg.precios.embalajeReal y CL.prices
+// lo usa si Configuración → Precios dice 0. Se recalcula con cada cambio (nunca se guarda en el servidor: config.js lo quita).
+export function embalajeReal() {
+  try {
+    if (!S.cfg || !S.cfg.precios || !window.CL || !window.CL.packStd) return 0;
+    const p = window.CL.packStd(S.t, S.cfg), v = p && p.coste > 0 ? Math.round(p.coste * 100) / 100 : 0;
+    S.cfg.precios.embalajeReal = v;
+    return v;
+  } catch (e) { return 0; }
+}
+export function emit() { if (emitQueued) return; emitQueued = true; requestAnimationFrame(() => { emitQueued = false; embalajeReal(); listeners.forEach(f => { try { f(S); } catch (e) { console.error(e); } }); }); }
 
 // ---------- IndexedDB ----------
 let dbp;
@@ -303,6 +313,8 @@ export function pull(full) {
       }
       if (S.ws !== ws0) return; // se cambió de espacio mientras llegaba la respuesta
       const sig = x => JSON.stringify(x);
+      // v20.2: embalajeReal lo calcula la app (no viene del servidor): no es un cambio, si no, cada sincronización redibujaría la pantalla
+      if (r.config && r.config.precios && S.cfg && S.cfg.precios && 'embalajeReal' in S.cfg.precios) r.config.precios.embalajeReal = S.cfg.precios.embalajeReal;
       if (sig(r.yo) !== sig(S.me) || sig(r.permisos) !== sig(S.perms) || sig(r.config) !== sig(S.cfg) || r.hoy !== S.hoy || sig(r.iaServidor || null) !== sig(S.iaServidor || null)) changed = true;
       S.me = r.yo; S.perms = r.permisos; S.cfg = r.config; S.hoy = r.hoy; S.iaServidor = r.iaServidor || null;
       try { const lg = (r.config && r.config.empresa && r.config.empresa.logo) || ''; if (lg !== (localStorage.getItem('cd.logo') || '')) { if (lg) localStorage.setItem('cd.logo', lg); else localStorage.removeItem('cd.logo'); } } catch (e) { }
@@ -327,16 +339,20 @@ export function pull(full) {
     } finally {
       S.syncing = false; S.ready = true; pulling = null;
       // Solo se redibuja la pantalla si ha llegado algo nuevo
+      embalajeReal(); // v20.2: el coste del embalaje ya está antes de pintar nada (no solo tras el primer emit)
       if (changed) emit(); else status();
     }
   })();
   return pulling;
 }
 let pullTimer = null;
+// v20.2 · mientras se DISEÑA (CelebriR8) no se sincroniza en segundo plano: la dueña lo notaba («como que se reconecta…
+// esa parte no hace falta mientras lo estás diseñando»). Al salir de CelebriR8 se pone al día enseguida.
+export function pausaSync(v) { const antes = !!S.pausaSync; S.pausaSync = !!v; if (antes && !v) pull(); }
 export function startAutoSync() {
   clearInterval(pullTimer);
-  pullTimer = setInterval(() => { if (document.visibilityState === 'visible' || Date.now() % 5 === 0) pull(); }, 15000); // v13.10: cada 15 s (la pantalla no se mueve)
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+  pullTimer = setInterval(() => { if (S.pausaSync) return; if (document.visibilityState === 'visible' || Date.now() % 5 === 0) pull(); }, 15000); // v13.10: cada 15 s (la pantalla no se mueve)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !S.pausaSync) pull(); });
   const midnight = setInterval(() => { const d = CL.today(); if (d !== S.hoy) { S.hoy = d; emit(); } }, 60000);
 }
 const pullSoon = (() => { let t; return (ms) => { clearTimeout(t); t = setTimeout(() => pull(), ms || 1500); }; })();

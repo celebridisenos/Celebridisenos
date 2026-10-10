@@ -1,11 +1,12 @@
 // ================= Arranque, navegación y estructura =================
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
-import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes } from './store.js';
+import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes, embalajeReal } from './store.js';
 import { aplicarColor, colorActual, dialogoColores, dialogoPlan } from './v17.js'; // v17: colores, plan de impresión y calendario
 import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
-import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
-import { debeEstrenar20 } from './estreno20.js'; // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
+import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30 } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
+import { debeEstrenar20 } from './estreno20.js';
+import { debeEstrenar30 } from './estreno30.js'; // v30: el estreno de la 30 (va antes que el de la 20) // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
 import { desktop } from './desktop.js';
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
@@ -140,6 +141,7 @@ async function route() {
   if (name === 'q') { const T = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes', factura: 'facturas', stock: 'stock', caja: 'stock', presupuesto: 'presupuestos' }; const t = T[params[0]]; return go(t ? t + '/' + encodeURIComponent(params[1] || '') : 'inicio'); }
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
+  embalajeReal(); // v20.2: cada pantalla se pinta ya con el coste real del embalaje
   buildShell();
   navActual = name; refreshShell(); // v16: si su grupo está plegado, el apartado abierto se enseña igualmente (y su grupo se abre)
   markNav(name);
@@ -161,8 +163,9 @@ async function route() {
     current = { name, view: mod.render(content, params) || {}, params };
     window.scrollTo(0, 0);
     entrada(content); // v14.0: el contenido entra suave
-    if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); } // v16.1
+    if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); setTimeout(embalajeAuto, 6000); setTimeout(() => import('./r8/pregunta_rodamiento.js').then(m => m.alArrancar()).catch(() => { }), 9000); } // v16.1 · v20.2 · v20.3: «¿cuál de tus rodamientos de prueba gira?»
     if (!route._est && debeEstrenar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer')) estreno({ ir: go }); else route._est = false; }, 900); }
+    else if (!route._est && debeEstrenar30()) { route._est = route._inau = true; try { localStorage.setItem('cd.estreno20', '1'); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno30.js').then(m => m.estreno30({ ir: go })); else route._est = false; }, 900); } // v30
     else if (!route._est && debeEstrenar20()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno20.js').then(m => m.estreno20({ ir: go })); else route._est = false; }, 900); } // v20.1 (la 18 va primero si no se vio)
     if (!route._inau && debeInaugurar()) { route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full')) inauguracion({ ir: go }); }, 700); }
   } catch (e) {
@@ -172,6 +175,19 @@ async function route() {
 }
 window.addEventListener('hashchange', route);
 // v16.1 · VELOCIDAD: las pantallas que más se usan se cargan en los ratos libres; el primer clic en cada una ya no espera.
+// v20.2 · «El embalaje siempre se aplica en todo» (la dueña): si en Configuración → Precios está a 0 y el embalaje estándar de Stock
+// tiene precio, se pone allí UNA vez (así lo usa también la tarifa de la tienda) y se dice. Si lo cambia ella, se respeta.
+async function embalajeAuto() {
+  try {
+    const pp = S.cfg && S.cfg.precios;
+    if (!pp || pp.desdeSheet || !can('config.editar') || Number(pp.embalaje) > 0 || !(Number(pp.embalajeReal) > 0)) return;
+    try { if (localStorage.getItem('cd.emb.auto')) return; } catch (e) { return; }
+    const valor = Object.assign({}, pp, { embalaje: pp.embalajeReal }); delete valor.embalajeReal;
+    S.cfg = await api('config.guardar', { clave: 'precios', valor }, { quiet: true }); emit();
+    try { localStorage.setItem('cd.emb.auto', '1'); } catch (e) { }
+    toast('📦 Tu embalaje (' + String(valor.embalaje.toFixed(2)).replace('.', ',') + ' €) ya se suma a todos los precios, también en la tienda. Se cambia en Configuración → Precios.', 'ok', 10000);
+  } catch (e) { }
+}
 function precalentar() {
   const lista = ['hoy', 'pedidos', 'productos', 'inventario', 'embalaje', 'ingresos', 'clientes', 'stock', 'costes'].filter(k => VIEWS[k]);
   const libre = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 300));
@@ -480,9 +496,14 @@ export function accionesPaleta() {
     fn('Sonido al entrar un pedido nuevo (sí/no)', 'sparkles', () => import('./nuevopedido.js').then(m => { const v = !m.prefs().sonido; m.guardarPrefs({ sonido: v }); if (v) m.sonar(); toast(v ? '🔔 Sonido de pedido nuevo activado' : 'Sonido de pedido nuevo apagado'); }), 'pedidos.ver', 'pedido nuevo sonido campana'),
     fn('Voz del taller: activar o apagar', 'sparkles', () => import('./voz.js').then(m => { const v = !m.vozOn(); if (m.setVoz(v)) toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); }), 'pedidos.ver', 'hablar avisos sonido'),
     fn(es18() ? 'Interfaz de antes (14)' : 'Sala de mando (interfaz 18)', 'sparkles', () => { const k = es18() ? 'nueva' : 'v18'; ponInterfaz(k); toast(k === 'v18' ? '🛰️ Sala de mando (18)' : '✨ Interfaz 14', 'ok', 2500); }, '', 'aspecto diseño antes nueva clásica interfaz sala mando noche día'),
+    fn('🧪 Rodamientos impresos: decir cuáles giran y no sueltan los rodillos (o mandar la prueba)', 'sparkles', () => import('./r8/pregunta_rodamiento.js').then(m => m.preguntar()), '', 'rodamiento rodamientos impresos prueba holgura gira bolas rodillos se salen numero llave cojinete calibrar'), // v20.3
+    fn('📦 Taller de cajas (bisagras, cierres, pomos y puertas que se arrastran)', 'sparkles', () => { try { localStorage.setItem('cd.r8.pest', 'cajas'); } catch (e) { } if (window.__r8ir && document.querySelector('.r8v')) window.__r8ir('cajas'); else go('celebrir8'); }, '', 'cajas caja bisagra bisagras tapa cierre pomo puerta joyero armarito arrastrar'), // v30
+    fn('🎯 Calibrar tu calibre y tu impresora (probeta de precisión: luego todo sale corregido solo)', 'sparkles', () => import('./r8/calibracion_ui.js').then(m => m.abrir()), '', 'calibrar calibre impresora precision probeta medir compensar encoge agujeros contorno pie elefante monedas'), // v20.4
+    fn('🔩 Rodamiento de metal: apuntar qué aro de su plantilla lo sujetó', 'sparkles', () => import('./r8/pregunta_rodamiento.js').then(m => m.preguntarMetal()), '', 'metal comprado plantilla aro ajuste mr115 608 muescas rayitas'), // v20.2.2
+    fn('Ver el estreno de la 30 (el «30» de oro imprimiéndose)', 'sparkles', () => import('./estreno30.js').then(m => m.estreno30({ ir: go })), '', 'estreno 30 treinta inauguración fiesta nueva versión novedades'),
     fn('Ver el estreno de la 20 (el «20» imprimiéndose en 3D)', 'sparkles', () => import('./estreno20.js').then(m => m.estreno20({ ir: go })), '', 'estreno inauguración fiesta novedades cine 20 celebrir8 imprimir'),
     fn('Ver el estreno de la 18', 'sparkles', () => estreno({ ir: go }), '', 'estreno inauguración fiesta novedades cine'),
-    fn('Tema oscuro / claro', 'sparkles', () => { if (es18()) return ponInterfaz('v18', document.documentElement.dataset.modo === 'noche' ? 'dia' : 'noche'); const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
+    fn('Tema oscuro / claro', 'sparkles', () => { if (es18()) return ponInterfaz(es30() ? 'v30' : 'v18', document.documentElement.dataset.modo === 'noche' ? 'dia' : 'noche'); const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
     fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),
     fn('Cerrar sesión', 'logout', async () => { await logout(); start(); }, '', 'salir')
   ];

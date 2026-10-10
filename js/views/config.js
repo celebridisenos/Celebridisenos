@@ -2,7 +2,7 @@
 import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText } from '../ui.js';
 import * as UI14 from '../ui14.js';
 import * as UI18 from '../ui18.js'; // v18
-import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHashes, checkNewPassword, user } from '../store.js';
+import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHashes, checkNewPassword, user, embalajeReal } from '../store.js';
 import { rolePicker } from '../roles.js';
 import { iaPanel } from '../ai/models.js';
 import { biblioteca as bibliotecaView, memoria as memoriaView } from './ia.js';
@@ -89,8 +89,20 @@ function resumenCard(c) {
 
 // Guarda una sección de configuración del servidor
 async function saveCfg(clave, valor) {
+  if (clave === 'precios' && valor) { valor = Object.assign({}, valor); delete valor.embalajeReal; } // v20.2: el calculado no se guarda
   try { S.cfg = await api('config.guardar', { clave, valor }); emit(); toast('Configuración guardada', 'ok'); return true; }
   catch (e) { handleError(e, 'configuración'); return false; }
+}
+// v20.2 · EL EMBALAJE SE COBRA SIEMPRE: su coste real (Stock) y un botón para ponerlo aquí (así lo usa también la tienda)
+function embalajeBox(campo, desdeSheet) {
+  const real = embalajeReal(), puesto = Number(campo.value) || 0;
+  const usar = () => { campo.value = real; campo.dispatchEvent(new Event('input')); toast('Puesto ' + eur(real) + '. Pulsa «Guardar».', 'ok'); };
+  return h('div.emb-siempre', { style: { marginTop: '10px', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--line)' } },
+    h('b', '📦 El embalaje se suma SIEMPRE al precio'),
+    h('p.small', real > 0 ? 'Tu embalaje estándar (con los precios de Stock) cuesta ' + eur(real) + ' por pedido. ' : 'No hay embalaje estándar con precio en Stock: apúntalo en Embalaje → Envases. ',
+      puesto > 0 ? 'Aquí tienes puesto ' + eur(puesto) + ': es el que se suma en los precios, el cotizador, los pedidos y la tienda.' : real > 0 ? 'Aquí está a 0, así que se suma el real (' + eur(real) + ') en el programa. Ponlo aquí para que lo use también la tienda («Imprime tu STL»).' : ''),
+    real > 0 && Math.abs(real - puesto) > 0.009 ? btn('Usar ' + eur(real) + ' (el real)', usar, { cls: 'sm' }) : null,
+    desdeSheet() ? h('p.tiny.warn-t', 'Ojo: ahora mismo los precios se leen del Sheet. Pon allí el embalaje (hoja Configuracion) o desactiva «Usar los valores de la hoja».') : null);
 }
 // v10.6: volver a la versión anterior del programa (se guarda al actualizar)
 function rollbackBox(r) {
@@ -407,7 +419,8 @@ const SEC = {
     L.forEach(x => { f[x[0]] = inp({ type: 'number', step: 'any', value: x[2] === '%' ? +(c[x[0]] * 100).toFixed(3) : c[x[0]] }); });
     b.append(card(null, h('label.check', sw(fromSheet, v => { fromSheet = v; }), 'Usar los valores de la hoja "Configuracion" del Google Sheet (recomendado: así el Excel y la app calculan igual)'),
       btn('Leer ahora del Sheet', async () => { try { await api('precios.recargar', {}); await pull(true); toast('Precios actualizados desde el Sheet', 'ok'); SEC.precios(mount(b, h('h2', 'Precios y comisiones'))); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm', icon: 'refresh' })),
-      card('Valores', h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' } }, L.map(x => field(x[1] + (x[2] === '%' ? ' (%)' : ''), f[x[0]]))), h('p.small.muted', 'Si usas el Sheet, estos valores se leen de allí y cambiarlos aquí no tiene efecto.')),
+      card('Valores', h('div.grid', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' } }, L.map(x => field(x[1] + (x[2] === '%' ? ' (%)' : ''), f[x[0]]))), h('p.small.muted', 'Si usas el Sheet, estos valores se leen de allí y cambiarlos aquí no tiene efecto.'),
+        embalajeBox(f.embalaje, () => fromSheet)),
       btn('Guardar', () => { const v = Object.assign({}, c, { desdeSheet: fromSheet }); L.forEach(x => { const n = Number(f[x[0]].value); v[x[0]] = x[2] === '%' ? n / 100 : n; }); saveCfg('precios', v); }, { cls: 'primary' }));
     // v10: formato del SKU automático
     const sk = S.cfg.sku || {};
@@ -800,8 +813,10 @@ function uiElegir() {
   const caja = h('div');
   const pinta = () => {
     const k = UI18.interfaz(), m = UI18.modo();
-    const op = (clave, modo, mini, t, d) => h('button.ui-op' + (k === clave && (!modo || m === modo) ? '.on' : ''), { type: 'button', 'data-ui': clave === 'v18' ? 'v18' + modo : clave, onclick: () => { UI18.ponInterfaz(clave, modo); pinta(); } }, h('span.ui-mini.' + mini), h('b', t), h('span.tiny.muted', d));
+    const op = (clave, modo, mini, t, d) => h('button.ui-op' + (k === clave && (!modo || m === modo) ? '.on' : ''), { type: 'button', 'data-ui': clave === 'v18' || clave === 'v30' ? clave + modo : clave, onclick: () => { UI18.ponInterfaz(clave, modo); pinta(); } }, h('span.ui-mini.' + mini), h('b', t), h('span.tiny.muted', d));
     mount(caja, h('div.ui-elegir',
+      op('v30', 'noche', 'v30n', '🌙 Atelier 30 · Noche', 'La 30: obsidiana, oro y coral, con títulos de estudio de diseño. Igual de rápida que la 18.'),
+      op('v30', 'dia', 'v30d', '☀️ Atelier 30 · Día', 'La 30 en claro: papel cálido y tinta, para trabajar con mucha luz.'),
       op('v18', 'noche', 'v18n', '🌙 Sala de mando · Noche', 'La 18: oscura, de sala de control. La más rápida (sin cristales ni fondos que se mueven).'),
       op('v18', 'dia', 'v18d', '☀️ Sala de mando · Día', 'La 18 en claro: limpia y luminosa, para trabajar con mucha luz.'),
       op('nueva', '', 'nueva', '✨ La de antes (14.0)', 'Colores vivos, cristal, animaciones suaves. Usa un poco más la tarjeta gráfica.'),

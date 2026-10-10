@@ -60,15 +60,16 @@ export function aconseja(sopa, info, ctx = {}) {
   const ajuste = (pest, nombre, valor, razon) => A.push({ pest, nombre, valor, razon });
   // perfil para empezar: uno SUYO de esa impresora y esa capa si lo tiene; si no, el de serie de Bambu
   let capa, tipoP;
-  if (uso === 'jarron') { capa = 0.2; tipoP = 'Standard'; } else if (uso === 'funcional' || uso === 'encaje') { capa = 0.2; tipoP = 'Strength'; } else if (fino) { capa = 0.12; tipoP = 'Fine'; } else if (grande) { capa = 0.2; tipoP = 'Standard'; } else { capa = 0.16; tipoP = 'Optimal'; }
-  const suyos = (P.procesos || []).filter(x => x.propio && x.impresora === imp.k && Math.abs((x.capa || 0) - capa) < 0.001), quiere = uso === 'funcional' ? (x => (x.relleno || 0) >= 35) : (x => !x.relleno || x.relleno <= 25);
+  if (uso === 'jarron') { capa = 0.2; tipoP = 'Standard'; } else if (uso === 'mecanica') { capa = 0.16; tipoP = 'Strength'; } else if (uso === 'funcional' || uso === 'encaje') { capa = 0.2; tipoP = 'Strength'; } else if (fino) { capa = 0.12; tipoP = 'Fine'; } else if (grande) { capa = 0.2; tipoP = 'Standard'; } else { capa = 0.16; tipoP = 'Optimal'; }
+  const suyos = (P.procesos || []).filter(x => x.propio && x.impresora === imp.k && Math.abs((x.capa || 0) - capa) < 0.001), quiere = uso === 'funcional' || uso === 'mecanica' ? (x => (x.relleno || 0) >= 35) : (x => !x.relleno || x.relleno <= 25);
   const suyo = uso === 'jarron' ? null : suyos.find(quiere) || suyos[0] || null;
   const perfil = suyo ? suyo.nombre : capa.toFixed(2) + 'mm ' + tipoP + ' ' + imp.sufijo;
-  porque.perfil = (suyo ? 'Es TUYO. ' : '') + (uso === 'jarron' ? 'Es un jarrón para imprimir en espiral: la capa de 0,20 lo hace rápido y liso.' : uso === 'funcional' || uso === 'encaje' ? 'Tiene que aguantar (o encajar): más paredes y más relleno.' : fino ? 'Tiene letras o detalles pequeños: con capa fina se ven nítidos.' : grande ? 'Es grande: a 0,20 tarda bastante menos y se nota poco.' : 'Decorativa de tamaño medio: buen equilibrio entre acabado y tiempo.');
+  porque.perfil = (suyo ? 'Es TUYO. ' : '') + (uso === 'jarron' ? 'Es un jarrón para imprimir en espiral: la capa de 0,20 lo hace rápido y liso.' : uso === 'mecanica' ? 'Pieza mecánica que trabaja: muy fuerte y a medida (capa de 0,16 para que las alturas salgan exactas).' : uso === 'funcional' || uso === 'encaje' ? 'Tiene que aguantar (o encajar): más paredes y más relleno.' : fino ? 'Tiene letras o detalles pequeños: con capa fina se ven nítidos.' : grande ? 'Es grande: a 0,20 tarda bastante menos y se nota poco.' : 'Decorativa de tamaño medio: buen equilibrio entre acabado y tiempo.');
   const tuyo = (k, t) => (suyo && suyo[k] ? ' (tu perfil trae ' + suyo[k] + t + ')' : '');
   ajuste('Calidad', 'Altura de la capa', String(capa).replace('.', ',') + ' mm', porque.perfil);
   // paredes y relleno
   if (uso === 'jarron') { ajuste('Otros', 'Jarrón en espiral', 'Activado', 'La pieza va maciza a propósito: así sale con una sola pared, sin costura y en la mitad de tiempo.'); ajuste('Fuerza', 'Capas inferiores de cubierta', '4', 'Que el fondo no gotee si lo usas con agua (aun así, no es 100 % estanco).'); }
+  else if (uso === 'mecanica') { ajuste('Fuerza', 'Bucles de pared', '6', 'Las paredes son las que aguantan (dientes, ejes, agujeros): con 6 el diente es casi macizo.'); ajuste('Fuerza', 'Capas superiores de la cubierta', '6', 'Caras fuertes donde apoyan los rodamientos y los tornillos.'); ajuste('Fuerza', 'Capas inferiores de cubierta', '6', ''); ajuste('Fuerza', 'Densidad de relleno', '60 %', 'Para que no ceda con la carga ni con los golpes.'); ajuste('Fuerza', 'Patrón de relleno disperso', 'Giroide', 'Aguanta igual en todas las direcciones.'); ajuste('Velocidad', 'Velocidad de la pared exterior', '60 mm/s', 'Más despacio fuera = medidas más exactas (los encajes entran como deben).'); ajuste('Filamento', 'Material', 'PETG o nailon (PA)', 'El PLA se deforma con el calor del motor y se parte con los golpes: para probar, sí; para correr, no.'); }
   else if (uso === 'funcional') { ajuste('Fuerza', 'Bucles de pared', '4' + tuyo('paredes', ''), 'Lo que da fuerza a una pieza son las paredes, más que el relleno.'); ajuste('Fuerza', 'Densidad de relleno', '25–40 %', 'Para que no ceda al apretar o colgar cosas.'); ajuste('Fuerza', 'Patrón de relleno disperso', 'Giroide', 'Aguanta igual en todas las direcciones.'); }
   else if (uso === 'encaje') { ajuste('Fuerza', 'Bucles de pared', '3', 'Paredes firmes en las zonas que encajan.'); ajuste('Fuerza', 'Densidad de relleno', '20 %', ''); ajuste('Calidad', 'Pared precisa', 'Activado (si tu versión lo tiene)', 'Las medidas por fuera salen más exactas: los encajes entran como deben.'); }
   else if (uso === 'flexible') { ajuste('Fuerza', 'Bucles de pared', '3', ''); ajuste('Fuerza', 'Densidad de relleno', '15 %', 'Con TPU, más relleno la hace dura.'); }
@@ -99,7 +100,7 @@ export function aconseja(sopa, info, ctx = {}) {
   const cambios = (ctx.colores || []).filter(c => c.z0 > 0.1).map(c => Math.round(c.z0 * 100) / 100);
   if (cambios.length) ajuste('Capas', 'Cambio de color', 'A ' + cambios.map(z => String(z).replace('.', ',') + ' mm').join(' y a '), 'En la vista previa de Bambu Studio, en la barra de capas: clic derecho a esa altura → «Añadir cambio de color». Sin AMS, la impresora para y te avisa.');
   // estimados
-  const g = estimarGramos(info.vol, info.area, { relleno: uso === 'funcional' ? 30 : 15, paredes: uso === 'funcional' ? 4 : 2, material: mat });
+  const g = estimarGramos(info.vol, info.area, { relleno: uso === 'mecanica' ? 60 : uso === 'funcional' ? 30 : 15, paredes: uso === 'mecanica' ? 6 : uso === 'funcional' ? 4 : 2, material: mat });
   return { perfil, porque: porque.perfil, ajustes: A, avisos: aviso, orient, mide: m, gramos: g, impresora: imp, material: mat, uso };
 }
 
@@ -120,15 +121,16 @@ export function vista(r, o = {}) {
 // Cada respuesta se traduce a las claves que Bambu Studio guarda DENTRO de cada pieza del 3MF (lo hemos visto en sus
 // propios 3MF de MakerWorld: enable_support, brim_type, support_style…). Lo que contestas se recuerda para la próxima vez.
 const ACABADO = { rapido: { t: '⚡ Rápido', d: 'Capa de 0,20 mm', capa: 0.2 }, equilibrado: { t: '⚖️ Equilibrado', d: 'Capa de 0,16 mm', capa: 0.16 }, fino: { t: '✨ Fino', d: 'Capa de 0,12 mm: letras nítidas', capa: 0.12 } };
-const USOS = { deco: ['🎀 Decoración', 'Bonita y ligera'], funcional: ['💪 Tiene que aguantar', 'Colgar, apretar, usar a diario'], encaje: ['🧩 Encaja con otra', 'Tapas, roscas, pasadores'], jarron: ['🏺 Jarrón en espiral', 'Una sola pared, sin costura'], flexible: ['🪢 Flexible (TPU)', 'Fundas, gomas'] };
+const USOS = { mecanica: ['⚙️ Pieza mecánica que trabaja', 'Engranajes, ejes, RC: muy fuerte y a medida'], deco: ['🎀 Decoración', 'Bonita y ligera'], funcional: ['💪 Tiene que aguantar', 'Colgar, apretar, usar a diario'], encaje: ['🧩 Encaja con otra', 'Tapas, roscas, pasadores'], jarron: ['🏺 Jarrón en espiral', 'Una sola pared, sin costura'], flexible: ['🪢 Flexible (TPU)', 'Fundas, gomas'] };
 const leeResp = k => { try { return JSON.parse(localStorage.getItem('cd.r8.imprimir.' + k) || 'null') || {}; } catch (e) { return {}; } };
 const guardaResp = (k, o) => { try { localStorage.setItem('cd.r8.imprimir.' + k, JSON.stringify(o)); } catch (e) { } };
 // Las respuestas → claves de Bambu Studio (las mismas que escribe él en sus 3MF)
 export function claves(R) {
   const k = { layer_height: String(ACABADO[R.acabado || 'equilibrado'].capa) };
   if (R.uso === 'jarron') Object.assign(k, { spiral_mode: '1', wall_loops: '1', sparse_infill_density: '0%', top_shell_layers: '0', bottom_shell_layers: '4' });
-  else { const pared = { deco: 2, funcional: 4, encaje: 3, flexible: 3 }[R.uso] || 2, rell = { deco: 12, funcional: 30, encaje: 20, flexible: 15 }[R.uso] || 15;
-    Object.assign(k, { wall_loops: String(pared), sparse_infill_density: rell + '%', sparse_infill_pattern: R.uso === 'encaje' || R.uso === 'flexible' ? 'grid' : 'gyroid' }); }
+  else { const pared = { mecanica: 6, deco: 2, funcional: 4, encaje: 3, flexible: 3 }[R.uso] || 2, rell = { mecanica: 60, deco: 12, funcional: 30, encaje: 20, flexible: 15 }[R.uso] || 15;
+    Object.assign(k, { wall_loops: String(pared), sparse_infill_density: rell + '%', sparse_infill_pattern: R.uso === 'encaje' || R.uso === 'flexible' ? 'grid' : 'gyroid' });
+    if (R.uso === 'mecanica') Object.assign(k, { top_shell_layers: '6', bottom_shell_layers: '6' }); } // v20.2: fuerte y a medida · v20.4: SIN outer_wall_speed (en su Bambu Studio es una LISTA por boquilla; escrito suelto, la línea de órdenes rechaza el 3MF: «Invalid parameter value(s)»)
   if (R.soporte === 'arbol' || R.soporte === 'cama') Object.assign(k, { enable_support: '1', support_type: 'tree(auto)', support_style: 'tree_organic', support_threshold_angle: '30', support_on_build_plate_only: R.soporte === 'cama' ? '1' : '0' });
   else if (R.soporte === 'normal') Object.assign(k, { enable_support: '1', support_type: 'normal(auto)', support_threshold_angle: '30' }); // v20: Print Doctor
   else k.enable_support = '0';
@@ -140,7 +142,8 @@ export function claves(R) {
 export function enPantalla(R) {
   const L = [['Calidad', 'Altura de la capa', String(ACABADO[R.acabado || 'equilibrado'].capa).replace('.', ',') + ' mm']];
   if (R.uso === 'jarron') L.push(['Otros', 'Jarrón en espiral', 'Activado']);
-  else { const c = claves(R); L.push(['Fuerza', 'Bucles de pared', c.wall_loops], ['Fuerza', 'Densidad de relleno', c.sparse_infill_density], ['Fuerza', 'Patrón de relleno disperso', c.sparse_infill_pattern === 'gyroid' ? 'Giroide' : 'Rejilla']); }
+  else { const c = claves(R); L.push(['Fuerza', 'Bucles de pared', c.wall_loops], ['Fuerza', 'Densidad de relleno', c.sparse_infill_density], ['Fuerza', 'Patrón de relleno disperso', c.sparse_infill_pattern === 'gyroid' ? 'Giroide' : 'Rejilla']);
+    if (R.uso === 'mecanica') L.push(['Fuerza', 'Capas superiores de la cubierta', '6'], ['Fuerza', 'Capas inferiores de cubierta', '6'], ['Velocidad', 'Velocidad de la pared exterior', '60 mm/s (el perfil «0.16mm CelebriR8 PRECISION» ya la lleva; si usas otro, ponla tú: no va dentro del 3MF)']); }
   L.push(['Soporte', 'Habilitar el soporte', R.soporte === 'arbol' ? 'Sí · árbol(auto) · Árbol orgánico · 30°' : R.soporte === 'cama' ? 'Sí · Árbol orgánico · Sólo en la placa de impresión' : 'No']);
   L.push(['Otros', 'Tipo de balsa', R.balsa === 'si' ? 'Solo borde exterior · 5 mm' : R.balsa === 'no' ? 'Sin borde' : 'Automático']);
   if (R.planchar === 'si') L.push(['Calidad', 'Tipo de planchado', 'Superficie superior']);
@@ -190,9 +193,12 @@ export async function asistente(el, o) {
       if (R.soporte === 'tumbar' && r.orient && o.alGirar) { R.soporte = 'no'; guardaResp(clave, R); o.alGirar(r.orient.rot); return; }
       const P2 = o.partes(), base = o.nombre || 'pieza';
       if (como === 'stl') { o.baja(new Blob([N.stl(N.union(P2.map(x => x.m)), base)], { type: 'model/stl' }), base + '.stl'); toast('⬇ STL descargado', 'ok'); return; }
-      const blob = N.tresMF(P2.map(x => ({ m: x.m, color: x.color, nombre: x.nombre })), base, claves(R));
-      if (como === 'abrir') { const d = await import('../desktop.js'), res = await d.desktop.bambuAbrir(blob, base); toast(res && res.abierto ? '🖨️ Abriendo en Bambu Studio… (guardado en Documentos\\CelebriDiseños_R8)' : '📦 Guardado en ' + (res && res.path), 'ok', 8000); window.__r8aj && (window.__r8aj.abierto = res); return; }
-      o.baja(blob, base + '.3mf'); toast('📦 3MF con los ajustes descargado. Ábrelo con Bambu Studio.', 'ok', 6000);
+      // v20.4 · 🎯 tu CALIBRACIÓN (impresora + material): compensaciones de Bambu dentro de la pieza y, si encoge, escalada (no en las probetas de calibrar)
+      const CPR = await import('./calibracion.js'), X = CPR.paraImprimir(P2.map(x => ({ m: x.m, color: x.color, nombre: x.nombre })), Object.assign(claves(R), o.forzar || {}), { sin: !!o.sinCalibrar });
+      const blob = N.tresMF(X.partes, base, X.ajustes); window.__r8calib = X.aplicada; // v20.3: lo que un diseño NECESITA sí o sí (el rodamiento impreso: sin soportes ni balsa)
+      const conCal = X.aplicada ? ' · 🎯 con tu calibración «' + X.aplicada + '»' : '';
+      if (como === 'abrir') { const d = await import('../desktop.js'), res = await d.desktop.bambuAbrir(blob, base); toast((res && res.abierto ? '🖨️ Abriendo en Bambu Studio… (guardado en Documentos\\CelebriDiseños_R8)' : '📦 Guardado en ' + (res && res.path)) + conCal, 'ok', 8000); window.__r8aj && (window.__r8aj.abierto = res); return; }
+      o.baja(blob, base + '.3mf'); toast('📦 3MF con los ajustes descargado' + conCal + '. Ábrelo con Bambu Studio.', 'ok', 6000);
     } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); }
   }
   pinta();
@@ -202,5 +208,5 @@ export async function panel(el, o) {
   const d = await import('../desktop.js').catch(() => null);
   return asistente(el, { clave: 'estudio_' + (o.P.id || ''), partes: () => o.PR.partesFinales(o.P), N: o.N, uso: usoDe(o), texto: tieneTexto(o), nombre: o.nombre, baja: o.baja, alGirar: o.alGirar, cama: o.cama, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
 }
-function usoDe(o) { let uso = 'deco'; o.PR.recorre(o.P.cuerpos, c => { if (c.tipo === 'cat' && o.catalogo && o.catalogo.DISENOS[c.p.k]) { const u = o.catalogo.DISENOS[c.p.k].uso; if (u && u !== 'pieza') uso = u; } if (c.tipo === 'rosca') uso = 'encaje'; }); return uso; }
+function usoDe(o) { let uso = 'deco'; o.PR.recorre(o.P.cuerpos, c => { if (c.tipo === 'cat' && o.catalogo && o.catalogo.DISENOS[c.p.k]) { const u = o.catalogo.DISENOS[c.p.k].uso; if (u === 'pieza') uso = 'mecanica'; else if (u && uso !== 'mecanica') uso = u; } if (c.tipo === 'rosca' && uso !== 'mecanica') uso = 'encaje'; }); return uso; } // v20.2: «pieza» (mecánica/RC) = pieza que trabaja
 function tieneTexto(o) { let t = false; o.PR.recorre(o.P.cuerpos, c => { if (c.tipo === 'texto' || (c.p && (c.p.txt || c.p.nombre || c.p.texto))) t = true; }); return t; }

@@ -19,9 +19,10 @@
 <link rel="stylesheet" href="css/v18.css">
 <link rel="stylesheet" href="css/r8v20.css">
 <link rel="stylesheet" href="css/r8pro.css">
+<link rel="stylesheet" href="css/ui30.css">
 <!--HOST-->
 <script>
-  try { var t = localStorage.getItem('cd.theme') || 'claro'; if (t === 'sistema') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro'; if (localStorage.getItem('cd.ui') === 'v18') { var m = localStorage.getItem('cd.modo18') === 'dia' ? 'dia' : 'noche'; document.documentElement.className += ' ui18'; document.documentElement.setAttribute('data-modo', m); t = m === 'noche' ? 'oscuro' : 'claro'; } document.documentElement.dataset.theme = t; } catch (e) {}
+  try { var t = localStorage.getItem('cd.theme') || 'claro'; if (t === 'sistema') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro'; if (!localStorage.getItem('cd.ui30auto') && localStorage.getItem('cd.ui') === 'v18') { localStorage.setItem('cd.ui30auto', '1'); localStorage.setItem('cd.ui', 'v30'); } var u = localStorage.getItem('cd.ui'); if (u === 'v18' || u === 'v30') { var m = localStorage.getItem('cd.modo18') === 'dia' ? 'dia' : 'noche'; document.documentElement.className += ' ui18' + (u === 'v30' ? ' ui30' : ''); document.documentElement.setAttribute('data-modo', m); t = m === 'noche' ? 'oscuro' : 'claro'; } document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
 <script src="js/logic.js"></script>
 <script src="js/listing.js"></script>

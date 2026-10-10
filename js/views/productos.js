@@ -2,7 +2,7 @@
 import { h, mount, icon, btn, modal, drawer, toast, eur, fdate, ago, pill, empty, field, inp, sel, area, debounce, confirmDlg, bytes, na } from '../ui.js';
 import { S, can, mutate, api, byId, upsertLocal, removeLocal, emit, timing, stateColor } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
-import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf } from '../files.js';
+import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf, fetchFile } from '../files.js';
 import { desktop } from '../desktop.js';
 import { parse3D, viewer, unzip } from '../stl.js';
 import { medir3D, esArchivo3D, escalar, textoMedidas, EJES, cm } from '../medidas3d.js'; // v16: medidas reales (Ancho · Largo · Alto)
@@ -76,7 +76,7 @@ function productDrawer(id, onClose) {
       const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], can('tienda.gestionar') || (p.web && p.web.publicado) ? ['web', '🛍️ Tienda web'] : null, ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
       mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
-        h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
+        h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), barra3D(p, closeAll), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Publicado']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
             can('pedidos.crear') ? btn('Nuevo pedido', () => import('./pedidos.js').then(m => m.orderForm({ producto: p.nombre, productoId: p.id, precio: p.precio })), { icon: 'plus', cls: 'sm' }) : null,
@@ -244,7 +244,7 @@ export function precioMinDe(p) {
   return c && Number(c.precioMinimo) > 0 ? { v: Number(c.precioMinimo), tuyo: false } : null;
 }
 // v16.2 · RENTABILIDAD de un producto, con los datos que YA hay (calculadora + tu mínimo). Nada se inventa:
-//   coste = lo que cuesta fabricarlo (filamento, luz, mano de obra, extras y el embalaje como coste interno)
+//   coste = lo que cuesta fabricarlo (filamento, luz, mano de obra, extras y el embalaje, que se suma SIEMPRE al precio · v20.2)
 //   minimo = el que TÚ has escrito («mínimo regateable»). Nunca se sustituye por un cálculo.
 //   recomendado = el de la calculadora, por canal.
 export function rentabilidad(p) {
@@ -274,7 +274,7 @@ function precioFicha(p) {
   const d = x.desglose;
   return h('div.rt',
     x.coste != null ? h('div.rt-c.coste', h('span.rt-t', 'ME CUESTA'), h('span.rt-v', eur(x.coste)),
-      h('details.rt-d', h('summary', 'Ver desglose'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Pintado', d.pintado], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (coste interno)', d.embalaje], ['Envío', d.envio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))) : null,
+      h('details.rt-d', h('summary', 'Ver desglose'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Pintado', d.pintado], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (sumado al precio)', d.embalaje], ['Envío', d.envio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))) : null,
     h('div.rt-c.min', h('span.rt-t', 'PUEDES BAJAR HASTA'), h('span.rt-v', x.minimo != null ? eur(x.minimo) : '—'),
       x.minimo != null ? gana(x.ganaMin) : h('span.rt-s', can('productos.editar') ? 'Pon tu mínimo en Editar → paso 3' + (x.sugerido ? ' (por costes, no menos de ' + eur(x.sugerido) + ')' : '') : 'Sin mínimo puesto')),
     x.precio ? h('div.rt-c.pvp', h('span.rt-t', 'LO PUBLICAS A'), h('span.rt-v', eur(x.precio)), gana(x.ganaPrecio)) : null,
@@ -323,11 +323,52 @@ function stockCard(p) {
     h('div.st-big.sm', h('div', h('b', String(x.fisico)), h('span', 'Estantería')), h('div', h('b', String(x.reservado)), h('span', 'Apartadas')), h('div', h('b', String(x.disponible)), h('span', 'Disponibles'))),
     h('div.row.wrap', can('stock.mover') ? [mv(-1), mv(1)] : null, h('span.grow'), btn('Ver stock e historial', go2, { cls: 'sm ghost' })));
 }
+// v20.2 · la dueña: «en Productos debe haber una opción que me deje ver el STL y que ponga “Abrir en Bambu Studio”».
+// Arriba de la ficha: el archivo 3D del producto (subido o en su carpeta del PC) con 🧊 Ver el 3D · 🖨️ Abrir en Bambu Studio ·
+// 🧰 Abrir en el Estudio (CelebriR8). Lo de la carpeta del PC se mira una vez por producto (no en cada repintado).
+const ES_3D = n => ['stl', '3mf', 'obj'].includes(extOf(n));
+const LOCALES_3D = new Map(); // producto → [{ name, path }]
+export async function abrirEnBambu(x) {
+  if (!desktop.on) return toast('«Abrir en Bambu Studio» funciona en el programa del PC. Aquí puedes descargarlo.', 'warn', 6000);
+  try {
+    toast('🖨️ Abriendo «' + x.nombre + '» en Bambu Studio…', '', 4000);
+    const r = x.ruta ? await desktop.bambuAbrirRuta(x.ruta) : x.a.rutaLocal ? await desktop.bambuAbrirRuta(x.a.rutaLocal) : await desktop.bambuAbrir(await fetchFile(x.a), x.nombre);
+    if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio' + (x.ruta || (x.a && x.a.rutaLocal) ? '' : ' (copia en Documentos › CelebriDiseños_R8)'), 'ok', 6000);
+    else toast('No encuentro Bambu Studio en este PC. El archivo está en ' + ((r && r.path) || 'Documentos › CelebriDiseños_R8') + '.', 'warn', 9000);
+    if (window.__prod3d) window.__prod3d.bambu = r || null;
+  } catch (e) { toast('No se pudo abrir en Bambu Studio: ' + (e.message || e), 'bad', 8000); }
+}
+async function archivoDe(x) { const datos = x.ruta ? await desktop.file(x.ruta) : await (await fetchFile(x.a)).arrayBuffer(); return new File([datos], x.nombre, { type: 'model/stl' }); }
+function barra3D(p, closeAll) {
+  const caja = h('div.prod-3d');
+  const subidos = filesOf('productos', p.id).filter(a => a.tipo === 'stl' && ES_3D(a.nombre));
+  const pinta = () => {
+    const locales = (LOCALES_3D.get(p.id) || []).filter(f => !subidos.some(a => a.rutaLocal === f.path));
+    const todos = subidos.map(a => ({ nombre: a.nombre, a })).concat(locales.map(f => ({ nombre: f.name, ruta: f.path })));
+    window.__prod3d = { producto: p.id, archivos: todos.map(x => x.nombre) };
+    if (!todos.length) return mount(caja);
+    let i = 0; const x = () => todos[i];
+    mount(caja, h('div.prod-3d-t', h('span.prod-3d-ic', '🧊'), h('div.grow', h('b', 'Archivo 3D'), todos.length > 1 ? h('select.inp.sm.prod-3d-sel', { 'aria-label': 'Archivo 3D', onchange: e => { i = Number(e.target.value); } }, todos.map((t, k) => h('option', { value: k }, t.nombre))) : h('div.tiny.muted.ellipsis', todos[0].nombre))),
+      h('div.row.wrap.prod-3d-b', btn('🧊 Ver el 3D', () => x().a ? openFile(x().a) : view3DLocal(x().ruta, x().nombre), { cls: 'sm primary prod-3d-ver' }),
+        desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu(x()), { cls: 'sm prod-3d-bambu' }) : null,
+        btn('🧰 Abrir en el Estudio', async () => { try { const f = await archivoDe(x()); const E = await import('../r8/estado.js'); E.paraEstudio(f); closeAll(); go('celebrir8'); } catch (e) { toast(e.message || String(e), 'bad'); } }, { cls: 'sm prod-3d-r8', title: 'Lo abre en el Estudio para cambiarlo (medidas, agujeros, partirlo…)' })));
+  };
+  pinta();
+  if (desktop.on && p.ruta && !LOCALES_3D.has(p.id)) {
+    LOCALES_3D.set(p.id, []);
+    desktop.list(p.ruta).then(async r => {
+      let L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name));
+      for (const d of (r.entries || []).filter(e => e.type === 'dir')) { try { const sub = await desktop.list(d.path); L = L.concat((sub.entries || []).filter(e => e.type === 'file' && ES_3D(e.name))); } catch (e) { } }
+      LOCALES_3D.set(p.id, L.map(e => ({ name: e.name, path: e.path }))); pinta();
+    }).catch(() => { });
+  }
+  return caja;
+}
 async function view3DLocal(path, name) {
   const c = h('canvas.stl-view');
   const info = h('p.small.muted', 'Cargando…');
   const sim = h('div.row.wrap', { style: { gap: '6px' } });
-  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim), close => [btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
+  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim), close => [desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu({ nombre: name, ruta: path }), { cls: 'v3d-bambu' }) : null, btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
   try { const pos = await parse3D(await desktop.file(path), name), v = viewer(c, pos); info.textContent = v.dims.map(x => x.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos';
     mount(sim, btn('▶️ Ver cómo se imprime', () => import('../simulacion.js').then(SM => SM.simularImpresion(pos, { nombre: name })), { cls: 'primary sm' })); }
   catch (e) { info.textContent = 'No se pudo mostrar: ' + e.message; }
@@ -622,7 +663,7 @@ export function productWizard(p, opc = {}) {
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
         h('div.field.pcol-campo', { style: { gridColumn: '1 / -1' } }, h('label', '🎨 Colores disponibles'), paleta, h('details.more', h('summary', 'Escribirlos a mano'), h('div.in', f.color, h('p.tiny.muted', { style: { margin: '4px 0 0' } }, 'Separados por comas: Blanco, Negro, Rosa'))),
           h('p.tiny.muted', { style: { margin: '4px 0 0' } }, 'Se añaden solos al final de la descripción («Colores disponibles: …»), lista para copiar y pegar en tus anuncios.')),
-        field('Material', f.material), medBox, field('📦 Embalaje de este producto', f.embalajeId, 'Caja, sobre o bolsa de tu inventario. Se pone solo en cada pedido y descuenta el inventario. Es un coste interno: no se le cobra aparte al cliente.', 'full'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full', btn('✨ Crear descripción corta', () => import('../descripcion.js').then(D => D.rapida({ texto: f.nombre.value, onUsar: txt => { f.descripcion.value = txt; } })), { cls: 'sm ghost' }))),
+        field('Material', f.material), medBox, field('📦 Embalaje de este producto', f.embalajeId, 'Caja, sobre o bolsa de tu inventario. Se pone solo en cada pedido y descuenta el inventario. Su coste va SIEMPRE sumado al precio (dentro del precio, no como un cargo aparte).', 'full'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full', btn('✨ Crear descripción corta', () => import('../descripcion.js').then(D => D.rapida({ texto: f.nombre.value, onUsar: txt => { f.descripcion.value = txt; } })), { cls: 'sm ghost' }))),
       can('stock.mover') || can('productos.editar') ? skBox : null,
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),

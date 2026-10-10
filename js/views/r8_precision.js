@@ -22,7 +22,8 @@ export async function montarPrecision(el, ext = {}) {
   const R = await import('../r8/repuestos.js');
   const lienzo = h('canvas.r8p-cv', { 'aria-label': 'El repuesto en 3D con sus medidas' }), etiquetas = h('div.r8pr-cotas'), capaFoto = h('div.r8pr-foto'), vbar = h('div.r8p-vbar'), vacio = h('div.r8p-vacio');
   const izq = h('div.r8p-izq.r8pr-izq'), der = h('div.r8p-der.r8pr-der');
-  const raiz = h('div.r8p.r8pr', izq, h('div.r8p-vista.r8pr-vista', lienzo, capaFoto, etiquetas, vacio, vbar), der);
+  const bCal = h('button.r8pr-cal', { type: 'button', title: 'Comprobar tu calibre e imprimir/medir la probeta: luego tus piezas salen corregidas solas', onclick: () => import('../r8/calibracion_ui.js').then(m => m.abrir()) }, '🎯 Calibrar calibre e impresora'); // v20.4
+  const raiz = h('div.r8p.r8pr', izq, h('div.r8p-vista.r8pr-vista', lienzo, capaFoto, etiquetas, vacio, vbar, bCal), der);
   el.appendChild(raiz);
   let esc = null; try { esc = await C.vista3d(lienzo); } catch (e) { }
   const S = Object.assign({ id: null, nombre: '' }, R.nuevo(guardadoTipo()), { avisos: [], calc: [], choque: null, info: null, faltan: [], kitG: null, foto: null, fotoOp: 0.5, fotoEsc: 60, fotoX: 50, fotoY: 50, ms: 0 });
@@ -97,7 +98,9 @@ export async function montarPrecision(el, ext = {}) {
     const T = R.TIPOS[S.tipo], vis = R.visibles(S.tipo, S.v), nEst = vis.filter(c => S.est[c.k] === 'estimada').length, nEj = vis.filter(c => S.est[c.k] === 'ejemplo').length;
     mount(izq,
       h('div.r8p-tit', h('span', '📏'), h('div', h('span.r8p-marca', 'PRECISION LAB'), h('b', 'Repuestos con medidas reales'), h('small', 'La pieza se construye con TUS medidas (geometría de CAD). Lo que falte te lo pido: no me lo invento.'))),
-      h('div.r8p-sec', h('b', '1 · Qué pieza'), h('div.r8pr-tipos', Object.entries(R.TIPOS).map(([k, t]) => h('button.r8pr-tipo' + (S.tipo === k ? '.on' : ''), { type: 'button', 'data-tipo': k, title: t.d, onclick: () => elige(k) }, h('span', t.e), h('b', t.t))))),
+      h('div.r8p-sec', h('b', '1 · Qué pieza'), h('div.r8pr-tipos', Object.entries(R.TIPOS).map(([k, t]) => h('button.r8pr-tipo' + (S.tipo === k ? '.on' : ''), { type: 'button', 'data-tipo': k, title: t.d, onclick: () => elige(k) }, h('span', t.e), h('b', t.t))),
+        // v20.2 · más estilos de diferencial y repuestos RC (en el catálogo RC, con sus medidas «mídelo» y su prueba de encaje)
+        [['spool', '🔒', 'Diferencial bloqueado (spool)'], ['difRectos', '⚙️', 'Diferencial de rectos'], ['cardan', '✚', 'Junta cardán (dobla sin chocar)'], ['esquinaDel', '🛞', 'Esquina delantera (trapecio + copa en C + mangueta)'], ['esquinaTras', '🛞', 'Esquina trasera (trapecio + portamangueta)'], ['palier', '🦴', 'Palier (dogbone)'], ['plantillaRodamientos', '🧪', 'Plantilla de rodamientos'], ['brazoServo', '🏎️', 'Más RC: servo, carrocería, repuestos…']].map(([k, e, t]) => h('button.r8pr-tipo.r8pr-ir', { type: 'button', 'data-ircat': k, title: 'Se abre en el catálogo RC (con sus medidas «mídelo» y su prueba de encaje)', onclick: () => ext.irA && ext.irA('catalogo', cat => { try { cat.abre && cat.abre(k); } catch (x) { } }) }, h('span', e), h('b', t), h('small', '↗ catálogo RC'))))),
       h('details.r8p-sec.r8pr-datos', { open: !!(S.v.pieza || S.v.marca) }, h('summary', h('b', '2 · Del aparato (para encontrarla otro día)')), R.DATOS_APARATO.map(c => h('div.r8pr-campo', h('label', { for: 'r8pr-' + c.k }, c.t, c.ayuda ? C.ayuda(c.ayuda) : null), h('input.inp', { id: 'r8pr-' + c.k, 'data-k': c.k, value: S.v[c.k] || '', onchange: e => { S.v[c.k] = e.target.value; } })))),
       h('div.r8p-sec.r8pr-medidas', h('b', '3 · Medidas · ' + T.t), h('small.muted', '✍️ tuya · ≈ de partida (confírmala) · 📋 ejemplo · ❓ falta'),
         vis.map(campo),

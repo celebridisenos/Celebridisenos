@@ -7,7 +7,8 @@ import { h, mount, btn, toast } from '../ui.js';
 import { go } from '../app.js';
 import { parse3D, viewer } from '../stl.js';
 import { estimarGramos } from '../datos3d.js';
-import { PIEZAS, FUENTES, FORMAS, ENCAJES, MANILLARES, CAMA, editar, medidas, stlBinario, separar, zip, ponEncajes } from '../r8/motor.js';
+import { PIEZAS, FUENTES, FORMAS, ENCAJES, MANILLARES, CAMA, editar, medidas, stlBinario, separar, zip, ponEncajes, ponAutoria } from '../r8/motor.js';
+import { S as ST } from '../store.js'; // v20.2: lo que sale de CelebriR8 va a nombre de la empresa (Configuración → Empresa)
 import { entiende, EJEMPLOS } from '../r8/entiende.js';
 import { MOVILES, MATERIAL, movil } from '../r8/moviles.js';
 
@@ -168,16 +169,18 @@ export function renderPlantillas(el) {
 // haciendo y qué hay en este PC (tarjeta gráfica, Blender, motores). Se recuerda la última pestaña.
 const PESTANAS = [
   ['inicio', '🏠', 'Inicio', 'Empieza aquí', ''],
-  ['estudio', '🧰', 'Estudio', 'Diseña como en Fusion', 'CREAR'], ['catalogo', '🛍️', 'Catálogo', 'Diseños listos', 'CREAR'], ['foto', '🪄', 'Foto → 3D', 'Con IA', 'CREAR'],
+  ['estudio', '🧰', 'Estudio', 'Diseña como en Fusion', 'CREAR'], ['catalogo', '🛍️', 'Catálogo', 'Diseños listos', 'CREAR'], ['clon', '🧬', 'CelebriCLON', 'Repuestos desde fotos', 'CREAR'], ['cajas', '📦', 'Cajas', 'Bisagras y cierres', 'CREAR'], ['foto', '🪄', 'Foto → 3D', 'Con IA', 'CREAR'],
   ['lab', '🧪', 'Smart Lab', 'El mejor motor, solo', 'CREAR'], ['precision', '📏', 'Precisión', 'Repuestos a medida', 'CREAR'], ['fundas', '📱', 'Fundas', 'Tu móvil, mil estilos', 'CREAR'], ['plantillas', '📐', 'Plantillas', 'Las de siempre', 'CREAR'],
   ['taller', '🛠️', 'Reparar', 'Blender Workshop', 'MEJORAR'],
   ['doctor', '🩺', 'Imprimir', 'Print Doctor', 'IMPRIMIR']];
-const VISTAS = { inicio: ['./r8_inicio.js', 'montarInicio'], estudio: ['./r8_estudio.js', 'montarEstudio'], fundas: ['./r8_fundas.js', 'montarFundas'], catalogo: ['./r8_catalogo.js', 'montarCatalogo'], foto: ['./r8_foto.js', 'montarFoto'], lab: ['./r8_lab.js', 'montarLab'], precision: ['./r8_precision.js', 'montarPrecision'], taller: ['./r8_taller.js', 'montarTaller'], doctor: ['./r8_doctor.js', 'montarDoctor'] };
+const VISTAS = { cajas: ['./r8_cajas.js', 'montarCajas'], clon: ['./r8_clon.js', 'montarClon'], inicio: ['./r8_inicio.js', 'montarInicio'], estudio: ['./r8_estudio.js', 'montarEstudio'], fundas: ['./r8_fundas.js', 'montarFundas'], catalogo: ['./r8_catalogo.js', 'montarCatalogo'], foto: ['./r8_foto.js', 'montarFoto'], lab: ['./r8_lab.js', 'montarLab'], precision: ['./r8_precision.js', 'montarPrecision'], taller: ['./r8_taller.js', 'montarTaller'], doctor: ['./r8_doctor.js', 'montarDoctor'] };
 const guardado = (k, def) => { try { return localStorage.getItem(k) ?? def; } catch (e) { return def; } };
 const apunta = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 let PEST = guardado('cd.r8.pest', 'inicio');
 if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio';
 export function render(el) {
+  try { ponAutoria(ST.cfg && ST.cfg.empresa && ST.cfg.empresa.nombre); } catch (e) { }
+  import('../store.js').then(st => st.pausaSync && st.pausaSync(true)).catch(() => { }); // v20.2: sin sincronizar mientras diseñas
   PEST = guardado('cd.r8.pest', PEST); if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio'; // v20.1: el estreno puede pedir una pestaña
   const tabs = h('div.r8v-tabs', { role: 'tablist', 'aria-label': 'Partes de CelebriR8' }), cuerpo = h('div.r8v-cuerpo');
   const ancho = () => window.innerWidth >= 900;
@@ -188,8 +191,8 @@ export function render(el) {
   const bModo = h('button.r8v-bt.r8v-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: async () => { const U = await import('../ui18.js'); const m = U.cambiaModo(); bModo.textContent = m === 'noche' ? '🌙' : '☀️'; const b = document.querySelector('.topbar .u18-modo'); if (b) b.textContent = bModo.textContent; } }, document.documentElement.getAttribute('data-modo') === 'dia' ? '☀️' : '🌙');
   const bNegocio = h('button.r8v-bt.r8v-negocio', { type: 'button', title: 'Volver al programa del negocio (pedidos, clientes…)', onclick: () => go('puente') }, '← ', h('span', 'Negocio'));
   const barra = h('div.r8v-estado', { role: 'status', 'aria-live': 'polite' });
-  let actual = null, turno = 0;
-  const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO 20'))), tabs, h('div.r8v-acc', bAyuda, bModo, bFoco)), cuerpo, barra);
+  let actual = null, turno = 0, estudioVivo = null; // v20.2: el Estudio no se apaga al cambiar de pestaña (volver es al momento)
+  const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO 30'))), tabs, h('div.r8v-acc', bAyuda, bModo, bFoco)), cuerpo, barra);
   el.appendChild(raiz);
   function pintaCab() { bFoco.title = foco ? 'Ver también el menú del negocio' : 'Modo taller: CelebriR8 a pantalla completa'; mount(bFoco, foco ? '⤡' : '⤢'); bFoco.setAttribute('aria-label', bFoco.title); bNegocio.hidden = !(foco && ancho()); }
   const pinta = () => {
@@ -198,7 +201,10 @@ export function render(el) {
   };
   async function ir(k, despues) {
     const yo = ++turno; PEST = k; apunta('cd.r8.pest', k); pinta();
-    try { actual && actual.destroy && actual.destroy(); } catch (e) { } actual = null; mount(cuerpo);
+    if (!(estudioVivo && actual === estudioVivo.r)) { try { actual && actual.destroy && actual.destroy(); } catch (e) { } }
+    if (estudioVivo && actual === estudioVivo.r && k !== 'estudio') { try { estudioVivo.r.pausa && estudioVivo.r.pausa(); } catch (e) { } }
+    actual = null; [...cuerpo.children].forEach(n => { if (estudioVivo && n === estudioVivo.caja) n.hidden = true; else n.remove(); });
+    if (k === 'estudio' && estudioVivo) { estudioVivo.caja.hidden = false; actual = estudioVivo.r; try { actual.reanuda && actual.reanuda(); } catch (e) { } if (despues) despues(actual); window.__r8pest = k; return; }
     const caja = h('div.r8v-pest.r8v-' + k); cuerpo.appendChild(caja);
     try {
       let r;
@@ -206,16 +212,20 @@ export function render(el) {
       if (VISTAS[k]) { const [mod, fn] = VISTAS[k]; const m = await import(mod); if (yo !== turno) return; r = await m[fn](caja, ext); }
       else r = renderPlantillas(caja);
       if (yo !== turno) { try { r && r.destroy && r.destroy(); } catch (e) { } return; }
-      actual = r; if (despues && r) despues(r);
+      actual = r; if (k === 'estudio' && r) estudioVivo = { caja, r }; if (despues && r) despues(r);
     } catch (e) { console.error(e); mount(caja, h('div.card', h('p.r8e-mal', '⚠️ No se ha podido abrir: ' + (e.message || e)))); }
     window.__r8pest = k;
   }
   // ---------- la barra de estado ----------
   let E = null, quita = [];
+  let firmaBarra = '';
   const pintaBarra = () => {
     const S = E ? E.SIS : null, T = E ? E.enMarcha() : [], ult = E ? [...E.TAREAS.values()].filter(t => t.estado !== 'va').sort((a, b) => b.fin - a.fin)[0] : null;
     const chip = (ok, txt, tit) => h('span.r8v-chip' + (ok === true ? '.ok' : ok === false ? '.no' : ''), { title: tit || txt }, txt);
     const tarj = S && S.tarjeta, gb = tarj && tarj.total_mb ? (tarj.libre_mb / 1024).toLocaleString('es-ES', { maximumFractionDigits: 1 }) : null;
+    // v20.2: sin parpadeos: si nada ha cambiado (lo normal cada 30 s), no se toca
+    const firma = JSON.stringify([T.map(t => [t.nombre, t.txt, t.pct, Math.round((Date.now() - t.t0) / 1000)]), ult && [ult.nombre, ult.estado, ult.txt], S && [S.listo, S.pc, gb, S.blender, S.blenderVer, S.motores.map(m => m.listo), S.nube.trellis2 && S.nube.trellis2.sesion]]);
+    if (firma === firmaBarra) return; firmaBarra = firma;
     mount(barra,
       h('div.r8v-est-tarea', T.length ? T.map(t => h('span.r8v-tar', h('i.r8v-giro'), h('b', t.nombre), t.txt ? h('small', t.txt) : null, t.pct != null ? h('span.r8v-pbar', h('span', { style: { width: t.pct + '%' } })) : null, h('small', Math.round((Date.now() - t.t0) / 1000) + ' s')))
         : ult ? h('span.r8v-tar.' + ult.estado, ult.estado === 'bien' ? '✅ ' : '⚠️ ', h('b', ult.nombre), h('small', ult.txt || '')) : h('small.muted', 'Listo')),
@@ -235,5 +245,5 @@ export function render(el) {
   ponFoco(foco); pinta(); ir(PEST);
   if (guardado('cd.r8.visita', '') === '') setTimeout(() => { if (document.body.contains(raiz)) visita(); }, 900);
   window.__r8ir = ir;
-  return { destroy: () => { turno++; clearInterval(reloj); clearInterval(vigia); quita.forEach(f => f()); window.removeEventListener('resize', alCambiarTam); document.documentElement.classList.remove('r8-foco'); try { actual && actual.destroy && actual.destroy(); } catch (e) { } import('../r8/visita.js').then(V => V.cerrar()).catch(() => { }); } };
+  return { destroy: () => { turno++; import('../store.js').then(st => st.pausaSync && st.pausaSync(false)).catch(() => { }); if (estudioVivo && estudioVivo.r !== actual) { try { estudioVivo.r.destroy(); } catch (e) { } } estudioVivo = null; clearInterval(reloj); clearInterval(vigia); quita.forEach(f => f()); window.removeEventListener('resize', alCambiarTam); document.documentElement.classList.remove('r8-foco'); try { actual && actual.destroy && actual.destroy(); } catch (e) { } import('../r8/visita.js').then(V => V.cerrar()).catch(() => { }); } };
 }

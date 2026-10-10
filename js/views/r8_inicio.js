@@ -13,7 +13,7 @@ export async function montarInicio(el, ext = {}) {
   const tarjeta = (k, ic, t, txt, extra) => h('button.r8i-t', { type: 'button', 'data-ir': k, onclick: () => ir(k) }, h('span.r8i-ic', ic), h('div', h('b', t), h('small', txt), extra || null));
   const raiz = h('div.r8i',
     h('section.r8i-hero',
-      h('div.r8i-hero-t', h('span.r8p-marca', 'CELEBRIR8 · ESTUDIO 20'), h('h1', 'Del boceto, la foto o la medida, a la pieza impresa'),
+      h('div.r8i-hero-t', h('span.r8p-marca', 'CELEBRIR8 · ESTUDIO 30'), h('h1', 'Del boceto, la foto o la medida, a la pieza impresa'),
         h('p', 'Crea figuras desde fotos, diseña repuestos con medidas reales, repara modelos con Blender sin abrirlo y prepáralos para tu Bambu. Todo desde aquí, gratis y en tu PC.'),
         h('div.r8p-btns', btn('❓ Aprender a utilizar CelebriR8', () => ext.visita && ext.visita(), { cls: 'primary r8i-aprender' }), btn('🧭 Mi primer proyecto (5 min)', () => import('../r8/visita.js').then(V => V.primerProyecto({ ir: ext.irA })), { cls: 'r8i-primer' })))),
     h('div.r8i-cols',

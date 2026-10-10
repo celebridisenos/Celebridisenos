@@ -289,6 +289,8 @@ export async function openFile(a) {
   const m = modal(a.nombre, box, close => [
     a.rutaLocal && desktop.on ? btn('Abrir carpeta', () => desktop.open(a.rutaLocal.replace(/[\\/][^\\/]+$/, '')).catch(e => toast(e.message, 'bad')), { icon: 'folder' }) : null,
     btn('Descargar', async () => { try { download(await fetchFile(a), a.nombre); } catch (e) { toast(e.message, 'bad'); } }, { icon: 'download' }),
+    // v20.2: el STL / 3MF / OBJ de un producto, directo a Bambu Studio
+    desktop.on && k === 'stl' && ['stl', '3mf', 'obj'].includes(extOf(a.nombre)) ? btn('🖨️ Abrir en Bambu Studio', () => import('./views/productos.js').then(P => P.abrirEnBambu({ nombre: a.nombre, a })), { cls: 'v3d-bambu' }) : null,
     k === 'foto' && can('archivos.subir') && a.entidad && a.entidadId ? btn('Retocar copia', async () => {
       try {
         const blob = await fetchFile(a), ed = await editPhoto(new File([blob], a.nombre, { type: blob.type || a.mime || 'image/jpeg' }), { titulo: 'Retocar copia · ' + a.nombre, aceptar: 'Guardar como copia nueva' });

@@ -74,7 +74,7 @@ export function render(el) {
     mount(resultados,
       c.sinTiempo ? h('div.cz-aviso', '⏱️ Falta el tiempo de impresión: sin él no se cuenta la luz y el precio sale más bajo de lo real. Ponlo arriba (lo dice el laminador).') : null,
       h('div.rt', h('div.rt-c.coste', h('span.rt-t', 'ME CUESTA' + (c.n > 1 ? ' · ' + c.n + ' UDS' : '')), h('span.rt-v', x(c.coste)), c.n > 1 ? h('span.rt-s', eur(c.coste) + ' cada una') : null,
-          h('details.rt-d', h('summary', 'Ver desglose (por unidad)'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (coste interno)', d.embalaje], ['Envío', d.envio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))),
+          h('details.rt-d', h('summary', 'Ver desglose (por unidad)'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (sumado al precio)', d.embalaje], ['Envío', d.envio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))),
         h('div.rt-c.min', h('span.rt-t', 'NO BAJES DE'), h('span.rt-v', x(c.min)), h('span.rt-g.poco', 'ganas ' + x(c.min - c.coste))),
         h('div.rt-c.rec', h('span.rt-t', 'PÍDELE'), h('span.rt-v', x(c.rec)), h('span.rt-g', 'ganas ' + x(c.rec - c.coste))),
         h('div.rt-can', CANALES.map(([k, t]) => h('span', t + ' ', h('b', x(c.r.recomendado[k])))))),

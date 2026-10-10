@@ -183,6 +183,64 @@ export const DATOS_APARATO = DATOS;
 
 // ---------- valores de partida y estados ----------
 // estado de cada medida: 'tuya' (la has escrito o confirmado) · 'estimada' (valor de partida: confírmalo) · 'falta'
+// ---------- v20.2 · 🏁 TRANSMISIÓN RC: piñón + corona del motor, con la RELACIÓN FINAL y la VELOCIDAD (fórmulas a la vista) ----------
+// La dueña: «en el apartado RC y mecánica, curráteló más, más pro». Con lo que pone su coche (dientes, relación interna del
+// diferencial, rueda, kV del motor y celdas de la batería) se calcula la relación final (FDR), las vueltas y la velocidad, la
+// DISTANCIA EXACTA motor–corona y qué pasa con un diente más o menos en el piñón. Los engranajes y su PRUEBA DE ENGRANE son los
+// de «Pareja de engranajes» (ya comprobados: distancia, contacto, socavado, diente pequeño para tu boquilla).
+const PASOS_RC = [['48P', '48P (módulo 0,529)'], ['32P', '32P (módulo 0,794)'], ['m0.6', 'Módulo 0,6'], ['m0.8', 'Módulo 0,8'], ['m1', 'Módulo 1 (crawlers, 1/8)'], ['m1.5', 'Módulo 1,5']];
+const moduloRC = k => (/P$/.test(k) ? 25.4 / parseFloat(k) : parseFloat(k.slice(1)));
+function aPar(v) { // de los campos de la transmisión a los de la «pareja de engranajes»
+  return Object.assign({}, v, { por: 'modulo', m: moduloRC(v.paso), z1: v.zp, z2: v.zc, alfa: '20', forma: 'recto', b: v.ancho, eje1: v.ejeM, ejeForma1: v.formaM || 'redondo', plano1: v.planoM, eje2: v.ejeC, ejeForma2: 'redondo', holgura: 'presion', mano1: 'der', aReal: 0, x1: 0, x2: 0 });
+}
+export function cuentasTransmision(v) {
+  const zp = Math.round(v.zp), zc = Math.round(v.zc), m = moduloRC(v.paso), interna = Number(v.interna) || 1, V = (Number(v.celdas) || 2) * 3.7, Vmax = (Number(v.celdas) || 2) * 4.2;
+  const fdr = zc / zp * interna, rpmMotor = v.kv * V, rpmRueda = rpmMotor / fdr, kmh = rpmRueda * Math.PI * v.ruedaD * 60 / 1e6, rend = Number(v.rend) || 1;
+  const conPinon = z => { const f2 = zc / z * interna; return { z, fdr: f2, kmh: v.kv * V / f2 * Math.PI * v.ruedaD * 60 / 1e6 * rend }; };
+  return { zp, zc, m, interna, V, Vmax, fdr, rpmMotor, rpmRueda, kmh, kmhReal: kmh * rend, a: m * (zp + zc) / 2, menos: zp > 9 ? conPinon(zp - 1) : null, mas: conPinon(zp + 1) };
+}
+TIPOS.transmision = { e: '🏁', t: 'Transmisión RC (piñón + corona)', d: 'Relación final, velocidad y distancia motor–corona',
+  campos: [s('paso', 'Paso de los dientes', PASOS_RC, { def: '48P', est: 1, ayuda: 'Suele venir grabado en la corona (48P, 32P, M0.6, M1…). Piñón y corona tienen que ser del MISMO paso.' }),
+    n('zp', 'Dientes del piñón (el del motor)', { req: 1, u: '', min: 9, max: 60, paso: 1, ayuda: 'Cuéntalos o míralo grabado en el piñón (p. ej. «21T»).' }),
+    n('zc', 'Dientes de la corona', { req: 1, u: '', min: 30, max: 140, paso: 1, ayuda: 'Grabado en la corona (p. ej. «76T»).' }),
+    n('interna', 'Relación interna (diferencial / caja)', { req: 1, u: ': 1', min: 1, max: 20, paso: 0.01, ayuda: 'La reducción que hay DESPUÉS de la corona (en el diferencial o la caja). Viene en el manual de tu coche (muchos 1/10 de calle: 2,6; crawlers: más). Si la corona mueve directamente las ruedas, pon 1.' }),
+    n('ruedaD', 'Diámetro de la rueda (con el neumático)', { req: 1, min: 20, max: 400, paso: 0.5, ayuda: 'Mídelo con el calibre de lado a lado del neumático, montado.' }),
+    n('kv', 'Motor: kV (vueltas por voltio)', { req: 1, u: 'kV', min: 100, max: 20000, paso: 10, ayuda: 'Lo pone la etiqueta del motor (p. ej. «3300 kV»). En uno de escobillas, mira sus rpm por voltio en la ficha.' }),
+    s('celdas', 'Batería LiPo', [['1', '1S (3,7 V)'], ['2', '2S (7,4 V)'], ['3', '3S (11,1 V)'], ['4', '4S (14,8 V)'], ['6', '6S (22,2 V)']], { def: '2', est: 1, ayuda: 'Las celdas de tu batería (lo pone: 2S, 3S…). Se calcula con 3,7 V por celda (la media; cargada a tope son 4,2).' }),
+    n('rend', 'Rendimiento (lo que se pierde por el camino)', { def: 0.85, est: 1, u: '× 1', min: 0.3, max: 1, paso: 0.01, ayuda: 'ESTIMADO: un coche nunca llega a la velocidad teórica (rozamiento, peso, batería que baja). 0,85 es un punto de partida; si mides la velocidad real (con un GPS), ajústalo aquí.' }),
+    n('ancho', 'Ancho de los dientes', { req: 1, min: 2, max: 20, paso: 0.5, ayuda: 'Mídelo en tu corona.' }),
+    n('ejeM', 'Eje del motor', { req: 1, min: 1, max: 10, paso: 0.005, ayuda: 'Mídelo con el calibre: los 540 y 380 suelen tener 3,175 mm (1/8"); los grandes, 5 mm.' }),
+    s('formaM', 'Eje del motor: forma', [['redondo', 'Redondo'], ['d', 'En D (con plano)']], { def: 'redondo' }),
+    n('planoM', 'Del plano al otro lado (eje en D)', { req: 1, min: 0.5, max: 10, si: v => v.formaM === 'd' }),
+    n('ejeC', 'Eje de la corona', { req: 1, min: 1, max: 20, paso: 0.05, ayuda: 'Mídelo con el calibre en el eje donde va la corona.' }),
+    JUEGO],
+  ejemplo: { paso: '48P', zp: 21, zc: 76, interna: 2.6, ruedaD: 65, kv: 3300, celdas: '2', ancho: 6, ejeM: 3.175, ejeC: 5 },
+  calcula(v) {
+    const K = cuentasTransmision(v), f1 = x => f(x, 1), dir = (x, y) => (y > x ? 'más velocidad, menos fuerza' : 'más fuerza, menos velocidad (y menos calor en el motor)');
+    const L = [['Módulo', f(K.m, 3), /P$/.test(v.paso) ? '25,4 ÷ ' + parseFloat(v.paso) : 'el del paso elegido'],
+      ['Relación piñón–corona', f(K.zc / K.zp, 3) + ' : 1', K.zc + ' ÷ ' + K.zp],
+      ['RELACIÓN FINAL (FDR)', f(K.fdr, 2) + ' : 1', '(' + K.zc + ' ÷ ' + K.zp + ') × ' + f(K.interna, 2)],
+      ['Distancia motor–corona', f(K.a, 2) + ' mm', 'módulo × (' + K.zp + ' + ' + K.zc + ') ÷ 2 — de centro a centro de los ejes'],
+      ['Voltaje (media de la batería)', f(K.V, 1) + ' V', v.celdas + ' celdas × 3,7 V (cargada: ' + f(K.Vmax, 1) + ' V)'],
+      ['Vueltas del motor', Math.round(K.rpmMotor).toLocaleString('es-ES') + ' rpm', f(v.kv, 0) + ' kV × ' + f(K.V, 1) + ' V'],
+      ['Vueltas de la rueda', Math.round(K.rpmRueda).toLocaleString('es-ES') + ' rpm', 'vueltas del motor ÷ ' + f(K.fdr, 2)],
+      ['Velocidad TEÓRICA', f1(K.kmh) + ' km/h', 'rpm rueda × π × ' + f(v.ruedaD, 1) + ' mm × 60 ÷ 1 000 000'],
+      ['Velocidad ESTIMADA', f1(K.kmhReal) + ' km/h', 'teórica × ' + f(v.rend, 2) + ' (rendimiento ESTIMADO: confírmalo)']];
+    if (K.menos) L.push(['Con piñón de ' + K.menos.z, f(K.menos.fdr, 2) + ' : 1 → ' + f1(K.menos.kmh) + ' km/h', dir(K.kmhReal, K.menos.kmh)]);
+    L.push(['Con piñón de ' + K.mas.z, f(K.mas.fdr, 2) + ' : 1 → ' + f1(K.mas.kmh) + ' km/h', dir(K.kmhReal, K.mas.kmh)]);
+    return L;
+  },
+  revisa(v) {
+    const K = cuentasTransmision(v), L = TIPOS.par.revisa.call(TIPOS.par, aPar(v)).filter(x => !/tu aparato/i.test(x.t)), ra = K.m * (K.zp + 2) / 2, rf = K.m * K.zp / 2 - 1.25 * K.m;
+    if (rf - v.ejeM / 2 - ENCAJES.presion < 1.2) L.unshift({ n: 'error', t: 'El piñón de ' + K.zp + ' dientes es demasiado pequeño para un eje de ' + f(v.ejeM, 3) + ' mm: entre el agujero y el fondo de los dientes quedan ' + f(Math.max(0, rf - v.ejeM / 2 - ENCAJES.presion), 2) + ' mm (mínimo 1,2). Usa más dientes o compra ese piñón en metal.' });
+    if (K.fdr < 4) L.push({ n: 'aviso', t: 'Relación final ' + f(K.fdr, 2) + ' : 1, muy larga: el motor se calienta mucho. Vigila la temperatura (que se pueda tocar 5 segundos) o pon un piñón más pequeño.' });
+    L.push({ n: 'aviso', t: 'Un piñón IMPRESO se gasta: en PETG o nailon aguanta para probar la relación y para coches ligeros; para correr fuerte, el piñón en metal (la corona impresa sí aguanta bien).' });
+    void ra; return L;
+  },
+  construye(v) { return TIPOS.par.construye.call(TIPOS.par, aPar(v)); },
+  cotas(v) { return TIPOS.par.cotas.call(TIPOS.par, aPar(v)).map(c => Object.assign({}, c, { t: c.t.replace('entre ejes', 'motor–corona') })); },
+  kit(v) { const k = TIPOS.par.kit.call(TIPOS.par, aPar(v)); return Object.assign({}, k, { t: k.t.replace('dos ejes', 'el eje del motor y el de la corona') }); } };
+
 export function nuevo(tipo) {
   const T = TIPOS[tipo], v = {}, est = {};
   T.campos.forEach(c => { if (c.def !== undefined) { v[c.k] = c.tipo === 'num' ? Number(c.def) : c.def; est[c.k] = c.est ? 'estimada' : 'tuya'; } else if (c.tipo === 'chk') { v[c.k] = false; est[c.k] = 'tuya'; } else if (c.tipo === 'sel') { v[c.k] = c.ops[0][0]; est[c.k] = 'tuya'; } else { v[c.k] = c.tipo === 'num' ? null : ''; est[c.k] = c.req ? 'falta' : 'tuya'; } });
