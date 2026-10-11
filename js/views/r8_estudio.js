@@ -359,6 +359,7 @@ export async function montarEstudio(el, ext = {}) {
       if (F && !F.curva) items.push(['⇕', 'Extruir esta cara (flecha)', () => { eligeCara(ev0, null, true); }]);
       if (F) items.push(['◜', 'Redondear sus aristas', () => { eligeCara(ev0, null, true); if (caraSel && caraSel.BD) { caraSel.verEmp = true; caraSel.emp.tipo = 'redondeo'; pintaFlechas(); dlgCara(); panelCara(); } }], ['◺', 'Chaflán en sus aristas', () => { eligeCara(ev0, null, true); if (caraSel && caraSel.BD) { caraSel.verEmp = true; caraSel.emp.tipo = 'chaflan'; pintaFlechas(); dlgCara(); panelCara(); } }]);
       if (F) items.push(['⚫', 'Agujero aquí (Ø5, pasante)', () => { eligeCara(ev0, null, true); agujeroAqui(5, 0); }]);
+      if (F && !F.curva) items.push(['🔤', 'Texto aquí…', () => { eligeCara(ev0, null, true); setTimeout(() => { const i = prop.querySelector('.r8e-tx-txt'); if (i) { i.scrollIntoView({ block: 'center' }); i.focus(); i.select(); } }, 60); }]);
       items.push(['⬓', 'Vaciar (dejarla hueca)', () => { elige([id]); vaciarSel(); }], ['✥', 'Mover con flechas', () => { elige([id]); ponHerr('mover'); }],
         ['📋', 'Copiar  (Ctrl C)', () => { elige([id]); copiar(); }], ['📌', 'Pegar  (Ctrl V)', () => pegar()], ['⧉', 'Duplicar  (Ctrl D)', () => { elige([id]); duplicar(); }],
         [c && c.hueco ? '●' : '◐', c && c.hueco ? 'Hacerla sólida' : 'Hacerla hueco', () => { elige([id]); alternaHueco(); }], ['⇋', 'Espejo en X', () => { PR.espejo(P, [id], 'x'); commit(); }],
@@ -511,6 +512,47 @@ export async function montarEstudio(el, ext = {}) {
     quitaCara(); commit(); elige(g ? [g.id] : [ag.id]);
     toast('⚫ Agujero de Ø' + n1(d) + (fondo > 0 ? ' y ' + n1(fondo) + ' mm de fondo' : ' pasante') + ' (cámbialo en el navegador: «Agujero»)', 'ok', 4500);
   }
+  // ---------- v30.2 · 🎁 🔤 TEXTO EN CUALQUIER CARA (en relieve o grabado), donde tocaste y bien derecho ----------
+  // Relieve del MISMO color: se une a la pieza (entra 0,2 mm para que no quede «pegado con saliva»). Relieve de OTRO color: va
+  // aparte, apoyado justo en la cara (sin meterse), para el 🌈 cambio de color por capas o el AMS. Grabado: un hueco que entra
+  // «prof» mm. Las letras se leen de frente en las caras de lado (arriba = arriba) y desde arriba en la de arriba.
+  const TXK = 'cd.r8.textoCara', TX0 = { txt: 'CelebriDiseños', alto: 8, prof: 1, modo: 'relieve', fuente: 'gorda', color: '' };
+  const TX = (() => { try { return Object.assign({}, TX0, JSON.parse(localStorage.getItem(TXK) || '{}')); } catch (e) { return Object.assign({}, TX0); } })();
+  function textoAqui(o = TX) {
+    if (!caraSel || !caraSel.p || !caraSel.F) return toast('Toca antes la cara (y el punto) donde va el texto.', 'warn');
+    if (caraSel.F.curva) return toast('El texto va en caras PLANAS. Esta es curva.', 'warn');
+    const txt = String(o.txt || '').trim(); if (!txt) return toast('Escribe el texto.', 'warn');
+    const src = PR.busca(P, caraSel.id); if (!src) return;
+    const alto = Math.max(1, Number(String(o.alto).replace(',', '.')) || 8), prof = Math.max(0.2, Number(String(o.prof).replace(',', '.')) || 1), grab = o.modo === 'grabado';
+    const otroColor = !grab && !!o.color && o.color.toLowerCase() !== String(src.color || '').toLowerCase();
+    const n = new T3.Vector3(...caraSel.F.n).normalize(), Z = new T3.Vector3(0, 0, 1);
+    const up = Math.abs(n.z) < 0.9 ? Z.clone().addScaledVector(n, -n.dot(Z)).normalize() : new T3.Vector3(0, 1, 0).addScaledVector(n, -n.y).normalize(), u = up.clone().cross(n).normalize();
+    const entra = grab ? prof : otroColor ? 0 : 0.2, hh = grab ? prof + 0.4 : prof + entra;
+    const M = new T3.Matrix4().makeBasis(u, up, n).setPosition(new T3.Vector3(...caraSel.p).addScaledVector(n, -entra));
+    try { N.texto2(txt, o.fuente, alto); } catch (e) { return toast(e.message || String(e), 'bad'); }
+    const c = PR.añadir(P, { tipo: 'texto', nombre: (grab ? 'Grabado «' : 'Texto «') + txt.slice(0, 24) + '»', p: { txt, fuente: o.fuente || 'gorda', alto, h: r3(hh) }, hueco: grab, color: grab ? '#ff4d6d' : (otroColor ? o.color : src.color), acabado: src.acabado, t: PR.deMatriz(M) });
+    let fin = c;
+    if (!otroColor) { const g = PR.agrupar(P, [src.id, c.id], 'unir', c.n); if (g) { const base = src.nombre || PR.nombreTipo(src); g.nombre = base + (grab ? ' con grabado' : ' con texto'); g.color = src.color; g.acabado = src.acabado; fin = g; } }
+    try { localStorage.setItem(TXK, JSON.stringify({ txt, alto, prof, modo: o.modo, fuente: o.fuente, color: o.color || '' })); } catch (e) { }
+    quitaCara(); commit(); elige([fin.id]);
+    toast('🔤 «' + txt + '» ' + (grab ? 'grabado ' + n1(prof) + ' mm' : 'en relieve de ' + n1(prof) + ' mm' + (otroColor ? ', de OTRO color (pieza aparte: al imprimir, mira «🌈 Colores por capas»)' : '')) + ' · letras de ' + n1(alto) + ' mm', 'ok', 5000);
+    window.__r8e && (window.__r8e.texto = { id: c.id, grupo: fin.id !== c.id ? fin.id : null, otroColor });
+  }
+  function seccionTexto() {
+    const o = TX, COLS = ['#ffffff', '#1b1b1f', '#e63946', '#ffb703', '#2a9d8f', '#3a86ff', '#ff70a6'];
+    const cols = h('div.r8e-tx-cols', h('button.r8e-tx-col.igual', { type: 'button', title: 'Del color de la pieza', 'data-col': '', onclick: () => { o.color = ''; marca(); } }, '='),
+      COLS.map(c => h('button.r8e-tx-col', { type: 'button', title: 'De este color (pieza aparte)', 'data-col': c, style: { background: c }, onclick: () => { o.color = c; marca(); } })));
+    const marca = () => cols.querySelectorAll('[data-col]').forEach(b => b.classList.toggle('on', (b.dataset.col || '') === (o.color || '')));
+    const modo = h('div.r8e-tx-modo', [['relieve', '⬆ En relieve'], ['grabado', '⬇ Grabado']].map(([k, t]) => h('button' + (o.modo === k ? '.on' : ''), { type: 'button', 'data-txmodo': k, onclick: () => { o.modo = k; modo.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.txmodo === k)); cols.style.display = k === 'grabado' ? 'none' : ''; } }, t)));
+    marca(); if (o.modo === 'grabado') cols.style.display = 'none';
+    return seccion('🔤 Texto en esta cara 🎁', h('p.small.muted', 'Donde tocaste, bien derecho. En relieve (sale) o grabado (entra). De otro color = pieza aparte, para cambiar de color al imprimir.'),
+      h('input.inp.r8e-tx-txt', { type: 'text', value: o.txt, maxlength: 60, 'data-k': 'textoTxt', placeholder: 'Tu texto', oninput: e => { o.txt = e.target.value; }, onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); textoAqui(o); } } }),
+      modo,
+      h('div.r8e-agu', h('label', 'Letra ', h('input.inp', { type: 'number', min: 1, step: 0.5, value: o.alto, 'data-k': 'textoAlto', oninput: e => { o.alto = e.target.value; } }), ' mm'), h('label', 'Fondo ', h('input.inp', { type: 'number', min: 0.2, step: 0.2, value: o.prof, 'data-k': 'textoProf', oninput: e => { o.prof = e.target.value; } }), ' mm')),
+      h('label.r8e-l-n', h('span', 'Tipo de letra'), h('select.inp', { 'data-k': 'textoFuente', onchange: e => { o.fuente = e.target.value; } }, FU.map(([k, t]) => h('option', { value: k, selected: o.fuente === k }, t)))),
+      cols,
+      h('div.r8e-btns', btn('🔤 Poner el texto', () => textoAqui(o), { cls: 'sm primary r8e-tx-ok' })));
+  }
   // boceto SOBRE una cara o un plano: lo dibujado se pega a esa cara (y suma o corta, hacia fuera o hacia dentro)
   let caraOrigen = null;
   async function bocetoEnPlano(B, anillos, de) {
@@ -570,6 +612,7 @@ export async function montarEstudio(el, ext = {}) {
       h('div.r8e-medida', h('div', h('span', 'Área'), h('b', n1(F.area) + ' mm²')), h('div', h('span', 'Mira hacia'), h('b', angulo === 0 ? 'arriba' : angulo === 180 ? 'abajo' : angulo === 90 ? 'un lado' : angulo + '° de arriba')), h('div', h('span', 'Contornos'), h('b', String(F.anillos.length) + (F.anillos.length > 1 ? ' (con agujeros)' : '')))),
       F.curva ? h('div.r8e-nota', '〰️ Es una cara CURVA. Para hacerla más gorda o más fina:', h('div.r8e-btns', src && ['cilindro', 'tubo', 'esfera', 'semiesfera', 'cono', 'toro', 'prisma'].includes(src.tipo) ? btn('Ø Cambiar su diámetro', () => { const id = caraSel.id; quitaCara(); elige([id]); }, { cls: 'sm' }) : null, btn('⇔ Engordar o adelgazar la pieza (Desfase)', () => { const id = caraSel.id; quitaCara(); elige([id]); desfaseSel(); }, { cls: 'sm' }))) : null,
       (() => { const o2 = { d: 5, f: 0 }; return seccion('⚫ Agujero en el punto tocado', h('p.small.muted', 'Hacia dentro de la cara, donde tocaste. Fondo 0 = pasante (lo atraviesa).'), h('div.r8e-agu', h('label', 'Ø ', h('input.inp', { type: 'number', min: 0.3, step: 0.1, value: 5, 'data-k': 'agujeroD', oninput: e => { o2.d = e.target.value; } }), ' mm'), h('label', 'Fondo ', h('input.inp', { type: 'number', min: 0, step: 0.5, value: 0, 'data-k': 'agujeroF', oninput: e => { o2.f = e.target.value; } }), ' mm'), btn('⚫ Hacer el agujero', () => agujeroAqui(o2.d, o2.f), { cls: 'sm primary r8e-agujero' }))); })(),
+      !F.curva ? seccionTexto() : null,
       !F.curva ? seccion('⇕ Extruir: empujar / hundir (o arrastra la flecha)', h('p.small.muted', '+ saca material hacia fuera · − hunde la cara hacia dentro (un rebaje). Se ve en verde (sumar) o rojo (quitar) antes de aceptar.'),
         campoNum(o, 'd', 'Distancia', -200, 200, 0.5, 'mm', fin => { previaEmpuje(); if (fin) previaEmpuje(); }),
         h('div.r8e-btns', [-5, -2, -1, 1, 2, 5].map(v => btn((v > 0 ? '+' : '') + v, () => { o.d = v; panelCara(); }, { cls: 'sm ghost' }))),

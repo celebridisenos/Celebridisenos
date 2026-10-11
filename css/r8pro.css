@@ -550,6 +550,49 @@ html[data-modo="dia"] .r8cj-aviso.bien { color: #0f8a3d; } html[data-modo="dia"]
 .mesa-n { font-size: 12px; font-weight: 700; padding: 0 6px; white-space: nowrap; }
 .mesa-b { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2, var(--surface)); color: var(--text); cursor: pointer; font-size: 15px; display: grid; place-items: center; }
 .mesa-b:hover { border-color: var(--a1, #7c6cff); }
+.mesa-b[data-m="llenar"] { background: linear-gradient(135deg, #ffd23f33, #ff7a1a33); border-color: #ffb02e; } /* v30.2 🎁 */
+.mesa-menu-t { font: 800 11px var(--font-d, system-ui); letter-spacing: .08em; color: var(--muted); padding: 6px 10px 2px; }
+.mesa-lleno { font-size: 11.5px; font-weight: 700; padding: 0 6px; white-space: nowrap; color: var(--text-2); }
 .r8e-agu { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; } .r8e-agu .inp { width: 62px; padding: 4px 6px; }
 .r8e-como { padding: 8px 10px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--a1, #7c6cff) 45%, var(--line)); margin-bottom: 8px; } .r8e-como ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; font-size: 12.5px; }
 .r8e-lienzo { display: grid; gap: 6px; padding: 8px; border-radius: 12px; border: 1px solid var(--line); margin: 8px 0; } .r8e-l-t { display: flex; gap: 4px; align-items: center; } .r8e-l-t b { flex: 1; font-size: 12.5px; } .r8e-l-n { display: grid; grid-template-columns: 1fr 110px; gap: 6px; align-items: center; font-size: 12px; } .r8e-l-n .inp { padding: 4px 6px; } .r8e-l-xyz { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; } .r8e-l-xyz .r8e-l-n { grid-template-columns: 1fr; }
+/* v30.2 · la CINTA del Estudio siempre ENTERA: si no cabe en una fila pasa a dos (antes lo de la derecha — 📱 ⛶ «Barra», y en la
+   tablet «Proyectos», «Precio», «Escaparate»… — quedaba escondido y había que deslizarla sin saberlo) */
+.r8e-cinta { flex-wrap: wrap; justify-content: center; row-gap: 3px; overflow-x: visible; }
+/* en la tablet (dedo), botones de dedo y con su nombre entero */
+@media (max-width: 1400px) and (pointer: coarse) { .r8e-b { min-width: 46px; padding: 5px 3px 4px; } .r8e-b span { font-size: 19px; } .r8e-b small { font-size: 10px; max-width: none; letter-spacing: 0; } .r8e-gr > small { display: block; } }
+/* tablet en vertical y móviles: la vista 3D a todo lo ancho y los paneles debajo (antes la vista se quedaba en una tira de 180 px) */
+@media (max-width: 900px) { .r8e-main { grid-template-columns: 1fr; } }
+/* v30.2 · en el PC (1341–1720 px) la cinta cabe en UNA fila: botones un pelín más estrechos y los 3 de VER (📱 ⛶ ︿) en columna */
+@media (min-width: 1341px) and (max-width: 1720px) and (pointer: fine) {
+  .r8e-b { min-width: 31px; }
+  .r8e-gr:last-child .r8e-grb { flex-direction: column; gap: 1px; } .r8e-gr:last-child .r8e-b { min-width: 30px; padding: 0 5px; border-radius: 6px; }
+  .r8e-gr:last-child .r8e-b span { font-size: 11px; line-height: 13px; } .r8e-gr:last-child .r8e-b small { display: none; }
+}
+@media (min-width: 1341px) and (max-width: 1450px) and (pointer: fine) { .r8e-b { min-width: 29px; padding: 3px 1px 2px; } .r8e-b small { font-size: 8.6px; letter-spacing: -.03em; } .r8e-b.mini { min-width: 26px; } .r8e-grb { gap: 0; } }
+/* v30.2 · en pantallas grandes (1920) también en una fila (se salían 260 px: Proyectos, Precio, Escaparate, Fantasma y VER) */
+@media (min-width: 1721px) { .r8e-b { min-width: 40px; padding: 4px 3px 3px; } .r8e-gr { padding: 0 4px; } .r8e-grb { gap: 1px; } }
+/* v30.2 · 🎁 🔤 texto en una cara */
+.r8e-tx-txt { width: 100%; font-size: 15px; font-weight: 700; }
+.r8e-tx-modo { display: flex; gap: 4px; } .r8e-tx-modo button { flex: 1; padding: 6px 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2, var(--surface)); color: var(--text); font: 700 12.5px var(--font, system-ui); cursor: pointer; }
+.r8e-tx-modo button.on { border-color: var(--a1, #ff7a1a); background: color-mix(in srgb, var(--a1, #ff7a1a) 18%, transparent); }
+.r8e-tx-cols { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.r8e-tx-col { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; font: 800 13px system-ui; color: var(--text); background: var(--surface-2, var(--surface)); }
+.r8e-tx-col.on { outline: 2px solid var(--a1, #ff7a1a); outline-offset: 2px; }
+/* v30.2 · 🎁 🌈 colores por capas (en el asistente de imprimir) */
+.cc { border: 1px solid color-mix(in srgb, #ff7a1a 45%, var(--line)); border-radius: 14px; padding: 8px 12px; background: linear-gradient(135deg, color-mix(in srgb, #ff7a1a 7%, transparent), color-mix(in srgb, #9b5de5 7%, transparent)); }
+.cc > summary { cursor: pointer; font-weight: 800; display: flex; align-items: center; gap: 8px; list-style: none; } .cc > summary::-webkit-details-marker { display: none; }
+.cc > summary::before { content: '▸'; transition: transform .15s; } .cc[open] > summary::before { transform: rotate(90deg); }
+.cc-n { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: #ff7a1a; color: #fff; }
+.cc-cuerpo { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: start; margin-top: 6px; }
+.cc-svg { border-radius: 10px; border: 1px solid var(--line); cursor: crosshair; background: repeating-linear-gradient(45deg, transparent 0 6px, color-mix(in srgb, var(--text) 5%, transparent) 6px 12px); }
+.cc-der { display: grid; gap: 8px; min-width: 0; }
+.cc-fila { display: grid; gap: 5px; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); position: relative; }
+.cc-z { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; } .cc-z .inp { width: 76px; }
+.cc-cols { display: flex; flex-wrap: wrap; gap: 4px; } .cc-col { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; } .cc-col.on { outline: 2px solid #ff7a1a; outline-offset: 2px; }
+.cc-base { display: grid; gap: 4px; font-size: 12.5px; font-weight: 700; }
+.cc-capa { font-size: 12.5px; } .cc-capa b { color: #ff7a1a; }
+.cc-quita { position: absolute; right: 6px; top: 6px; border: 0; background: none; cursor: pointer; font-size: 14px; }
+.cc-props { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.cc-como { margin-top: 8px; font-size: 12.5px; } .cc-como ol { margin: 4px 0 4px 18px; padding: 0; display: grid; gap: 3px; }
+@media (max-width: 560px) { .cc-cuerpo { grid-template-columns: 1fr; } .cc-svg { width: 100%; height: 110px; } }

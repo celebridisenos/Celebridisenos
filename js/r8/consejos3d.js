@@ -6,6 +6,7 @@
 // Lo que se calcula de la pieza es MEDIDO (voladizos, apoyo, tamaño, orientación); el tiempo y el peso son ESTIMADOS.
 import { h, mount, btn, toast } from '../ui.js';
 import { estimarGramos } from '../datos3d.js';
+import * as CC from './colores_capas.js'; // v30.2 · 🎁 🌈 colores por capas (sin AMS)
 
 // Sus perfiles (leídos de su Bambu Studio el 9-10-2026). El programa del PC los vuelve a leer al abrir (por si cambian).
 export const PERFILES_DE_SERIE = {
@@ -152,8 +153,8 @@ export function enPantalla(R) {
 // o = { clave, partes: () => [{ m, color, nombre }], N, uso, texto, nombre, baja, alGirar, cama, desktopAbrir }
 export async function asistente(el, o) {
   await cargaPerfiles();
-  const { N } = o; let L, r, sopa, info;
-  try { L = o.partes(); if (!L.length) throw new Error('No hay nada que imprimir.'); const tot = N.union(L.map(x => x.m)); sopa = N.aSopa(tot); info = N.info(tot); }
+  const { N } = o; let L, r, sopa, info, perf = null;
+  try { L = o.partes(); if (!L.length) throw new Error('No hay nada que imprimir.'); const tot = N.union(L.map(x => x.m)); sopa = N.aSopa(tot); info = N.info(tot); try { perf = CC.perfil(tot, N); } catch (e) { perf = null; } }
   catch (e) { mount(el, h('p.r8e-mal', '⚠️ ' + (e.message || e))); N.limpia(); return; }
   const zmin = info.min[2], cols = {}; L.forEach(x => { const b = N.caja(x.m); cols[x.color] = Math.min(cols[x.color] ?? Infinity, b.min[2] - zmin); });
   const colores = Object.entries(cols).sort((a, b) => a[1] - b[1]).map(([color, z0]) => ({ color, z0 }));
@@ -164,6 +165,8 @@ export async function asistente(el, o) {
     mount(calAviso, A ? h('div.aj-ok', '🎯 Va corregida con tu calibración «' + A.clave + '» (' + A.fecha + ').')
       : o.sinCalibrar ? null : h('div.aj-cal-no', h('span', '🎯 Tu impresora aún no está calibrada: con una probeta de 33 min tus piezas salen a medida solas.'), h('button.btn.sm.aj-calibrar', { type: 'button', onclick: () => import('./calibracion_ui.js').then(m => m.abrir()) }, 'Calibrar ahora'))); }).catch(() => { });
   const clave = o.clave || 'estudio', R = Object.assign({ impresora: (o.cama || 256) <= 180 ? 'a1m' : 'p1p', material: o.uso === 'flexible' ? 'TPU' : 'PLA', uso: o.uso || 'deco' }, leeResp(clave));
+  // v30.2 · 🌈 los cambios de color: los que ya trae el diseño (el QR: negro al acabar la base) o los de sus piezas de colores
+  if (!R.cc) R.cc = { cambios: (o.cambios || []).filter(Boolean).map(c => ({ z: Math.round(c.z * 100) / 100, color: c.color })).concat(!o.cambios && colores.length > 1 ? colores.slice(1).map(c => ({ z: Math.round(c.z0 * 100) / 100, color: c.color })) : []), base: colores.length > 1 ? colores[0].color : (o.colorBase || null) };
   const pregunta = h('input.inp.cj-preg', { placeholder: '¿Y si lo quiero más resistente? ¿Lo puedo hacer en PETG?…', onkeydown: e => { if (e.key === 'Enter') preguntar(); } }), resp = h('div.cj-resp');
   const pinta = () => {
     r = aconseja(sopa, info, { uso: R.uso, texto: o.texto, material: R.material, impresora: R.impresora, colores: colores.length > 1 ? colores : [] });
@@ -180,7 +183,8 @@ export async function asistente(el, o) {
         : h('div.aj-ok', '✅ No tiene nada en el aire: va sin soportes.'),
       preg('balsa', '6. ¿Le pongo un borde para que no se despegue?', [['si', 'Sí, borde exterior', 'Si apoya poco o es alta'], ['auto', 'Que decida Bambu', 'Automático'], ['no', 'Sin borde', 'Más limpio']], 'Apoya ' + Math.round(r.mide.apoyo / 100) + ' cm² en la cama.'),
       r.mide.arriba > 1500 && R.uso !== 'jarron' ? preg('planchar', '7. ¿Plancho la cara de arriba?', [['si', 'Sí, lisa como un espejo', 'Tarda un poco más'], ['no', 'No', '']]) : null,
-      colores.length > 1 ? h('div.aj-ok', '🎨 Lleva ' + colores.length + ' colores: en Bambu Studio, cambio de color a ' + colores.slice(1).map(c => String(Math.round(c.z0 * 100) / 100).replace('.', ',') + ' mm').join(' y a ') + ' (clic derecho en la barra de capas → «Añadir cambio de color»).') : null,
+      colores.length > 1 ? h('div.aj-ok', '🎨 Lleva ' + colores.length + ' colores (abajo, en «🌈 Colores por capas», la capa exacta de cada cambio).') : null,
+      CC.bloque(R.cc, { perf, capa: CC.capaPerfil(r.perfil), colorBase: (L[0] && L[0].color) || '#f4f4f0', alGuardar: () => guardaResp(clave, R) }), // v30.2 · 🎁 🌈
       h('div.aj-resumen', h('b', '📋 Así va a ir'), h('div.aj-perfil', 'Perfil de arriba (Proceso): ', h('b', r.perfil)), enPantalla(R).map(([p, n, v]) => h('div.aj-fila', h('span', p + ' · ' + n), h('b', v))), r.avisos.map(a => h('p.cj-aviso', '⚠️ ' + a)), h('small', '⚖️ ≈ ' + (r.gramos ? Math.max(1, Math.round(r.gramos)) : '?') + ' g · ESTIMADO')),
       calAviso, // v30: 🎯 si va corregida con su calibración, o el botón para calibrar
       h('div.r8e-btns.aj-bajar', o.desktopAbrir ? btn('🖨️ Abrir en Bambu Studio', () => sale('abrir'), { cls: 'primary aj-abrir' }) : null, btn('📦 3MF con los ajustes', () => sale('3mf'), { cls: (o.desktopAbrir ? '' : 'primary ') + 'aj-3mf' }), btn('⬇ Solo el STL', () => sale('stl'), { cls: 'aj-stl' })),
@@ -201,7 +205,7 @@ export async function asistente(el, o) {
       if (como === 'stl') { o.baja(new Blob([N.stl(N.union(P2.map(x => x.m)), base)], { type: 'model/stl' }), base + '.stl'); toast('⬇ STL descargado', 'ok'); return; }
       // v20.4 · 🎯 tu CALIBRACIÓN (impresora + material): compensaciones de Bambu dentro de la pieza y, si encoge, escalada (no en las probetas de calibrar)
       const CPR = await import('./calibracion.js'), X = CPR.paraImprimir(P2.map(x => ({ m: x.m, color: x.color, nombre: x.nombre })), Object.assign(claves(R), o.forzar || {}), { sin: !!o.sinCalibrar });
-      const blob = N.tresMF(X.partes, base, X.ajustes); window.__r8calib = X.aplicada; // v20.3: lo que un diseño NECESITA sí o sí (el rodamiento impreso: sin soportes ni balsa)
+      const blob = N.tresMF(X.partes, base, X.ajustes, { cambios: CC.paraArchivo(R.cc && R.cc.cambios, CC.capaPerfil(r.perfil)) }); window.__r8calib = X.aplicada; // v20.3: lo que un diseño NECESITA sí o sí (el rodamiento impreso: sin soportes ni balsa)
       const conCal = X.aplicada ? ' · 🎯 con tu calibración «' + X.aplicada + '»' : '';
       if (como === 'abrir') { const d = await import('../desktop.js'), res = await d.desktop.bambuAbrir(blob, base); toast((res && res.abierto ? '🖨️ Abriendo en Bambu Studio… (guardado en Documentos\\CelebriDiseños_R8)' : '📦 Guardado en ' + (res && res.path)) + conCal, 'ok', 8000); window.__r8aj && (window.__r8aj.abierto = res); return; }
       o.baja(blob, base + '.3mf'); toast('📦 3MF con los ajustes descargado' + conCal + '. Ábrelo con Bambu Studio.', 'ok', 6000);

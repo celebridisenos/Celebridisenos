@@ -5,10 +5,11 @@
 // (Ctrl D), 📋 Copiar (Ctrl C) y 📌 Pegar (Ctrl V), ⟳ Girar 90° (R), 🗑 Quitar copia (Supr), ▦ Colocar (que no se pisen) y clic
 // derecho = menú. Las copias salen en el archivo para imprimir: quien prepara el 3MF pasa sus piezas por mesa.expande().
 import { h, mount, toast } from '../ui.js';
+import { estimacion, tiempoTxt } from './sorpresas.js'; // v30.2: 🧩 llenar la cama (gramos y tiempo ESTIMADOS)
 
 export function mesa(escena, lienzo, o = {}) {
   const T = escena.T, orig = escena.ponPartes, contenedor = o.contenedor || lienzo.parentElement;
-  let inst = [{ id: 'm0', dx: 0, dy: 0, rot: 0 }], selI = null, ultL = null, ultH = [], centro = [0, 0], tam = [0, 0], arr = null, copia = null, vivo = true, sig = 1;
+  let inst = [{ id: 'm0', dx: 0, dy: 0, rot: 0 }], selI = null, ultL = null, ultH = [], centro = [0, 0], tam = [0, 0], arr = null, copia = null, vivo = true, sig = 1, lleno = null;
   const r1 = x => Math.round(x * 10) / 10;
   const mat = (i, M) => { const m = new T.Matrix4().makeTranslation(centro[0] + i.dx, centro[1] + i.dy, 0).multiply(new T.Matrix4().makeRotationZ(i.rot * Math.PI / 180)).multiply(new T.Matrix4().makeTranslation(-centro[0], -centro[1], 0)); if (M) m.multiply(new T.Matrix4().fromArray(M)); return m; };
   const principal = p => !p.fantasma && !p.resalta;
@@ -26,7 +27,8 @@ export function mesa(escena, lienzo, o = {}) {
     orig(L2, ultH);
     escena.ponProxies(inst.flatMap(i => ultL.filter(principal).map(p => ({ id: i.id, vista: p.vista, matriz: mat(i, p.matriz) }))));
     const s = inst.find(i => i.id === selI); escena.marcar(s ? ultL.filter(p => principal(p) && !p.matriz).map(p => { const m = mat(s), e = new T.Euler().setFromRotationMatrix(m, 'ZYX'), q = new T.Vector3().setFromMatrixPosition(m); return { id: s.id, vista: p.vista, t: { pos: q.toArray(), rot: [0, 0, e.z * 180 / Math.PI], esc: [1, 1, 1] } }; }) : []);
-    barra(); window.__mesa = { copias: inst.length, sel: selI, inst: inst.map(i => ({ dx: r1(i.dx), dy: r1(i.dy), rot: i.rot })) };
+    if (lleno && lleno.n !== inst.length) lleno = null;
+    barra(); window.__mesa = { lleno, copias: inst.length, sel: selI, inst: inst.map(i => ({ dx: r1(i.dx), dy: r1(i.dy), rot: i.rot })) };
   }
   // ---------- la barrita de la cama ----------
   const bar = h('div.mesa-bar', { role: 'toolbar', 'aria-label': 'La pieza en la cama' }); contenedor.appendChild(bar);
@@ -34,7 +36,32 @@ export function mesa(escena, lienzo, o = {}) {
   function barra() {
     mount(bar, h('span.mesa-n', inst.length > 1 ? '🧩 ' + inst.length + ' en la cama' : '✋ Toca y arrastra la pieza'),
       bt('⧉', 'Duplicar (Ctrl D)', duplicar, 'duplicar'), bt('📋', 'Copiar (Ctrl C)', copiar, 'copiar'), bt('📌', 'Pegar (Ctrl V)', pegar, 'pegar'), bt('⟳', 'Girar 90° (R)', gira, 'girar'),
-      bt('▦', 'Colocar: en fila, sin pisarse', () => coloca(), 'colocar'), inst.length > 1 ? bt('🗑', 'Quitar esta copia (Supr)', quita, 'quitar') : null);
+      bt('▦', 'Colocar: en fila, sin pisarse', () => coloca(), 'colocar'), inst.length > 1 ? bt('🗑', 'Quitar esta copia (Supr)', quita, 'quitar') : null,
+      bt('🧩', '🎁 Llenar la cama: todas las que caben (con los gramos y el tiempo)', menuLlenar, 'llenar'), inst.length > 1 ? bt('①', 'Dejar solo una', () => { inst = [inst[0]]; inst[0].dx = inst[0].dy = 0; selI = null; pinta(); o.alCambiar && o.alCambiar(); }, 'una') : null,
+      lleno ? h('span.mesa-lleno', '≈ ' + Math.round(lleno.g) + ' g · ≈ ' + tiempoTxt(lleno.min) + ' · ESTIMADO') : null);
+  }
+  // ---------- v30.2 · 🎁 LLENAR LA CAMA: todas las que caben (rectas o giradas 90°, lo que meta más), centradas y a 5 mm unas de
+  // otras, con los gramos y el tiempo ESTIMADOS de la cama entera (lo exacto te lo da Bambu Studio al laminar) ----------
+  const IMPS = [['p1p', 'Bambu P1P', 256], ['a1m', 'Bambu A1 mini', 180]];
+  function menuLlenar() { // ¿en qué impresora? (se recuerda)
+    document.querySelectorAll('.mesa-menu').forEach(m => m.remove()); const r = bar.getBoundingClientRect();
+    const m = h('div.r8e-menu.mesa-menu.mesa-llenar', { style: { left: Math.max(8, r.left) + 'px', top: Math.max(8, r.top - 150) + 'px' } }, h('div.mesa-menu-t', '🧩 Llenar la cama de…'),
+      IMPS.map(([k, t, c]) => h('button', { type: 'button', 'data-imp': k, onclick: () => { m.remove(); try { localStorage.setItem('cd.r8.mesa.imp', k); } catch (e) { } llenar(c, t); } }, h('span', '🖨️'), h('b', t + ' · ' + c + ' mm'))));
+    document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', function fuera(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('pointerdown', fuera); } }), 0);
+  }
+  function llenar(camaElegida, nomImp) {
+    if (!ultL || !tam[0] || !tam[1]) return;
+    if (!camaElegida) { let k = 'p1p'; try { k = localStorage.getItem('cd.r8.mesa.imp') || 'p1p'; } catch (e) { } const I = IMPS.find(x => x[0] === k) || IMPS[0]; camaElegida = I[2]; nomImp = I[1]; }
+    const cama = camaElegida || o.cama || 256, sep = 5, util = cama - 8;
+    const prueba = rot => { const w = (rot ? tam[1] : tam[0]) + sep, d = (rot ? tam[0] : tam[1]) + sep, nx = Math.max(0, Math.floor((util + sep) / w)), ny = Math.max(0, Math.floor((util + sep) / d)); return { rot, w, d, nx, ny, n: nx * ny }; };
+    const a = prueba(0), b = prueba(90), m = b.n > a.n ? b : a;
+    if (m.n < 2) return toast(m.n ? '🧩 En tu cama (' + cama + ' mm) solo cabe una de este tamaño.' : '🧩 Esta pieza es más grande que tu cama (' + cama + ' mm).', 'info', 3500);
+    inst = [];
+    for (let fy = 0; fy < m.ny; fy++) for (let fx = 0; fx < m.nx; fx++) inst.push({ id: 'm' + (sig++), dx: r1((fx - (m.nx - 1) / 2) * m.w - centro[0]), dy: r1(((m.ny - 1) / 2 - fy) * m.d - centro[1]), rot: m.rot });
+    let e = { gramos: 0, minutos: 0 }; try { e = estimacion(ultL.filter(p => principal(p) && p.vista && p.vista.idx)); } catch (x) { }
+    lleno = { n: inst.length, g: e.gramos * inst.length, min: 2 + e.minutos * inst.length, giradas: !!m.rot, cama, imp: nomImp || '' };
+    selI = null; pinta(); o.alCambiar && o.alCambiar();
+    toast('🧩 ¡En tu ' + (nomImp || 'cama') + ' caben ' + inst.length + '! (' + m.nx + ' × ' + m.ny + (m.rot ? ', giradas 90°' : '') + ') · ≈ ' + Math.round(lleno.g) + ' g · ≈ ' + tiempoTxt(lleno.min) + ' (ESTIMADO: lo exacto te lo dice Bambu al laminar)', 'ok', 7000);
   }
   const elegida = () => inst.find(i => i.id === selI) || inst[inst.length - 1];
   function libre(i0) { // el primer sitio libre a la derecha (y luego más abajo) dentro de la cama
@@ -71,7 +98,7 @@ export function mesa(escena, lienzo, o = {}) {
     document.querySelectorAll('.mesa-menu').forEach(m => m.remove());
     const it = (ic, t, f) => h('button', { type: 'button', onclick: () => { m.remove(); f(); } }, h('span', ic), h('b', t));
     const m = h('div.r8e-menu.mesa-menu', { style: { left: Math.min(window.innerWidth - 260, e.clientX) + 'px', top: Math.min(window.innerHeight - 260, e.clientY) + 'px' } },
-      id ? [it('⧉', 'Duplicar  (Ctrl D)', duplicar), it('📋', 'Copiar  (Ctrl C)', copiar), it('📌', 'Pegar  (Ctrl V)', pegar), it('⟳', 'Girar 90°  (R)', gira), inst.length > 1 ? it('🗑', 'Quitar esta copia  (Supr)', quita) : null] : [it('📌', 'Pegar  (Ctrl V)', pegar), it('▦', 'Colocar en fila', () => coloca())]);
+      id ? [it('⧉', 'Duplicar  (Ctrl D)', duplicar), it('📋', 'Copiar  (Ctrl C)', copiar), it('📌', 'Pegar  (Ctrl V)', pegar), it('⟳', 'Girar 90°  (R)', gira), it('🧩', 'Llenar la cama', menuLlenar), inst.length > 1 ? it('🗑', 'Quitar esta copia  (Supr)', quita) : null] : [it('📌', 'Pegar  (Ctrl V)', pegar), it('▦', 'Colocar en fila', () => coloca()), it('🧩', 'Llenar la cama', menuLlenar)]);
     document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', function fuera(ev) { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('pointerdown', fuera); } }), 0);
   });
   // ---------- teclado (cuando esta vista se ve y no se escribe en una casilla) ----------
@@ -93,7 +120,7 @@ export function mesa(escena, lienzo, o = {}) {
     centro = guarda; return out;
   }
   return {
-    expande, get copias() { return inst.length; }, reinicia() { inst = [{ id: 'm0', dx: 0, dy: 0, rot: 0 }]; selI = null; pinta(); },
+    expande, llenar, get copias() { return inst.length; }, reinicia() { inst = [{ id: 'm0', dx: 0, dy: 0, rot: 0 }]; selI = null; pinta(); },
     destruir() { vivo = false; escena.ponPartes = orig; bar.remove(); contenedor.removeEventListener('pointerdown', abajo, true); window.removeEventListener('pointermove', mueve); window.removeEventListener('pointerup', arriba); window.removeEventListener('pointercancel', arriba); document.removeEventListener('keydown', tecla); }
   };
 }

@@ -496,7 +496,7 @@ export function stl(m, nombre) { return stlBinario(aSopa(m), nombre); }
 // 3MF con cada parte como objeto (y su color): Bambu Studio la abre con las partes separadas.
 // v20: con «ajustes» (claves de Bambu Studio: layer_height, wall_loops, enable_support, brim_type…) se escriben DENTRO de cada
 // objeto, igual que hace Bambu Studio en sus proyectos (Metadata/model_settings.config): al abrirlo, la pieza ya los lleva.
-export function tresMF(partes, nombre = 'pieza', ajustes = null) {
+export function tresMF(partes, nombre = 'pieza', ajustes = null, op = {}) {
   const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const cols = [...new Set(partes.map(p => (p.color || '#9b8cff').toUpperCase()))];
   let objs = '', build = '', ms = '';
@@ -518,6 +518,9 @@ export function tresMF(partes, nombre = 'pieza', ajustes = null) {
   const modelo = '<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="es-ES" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><metadata name="Title">' + esc(nombre) + '</metadata><metadata name="Designer">' + esc(AUTORIA.quien) + '</metadata><metadata name="Copyright">© ' + AUTORIA.anio + ' ' + esc(AUTORIA.quien) + '</metadata><metadata name="LicenseTerms">' + esc(AUTORIA.licencia + '. Diseño propio de ' + AUTORIA.quien + '.') + '</metadata><metadata name="CreationDate">' + new Date().toISOString().slice(0, 10) + '</metadata><metadata name="Application">CelebriDiseños · CelebriR8</metadata><resources><basematerials id="1">' +
     cols.map((c, i) => '<base name="color ' + (i + 1) + '" displaycolor="' + c + 'FF"/>').join('') + '</basematerials>' + objs + '</resources><build>' + build + '</build></model>';
   const te = new TextEncoder(), extra = ajustes ? [{ nombre: 'Metadata/model_settings.config', datos: te.encode('<?xml version="1.0" encoding="UTF-8"?>\n<config>\n' + ms + '</config>\n') }] : [];
+  // v30.2 · 🌈 las PAUSAS para cambiar de color (formato de Bambu Studio: tipo 1 = pausa). Ojo: su Bambu, con un 3MF que no es
+  // proyecto suyo, no las lee (comprobado por línea de órdenes): van por si acaso; la pausa se pone a mano (el asistente dice la capa).
+  if (op && op.cambios && op.cambios.length) extra.push({ nombre: 'Metadata/custom_gcode_per_layer.xml', datos: te.encode('<?xml version="1.0" encoding="utf-8"?>\n<custom_gcodes_per_layer>\n<plate>\n<plate_info id="1"/>\n' + op.cambios.map(c => '<layer top_z="' + String(Math.round(Number(c.z) * 1000) / 1000) + '" type="1" extruder="1" color="' + esc(String(c.color || '#000000').toUpperCase()) + '" extra="" gcode="M400 U1"/>\n').join('') + '<mode value="SingleExtruder"/>\n</plate>\n</custom_gcodes_per_layer>\n') });
   return zip([
     { nombre: '[Content_Types].xml', datos: te.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>') },
     { nombre: '_rels/.rels', datos: te.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>') },

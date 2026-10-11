@@ -6,6 +6,7 @@ import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
 import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30 } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
 import { debeEstrenar20 } from './estreno20.js';
+import { debeRegalar } from './regalos302.js'; // v30.2 · 🎁 los 4 regalos (sale una vez, después del estreno)
 import { debeEstrenar30 } from './estreno30.js'; // v30: el estreno de la 30 (va antes que el de la 20) // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
 import { desktop } from './desktop.js';
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
@@ -167,6 +168,7 @@ async function route() {
     if (!route._est && debeEstrenar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer')) estreno({ ir: go }); else route._est = false; }, 900); }
     else if (!route._est && debeEstrenar30()) { route._est = route._inau = true; try { localStorage.setItem('cd.estreno20', '1'); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno30.js').then(m => m.estreno30({ ir: go })); else route._est = false; }, 900); } // v30
     else if (!route._est && debeEstrenar20()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno20.js').then(m => m.estreno20({ ir: go })); else route._est = false; }, 900); } // v20.1 (la 18 va primero si no se vio)
+    else if (!route._est && debeRegalar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis, .est20, .rg302')) import('./regalos302.js').then(m => m.regalos({ ir: go })); else route._est = false; }, 1400); } // v30.2
     if (!route._inau && debeInaugurar()) { route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full')) inauguracion({ ir: go }); }, 700); }
   } catch (e) {
     console.error(e);
@@ -500,6 +502,7 @@ export function accionesPaleta() {
     fn('📦 Taller de cajas (bisagras, cierres, pomos y puertas que se arrastran)', 'sparkles', () => { try { localStorage.setItem('cd.r8.pest', 'cajas'); } catch (e) { } if (window.__r8ir && document.querySelector('.r8v')) window.__r8ir('cajas'); else go('celebrir8'); }, '', 'cajas caja bisagra bisagras tapa cierre pomo puerta joyero armarito arrastrar'), // v30
     fn('🎯 Calibrar tu calibre y tu impresora (probeta de precisión: luego todo sale corregido solo)', 'sparkles', () => import('./r8/calibracion_ui.js').then(m => m.abrir()), '', 'calibrar calibre impresora precision probeta medir compensar encoge agujeros contorno pie elefante monedas'), // v20.4
     fn('🔩 Rodamiento de metal: apuntar qué aro de su plantilla lo sujetó', 'sparkles', () => import('./r8/pregunta_rodamiento.js').then(m => m.preguntarMetal()), '', 'metal comprado plantilla aro ajuste mr115 608 muescas rayitas'), // v20.2.2
+    fn('🎁 Los 4 regalos de la 30.2 (texto en caras, llenar la cama, QR, colores por capas)', 'sparkles', () => import('./regalos302.js').then(m => m.regalos({ ir: go })), '', 'regalos regalo premium sorpresa 30.2 qr llavero colores capas pausa llenar cama texto cara'),
     fn('Ver el estreno de la 30 (el «30» de oro imprimiéndose)', 'sparkles', () => import('./estreno30.js').then(m => m.estreno30({ ir: go })), '', 'estreno 30 treinta inauguración fiesta nueva versión novedades'),
     fn('Ver el estreno de la 20 (el «20» imprimiéndose en 3D)', 'sparkles', () => import('./estreno20.js').then(m => m.estreno20({ ir: go })), '', 'estreno inauguración fiesta novedades cine 20 celebrir8 imprimir'),
     fn('Ver el estreno de la 18', 'sparkles', () => estreno({ ir: go }), '', 'estreno inauguración fiesta novedades cine'),

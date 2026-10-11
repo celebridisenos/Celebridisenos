@@ -73,7 +73,9 @@ export async function montarCatalogo(el, ext = {}) {
   function genera(ya) {
     clearTimeout(tic); tic = setTimeout(() => {
       const k = C.abierto; if (!k || !escena) return; const D = K.DISENOS[k], v = C.v[k];
-      try { const t0 = performance.now(), m = K.genera(k, v), I = N.info(m); escena.ponPartes([{ id: k, vista: N.aVista(m), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]); if (ya) escena.encuadrar('iso');
+      try { const t0 = performance.now(), m = K.genera(k, v), I = N.info(m); const col1 = C.color[k] || D.color || '#7c6cff', aca = C.acabado[k] || D.acabado || 'mate', dc = D.dosColores && D.dosColores(v); let PV = [{ id: k, vista: N.aVista(m), color: col1, acabado: aca }];
+        if (dc) { try { const [sube, baja] = m.splitByPlane([0, 0, 1], N.caja(m).min[2] + dc.z); if (!sube.isEmpty() && !baja.isEmpty()) PV = [{ id: k, vista: N.aVista(baja), color: col1, acabado: aca }, { id: k + '_2', vista: N.aVista(sube), color: dc.color, acabado: aca }]; } catch (x) { console.warn('dos colores', x); } } // v30.2: el QR en negro sobre blanco (como saldrá con la pausa)
+        escena.ponPartes(PV); if (ya) escena.encuadrar('iso');
         mount(info, h('span', I.dims.map(x => (Math.round(x * 10) / 10).toLocaleString('es-ES')).join(' × ') + ' mm'), h('span', Math.round(I.vol / 1000) + ' cm³'), h('span', Math.round(performance.now() - t0) + ' ms'));
         const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, D.soportes ? h('p.r8e-nota.r8c-sopn', '🌲 Lleva soportes (por su forma: asa, orejas, gancho…). Al prepararla para tu Bambu salen marcados los de árbol, que se quitan fácil.') : null, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null);
         window.__r8c = { k, dims: I.dims.map(x => Math.round(x * 10) / 10), vol: I.vol, piezas: m.decompose().length, valores: Object.assign({}, v) };
@@ -85,7 +87,7 @@ export async function montarCatalogo(el, ext = {}) {
     const { modal } = await import('../ui.js'), A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null), cuerpo = h('div.r8c-aj'); const D = K.DISENOS[k];
     modal('🖨️ ' + D.t + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const nombre = (D.t + '_' + Object.values(C.v[k] || {}).filter(x => typeof x === 'string' && x.length < 14 && /[a-z]/i.test(x)).slice(0, 1).join('')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
-    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.uso === 'pieza' ? 'mecanica' : D.uso, texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.uso === 'pieza' ? 'mecanica' : D.uso, texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
   }
   // v30 · 🎁 las dos sorpresas: Escaparate e Impresión fantasma
   async function sorpresa(que, k) { const S = await import('../r8/sorpresas.js'), D = K.DISENOS[k]; let partes; try { partes = [{ vista: N.aVista(K.genera(k, C.v[k])), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]; } catch (e) { return toast(e.message || String(e), 'bad'); } finally { N.limpia(); } S[que](partes, { nombre: D.t }); }
@@ -101,8 +103,11 @@ export async function montarCatalogo(el, ext = {}) {
     [...rejilla.querySelectorAll('.r8c-funda')].forEach(b => { const kk = b.dataset.k; if (MINIS.has(kk)) return; const [, mov, est] = kk.split(':');
       cola = cola.then(() => new Promise(res => setTimeout(() => { if (!vivo) return res(); try { const m = K.genera('funda', { modelo: mov, estilo: est, txt: est.startsWith('nombre') ? 'Lucía' : est.startsWith('figura') ? '🦋' : '' }).rotate([180, 0, 0]); const url = miniatura(N.aVista(m), '#1b1b1d', 'mate', 260); MINIS.set(kk, url); const img = b.querySelector('.r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); } catch (e) { MINIS.set(kk, ''); } finally { N.limpia(); } res(); }, 16))); });
   }
-  pinta(); if (C.abierto) abre(C.abierto);
-  return { destroy() { vivo = false; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); }, abre };
+  // v30.2 · abrir un diseño desde fuera (los regalos de la 30.2: «📱 Llavero con QR»)
+  const abreDe = k => { if (!K.DISENOS[k]) return; C.cat = K.DISENOS[k].cat; C.buscar = ''; pinta(); abre(k); setTimeout(() => { const t = rejilla.querySelector('[data-k="' + k + '"]'); t && t.scrollIntoView({ block: 'center' }); }, 200); };
+  window.__r8catAbre = abreDe; let pend = null; try { pend = localStorage.getItem('cd.r8.cat.abrir'); localStorage.removeItem('cd.r8.cat.abrir'); } catch (e) { }
+  pinta(); if (pend && K.DISENOS[pend]) abreDe(pend); else if (C.abierto) abre(C.abierto);
+  return { destroy() { vivo = false; if (window.__r8catAbre === abreDe) window.__r8catAbre = null; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); }, abre };
 }
 // los textos de ejemplo no se dibujan en la miniatura si cuestan (se usan los de serie)
 function sinNombre(K, k) { return {}; }

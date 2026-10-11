@@ -262,6 +262,7 @@ details.more > .in { padding: 0 14px 14px; }
 .banner.warn { background: var(--warn-soft); color: var(--warn); } .banner.bad { background: var(--bad-soft); color: var(--bad); } .banner.info { background: var(--info-soft); color: var(--info); }
 .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
 .empty svg { width: 44px; height: 44px; margin-bottom: 8px; opacity: .6; }
+.empty .btn svg { width: 18px; height: 18px; margin: 0; opacity: 1; color: currentColor; } /* v30.2: el «+» del botón ya no sale gigante e invisible */
 .empty h3 { color: var(--text); margin-bottom: 4px; }
 .skeleton { background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: 8px; height: 16px; }
 @keyframes sk { to { background-position: -200% 0; } }
@@ -750,6 +751,7 @@ body.nav-pinned .sidebar .nav-pin { opacity: 1; }
 
 /* v11: contadores de pedidos compactos (una sola línea que se desplaza en el móvil) */
 .kpis.compact { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+@media (min-width: 701px) { .kpis.compact { flex-wrap: wrap; overflow-x: visible; } } /* v30.2: en el PC se ven todos (antes «Enviados», «Por cobrar»… se salían) */
 .kpis.compact .kpi { flex-direction: row; align-items: baseline; gap: 8px; padding: 8px 14px; border-radius: 999px; flex: none; }
 .kpis.compact .kpi .n { font-size: 18px; } .kpis.compact .kpi .l { font-size: 13px; color: var(--text-2); }
 .kpis.compact .kpi.on .l { color: var(--brand); }
@@ -1273,6 +1275,8 @@ canvas.lbl-canvas[data-forma]:not([data-forma="rect"]), canvas.shape-prev[data-f
 .act-chips { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px; scrollbar-width: none; align-items: center; }
 .act-chips::-webkit-scrollbar { display: none; }
 .act-chips .chip { flex: 0 0 auto; font-size: 14px; padding: 7px 13px; }
+/* v30.2: en el PC los temas caben en dos filas (antes «Guardadas», ↻ y ⛶ quedaban escondidos a la derecha) */
+@media (min-width: 701px) { .act:not(.tk-full) .act-chips { flex-wrap: wrap; justify-content: center; } }
 .tk { height: calc(100dvh - 330px); min-height: 440px; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; border-radius: 18px; background: #000; scrollbar-width: none; outline: none; }
 .tk::-webkit-scrollbar { display: none; }
 @media (max-width: 700px) { .tk { height: calc(100dvh - 260px); } }
@@ -2147,3 +2151,33 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .prod-3d-t .grow { min-width: 0; }
 .prod-3d-sel { max-width: 100%; margin-top: 4px; }
 .prod-3d-b { gap: 6px; }
+/* ================= v30.2 · 🎁 LOS 4 REGALOS (caja que se abre, confeti y 4 tarjetas) ================= */
+.rg302 { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 16px; background: radial-gradient(1200px 700px at 50% 30%, rgba(255, 176, 46, .22), rgba(8, 6, 14, .86) 60%); backdrop-filter: blur(6px); animation: rg-entra .35s ease both; overflow: auto; }
+.rg302.fuera { animation: rg-sale .38s ease both; }
+@keyframes rg-entra { from { opacity: 0; } } @keyframes rg-sale { to { opacity: 0; transform: scale(1.03); } }
+.rg302-panel { position: relative; width: min(980px, 100%); padding: 26px 26px 20px; border-radius: 26px; background: linear-gradient(160deg, #1d1626, #120e18 60%); color: #fff; border: 1px solid rgba(255, 210, 63, .35); box-shadow: 0 40px 120px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255,255,255,.04) inset; display: grid; gap: 16px; }
+.rg302-caja { position: relative; width: 120px; height: 104px; margin: -86px auto 0; }
+.rg302-cuerpo { position: absolute; left: 10px; right: 10px; bottom: 0; height: 66px; border-radius: 10px; background: linear-gradient(90deg, #ff4d6d 0 42%, #ffd23f 42% 58%, #ff4d6d 58%); box-shadow: 0 16px 40px rgba(255, 77, 109, .45); }
+.rg302-tapa { position: absolute; left: 0; right: 0; top: 16px; height: 26px; border-radius: 8px; background: linear-gradient(90deg, #ff6b85 0 42%, #ffe066 42% 58%, #ff6b85 58%); transform-origin: 10% 100%; animation: rg-tapa .9s cubic-bezier(.3, 1.6, .5, 1) .45s both; z-index: 2; }
+.rg302-lazo { position: absolute; left: 50%; top: -18px; width: 44px; height: 22px; transform: translateX(-50%); }
+.rg302-lazo::before, .rg302-lazo::after { content: ''; position: absolute; top: 0; width: 22px; height: 20px; border: 5px solid #ffd23f; border-radius: 50% 50% 0 50%; }
+.rg302-lazo::before { left: 0; transform: rotate(-20deg); } .rg302-lazo::after { right: 0; transform: rotate(110deg); }
+@keyframes rg-tapa { 0% { transform: none; } 60% { transform: translate(-18px, -46px) rotate(-38deg); } 100% { transform: translate(-30px, -30px) rotate(-24deg); } }
+.rg302-brillo { position: absolute; left: 50%; bottom: 50px; width: 10px; height: 10px; border-radius: 50%; transform: translateX(-50%); box-shadow: 0 0 60px 40px rgba(255, 210, 63, .55); opacity: 0; animation: rg-brillo 1.4s ease .8s both; }
+@keyframes rg-brillo { 30% { opacity: 1; } 100% { opacity: .35; } }
+.rg302-tit { text-align: center; } .rg302-tit small { color: #ffd23f; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }
+.rg302-tit h2 { margin: 4px 0; font-size: clamp(24px, 3.4vw, 36px); background: linear-gradient(90deg, #ffd23f, #ff7a1a, #ff4d6d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rg302-tit p { margin: 0; color: rgba(255,255,255,.75); }
+.rg302-tars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .rg302-tars { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .rg302-tars { grid-template-columns: 1fr; } .rg302-panel { padding: 22px 16px 16px; } }
+.rg302-tar { display: grid; gap: 6px; align-content: start; text-align: left; padding: 16px 14px 14px; border-radius: 18px; border: 1px solid rgba(255,255,255,.12); background: linear-gradient(170deg, rgba(255,255,255,.07), rgba(255,255,255,.02)); color: #fff; font: inherit; cursor: pointer; opacity: 0; transform: translateY(18px) rotateX(35deg); animation: rg-tar .6s cubic-bezier(.2, 1.3, .5, 1) both; transition: transform .15s, border-color .15s, box-shadow .15s; }
+.rg302-tar:hover { transform: translateY(-3px); border-color: #ffd23f; box-shadow: 0 14px 34px rgba(255, 176, 46, .25); }
+@keyframes rg-tar { to { opacity: 1; transform: none; } }
+.rg302-e { font-size: 34px; line-height: 1; filter: drop-shadow(0 6px 14px rgba(255, 176, 46, .45)); } .rg302-tar b { font-size: 15.5px; } .rg302-tar small { color: rgba(255,255,255,.72); font-size: 12.5px; line-height: 1.4; }
+.rg302-ir { margin-top: 2px; color: #ffd23f; font-weight: 800; font-size: 12.5px; }
+.rg302-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; } .rg302-pie small { color: rgba(255,255,255,.6); max-width: 640px; }
+.rg302-confeti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.rg302-confeti i { position: absolute; top: -20px; width: 8px; height: 14px; border-radius: 2px; opacity: 0; animation: rg-cae linear both; }
+@keyframes rg-cae { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: .9; transform: translateY(105vh) rotate(720deg); } }
+@media (prefers-reduced-motion: reduce) { .rg302 *, .rg302 { animation: none !important; opacity: 1 !important; transform: none !important; } .rg302-confeti { display: none; } }

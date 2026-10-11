@@ -165,6 +165,7 @@ html.ui18 .toast.ok { background: var(--ok); color: #04130d; border-color: trans
 html.ui18 .acct-menu { border-radius: 16px; border-color: var(--line-2); background: var(--surface); }
 html.ui18 .banner { border-bottom: 1px solid var(--line); }
 html.ui18 .empty svg { color: var(--a1); opacity: .8; }
+html.ui18 .empty .btn svg { color: currentColor; opacity: 1; }
 
 /* ---------- el contenido entra suave al cambiar de pantalla (corto: 0,26 s) ---------- */
 html.ui18 .content.entrando > * { animation: u18entra .26s cubic-bezier(.2, .8, .3, 1) both; }

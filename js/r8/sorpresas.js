@@ -21,6 +21,9 @@ function medidas(partes) {
     for (let i = 0; i < X.length; i += 3) b.expandByPoint(new T.Vector3(X[i], X[i + 1], X[i + 2])); });
   return { vol: Math.abs(V), area: S, caja: b };
 }
+// v30.2 · gramos y minutos ESTIMADOS de unas piezas (cáscara maciza + relleno al 15 %; ~3,2 min por gramo medido en su Bambu, sin los 2 de calentar)
+export function estimacion(partes, med) { med = med || medidas(partes); const dens = 1.27, gros = 2 * 0.42 + 0.2, casc = Math.min(med.vol, med.area * gros), gramos = (casc + Math.max(0, med.vol - casc) * 0.15) / 1000 * dens; return { gramos, minutos: gramos * 3.2, vol: med.vol }; }
+export const tiempoTxt = m => { m = Math.round(m); return (m >= 60 ? Math.floor(m / 60) + ' h ' : '') + (m % 60) + ' min'; };
 // las piezas juntas, centradas y apoyadas en z = 0
 function grupoDe(partes, mat) {
   const g = new T.Group(); partes.forEach(p => { const m = new T.Mesh(geometria(p.vista), mat ? mat(p) : material(p.color, p.acabado)); m.castShadow = true; m.receiveShadow = true; g.add(m); });
@@ -129,7 +132,7 @@ export function fantasma(partes, o = {}) {
   const cam = new T.PerspectiveCamera(36, 1, 1, 10000); cam.up.set(0, 0, 1); const ctl = new T.OrbitControls(cam, lienzo); ctl.enableDamping = true;
   const med = medidas(partes), zMin = med.caja.min.z, alto = Math.max(0.2, med.caja.max.z - zMin), capa = o.capa || 0.16, N = Math.max(1, Math.ceil(alto / capa));
   // los gramos y el tiempo, ESTIMADOS (cáscara maciza + relleno al 15 %; tiempo medido con su Bambu: ~3,2 min por gramo + 2 de calentar)
-  const gramos = (() => { const dens = 1.27, gros = 2 * 0.42 + 0.2, casc = Math.min(med.vol, med.area * gros); return (casc + Math.max(0, med.vol - casc) * 0.15) / 1000 * dens; })();
+  const { gramos } = estimacion(partes, med);
   const minutos = Math.round(2 + gramos * 3.2), tiempoTxt = m => (m >= 60 ? Math.floor(m / 60) + ' h ' : '') + (m % 60) + ' min';
   const tam = Math.max(med.caja.max.x - med.caja.min.x, med.caja.max.y - med.caja.min.y) * 1.6 + 40;
   const cama = new T.Mesh(new T.BoxGeometry(tam, tam, 2), new T.MeshStandardMaterial({ color: 0x151a2b, roughness: 0.5, metalness: 0.45 })); cama.position.z = -1; esc.add(cama);

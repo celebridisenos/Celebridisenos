@@ -15,6 +15,7 @@ import { funda, kitFunda, ESTILOS_FUNDA } from './fundas.js';
 import * as RI from './rodamiento_impreso.js';
 import * as CPR from './calibracion.js'; // v20.4: probeta de precisión // v20.3: rodamientos que se IMPRIMEN (lo que la dueña pidió de verdad)
 import { DISENOS_RC } from './rc_mas.js';
+import { qrMatrix } from '../qr.js'; // v30.2 · 🎁 llavero / placa con QR
 import { DISENOS_PREMIUM } from './catalogo_premium.js'; // v20.4: miniaturas, jarrones de lujo, esculturas de equilibrio, tornillos, autorriego // v20.2: spool, diferencial de rectos, accesorios y repuestos (con su prueba de encaje)
 import { asiento, plantilla, medidasRod, OPS_RODAMIENTOS, APRETES, n2 as n2r, ajusteParaDiseno, OPS_AJUSTE, textoAjuste } from './rodamientos.js'; // v20.2: rodamientos que funcionan en plástico
 
@@ -635,6 +636,11 @@ export const DISENOS = {
     gen(p) { const t = N.centraCS(N.texto2(p.txt || 'Lucía', p.fuente, p.alto)), b = N.cajaCS(t), sil = t.offset(p.borde, 'Round', 2, 24), anilla = circ(8).translate([b.min[0] - p.borde - 2, 0]).subtract(circ(4).translate([b.min[0] - p.borde - 2, 0]));
       const base = N.csUnion([sil, circ(8).translate([b.min[0] - p.borde - 2, 0])]).subtract(circ(4).translate([b.min[0] - p.borde - 2, 0])); void anilla; return base.extrude(p.base).add(t.extrude(p.relieve).translate([0, 0, p.base])); },
     nota: p => 'Para dos colores: cambio de color a ' + String(p.base).replace('.', ',') + ' mm en Bambu Studio (las letras en otro color).' },
+  placaQR: { cat: 'regalos', e: '📱', t: 'Llavero o placa con QR 🎁', d: 'Tu web, tu Instagram o el WiFi: se escanea con el móvil', uso: 'deco', color: '#f4f4f0', nuevo: true,
+    campos: [tx('txt', 'Qué abre el QR', 'https://celebridisenos-tienda.pages.dev', 'Una web, tu Instagram (https://instagram.com/…) o el WiFi: WIFI:T:WPA;S:nombre;P:clave;;'), s('forma', 'Forma', 'llavero', [['llavero', 'Llavero (con anilla)'], ['iman', 'Imán de nevera (hueco de Ø10 debajo)'], ['placa', 'Placa (2 agujeros para colgar)']]), n('lado', 'Lado del QR', 40, 20, 150, 1), n('base', 'Grosor de la base', 2.6, 1.6, 6, 0.2), n('relieve', 'Relieve del QR', 0.8, 0.4, 2, 0.2), tx('pie', 'Texto debajo (opcional)', 'CelebriDiseños')],
+    gen: p => qrPieza(p),
+    dosColores: p => { const I = qrInfo(p); return I ? { z: I.cambio, color: '#1b1b1f' } : null; },
+    nota: p => { const I = qrInfo(p); if (!I) return ''; return (I.mod < 1.2 ? '⚠️ Cada cuadradito sale de ' + I.mod.toFixed(2).replace('.', ',') + ' mm: muy pequeño para la boquilla de 0,4. Hazlo más grande (lado) o el texto más corto. ' : '✅ Cada cuadradito: ' + I.mod.toFixed(2).replace('.', ',') + ' mm (bien para tu boquilla). ') + '🌈 Dos colores con UNA bobina cada vez: base en blanco y, al llegar a ' + String(I.cambio).replace('.', ',') + ' mm, pausa y filamento negro (al prepararlo para tu Bambu te digo la capa exacta). Escanéalo con el móvil antes de venderlo.'; } },
   corazonNombres: { cat: 'regalos', e: '💞', t: 'Corazón con dos nombres', d: 'San Valentín, aniversarios', uso: 'deco', color: '#c8102e',
     campos: [tx('a', 'Nombre 1', 'Ana'), tx('b', 'Nombre 2', 'Leo'), s('fuente', 'Letra', 'cursiva', FUENTES_OPS), n('ancho', 'Ancho', 90, 40, 200), c('pie', 'De pie (con peana)', true)],
     gen(p) { const co = N.cs([N.corazon2(p.ancho)], 'Positive'), al = p.ancho * 0.14; let m = co.extrude(5).add(texto3d(p.a, p.fuente, al, 1.4).translate([0, al * 0.75, 5])).add(texto3d(p.b, p.fuente, al, 1.4).translate([0, -al * 0.75, 5])).add(texto3d('&', p.fuente, al * 0.7, 1.4).translate([0, 0, 5]));
@@ -1147,6 +1153,36 @@ function gridfinity(p) {
   if (p.etiqueta) m = m.add(M().hull([caja(W - 2 * pared, 12, 1).translate([0, D / 2 - pared - 6, H - 1]), caja(W - 2 * pared, 0.5, 1).translate([0, D / 2 - pared - 0.25, H - 12])]));
   return m;
 }
+// ---------- v30.2 · 🎁 📱 LLAVERO / IMÁN / PLACA CON QR (se escanea con el móvil) ----------
+// El QR (corrección M: aguanta algún fallo de impresión) en relieve sobre la base. Los módulos de cada fila se juntan en tiras
+// (y entran 0,01 mm en las de al lado para que las esquinas que se tocan en diagonal no queden «colgando»). Alrededor, margen
+// blanco de 2 módulos como mínimo (sin él el móvil no lo encuentra). Para dos colores: pausa al terminar la base.
+export function qrPieza(p) {
+  const txt = String(p.txt || '').trim(); if (!txt) N.mal('Escribe lo que tiene que abrir el QR (una web, tu Instagram…).');
+  let Q; try { Q = qrMatrix(txt, 'M'); } catch (e) { N.mal('Ese texto es demasiado largo para un QR que se pueda imprimir: acórtalo.'); }
+  const n = Q.length, lado = Math.max(15, Number(p.lado) || 40), mod = lado / n, base = Math.max(1.2, Number(p.base) || 2.6), rel = Math.max(0.2, Number(p.relieve) || 0.8);
+  const marg = Math.max(2 * mod, 3), W = lado + 2 * marg, pie = String(p.pie || '').trim(), altoPie = pie ? Math.min(9, Math.max(4, W * 0.11)) : 0, extra = pie ? altoPie + marg * 0.8 : 0;
+  const H = W + extra, yQ = extra / 2; // el QR, arriba; el texto, debajo
+  const tiras = [];
+  for (let r = 0; r < n; r++) for (let c0 = 0; c0 < n; c0++) { if (!Q[r][c0]) continue; let c1 = c0; while (c1 + 1 < n && Q[r][c1 + 1]) c1++;
+    const x0 = (c0 - n / 2) * mod - 0.01, x1 = (c1 + 1 - n / 2) * mod + 0.01, y1 = yQ + (n / 2 - r) * mod + 0.01, y0 = y1 - mod - 0.02;
+    tiras.push(caja(x1 - x0, y1 - y0, rel + 0.02).translate([(x0 + x1) / 2, (y0 + y1) / 2, base - 0.02])); c0 = c1; } // (entran 0,02 en la base: si solo «tocan», salen sueltas)
+  let arriba = N.union(tiras);
+  if (pie) { // el texto de debajo, que QUEPA en la placa (si es largo, más pequeño) — si no, las letras de los lados quedarían en el aire
+    let t = N.centraCS(N.texto2(pie, 'gorda', altoPie)); const bt = N.cajaCS(t), an = bt.max[0] - bt.min[0], f = Math.min(1, (W - 2 * Math.max(2, marg * 0.6)) / an);
+    if (f < 1) t = t.scale([f, f]);
+    arriba = arriba.add(t.extrude(rel + 0.02).translate([0, yQ - lado / 2 - marg * 0.4 - altoPie / 2 - 0.2, base - 0.02])); }
+  let plano = rr(W, H, Math.min(4, W * 0.08));
+  const forma = p.forma || 'llavero';
+  if (forma === 'llavero') { const yA = H / 2 + 3.2; plano = N.csUnion([plano, circ(11).translate([0, yA]), rr(11, 7).translate([0, H / 2])]).subtract(circ(4.6).translate([0, yA])); }
+  let m = plano.extrude(base);
+  if (forma === 'iman') { if (base < 3) m = plano.extrude(3); m = m.subtract(cil(10.4, 2.2, -0.01)); } // hueco por DEBAJO para un imán de 10 × 2 mm (o 10 × 3 si la base es de 4)
+  if (forma === 'placa') [-1, 1].forEach(sx => { m = m.subtract(cil(4, base + 2, -1).translate([sx * (W / 2 - marg * 0.5 - 1.2), H / 2 - marg * 0.5 - 1.2, 0])); });
+  const bz = forma === 'iman' ? Math.max(3, base) : base;
+  if (bz !== base) arriba = arriba.translate([0, 0, bz - base]);
+  return m.add(arriba);
+}
+export const qrInfo = p => { try { const n = qrMatrix(String(p.txt || '').trim() || 'x', 'M').length, mod = Math.max(15, Number(p.lado) || 40) / n; return { n, mod, cambio: (p.forma === 'iman' ? Math.max(3, Number(p.base) || 2.6) : Number(p.base) || 2.6) }; } catch (e) { return null; } };
 // icosaedro (para el balón): las 12 direcciones de sus vértices
 function ico() { const t = (1 + Math.sqrt(5)) / 2; return [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(v => { const l = Math.hypot(...v); return v.map(x => x / l); }); }
 // ángulos que llevan +Z a la dirección v (para Manifold.rotate)
