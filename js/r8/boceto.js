@@ -117,7 +117,7 @@ export function editarBoceto(caja, p0 = {}) {
         if (f.t === 'trazo') { g.lineCap = g.lineJoin = 'round'; for (let k = 1; k < f.pts.length; k++) { const a = aPx(f.pts[k - 1]), b = aPx(f.pts[k]); g.lineWidth = Math.max(1, (f.pts[k][2] || f.ancho || 2) * vista.s); g.strokeStyle = on ? 'rgba(41,211,255,.85)' : 'rgba(' + col + ',.85)'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); } return; }
         if (f.t === 'texto') { const a = aPx([f.x || 0, f.y || 0]), fuente = (FUENTES[f.fuente] || FUENTES.gorda)[1].replace('{t}', Math.max(4, (f.alto || 10) * vista.s * 1.3)); g.save(); g.translate(a[0], a[1]); g.rotate(-(f.ang || 0) * Math.PI / 180); g.font = fuente; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = on ? '#29d3ff' : 'rgb(' + col + ')'; g.fillText(f.txt || 'Texto', 0, 0); g.restore(); return; }
         contornos(f).forEach(r => { g.beginPath(); r.forEach((q, k) => { const p = aPx(q); k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); }); g.closePath(); g.fill(); g.stroke(); });
-        if (on) cotas(f);
+        if (on && cotasDe !== i) cotas(f);
       });
       // lo que se está dibujando
       if (enCurso) {
@@ -148,7 +148,7 @@ export function editarBoceto(caja, p0 = {}) {
         L.forEach((p, i) => { g.beginPath(); g.arc(p[0], p[1], 5, 0, 7); g.fill(); if (modoF === 'persp') etiqueta(p[0] + 7, p[1] - 7, ['1 arriba-izq', '2 arriba-der', '3 abajo-der', '4 abajo-izq'][i]); });
         if (L.length > 1) { g.beginPath(); L.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); if (modoF === 'persp' && L.length === 4) g.closePath(); g.stroke(); }
         const M = medidaF(); if (M) etiqueta(L[L.length - 1][0] + 10, L[L.length - 1][1] + 14, M.t); }
-      g.restore();
+      g.restore(); colocaCotas();
     }
     function medidaF() { // lo que miden los puntos marcados con 🔍
       if (modoF !== 'medir' || ptsF.length < 2) return null; const [a, b, c] = ptsF;
@@ -158,6 +158,26 @@ export function editarBoceto(caja, p0 = {}) {
     }
     // contorno de la foto → la pieza en mm (el más grande y sus agujeros)
     function piezaDeFoto() { if (!calcoIm) throw new Error('La foto aún se está cargando.'); const C = FM.contornos(FM.pixeles(calcoIm)); const pz = FM.pieza(C.anillos, q => imgAMm(q[0], q[1]), 1); if (!pz) throw new Error('No encuentro la pieza: ponla sobre un fondo liso que contraste (papel blanco) y que no toque el borde de la foto.'); return pz; }
+    // v30.6 · MEDIDAS SOBRE EL DIBUJO, como en Fusion (la dueña: «clicas, te deja arrastrar y poner medidas directamente»): al soltar una
+    // forma salen sus casillas AHÍ MISMO, con el número ya marcado: se escribe encima, Tab pasa a la otra medida, Intro acepta.
+    const cotasEl = h('div.r8b-cotas'); let cotasDe = -1;
+    const CAMPOS = f => (f.t === 'rect' || f.t === 'elipse' ? [['w', 'ancho'], ['h', 'alto']] : f.t === 'ranura' ? [['l', 'largo'], ['w', 'ancho']] : ['circulo', 'poligono', 'estrella'].includes(f.t) ? [['d', 'Ø']] : f.t === 'corazon' ? [['w', 'ancho']] : []);
+    const sitioCota = (f, k) => { const p = aPx([f.x || 0, f.y || 0]);
+      if (f.t === 'rect' || f.t === 'elipse') { const a = aPx([(f.x || 0) - f.w / 2, (f.y || 0) - f.h / 2]); return k === 'w' ? [p[0] - 52, a[1] + 8] : [a[0] + f.w * vista.s + 10, p[1] - 15]; }
+      if (f.t === 'ranura') return k === 'l' ? [p[0] - 52, p[1] + 16] : [p[0] + 44, p[1] - 15];
+      return [p[0] + 10, p[1] - 15]; };
+    function cotasVivas(i, enfoca) {
+      if (!cotasEl.parentNode && lienzo.parentNode) lienzo.parentNode.appendChild(cotasEl);
+      const f = F[i]; cotasDe = f && CAMPOS(f).length ? i : -1; if (cotasDe < 0) { mount(cotasEl); return; }
+      const fin = () => { cotasVivas(-1); pinta(); pintaPanel(); try { raiz.focus(); } catch (e) { } };
+      mount(cotasEl, CAMPOS(f).map(([k, t]) => h('label.r8b-cota', { 'data-cota': k }, h('small', t), h('input', { type: 'number', step: 0.5, min: 0.1, value: f[k], 'aria-label': t, 'data-kc': k,
+        oninput: e => { const v = Number(String(e.target.value).replace(',', '.')); if (isFinite(v) && v > 0) { f[k] = r2(v); pinta(); } },
+        onchange: () => pintaPanel(),
+        onkeydown: e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); fin(); } } }), h('i', 'mm'))));
+      colocaCotas(); if (enfoca) setTimeout(() => { const c = cotasEl.querySelector('input'); if (c) { c.focus(); c.select(); } }, 30);
+    }
+    function colocaCotas() { if (cotasDe < 0) return; const f = F[cotasDe]; if (!f || !CAMPOS(f).length || cotasDe !== sel) { cotasDe = -1; mount(cotasEl); return; }
+      cotasEl.querySelectorAll('.r8b-cota').forEach(el => { const q = sitioCota(f, el.dataset.cota); el.style.left = Math.round(q[0]) + 'px'; el.style.top = Math.round(q[1]) + 'px'; const c = el.querySelector('input'); if (document.activeElement !== c) c.value = f[el.dataset.cota]; }); }
     function etiqueta(x, y, t) { g.font = '600 12px system-ui'; const w = g.measureText(t).width + 10; g.fillStyle = 'rgba(10,14,28,.88)'; g.beginPath(); g.roundRect ? g.roundRect(x, y - 10, w, 20, 6) : g.rect(x, y - 10, w, 20); g.fill(); g.fillStyle = '#fff'; g.fillText(t, x + 5, y + 4); }
     function cotas(f) {
       const p = aPx([f.x || 0, f.y || 0]);
@@ -178,7 +198,7 @@ export function editarBoceto(caja, p0 = {}) {
     const guardaAtras = () => { atras.push(JSON.stringify(F)); if (atras.length > 80) atras.shift(); };
     function deshacer() { if (linea) { linea.pop(); if (!linea.length) linea = null; pinta(); return; } const s = atras.pop(); if (!s) return; F.splice(0, F.length, ...JSON.parse(s)); sel = Math.min(sel, F.length - 1); pinta(); pintaPanel(); }
     function borraSel() { if (sel < 0) return; guardaAtras(); F.splice(sel, 1); sel = -1; pinta(); pintaPanel(); }
-    function ponHerr(k) { herr = k; linea = null; enCurso = null; herrs.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === k)); pista.textContent = { sel: 'Toca una forma para elegirla; arrástrala para moverla.', lapiz: penVisto ? 'Dibuja con el lápiz. Mueve la vista con dos dedos.' : 'Dibuja a mano alzada. Si lo cierras, sale una forma; si no, una línea con grosor.', linea: 'Clic en cada esquina. Vuelve al primer punto (o Intro) para cerrar. Esc: cancelar.', texto: 'Toca donde quieres el texto y escríbelo a la derecha.' }[k] || 'Arrastra para dibujarlo. Luego escribe la medida exacta a la derecha.'; pinta(); }
+    function ponHerr(k) { herr = k; linea = null; enCurso = null; herrs.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === k)); pista.textContent = { sel: 'Toca una forma para elegirla; arrástrala para moverla.', lapiz: penVisto ? 'Dibuja con el lápiz. Mueve la vista con dos dedos.' : 'Dibuja a mano alzada. Si lo cierras, sale una forma; si no, una línea con grosor.', linea: 'Clic en cada esquina. Vuelve al primer punto (o Intro) para cerrar. Esc: cancelar.', texto: 'Toca donde quieres el texto y escríbelo a la derecha.' }[k] || 'Arrastra para dibujarlo y escribe la medida ahí mismo (Tab pasa a la otra, Intro acepta).'; pinta(); }
     const nueva = (t, q, q2) => {
       const dx = q2[0] - q[0], dy = q2[1] - q[1], R = Math.hypot(dx, dy), cx = (q[0] + q2[0]) / 2, cy = (q[1] + q2[1]) / 2, m = { modo };
       if (t === 'rect') return Object.assign(m, { t, x: r2(cx), y: r2(cy), w: r2(Math.abs(dx)) || 20, h: r2(Math.abs(dy)) || 20, r: 0 });
@@ -205,7 +225,7 @@ export function editarBoceto(caja, p0 = {}) {
         ptsF.push(q0);
         if (modoF === 'calibra' && ptsF.length === 2) calPend = { a: mmAImg(ptsF[0]), b: mmAImg(ptsF[1]), mm: Math.round(Math.hypot(ptsF[1][0] - ptsF[0][0], ptsF[1][1] - ptsF[0][1]) * 10) / 10 };
         pinta(); pintaPanel(); if (modoF === 'calibra' && ptsF.length === 2) setTimeout(() => { const i = panel.querySelector('[data-k="calmm"]'); if (i) { i.focus(); i.select(); } }, 30); return; }
-      if (herr === 'sel') { sel = cual(q0); pintaPanel(); if (sel >= 0) { guardaAtras(); arrastre = { q: q, f: JSON.parse(JSON.stringify(F[sel])) }; } else if (calco && !calco.bloq && enFoto(q0)) arrastreImg = { q: q0, x: calco.x, y: calco.y }; pinta(); return; }
+      if (herr === 'sel') { sel = cual(q0); pintaPanel(); cotasVivas(sel); if (sel >= 0) { guardaAtras(); arrastre = { q: q, f: JSON.parse(JSON.stringify(F[sel])) }; } else if (calco && !calco.bloq && enFoto(q0)) arrastreImg = { q: q0, x: calco.x, y: calco.y }; pinta(); return; }
       if (herr === 'lapiz') { const pr = e.pressure > 0 && e.pointerType === 'pen' ? e.pressure : 0.5; enCurso = { t: 'mano', pts: [[q[0], q[1], r2(0.8 + pr * 3.2)]] }; return; }
       if (herr === 'texto') { guardaAtras(); F.push({ t: 'texto', x: q[0], y: q[1], txt: 'Texto', fuente: 'gorda', alto: 10, ang: 0, modo }); sel = F.length - 1; pinta(); pintaPanel(); setTimeout(() => { const i = panel.querySelector('[data-k="txt"]'); if (i) { i.focus(); i.select(); } }, 30); return; }
       if (herr === 'linea') { if (!linea) linea = [q]; else { const p0 = linea[0]; if (linea.length > 2 && Math.hypot(q[0] - p0[0], q[1] - p0[1]) * vista.s < 12) return cierraLinea(); linea.push(q); } pinta(); return; }
@@ -238,7 +258,7 @@ export function editarBoceto(caja, p0 = {}) {
         else F.push({ t: 'linea', pts: chaikin(rdp(L, 0.3), 1).map(q => [r2(q[0]), r2(q[1])]), suave: true, modo });
         sel = F.length - 1; const f = F[sel]; toast(f.t === 'circulo' ? '◯ Lo he dejado redondo: Ø ' + n1(f.d) + ' mm' : f.t === 'rect' ? '▭ Lo he dejado recto: ' + n1(f.w) + ' × ' + n1(f.h) + ' mm' : f.t === 'trazo' ? '✏️ Trazo con grosor (más gordo donde aprietas)' : f.suave ? '✨ Curva suavizada' : '📐 Lo he dejado con lados rectos', 'ok', 2600);
         pinta(); pintaPanel(); return; }
-      if (enCurso) { const f = enCurso; enCurso = null; delete f.herr; delete f.q0; guardaAtras(); F.push(f); sel = F.length - 1; pinta(); pintaPanel(); }
+      if (enCurso) { const f = enCurso; enCurso = null; delete f.herr; delete f.q0; guardaAtras(); F.push(f); sel = F.length - 1; pinta(); pintaPanel(); cotasVivas(sel, e.pointerType === 'mouse'); }
     };
     lienzo.addEventListener('pointerup', suelta); lienzo.addEventListener('pointercancel', suelta);
     lienzo.addEventListener('dblclick', () => { if (linea) cierraLinea(); });
@@ -246,8 +266,9 @@ export function editarBoceto(caja, p0 = {}) {
     lienzo.addEventListener('wheel', e => { e.preventDefault(); const r = lienzo.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, k = e.deltaY > 0 ? 0.88 : 1.14, s = Math.max(0.3, Math.min(60, vista.s * k)), f = s / vista.s; vista = { s, ox: mx - (mx - vista.ox) * f, oy: my - (my - vista.oy) * f }; pinta(); }, { passive: false });
     function cierraLinea() { if (!linea || linea.length < 3) { linea = null; pinta(); return; } guardaAtras(); F.push({ t: 'linea', pts: linea.map(q => [r2(q[0]), r2(q[1])]), modo }); linea = null; sel = F.length - 1; pinta(); pintaPanel(); }
     raiz.addEventListener('keydown', e => {
+      const enNum = e.target.tagName === 'INPUT' && /^(number|range|checkbox)$/.test(e.target.type || '');
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && (enNum || !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))) { e.preventDefault(); if (enNum) e.target.blur(); cotasVivas(-1); deshacer(); return; }
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); deshacer(); return; }
       if (e.key === 'Escape' && modoF) { modoF = null; ptsF = []; calPend = null; pinta(); pintaPanel(); return; }
       if (e.key === 'Escape') { if (linea || enCurso) { linea = null; enCurso = null; pinta(); } else if (sel >= 0) { sel = -1; pinta(); pintaPanel(); } return; }
       if (e.key === 'Enter' && linea) { cierraLinea(); return; }

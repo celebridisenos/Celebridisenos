@@ -38,13 +38,11 @@ export function bloque(est, o) {
   const caja = h('details.cc' + ((est.cambios || []).length ? '' : ''), { open: !!(est.cambios || []).length, 'data-cc': '1' });
   const pinta = () => {
     const L = lista(), mx = Math.max(1, ...(perf ? perf.L.map(x => x.a) : [1]));
-    // el perfil de la pieza (barras = área a cada altura) con las bandas de color
-    const W = 120, H = 150, bandas = [{ z: 0, color: est.base || colorBase || '#f4f4f0' }].concat(L);
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'cc-svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('aria-label', 'Los colores, de abajo arriba (toca para poner un cambio a esa altura)');
-    svg.innerHTML = bandas.map((b, i) => { const z1 = i + 1 < bandas.length ? bandas[i + 1].z : alto, y0 = H - (z1 / alto) * H, y1 = H - (b.z / alto) * H; return '<rect x="0" y="' + y0.toFixed(1) + '" width="' + W + '" height="' + Math.max(0.5, y1 - y0).toFixed(1) + '" fill="' + b.color + '" opacity=".9"/>'; }).join('')
-      + (perf ? perf.L.map(p => { const y = H - (p.z / alto) * H, w = (p.a / mx) * (W - 10); return '<rect x="' + ((W - w) / 2).toFixed(1) + '" y="' + (y - H / perf.L.length / 2).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + (H / perf.L.length + 0.4).toFixed(1) + '" fill="rgba(0,0,0,.28)"/>'; }).join('') : '')
-      + L.map(c => { const y = H - (c.z / alto) * H; return '<line x1="0" x2="' + W + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="#ff7a1a" stroke-width="1.6" stroke-dasharray="4 2"/>'; }).join('');
-    svg.addEventListener('click', e => { const r = svg.getBoundingClientRect(), z = Math.round((1 - (e.clientY - r.top) / r.height) * alto * 10) / 10; if (z > 0.2 && z < alto) añade(z); });
+    // v30.6 · en vez del dibujito con el perfil (no se entendía), una barra con los colores de la cama a la punta; todo lo demás se hace
+    // SOBRE LA PIEZA en el taller de colores (botón grande de abajo)
+    const W = 34, H = 150, bandas = [{ z: 0, color: est.base || colorBase || '#f4f4f0' }].concat(L.filter(c => c.activa !== false && (c.tipo || 'color') === 'color'));
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'cc-svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('aria-label', 'Los colores, de la cama (abajo) a la punta (arriba)');
+    svg.innerHTML = bandas.map((b, i) => { const z1 = i + 1 < bandas.length ? bandas[i + 1].z : alto, y0 = H - (z1 / alto) * H, y1 = H - (b.z / alto) * H; return '<rect x="0" y="' + y0.toFixed(1) + '" width="' + W + '" height="' + Math.max(0.5, y1 - y0).toFixed(1) + '" fill="' + b.color + '" stroke="rgba(128,128,128,.6)" stroke-width=".6"/>'; }).join('');
     const filas = L.map((c, i) => { const K = capaDe(c.z, capa);
       return h('div.cc-fila', { 'data-cc-i': String(i) },
         h('label.cc-z', 'A ', h('input.inp', { type: 'number', min: 0.2, max: alto, step: 0.1, value: c.z, 'data-k': 'ccZ', onchange: e => { c.z = Math.max(0.2, Math.min(alto, Number(String(e.target.value).replace(',', '.')) || c.z)); guarda(); } }), ' mm →'),
@@ -54,7 +52,8 @@ export function bloque(est, o) {
     });
     const props = perf ? perf.prop.filter(z => !L.some(c => Math.abs(c.z - z) < 0.3)) : [];
     mount(caja, h('summary', '🌈 Colores por capas (sin AMS) 🎁', L.length ? h('span.cc-n', L.length + ' cambio' + (L.length > 1 ? 's' : '')) : null),
-      h('p.small.muted', 'Con UNA bobina cada vez: la impresora se para a la altura que digas, cambias el filamento y sigue. Toca el dibujo (a la altura que quieras) o usa las propuestas.'),
+      h('p.small.muted', 'Con UNA bobina cada vez: la impresora se para a la altura que digas, cambias el filamento y sigue.'),
+      o.abrirTaller ? h('button.btn.primary.cc-abrir', { type: 'button', 'data-cc': 'taller', onclick: () => o.abrirTaller() }, '🎨 Ponerlos SOBRE LA PIEZA (colores, capas y pausas)') : null,
       h('div.cc-cuerpo', svg, h('div.cc-der',
         h('div.cc-base', 'Empieza en ', h('div.cc-cols', COLORES.map(([col, t]) => h('button.cc-col' + (col === (est.base || colorBase) ? '.on' : ''), { type: 'button', title: t, 'data-colbase': col, style: { background: col }, onclick: () => { est.base = col; guarda(); } })))),
         filas.length ? filas : h('p.small.muted', 'Sin cambios: sale de un color.'),
@@ -79,4 +78,5 @@ export function bloque(est, o) {
   pinta(); return caja;
 }
 // para el 3MF: las pausas en la altura de su capa (Bambu: tipo 1 = pausa, con el G-code de pausa de sus impresoras)
-export const paraArchivo = (cambios, capa) => (cambios || []).slice().sort((a, b) => a.z - b.z).map(c => ({ z: capaDe(c.z, capa).z, color: c.color }));
+// (v30.6: las desactivadas no van; cada una lleva su tipo: «gcode» = una orden propia de la impresora en vez de la pausa)
+export const paraArchivo = (cambios, capa) => (cambios || []).filter(c => c.activa !== false).slice().sort((a, b) => a.z - b.z).map(c => Object.assign({ z: capaDe(c.z, capa).z, color: c.color }, c.tipo && c.tipo !== 'color' ? { tipo: c.tipo } : {}, c.tipo === 'gcode' && c.gcode ? { gcode: String(c.gcode) } : {}));

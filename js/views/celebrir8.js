@@ -208,7 +208,7 @@ export function render(el) {
     const caja = h('div.r8v-pest.r8v-' + k); cuerpo.appendChild(caja);
     try {
       let r;
-      const ext = { irA: ir, go, visita: () => visita(), alEstudio: (dk, v, o) => ir('estudio', est => est.añadeDiseno(dk, v, o)), alEstudioMalla: (sopa, nombre) => ir('estudio', est => est.añadeMalla(sopa, nombre)) };
+      const ext = { irA: ir, go, visita: () => visita(), alEstudio: (dk, v, o) => ir('estudio', est => est.añadeDiseno(dk, v, o)), alEstudioMalla: (sopa, nombre) => ir('estudio', est => est.añadeMalla(sopa, nombre)), alEstudioPiezas: (L, nombre) => ir('estudio', est => est.añadePiezas(L, nombre)) };
       if (VISTAS[k]) { const [mod, fn] = VISTAS[k]; const m = await import(mod); if (yo !== turno) return; r = await m[fn](caja, ext); }
       else r = renderPlantillas(caja);
       if (yo !== turno) { try { r && r.destroy && r.destroy(); } catch (e) { } return; }

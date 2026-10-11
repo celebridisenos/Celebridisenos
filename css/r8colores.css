@@ -1,0 +1,99 @@
+/* ================= v30.6 · 🎨 TALLER DE COLORES Y PAUSAS (js/r8/colores_taller.js) ================= */
+.ct-fondo { position: fixed; inset: 0; z-index: 4000; background: rgba(6, 8, 16, .72); backdrop-filter: blur(3px); display: flex; padding: 14px }
+.ct { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: 16px; overflow: hidden; background: var(--card, #121627); color: var(--text, #eef0f8); border: 1px solid color-mix(in srgb, var(--text, #fff) 14%, transparent); box-shadow: 0 30px 80px rgba(0, 0, 0, .55) }
+.ct-cab { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent) }
+.ct-titulo { display: flex; flex-direction: column; min-width: 0; flex: 1 }
+.ct-titulo b { font-size: 17px }
+.ct-titulo span { font-size: 12px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.ct-botones { display: flex; gap: 8px; flex: none }
+.ct-rota { font-size: 12px; color: #ffb454 }
+.ct-medio { flex: 1; display: flex; min-height: 0 }
+.ct-izq, .ct-der { flex: none; width: 286px; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px }
+.ct-der { width: 336px; border-left: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent) }
+.ct-izq { border-right: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent) }
+.ct-vista { flex: 1; position: relative; min-width: 0; background: radial-gradient(ellipse at 50% 30%, #2a3046 0%, #151929 70%) }
+:root[data-modo="dia"] .ct-vista { background: radial-gradient(ellipse at 50% 30%, #f3f5fa 0%, #cfd5e3 80%) }
+.ct-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none }
+.ct-etis { position: absolute; inset: 0; pointer-events: none; overflow: hidden }
+.ct-eti { position: absolute; transform: translate(10px, -50%); pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 5px; border-radius: 999px; border: 2px solid #fff; background: rgba(15, 18, 30, .92); color: #fff; font: 600 12px/1 system-ui; cursor: ns-resize; white-space: nowrap; box-shadow: 0 4px 14px rgba(0, 0, 0, .45); touch-action: none }
+.ct-eti::before { content: ''; position: absolute; right: 100%; top: 50%; width: 22px; border-top: 2px dashed #fff; opacity: .8 }
+.ct-eti i { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .85); display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 11px }
+.ct-eti b { min-width: 14px; text-align: center }
+.ct-eti span { opacity: .85; font-weight: 500 }
+.ct-eti.on { border-color: #ff7a1a; background: #ff7a1a }
+.ct-eti.off { opacity: .5; border-style: dashed }
+.ct-caja { position: absolute; display: none; border: 2px dashed #ffe14a; background: rgba(255, 225, 74, .12); pointer-events: none }
+.ct-regla { position: absolute; right: 10px; top: 110px; bottom: 16px; width: 46px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; border-radius: 12px; background: rgba(15, 18, 30, .72); color: #fff }
+.ct-regla small { font-size: 10px; opacity: .8; white-space: nowrap }
+.ct-desl { flex: 1; writing-mode: vertical-lr; direction: rtl; width: 22px; accent-color: #ffe14a; cursor: ns-resize }
+.ct-cubo { position: absolute; right: 66px; top: 10px; width: 84px; height: 84px }
+.ct-modos, .ct-herr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
+.ct-herr { grid-template-columns: 1fr }
+.ct-modos button, .ct-herr button, .ct-pasos button, .ct-rango-b button, .ct-prop button { border: 1px solid color-mix(in srgb, var(--text, #fff) 18%, transparent); background: color-mix(in srgb, var(--text, #fff) 5%, transparent); color: inherit; font: 600 13px/1.2 system-ui; padding: 10px 8px; border-radius: 10px; cursor: pointer; text-align: center }
+.ct-herr button { text-align: left; padding: 10px 12px }
+.ct-modos button.on, .ct-herr button.on { background: var(--accent, #7c6cff); border-color: transparent; color: #fff }
+.ct-modos button:hover, .ct-herr button:hover, .ct-pasos button:hover, .ct-rango-b button:hover, .ct-prop button:hover { border-color: var(--accent, #7c6cff) }
+.ct-capa { padding: 12px; border-radius: 12px; background: color-mix(in srgb, #ffe14a 12%, transparent); border: 1px solid color-mix(in srgb, #ffe14a 45%, transparent) }
+.ct-capa small, .ct-tit, .ct-rango small, .ct-prop small, .ct-mas small { display: block; font-size: 10px; letter-spacing: .09em; opacity: .7; margin-bottom: 4px; font-weight: 600 }
+.ct-capa-n b { font-size: 34px; line-height: 1 }
+.ct-capa-n span { opacity: .7 }
+.ct-capa-d { display: flex; flex-direction: column; gap: 2px; font-size: 13px; margin-top: 6px }
+.ct-pasos { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px }
+.ct-pasos button { padding: 9px 0; font-size: 12px }
+.ct-campo { display: flex; align-items: center; gap: 8px; font-size: 13px }
+.ct-campo > span { flex: 1 }
+.ct-campo input[type=range] { flex: 1.4; accent-color: var(--accent, #7c6cff) }
+.ct-num { width: 86px !important; text-align: right; padding: 7px 8px !important }
+.ct-rango-f { display: flex; align-items: center; gap: 6px; font-size: 13px }
+.ct-rango-f .ct-num { width: 70px !important }
+.ct-rango-b { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px }
+.ct-rango-b button { font-size: 12px; padding: 7px 9px; font-weight: 500 }
+.ct-prop { display: flex; flex-wrap: wrap; gap: 6px }
+.ct-prop small { width: 100% }
+.ct-prop button { font-size: 12px; padding: 6px 9px; font-weight: 500 }
+.ct-ayuda { font-size: 12px; opacity: .72; margin: 0; line-height: 1.45 }
+.ct-aviso { font-size: 12.5px; margin: 0; padding: 10px; border-radius: 10px; background: color-mix(in srgb, #ffb454 16%, transparent); line-height: 1.45 }
+.ct-elegido { font-size: 13px }
+.ct-elegido b { font-size: 18px }
+.ct-paleta { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px }
+.ct-col { aspect-ratio: 1; border-radius: 10px; border: 2px solid color-mix(in srgb, var(--text, #fff) 25%, transparent); cursor: pointer; padding: 0; position: relative }
+.ct-col.on { outline: 3px solid var(--accent, #7c6cff); outline-offset: 2px }
+.ct-otro { display: flex; align-items: center; justify-content: center; font-size: 20px; background: conic-gradient(#f44, #fb0, #4c4, #0bf, #84f, #f4a, #f44); color: #fff; text-shadow: 0 1px 3px #000 }
+.ct-otro input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100% }
+.ct-actual { display: flex; align-items: center; gap: 8px; font-size: 14px }
+.ct-actual i { width: 26px; height: 26px; border-radius: 8px; border: 2px solid color-mix(in srgb, var(--text, #fff) 30%, transparent) }
+.ct-actual code { opacity: .6; font-size: 12px }
+.ct-pintar { width: 100%; font-size: 15px !important; padding: 13px !important }
+.ct-lista { display: flex; flex-direction: column; gap: 8px }
+.ct-pausa { border: 1px solid color-mix(in srgb, var(--text, #fff) 16%, transparent); border-radius: 12px; padding: 9px; display: flex; flex-direction: column; gap: 7px; cursor: pointer }
+.ct-pausa.on { border-color: #ff7a1a; background: color-mix(in srgb, #ff7a1a 10%, transparent) }
+.ct-pausa.off { opacity: .55 }
+.ct-p1 { display: flex; align-items: center; gap: 8px; font-size: 13px }
+.ct-p1 > span { flex: 1; min-width: 0 }
+.ct-pn { width: 22px; height: 22px; border-radius: 50%; background: color-mix(in srgb, var(--text, #fff) 14%, transparent); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex: none }
+.ct-p1 i, .ct-res i { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--text, #fff) 40%, transparent); flex: none; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 12px }
+.ct-p2 { display: flex; align-items: center; gap: 6px; font-size: 12px }
+.ct-p2 .ct-num { width: 64px !important; padding: 5px 6px !important }
+.ct-p3 { display: flex; align-items: center; gap: 4px }
+.ct-p3 button { border: 1px solid color-mix(in srgb, var(--text, #fff) 18%, transparent); background: transparent; color: inherit; border-radius: 8px; padding: 6px 8px; cursor: pointer; font-size: 13px }
+.ct-p3 button:hover { border-color: var(--accent, #7c6cff) }
+.ct-p3 select { flex: 1; min-width: 0; padding: 6px !important; font-size: 12px }
+.ct-gcode { font: 12px/1.3 ui-monospace, Consolas, monospace; width: 100% }
+.ct-resumen { margin-top: auto; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent); display: flex; flex-direction: column; gap: 6px }
+.ct-res { display: flex; align-items: center; gap: 8px; font-size: 13px }
+.ct-res span { flex: 1 }
+.ct-res button { border: 0; background: transparent; cursor: pointer; font-size: 14px }
+.ct-error { margin: 0; font-size: 12.5px; color: #ff6b81 }
+.ct-avisito { margin: 0; font-size: 12.5px; color: #ffb454 }
+.ct-abajo { display: flex; gap: 12px; padding: 8px 14px 12px; border-top: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent); align-items: flex-end }
+.ct-corte-c { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px }
+.ct-corte { border-radius: 10px; background: color-mix(in srgb, var(--text, #fff) 6%, transparent) }
+.ct-corte-t { font-size: 11px; opacity: .7 }
+.ct-tira-c { flex: 1; min-width: 0 }
+.ct-tira-l { display: flex; justify-content: space-between; font-size: 11px; opacity: .8; margin-bottom: 3px }
+.ct-tira-l b { font-weight: 500; opacity: .75 }
+.ct-tira { display: block; border-radius: 8px; cursor: ew-resize; touch-action: none }
+@media (max-width: 1100px) { .ct-izq { width: 236px } .ct-der { width: 280px } .ct-paleta { grid-template-columns: repeat(5, 1fr) } }
+@media (max-width: 860px) { .ct-fondo { padding: 0 } .ct { border-radius: 0 } .ct-medio { flex-direction: column; overflow: auto } .ct-izq, .ct-der { width: auto; border: 0 } .ct-vista { min-height: 46vh; flex: none } }
+/* el bloque del asistente: botón grande para abrir el taller y la barra de colores (de la cama a la punta) */
+.cc-abrir { width: 100%; margin: 8px 0; padding: 12px !important; font-size: 15px !important }

@@ -24,13 +24,18 @@ import { DISENOS_CASA } from './cat_casa.js';
 import { DISENOS_REFERENCIAS } from './cat_referencias.js'; // v30.4 · 📸 las fotos de la dueña: organizador corazón, estantería de arcos, funda de mechero
 import * as MARCA from './marca.js'; // v30.4 · ✍️ «CelebriDiseños» grabado en lo premium (casilla para quitarlo)
 import { DISENOS_ESCULTURAS } from './cat_esculturas.js';
+import { DISENOS_CHASIS, ponTrapecio } from './cat_chasis.js'; // v30.5 · 🏎️ chasis RC (bañera, doble placa, largueros)
+import { DISENOS_KITS } from './cat_kits.js'; // v30.5 · 🚲 kits de dos ruedas (bici y moto)
+import { DISENOS_TALADRO } from './cat_taladro.js'; // v30.5 · 🔩 mini taladro de columna y portarrollos 1:12
+import { DISENOS_MAS, PARTES_MAS } from './cat_mas.js'; // v30.6 · más cajas, bisagras, jarrones, vasos, decoración y accesorios
+import { PARTES_UTILES } from './cat_utiles.js';
 import { DISENOS_UTILES } from './cat_utiles.js'; // v30.4 · 🧰 herramientas y accesorios que funcionan
 import { DISENOS_PREMIUM30 } from './cat_premium30.js'; // v30.4 · 💎 vasos premium con relieve // v30.4 · 🗿 esculturas de sus fotos (mano titiritera, columpio de la luna)
 import { DISENOS_NAVIDAD } from './cat_navidad.js'; // v30.4 · 🎄 pueblo navideño, adornos con nombre, calendario de adviento, farol, belén con peana // v30.3 · 🏠 casa de muñecas, 🐜 hormiguero, 🗄️ cajonera, 🪴 macetas con plato // v30.3 · 🧸 juegos, 🔮 canicas, 🔬 ciencia y 👾 rol // v30.3 · 🖼️ siluetas y cuadros con dibujos de dominio público (CC0) // v30.3 · 🍷 decoración premium (siluetas, abstractas, cisnes, cesta, balón con frase…) // v30.3 · 🧸 figuras esculpidas (niños, Navidad, fantasía)
 import { DISENOS_PREMIUM } from './catalogo_premium.js'; // v20.4: miniaturas, jarrones de lujo, esculturas de equilibrio, tornillos, autorriego // v20.2: spool, diferencial de rectos, accesorios y repuestos (con su prueba de encaje)
 import { asiento, plantilla, medidasRod, OPS_RODAMIENTOS, APRETES, n2 as n2r, ajusteParaDiseno, OPS_AJUSTE, textoAjuste } from './rodamientos.js'; // v20.2: rodamientos que funcionan en plástico
 
-export const CATEGORIAS = [['', '✨ Todo'], ['ninos', '🧸 Niños'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
+export const CATEGORIAS = [['', '✨ Todo'], ['ninos', '🧸 Niños'], ['juguetes', '🚲 Juguetes para montar'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
   ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas y hormigas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas y casa de muñecas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
 const n = (k, t, v, min, max, paso = 0.5, u = 'mm') => ({ k, t, v, min, max, paso, u });
 const s = (k, t, v, ops) => ({ k, t, v, ops });
@@ -73,8 +78,10 @@ const deforma = (m, L) => N.deformar(m, L.filter(Boolean));
 // BISAGRA QUE SE IMPRIME DE UNA VEZ: dos hojas con nudos alternos; el eje es de la hoja A y pasa por los nudos de la hoja B con
 // holgura (para imprimir de una vez hace falta algo más que tu «gira»: 0,35 de partida, y se prueba). Sale montada: dos piezas.
 export function bisagraPiezas(p) {
-  const t = p.grosor, Rk = t + 1, gap = p.holgura, ga = 0.4, n = Math.max(3, Math.round(p.nudos) | 1), L = p.largo, rp = Rk - 1.4;
-  if (rp < 1) N.mal('La bisagra es muy fina para su eje: sube el grosor.');
+  // v30.6: antes el nudo medía Ø(2·grosor + 2) y el eje casi lo mismo: quedaba 1 mm de pared alrededor del eje y se partía. Ahora el nudo
+  // mide al menos Ø10 y el eje el 42 %: 2,3 mm de pared como mínimo. Y medio milímetro entre nudos.
+  const t = p.grosor, Rk = Math.max(t + 1.5, 5), gap = Math.max(0.3, p.holgura), ga = 0.5, n = Math.max(3, Math.round(p.nudos) | 1), L = p.largo, rp = Math.max(1.8, Rk * 0.42);
+  if (Rk - rp - gap < 1.8) N.mal('La bisagra es muy fina para su eje: sube el grosor.');
   const s = (L - (n - 1) * ga) / n; if (s < 3) N.mal('Demasiados nudos para ese largo: pon menos.');
   const cilX = (r, x0, x1) => M().cylinder(x1 - x0, r, r, seg(2 * r)).rotate([0, 90, 0]).translate([x0, 0, Rk]);
   const caja3 = (x0, x1, y0, y1, z0, z1) => M().cube([x1 - x0, y1 - y0, z1 - z0], false).translate([x0, y0, z0]);
@@ -970,10 +977,10 @@ export const DISENOS = {
     nota: p => { let J = null; try { J = juegoAcople(p); } catch (e) { return '⚠️ ' + e.message; } const K = J.K;
       return (J.reposo < 1e-6 ? 'MONTADO Y COMPROBADO (en el ordenador): en reposo no se toca nada' : '⚠️ Montado, algo se toca en reposo (' + n2(J.reposo) + ' mm³): revisa las medidas') + ' y cada mitad gira ' + n2(J.juego) + '° antes de apretar la estrella (holgura ' + n2(K.c) + ' mm por lado). ' + K.n + ' garras de ' + Math.round(K.beta) + '° por mitad y ' + 2 * K.n + ' brazos en la estrella. Ejes Ø' + n2(p.eje1) + ' y Ø' + n2(p.eje2) + (p.prisionero ? ', cada uno con su prisionero M3 (se rosca en el plástico)' : '') + '. Imprime las mitades con las garras hacia ARRIBA (sin soportes) en PETG o nailon, y la ESTRELLA tumbada en TPU (amortigua; en PETG queda rígida). Para un motor pequeño (impresora, RC, robótica): para mucho par, el de metal.'; } },
   bisagraImpresa: { cat: 'mecanica', e: '🚪', t: 'Bisagra que se imprime de una vez', d: 'Sale montada y gira: comprobada al abrirla', uso: 'funcional', color: '#2457d6',
-    campos: [n('largo', 'Largo', 40, 15, 200), n('ancho', 'Ancho de cada hoja', 20, 8, 80), n('grosor', 'Grosor de las hojas', 3, 2, 8, 0.5), n('nudos', 'Nudos (impar)', 5, 3, 15, 2, ''), n('holgura', 'Holgura del eje (para imprimir de una vez)', 0.35, 0.2, 0.8, 0.05), n('agujeros', 'Agujeros de tornillo en cada hoja', 2, 0, 6, 1, '')],
+    campos: [n('largo', 'Largo', 40, 15, 200), n('ancho', 'Ancho de cada hoja', 20, 8, 80), n('grosor', 'Grosor de las hojas', 3, 2, 8, 0.5), n('nudos', 'Nudos (impar)', 5, 3, 15, 2, ''), n('holgura', 'Holgura del eje (para imprimir de una vez)', 0.4, 0.3, 0.8, 0.05), n('agujeros', 'Agujeros de tornillo en cada hoja', 2, 0, 6, 1, '')],
     gen(p) { const H = bisagraPiezas(p); return H.A.add(H.B); },
     nota: p => { let a = null; try { a = giroBisagra(p); } catch (e) { return '⚠️ ' + e.message; }
-      return 'COMPROBADA: se abre de 0° a ' + (a >= 200 ? 'más de 200°' : a + '°') + ' sin rozar. Se imprime TUMBADA y de una vez (sale con el eje dentro de los nudos: dos piezas que ya están montadas). Holgura del eje ' + n2(p.holgura) + ' mm: si sale pegada, súbela 0,05; si baila, bájala. Al sacarla de la cama, gírala unas veces para soltarla.'; } },
+      return 'COMPROBADA EN EL ORDENADOR: se abre de 0° a ' + (a >= 200 ? 'más de 200°' : a + '°') + ' sin rozar. REFORZADA (la primera se partía): nudos de Ø' + n2(2 * Math.max(p.grosor + 1.5, 5)) + ' con más de 2 mm de pared alrededor del eje. Si quieres la más fuerte, usa la «Bisagra fuerte de dos hojas» (eje aparte). Se imprime TUMBADA y de una vez (sale con el eje dentro de los nudos: dos piezas que ya están montadas). Holgura del eje ' + n2(p.holgura) + ' mm: si sale pegada, súbela 0,05; si baila, bájala. Al sacarla de la cama, gírala unas veces para soltarla.'; } },
   clipTubo: { cat: 'taller', e: '🧷', t: 'Clip para tubo (a presión)', d: 'El tubo entra empujando y no se sale: comprobado', uso: 'funcional', color: '#1b1b1d',
     campos: [n('d', 'Diámetro del tubo o palo (mídelo)', 22, 4, 120, 0.1), n('boca', 'Boca (en % del tubo)', 84, 60, 95, 1, '%'), n('grueso', 'Grosor del clip', 3, 1.6, 8, 0.2), n('alto', 'Ancho del clip', 12, 5, 60), n('ala', 'Pata para atornillar (a cada lado)', 8, 0, 30), n('tornillo', 'Tornillos (0 = sin)', 4, 0, 6, 0.5)],
     gen(p) { return clipTuboPieza(p).m; },
@@ -1228,10 +1235,22 @@ Object.assign(DISENOS, DISENOS_REFERENCIAS); // v30.4
 Object.assign(DISENOS, DISENOS_ESCULTURAS); // v30.4
 Object.assign(DISENOS, DISENOS_PREMIUM30); // v30.4
 Object.assign(DISENOS, DISENOS_UTILES); // v30.4
+Object.assign(DISENOS, DISENOS_CHASIS); ponTrapecio(trapecioPieza); // v30.5
+Object.assign(DISENOS, DISENOS_KITS); // v30.5
+Object.assign(DISENOS, DISENOS_TALADRO); // v30.5
+Object.assign(DISENOS, DISENOS_MAS); // v30.6
+// v30.6 · «AL ESTUDIO POR PIEZAS»: los diseños de varias partes dan cada una suelta, montadas en su sitio y con cómo se mueven
+// (bisagra: { o, dir, ang } · desliza: { dir, d }), para editarlas una a una y abrirlas en 🎬 Animar
+export const PARTES = Object.assign({}, PARTES_UTILES, PARTES_MAS);
+export function partesDe(k, p) {
+  const f = PARTES[k]; if (!f) return null; const v = Object.assign(valores(k), p || {});
+  return N.enAmbito(() => { const L = f(v), U = N.union(L.map(x => x.m)), b = N.caja(U), d = [-(b.min[0] + b.max[0]) / 2, -(b.min[1] + b.max[1]) / 2, -b.min[2]];
+    return L.map(x => ({ nombre: x.nombre, sopa: N.aSopa(x.m.translate(d)), bisagra: x.bisagra ? { o: x.bisagra.o.map((q, i) => q + d[i]), dir: x.bisagra.dir, ang: x.bisagra.ang } : null, desliza: x.desliza || null })); });
+}
 // v30.4 · las esculpidas (muchos triángulos) se hacen enteras en el motor aparte: el principal no se llena de memoria
 ['titiritero', 'columpioLuna', 'pensadores', 'parejaCisnes'].concat(Object.keys(DISENOS_FIGURAS)).forEach(k => { if (DISENOS[k]) DISENOS[k].pesado = true; });
 // v30.4 · ✍️ dónde va «CelebriDiseños» en cada uno (debajo = la cara de la cama: queda como la firma de una cerámica)
-const DONDE_MARCA = { cajaBisagra: p => p.que === 'caja' || p.que === 'prueba' ? { cara: 'abajo' } : null, jabonera: p => p.que === 'rejilla' ? null : { cara: 'abajo' }, soportePuntas: { cara: 'abajo', pos: [0.5, 0.3] }, pieDeRey: p => p.que === 'todo' || p.que === 'regla' ? { cara: 'abajo', alto: 7, pos: [0.55, (9 + p.boca) / (p.boca + 40.2)] } : null,
+const DONDE_MARCA = { miniTaladro: p => p.que === 'cama1' ? { cara: 'abajo', pos: [0.5, 0.2], ancho: 0.42 } : null, cajaBisagra: p => p.que === 'caja' || p.que === 'prueba' ? { cara: 'abajo' } : null, jabonera: p => p.que === 'rejilla' ? null : { cara: 'abajo' }, soportePuntas: { cara: 'abajo', pos: [0.5, 0.3] }, pieDeRey: p => p.que === 'todo' || p.que === 'regla' ? { cara: 'abajo', alto: 7, pos: [0.55, (9 + p.boca) / (p.boca + 40.2)] } : null,
   cajaCorredera: { cara: 'abajo' }, cajonOrganizador: { cara: 'abajo' }, portaboligrafos: { cara: 'abajo' }, bandejaLlaves: { cara: 'abajo' }, boteRosca: p => p.pieza === 'tapa' ? null : { cara: 'abajo' }, organizadorCables: { cara: 'abajo' }, cajaTornillos: { cara: 'abajo' }, soporteMovil: { cara: 'abajo' }, soporteAuriculares: { cara: 'abajo' }, soporteMando: { cara: 'abajo' }, taza: { cara: 'abajo' }, vasoOndas: { cara: 'abajo' }, portavelas: { cara: 'abajo' },
   organizadorCorazon: { cara: '+X', pos: [0.5, 0.22] }, estanteriaArcos: p => p.que === 'arcoLiso' ? { cara: 'abajo', pos: [0.5, 0.1] } : p.que === 'bandeja' ? { cara: 'abajo' } : p.que === 'montada' ? { cara: '+X', pos: [0.5, 0.06], ancho: 0.7 } : null,
   vasoPremium: { cara: 'abajo' }, macetaPremium: { cara: 'abajo', pos: [0.5, 0.3] }, jarronPremium: p => p.pared > 0 ? { cara: 'abajo' } : null, calendarioAdviento: p => p.que === 'marco' ? { cara: 'abajo', pos: [0.5, 0.3] } : null, farolNavidad: { cara: 'abajo', alto: 4.5, pos: [0.5, 0.24] }, casitaNavidad: null };

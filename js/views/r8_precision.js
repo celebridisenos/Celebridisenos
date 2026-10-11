@@ -137,7 +137,7 @@ export async function montarPrecision(el, ext = {}) {
       h('p.small.muted', 'Que la geometría esté bien no garantiza que funcione: imprime primero la prueba de encaje.'),
       h('div.r8p-sec.r8pr-exportar', h('b', 'Llevármela'),
         h('div.r8p-btns', btn('🩺 Revisar e imprimir', () => aImprimir(), { cls: 'primary r8pr-imprimir', disabled: !listo })),
-        h('div.r8p-btns', btn('⬇️ STL', () => saca('stl'), { cls: 'sm', disabled: !listo }), btn('📦 3MF', () => saca('3mf'), { cls: 'sm', disabled: !listo }), btn('💾 Guardar medidas', () => guardaMedidas(), { cls: 'sm r8pr-guardar', disabled: !!S.faltan.length && !S.v.pieza }))));
+        h('div.r8p-btns', btn('⬇️ STL', () => saca('stl'), { cls: 'sm', disabled: !listo }), btn('📦 3MF', () => saca('3mf'), { cls: 'sm', disabled: !listo }), btn('💾 Guardar medidas', () => guardaMedidas(), { cls: 'sm r8pr-guardar', disabled: !!S.faltan.length && !S.v.pieza }), ext.alEstudioPiezas ? btn('🧰 Al Estudio', () => alEstudio(), { cls: 'sm r8pr-estudio', disabled: !listo, title: 'Pasarla al Estudio (cada pieza suelta) para seguir editándola' }) : null)));
     pintaBarra();
   }
 
@@ -150,6 +150,7 @@ export async function montarPrecision(el, ext = {}) {
     if (B.dims[0] > cama - 20 || B.dims[1] > cama - 20) toast('⚠️ Las piezas no caben juntas en una cama de ' + cama + ' mm: Bambu Studio las repartirá en varias placas.', 'warn', 8000);
     return L.map(p => Object.assign({}, p, { m: p.m.translate([dx, dy, 0]) })); }
   function construye(kit) { const T = R.TIPOS[S.tipo], vals = R.valores(S.tipo, S.v); if (kit) return enFila(T.kit(vals).partes.filter(p => p.m)); const r = T.construye(vals); return r.imprimir ? enFila(r.imprimir) : r.partes; }
+  function alEstudio() { try { const P0 = construye(); ext.alEstudioPiezas(P0.map(p => ({ sopa: N.aSopa(p.m), nombre: p.nombre || nombrePieza(), color: p.color || '#2f7bff' })), nombrePieza()); } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); } } // v30.6
   async function saca(como) {
     try { const P0 = construye(), P = MESA ? MESA.expande(P0) : P0, nom = C.limpioNombre(nombrePieza()); // v30: con sus copias
       if (como === 'stl') { const stl = N.stl(N.union(P.map(p => p.m)), nom); await C.guardaEnPC(stl, 'Repuestos', nom + '.stl', 'model/stl'); }

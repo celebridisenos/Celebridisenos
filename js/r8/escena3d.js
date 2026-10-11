@@ -90,26 +90,32 @@ export function crearEscena(lienzo, opts = {}) {
   const geoDe = (v, usadas) => { let g = geos.get(v); if (!g) { g = geometria(v); g.userData.fija = true; } usadas.set(v, g); return g; };
   const arisDe = (v, g, usadas) => { let e = aris.get(v); if (!e) { e = new T.EdgesGeometry(g, 24); e.userData.fija = true; } usadas.set(v, e); return e; };
   const matDe = (k, crea) => { let m = mats.get(k); if (!m) { m = crea(); m.userData.fijo = true; mats.set(k, m); } return m; };
-  let modoVista = 'aristas'; // 'aristas' (como Fusion) · 'sombreado' · 'rayosx'
-  let opacidad = 1; // v20.2: la dueña quiere poder bajarla
+  // v30.6 · MODOS: 'aristas' (sombreado con aristas, el de siempre) · 'sombreado' (liso) · 'alambre' · 'transparente' (SOLO si se pide: la
+  // opacidad ya no se aplica en los demás modos, las piezas se ven macizas) · 'rayosx'. Y SECCIÓN: un plano que deja ver por dentro.
+  let modoVista = 'aristas';
+  let opacidad = 0.45, secPlano = null;
   const colorArista = () => (opts.dia ? 0x2a2f45 : 0x0b0d16);
   const ponMatriz = (o, M) => { o.matrixAutoUpdate = false; if (M) o.matrix.fromArray(M); else o.matrix.identity(); o.userData.base = o.matrix.clone(); };
   // partes = [{ id, sub?, vista, color, acabado, matriz? (16 números) }]  · huecos = [{ id, vista, matriz? }] (cristal rojo)
   function ponPartes(L, H = []) {
     tira(partes); partes.clear(); tira(huecos); huecos.clear();
-    const usadasG = new Map(), usadasA = new Map(), rx = modoVista === 'rayosx';
+    const usadasG = new Map(), usadasA = new Map(), rx = modoVista === 'rayosx', alambre = modoVista === 'alambre', op = modoVista === 'transparente' ? opacidad : 1, sec = secPlano ? '|sec' : '', corta = m => { if (secPlano) { m.clippingPlanes = [secPlano]; m.clipShadows = true; } return m; };
     L.forEach(p => {
       const g = geoDe(p.vista, usadasG);
       const mt = p.resalta ? new T.MeshBasicMaterial({ color: tono(p.color), transparent: true, opacity: 0.8, depthTest: false })
         : p.fantasma ? new T.MeshStandardMaterial({ color: tono(p.color), transparent: true, opacity: 0.22, depthWrite: false, roughness: 0.6 })
-          : p.vista.col ? new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0 })
-            : rx ? matDe('rx' + p.color, () => new T.MeshStandardMaterial({ color: tono(p.color), transparent: true, opacity: 0.28, depthWrite: false, roughness: 0.5, side: T.DoubleSide }))
-              : matDe(p.color + '|' + p.acabado + (capas ? '|capas' : '') + '|' + opacidad, () => { const m = material(p.color, p.acabado, capas); m.polygonOffset = true; m.polygonOffsetFactor = 1; m.polygonOffsetUnits = 1; if (opacidad < 0.99) { m.transparent = true; m.opacity = Math.min(m.opacity, opacidad); m.depthWrite = opacidad > 0.6; } return m; });
+          : p.vista.col ? corta(new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0, side: p.vista.cruda ? T.DoubleSide : T.FrontSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }))
+            : rx ? matDe('rx' + p.color + sec, () => corta(new T.MeshStandardMaterial({ color: tono(p.color), transparent: true, opacity: 0.28, depthWrite: false, roughness: 0.5, side: T.DoubleSide })))
+              : alambre ? matDe('alambre' + p.color + sec, () => corta(new T.MeshBasicMaterial({ color: tono(p.color), wireframe: true, transparent: true, opacity: 0.6 })))
+                : p.rota ? matDe('rota' + p.color + sec, () => corta(new T.MeshStandardMaterial({ color: tono(p.color), roughness: 0.75, metalness: 0, side: T.DoubleSide })))
+                  : matDe(p.color + '|' + p.acabado + (capas ? '|capas' : '') + '|' + op + sec, () => { const m = material(p.color, p.acabado, capas); m.polygonOffset = true; m.polygonOffsetFactor = 1; m.polygonOffsetUnits = 1; if (op < 0.99) { m.transparent = true; m.opacity = Math.min(m.opacity, op); m.depthWrite = op > 0.6; } return corta(m); });
       const m = new T.Mesh(g, mt); ponMatriz(m, p.matriz);
       if (p.resalta) m.renderOrder = 7; else m.castShadow = m.receiveShadow = !rx;
       m.userData.id = p.id; m.userData.sub = p.sub || null; m.userData.vista = p.vista; partes.add(m);
-      if (!p.resalta && !p.fantasma && !p.vista.col && modoVista !== 'sombreado' && p.vista.idx.length < 3e6) {
-        const e = new T.LineSegments(arisDe(p.vista, g, usadasA), matDe('arista' + (rx ? 'rx' : ''), () => new T.LineBasicMaterial({ color: rx ? 0x7c6cff : colorArista(), transparent: true, opacity: rx ? 0.9 : 0.55 })));
+      // sección: lo de dentro se ve de un color liso (las caras de atrás), para distinguir el corte del resto
+      if (secPlano && !p.resalta && !p.fantasma && !rx && !alambre) { const t2 = new T.Mesh(g, matDe('tapa', () => corta(new T.MeshBasicMaterial({ color: 0xff8a3d, side: T.BackSide })))); ponMatriz(t2, p.matriz); t2.raycast = () => { }; t2.userData.tapa = true; t2.userData.id = p.id; partes.add(t2); }
+      if (!p.resalta && !p.fantasma && !p.vista.col && !p.rota && modoVista !== 'sombreado' && p.vista.idx.length < 3e6) {
+        const e = new T.LineSegments(arisDe(p.vista, g, usadasA), matDe('arista' + (rx ? 'rx' : '') + sec, () => corta(new T.LineBasicMaterial({ color: rx ? 0x7c6cff : colorArista(), transparent: true, opacity: rx ? 0.9 : 0.55 }))));
         ponMatriz(e, p.matriz); e.userData.arista = true; e.userData.id = p.id; partes.add(e);
       }
     });
@@ -120,7 +126,7 @@ export function crearEscena(lienzo, opts = {}) {
     // lo que ya no se ve, fuera de la memoria de la tarjeta
     geos.forEach((g, v) => { if (!usadasG.has(v)) g.dispose(); }); aris.forEach((e, v) => { if (!usadasA.has(v)) e.dispose(); });
     geos = usadasG; aris = usadasA;
-    partes.updateMatrixWorld(true); huecos.updateMatrixWorld(true);
+    partes.updateMatrixWorld(true); huecos.updateMatrixWorld(true); if (tapados) aplicaTapados();
     pide();
   }
   // modo de vista: 'aristas' · 'sombreado' · 'rayosx' (hay que volver a llamar a ponPartes)
@@ -144,7 +150,9 @@ export function crearEscena(lienzo, opts = {}) {
       } catch (e) { rej(e); }
     });
   }
-  function ponOpacidad(v) { if (v !== undefined) opacidad = Math.max(0.1, Math.min(1, Number(v) || 1)); return opacidad; }
+  function ponOpacidad(v) { if (v !== undefined) opacidad = Math.max(0.1, Math.min(1, Number(v) || 1)); return opacidad; } // (solo se usa en el modo «transparente»)
+  // v30.6 · SECCIÓN (ver por dentro sin tocar la pieza): o = null la quita · { n: [x, y, z], d } deja ver el lado n·p ≤ d. Mover el plano no rehace nada.
+  function seccion(o) { const antes = !!secPlano; if (!o) { secPlano = null; ren.localClippingEnabled = false; } else { if (!secPlano) secPlano = new T.Plane(); secPlano.normal.set(-o.n[0], -o.n[1], -o.n[2]).normalize(); secPlano.constant = o.d; ren.localClippingEnabled = true; } pide(); return antes !== !!secPlano; }
   // proxies = [{ id, vista (en su sitio local), matriz (T.Matrix4) }]
   function ponProxies(L) {
     tira(proxies); proxies.clear();
@@ -170,13 +178,15 @@ export function crearEscena(lienzo, opts = {}) {
   tc.addEventListener('objectChange', () => { if (alMover) alMover(leeManija()); });
   tc.addEventListener('change', pide);
   const r1 = x => Math.round(x * 1000) / 1000;
-  function leeManija() { const e = new T.Euler().setFromQuaternion(manija.quaternion, 'ZYX'); return { pos: manija.position.toArray().map(r1), rot: [e.x, e.y, e.z].map(a => r1(T.MathUtils.radToDeg(a))), esc: manija.scale.toArray().map(r1) }; }
+  function leeManija() { const e = new T.Euler().setFromQuaternion(manija.quaternion, 'ZYX'); return { pos: manija.position.toArray().map(r1), rot: [e.x, e.y, e.z].map(a => r1(T.MathUtils.radToDeg(a))), esc: manija.scale.toArray().map(r1), n: new T.Vector3(0, 0, 1).applyQuaternion(manija.quaternion).toArray() }; } // v30.6: «n» = hacia dónde mira su Z (la normal del plano de corte)
+  let pasoPropio = false;
   function flechas(modo, t, mover, soltar, op = {}) {
     alMover = mover; alSoltar = soltar;
-    tc.showX = tc.showY = !op.soloZ; tc.showZ = true; tc.setSize(op.soloZ ? 1.35 : 0.9); // v30: la flecha de EXTRUIR una cara (solo su eje, más grande)
+    if (op.snap) { tc.setTranslationSnap(op.snap[0]); tc.setRotationSnap(T.MathUtils.degToRad(op.snap[1])); pasoPropio = true; } else if (pasoPropio) { pasoPropio = false; fino(false); } // v30.6: el plano de corte va de 0,5 mm y de 1°
+    tc.showX = tc.showY = !op.soloZ; tc.showZ = !op.sinZ; tc.setSize(op.soloZ ? 1.35 : op.sinZ ? 1.15 : 0.9); // v30: la flecha de EXTRUIR una cara (solo su eje, más grande) · v30.6: sinZ = los dos aros que inclinan un plano
     if (!modo || !t) { tc.detach(); pide(); return; }
-    manija.position.set(...(t.pos || [0, 0, 0])); manija.quaternion.setFromEuler(eulerDe(t.rot)); manija.scale.set(...(t.esc || [1, 1, 1]));
-    tc.setMode({ mover: 'translate', girar: 'rotate', escalar: 'scale' }[modo] || 'translate'); tc.setSpace(op.soloZ ? 'local' : modo === 'mover' ? 'world' : 'local'); tc.attach(manija); pide();
+    manija.position.set(...(t.pos || [0, 0, 0])); if (t.normal) manija.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), new T.Vector3(...t.normal).normalize()); else manija.quaternion.setFromEuler(eulerDe(t.rot)); manija.scale.set(...(t.esc || [1, 1, 1]));
+    tc.setMode({ mover: 'translate', girar: 'rotate', escalar: 'scale' }[modo] || 'translate'); tc.setSpace(op.soloZ || op.sinZ ? 'local' : modo === 'mover' ? 'world' : 'local'); tc.attach(manija); pide();
   }
   const fino = on => { tc.setTranslationSnap(on ? 0.1 : 1); tc.setRotationSnap(T.MathUtils.degToRad(on ? 1 : 15)); };
 
@@ -208,16 +218,42 @@ export function crearEscena(lienzo, opts = {}) {
   }
   // ---- plano del corte y sitios de los conectores ----
   let plano = null;
-  function planoCorte(o) { // { normal, punto, tam, sitios: [[x,y,z]], d }
+  function planoCorte(o) { // { normal, punto, tam, sitios: [[x,y,z]], d, contorno: Float32Array (rayas x,y,z · x,y,z), color, sinRelleno }
     if (plano) { tira(plano); extra.remove(plano); plano = null; }
     if (!o) { pide(); return; }
-    plano = new T.Group(); const n = new T.Vector3(...o.normal).normalize();
-    const m = new T.Mesh(new T.PlaneGeometry(o.tam, o.tam), new T.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.2, side: T.DoubleSide, depthWrite: false }));
-    m.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), n); m.position.set(...o.punto); plano.add(m);
-    const borde = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(o.tam, o.tam)), new T.LineBasicMaterial({ color: 0xffa040 })); borde.quaternion.copy(m.quaternion); borde.position.copy(m.position); plano.add(borde);
+    plano = new T.Group(); const n = new T.Vector3(...o.normal).normalize(), col = o.color || 0xffa040, q0 = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), n), en = x => { x.quaternion.copy(q0); x.position.set(...o.punto); plano.add(x); return x; };
+    if (!o.sinRelleno) en(new T.Mesh(new T.PlaneGeometry(o.tam, o.tam), new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.2, side: T.DoubleSide, depthWrite: false })));
+    en(new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(o.tam, o.tam)), new T.LineBasicMaterial({ color: col })));
+    // v30.6 · rejilla (se ve por dónde pasa aunque lo tape la pieza) y la flecha que señala el lado A
+    const R = [], k = 8, h2 = o.tam / 2; for (let i = 1; i < k; i++) { const v = -h2 + o.tam * i / k; R.push(v, -h2, 0, v, h2, 0, -h2, v, 0, h2, v, 0); }
+    const gr = new T.BufferGeometry(); gr.setAttribute('position', new T.Float32BufferAttribute(R, 3)); en(new T.LineSegments(gr, new T.LineBasicMaterial({ color: col, transparent: true, opacity: 0.28 })));
+    const fantasma = new T.LineSegments(new T.EdgesGeometry(new T.PlaneGeometry(o.tam, o.tam)), new T.LineBasicMaterial({ color: col, transparent: true, opacity: 0.35, depthTest: false })); fantasma.renderOrder = 6; en(fantasma);
+    if (o.flecha !== false) { const L = Math.max(6, o.tam * 0.16), fl = new T.ArrowHelper(n, new T.Vector3(...o.punto).addScaledVector(new T.Vector3(1, 0, 0).applyQuaternion(q0), h2).addScaledVector(new T.Vector3(0, 1, 0).applyQuaternion(q0), h2), L, 0x4aa8ff, L * 0.32, L * 0.18); fl.line.material.depthTest = false; fl.cone.material.depthTest = false; fl.renderOrder = 8; plano.add(fl); }
+    if (o.contorno && o.contorno.length) { // el contorno REAL del corte, por encima de todo (blanco con sombra oscura: se ve sobre cualquier color)
+      const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(o.contorno, 3));
+      const l0 = new T.LineSegments(g, new T.LineBasicMaterial({ color: 0x101320, depthTest: false, transparent: true, opacity: 0.9, linewidth: 3 })); l0.renderOrder = 8; l0.scale.setScalar(1.0015); plano.add(l0);
+      const l1 = new T.LineSegments(g, new T.LineBasicMaterial({ color: 0xffffff, depthTest: false })); l1.renderOrder = 9; l1.userData.contorno = true; plano.add(l1);
+    }
     (o.sitios || []).forEach(q => { const c = new T.Mesh(new T.CylinderGeometry(o.d / 2, o.d / 2, 1.2, 24), new T.MeshBasicMaterial({ color: 0xffd23f, depthTest: false })); c.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), n); c.position.set(...q); c.renderOrder = 8; plano.add(c); });
     extra.add(plano); pide();
   }
+  // ---- v30.6 · VISTA PREVIA de verdad (las dos partes de un corte, cada una de su color, opacas): [{ vista, color, matriz? (16), oculta? }]
+  // «tapar» = los cuerpos del diseño que se dejan de ver mientras dura (true = todos · [ids])
+  const prev = new T.Group(); esc.add(prev); let tapados = null;
+  const aplicaTapados = () => { partes.children.forEach(o => { o.visible = !(tapados === true || (tapados && tapados.includes(o.userData.id))); }); };
+  function previa(L, tapar) {
+    prev.children.forEach(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); prev.clear();
+    tapados = L && L.length ? (tapar === undefined ? true : tapar) : null; aplicaTapados();
+    (L || []).forEach((x, i) => {
+      const g = geometria(x.vista), m = new T.Mesh(g, new T.MeshStandardMaterial({ color: tono(x.color), roughness: 0.62, metalness: 0.02, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      ponMatriz(m, x.matriz); m.castShadow = m.receiveShadow = true; m.userData.previa = i; m.visible = !x.oculta; prev.add(m);
+      if (x.vista.idx.length < 9e5) { const e = new T.LineSegments(new T.EdgesGeometry(g, 28), new T.LineBasicMaterial({ color: colorArista(), transparent: true, opacity: 0.5 })); ponMatriz(e, x.matriz); e.userData.previa = i; e.visible = !x.oculta; prev.add(e); }
+    });
+    prev.updateMatrixWorld(true); pide();
+  }
+  // mover (o esconder) una de las partes de la vista previa sin volver a calcular nada: «separar para ver», «ver solo una»
+  function previaPon(i, matriz, oculta) { prev.children.forEach(o => { if (o.userData.previa !== i) return; if (matriz !== undefined) ponMatriz(o, matriz); o.visible = !oculta; }); prev.updateMatrixWorld(true); pide(); }
+  function previaEn(e) { aNdc(e); const h = ray.intersectObjects(prev.children.filter(o => o.isMesh && o.visible), false)[0]; return h ? { i: h.object.userData.previa, p: h.point.toArray() } : null; }
 
   // ---- v20.2 · la CARA elegida (azul, como en Fusion) ----
   let cara = null;
@@ -372,7 +408,8 @@ export function crearEscena(lienzo, opts = {}) {
   dibuja();
   return {
     T, esc, cam, ctl, ponPartes, ponProxies, moverProxy, marcar, flechas, fino, cuerpoEn, puntoEn, medida, planoCorte, marcadores, encuadrar, aPantalla, foto, pide,
-    caraEn, ponCara, construccion, consEn, fantasmas, vistaModo, puntoPlano, ponOpacidad, animar, animando, giraCamara, grabar, // v20.2
+    caraEn, ponCara, construccion, consEn, fantasmas, vistaModo, puntoPlano, ponOpacidad, seccion, animar, animando, giraCamara, grabar, // v20.2
+    previa, previaPon, previaEn, // v30.6
     cuboVistas, get cuboV() { return cuboV; }, // v20.4
     ponHover, ponArista, ponPunto, lienzos, get sobreFlechas() { return !!(tc.object && tc.axis); }, // v30 (como Fusion)
     get arrastrando() { return arrastrando; },

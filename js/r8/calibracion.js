@@ -13,7 +13,10 @@
 // Lo que no hace: no corrige el calibre si está roto o mide mal de forma desigual (eso se ve con dos monedas: si no cuadran, lo dice).
 import * as N from './nucleo.js';
 
-export const MONEDAS = { e1: ['1 €', 23.25], c50: ['50 céntimos', 24.25], e2: ['2 €', 25.75] }; // diámetros oficiales (BCE)
+// v30.6 · la dueña no tiene monedas de 1 € ni de 2 €: la de 20 céntimos va la primera (y están todas, más «otra cosa de medida conocida»)
+export const MONEDAS = { c20: ['20 céntimos', 22.25], c10: ['10 céntimos', 19.75], c5: ['5 céntimos', 21.25], c50: ['50 céntimos', 24.25], e1: ['1 €', 23.25], e2: ['2 €', 25.75], c2: ['2 céntimos', 18.75], c1: ['1 céntimo', 16.25] }; // diámetros oficiales (BCE)
+// de lo que se escribe en la pantalla (refs = [{ k: moneda | 'otra', oficial, medido, t }]) a lo que entiende calibre()
+export function medidasDe(cal) { const m = { cero: cal.cero, otras: [] }; (cal.refs || []).forEach(r => { const v = Number(String(r.medido ?? '').replace(',', '.')); if (!(v > 0)) return; if (r.k === 'otra') { const o = Number(String(r.oficial ?? '').replace(',', '.')); if (o > 0) m.otras.push({ t: r.t || 'Otra referencia', oficial: o, medido: v }); } else if (MONEDAS[r.k]) m[r.k] = v; }); return m; }
 const LS = 'cd.r8.precision';
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES'), n3 = x => (Math.round(x * 1000) / 1000).toLocaleString('es-ES');
 export function guardado() { try { return Object.assign({ perfiles: {}, activa: null, calibre: null }, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) { return { perfiles: {}, activa: null, calibre: null }; } }
@@ -22,10 +25,10 @@ const graba = g => { try { localStorage.setItem(LS, JSON.stringify(g)); } catch 
 // ---------- 1) EL CALIBRE ----------
 // m = { cero (lo que marca cerrado), e1, c50, e2 (lo que marca cada moneda; las que no tengas, vacías) }
 export function calibre(m) {
-  const L = Object.keys(MONEDAS).filter(k => Number(m[k]) > 0).map(k => ({ k, oficial: MONEDAS[k][1], medido: Number(m[k]) }));
+  const L = Object.keys(MONEDAS).filter(k => Number(m[k]) > 0).map(k => ({ k, oficial: MONEDAS[k][1], medido: Number(m[k]) })).concat((m.otras || []).filter(o => o.oficial > 0 && o.medido > 0).map((o, i) => ({ k: 'otra' + i, oficial: Number(o.oficial), medido: Number(o.medido) })));
   const cero = Number(m.cero) || 0, avisos = [];
   if (Math.abs(cero) > 0.005) avisos.push('Cerrado marca ' + n2(cero) + ': pon el cero (botón «ZERO» u «ORIGIN» con las patas cerradas) y vuelve a medir.');
-  if (!L.length) return { off: 0, avisos: avisos.concat(['Mide al menos una moneda para comprobar el calibre.']), ok: false };
+  if (!L.length) return { off: 0, avisos: avisos.concat(['Mide al menos una referencia (una moneda de 20 céntimos, por ejemplo) para comprobar el calibre.']), ok: false };
   const difs = L.map(x => x.medido - x.oficial), off = difs.reduce((a, b) => a + b, 0) / difs.length, spread = Math.max(...difs) - Math.min(...difs);
   if (L.length > 1 && spread > 0.04) avisos.push('Las monedas no cuadran entre sí (' + n2(spread) + ' mm de diferencia): mide otra vez, sin apretar, por el canto liso; si sigue, el calibre no mide igual en todo su recorrido.');
   if (Math.abs(off) > 0.03) avisos.push('Tu calibre marca ' + n2(Math.abs(off)) + ' mm de ' + (off > 0 ? 'MÁS' : 'MENOS') + ' (moneda gastada aparte). Se descuenta solo de lo que midas en la probeta; mejor: pon el cero, cambia la pila y repite.');

@@ -105,20 +105,67 @@ export const cuantosVivos = () => vivos.size;
 export const mal = t => { const e = new Error(t); e.r8 = 1; throw e; };
 
 // ---------- de y a «sopa de triángulos» (lo que usa motor.js y los STL) ----------
-// Une los vértices repetidos (a 1/10 000 de mm) para que Manifold vea una pieza cerrada.
-export function deSopa(p) {
-  const n = p.length / 3, mapa = new Map(), vert = [], tri = new Uint32Array(n), q = 1e4;
+// suelda los vértices repetidos (a 1/q de mm) y quita los triángulos que se quedan en una línea y los que están repetidos
+function sueldaSopa(p, q) {
+  const n = p.length / 3, mapa = new Map(), vert = [], tri = new Uint32Array(n);
   for (let i = 0; i < n; i++) {
     const x = p[i * 3], y = p[i * 3 + 1], z = p[i * 3 + 2], k = Math.round(x * q) + ',' + Math.round(y * q) + ',' + Math.round(z * q);
     let id = mapa.get(k); if (id === undefined) { id = vert.length / 3; mapa.set(k, id); vert.push(x, y, z); } tri[i] = id;
   }
-  // fuera los triángulos que se quedan en una línea (dos vértices iguales)
-  const buenos = []; for (let t = 0; t < n; t += 3) if (tri[t] !== tri[t + 1] && tri[t + 1] !== tri[t + 2] && tri[t] !== tri[t + 2]) buenos.push(tri[t], tri[t + 1], tri[t + 2]);
-  const mesh = new (w().Mesh)({ numProp: 3, vertProperties: new Float32Array(vert), triVerts: new Uint32Array(buenos) });
-  try { mesh.merge(); } catch (e) { }
-  const m = apunta(new (w().Manifold)(mesh)), st = m.status();
-  if (st !== 'NoError' || m.isEmpty()) mal(st === 'NotManifold' ? 'Esa pieza tiene la malla abierta o rota (agujeros o caras sueltas): se puede ver y cortar, pero no unir ni restar.' : 'No he podido leer esa pieza como un sólido.');
+  const buenos = [], vistos = new Set();
+  for (let t = 0; t < n; t += 3) { const a = tri[t], b = tri[t + 1], c = tri[t + 2]; if (a === b || b === c || a === c) continue;
+    const lo = Math.min(a, b, c), hi = Math.max(a, b, c), k = lo + ',' + (a + b + c - lo - hi) + ',' + hi; if (vistos.has(k)) continue; vistos.add(k); buenos.push(a, b, c); }
+  return { vert: new Float32Array(vert), tri: new Uint32Array(buenos) };
+}
+// v30.6 · aristas que no cierran: «sueltas» (de un solo triángulo: ahí hay un agujero) y «de más» (las comparten 3 caras o más)
+export function aristasMalas(tri) {
+  const E = new Map(); for (let t = 0; t < tri.length; t += 3) for (let k = 0; k < 3; k++) { const a = tri[t + k], b = tri[t + (k + 1) % 3], key = a < b ? a * 4294967296 + b : b * 4294967296 + a; E.set(key, (E.get(key) || 0) + 1); }
+  let sueltas = 0, deMas = 0; E.forEach(v => { if (v === 1) sueltas++; else if (v > 2) deMas++; }); return { sueltas, deMas };
+}
+// v30.6 · tapa los agujeros sencillos: cada borde abierto (un bucle de aristas sueltas) se cierra con un abanico desde su centro
+function tapaAgujeros(W) {
+  const { vert, tri } = W, K = 4294967296, dir = new Set(); for (let t = 0; t < tri.length; t += 3) for (let k = 0; k < 3; k++) dir.add(tri[t + k] * K + tri[t + (k + 1) % 3]);
+  const sig = new Map(); let lio = false; // el borde se recorre AL REVÉS que el triángulo que lo tiene: así la tapa queda mirando hacia fuera
+  for (let t = 0; t < tri.length; t += 3) for (let k = 0; k < 3; k++) { const a = tri[t + k], b = tri[t + (k + 1) % 3]; if (!dir.has(b * K + a)) { if (sig.has(b)) lio = true; sig.set(b, a); } }
+  if (!sig.size || lio || sig.size > 60000) return null;
+  const V = Array.from(vert), T2 = Array.from(tri), hechos = new Set(); let tapados = 0;
+  for (const ini of sig.keys()) { if (hechos.has(ini)) continue; const L = []; let v = ini, ok = false;
+    for (let i = 0; i < 20000; i++) { L.push(v); hechos.add(v); v = sig.get(v); if (v === undefined) break; if (v === ini) { ok = true; break; } if (hechos.has(v)) break; }
+    if (!ok || L.length < 3) return null;
+    let cx = 0, cy = 0, cz = 0; L.forEach(i => { cx += V[i * 3]; cy += V[i * 3 + 1]; cz += V[i * 3 + 2]; }); const c = V.length / 3; V.push(cx / L.length, cy / L.length, cz / L.length);
+    for (let i = 0; i < L.length; i++) T2.push(L[i], L[(i + 1) % L.length], c); tapados++; }
+  return { vert: new Float32Array(V), tri: new Uint32Array(T2), tapados };
+}
+function solidoDe(W) {
+  try { const mesh = new (w().Mesh)({ numProp: 3, vertProperties: W.vert, triVerts: W.tri }); try { mesh.merge(); } catch (e) { }
+    const m = new (w().Manifold)(mesh); if (m.status() !== 'NoError' || m.isEmpty()) { try { m.delete(); } catch (e) { } return null; } return apunta(m);
+  } catch (e) { return null; }
+}
+export const REPARADAS = new WeakMap(); // sopa → lo que hubo que hacerle al leerla ('' = nada)
+// De «sopa de triángulos» (un STL) a sólido. v30.6: antes, si no cerraba, daba error y la pieza NI SE VEÍA. Ahora prueba, por orden:
+// tal cual → soldando vértices algo más separados → tapando los agujeros sencillos; y si venía del revés (volumen negativo: en
+// pantalla se veía «hueca»), le da la vuelta. Si aun así no es un sólido, lo dice claro (y el Estudio la enseña igualmente).
+export function deSopa(p) {
+  let W = sueldaSopa(p, 1e4), m = solidoDe(W), nota = '';
+  if (!m) { const W2 = sueldaSopa(p, 1e3); m = solidoDe(W2); if (m) { W = W2; nota = 'vértices soldados'; } }
+  if (!m) { const T2 = tapaAgujeros(W); if (T2) { m = solidoDe(T2); if (m) { W = T2; nota = T2.tapados + (T2.tapados === 1 ? ' agujero tapado' : ' agujeros tapados'); } } }
+  if (!m) { const A = aristasMalas(W.tri), L = []; if (A.sueltas) L.push(A.sueltas + ' bordes abiertos'); if (A.deMas) L.push(A.deMas + ' aristas compartidas por más de dos caras'); if (!L.length) L.push('caras cruzadas');
+    mal('Esa pieza no es un sólido cerrado, tiene la malla abierta o rota (' + L.join(' y ') + '): se VE, pero no se puede cortar, unir ni restar. Arréglala en la pestaña «Reparar» y vuelve a traerla.'); }
+  if (m.volume() < 0) { const t2 = new Uint32Array(W.tri.length); for (let i = 0; i < t2.length; i += 3) { t2[i] = W.tri[i]; t2[i + 1] = W.tri[i + 2]; t2[i + 2] = W.tri[i + 1]; }
+    const m2 = solidoDe({ vert: W.vert, tri: t2 }); if (m2) { suelta(m); m = m2; nota = (nota ? nota + ' · ' : '') + 'estaba del revés (se le ha dado la vuelta)'; } }
+  try { REPARADAS.set(p, nota); } catch (e) { }
   return m;
+}
+// v30.6 · para VER una malla que no es un sólido (no pasa por el motor): cada triángulo con su propia normal
+const _crudas = new WeakMap();
+export function vistaCruda(p) {
+  let v = _crudas.get(p); if (v) return v;
+  const nor = new Float32Array(p.length), idx = new Uint32Array(p.length / 3), mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (let t = 0; t < p.length; t += 9) { const ux = p[t + 3] - p[t], uy = p[t + 4] - p[t + 1], uz = p[t + 5] - p[t + 2], vx = p[t + 6] - p[t], vy = p[t + 7] - p[t + 1], vz = p[t + 8] - p[t + 2];
+    let x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx; const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l; for (let k = 0; k < 9; k += 3) { nor[t + k] = x; nor[t + k + 1] = y; nor[t + k + 2] = z; } }
+  for (let i = 0; i < idx.length; i++) idx[i] = i;
+  for (let i = 0; i < p.length; i += 3) for (let k = 0; k < 3; k++) { if (p[i + k] < mn[k]) mn[k] = p[i + k]; if (p[i + k] > mx[k]) mx[k] = p[i + k]; }
+  v = { pos: p, nor, idx, cruda: true, caja: { min: mn, max: mx, dims: [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]] } }; _crudas.set(p, v); return v;
 }
 export function aSopa(m) {
   const M = m.getMesh(), P = M.vertProperties, T = M.triVerts, k = M.numProp, o = new Float32Array(T.length * 3);
@@ -349,15 +396,42 @@ export const CONECTOR_TIPOS = [
   { k: 'clip', e: '🫧', t: 'Clip a presión', d: 'Una bola entra a presión en su casquillo partido: se oye «clac» y aguanta.' },
   { k: 'imanes', e: '🧲', t: 'Imanes', d: 'Hueco para un imán en cada cara: se unen y se separan.' },
   { k: 'cola', e: '🕊️', t: 'Cola de milano', d: 'Se desliza de lado y no se separa tirando.' },
+  { k: 'tornillo', e: '🪛', t: 'Tornillo', d: 'Un tornillo de verdad: agujero pasante con la cabeza escondida en una parte y, en la otra, rosca en el plástico, tuerca o inserto.' },
   { k: 'ninguno', e: '✂️', t: 'Sin conectores', d: 'Solo cortar (para pegar).' }];
+// v30.6 · TORNILLOS (medidas habituales, en mm): paso = agujero pasante · cab/hc = cabeza cilíndrica (Ø y alto) · tuerca/ht = hexagonal (entre caras y grosor) · ins/hi = inserto de latón (agujero y hondo)
+export const TORNILLOS = { '2': { paso: 2.4, cab: 3.8, hc: 2, tuerca: 4, ht: 1.6, ins: 3.2, hi: 4 }, '2.5': { paso: 2.9, cab: 4.5, hc: 2.5, tuerca: 5, ht: 2, ins: 3.6, hi: 4.5 }, '3': { paso: 3.4, cab: 5.5, hc: 3, tuerca: 5.5, ht: 2.4, ins: 4, hi: 5.7 }, '4': { paso: 4.5, cab: 7, hc: 4, tuerca: 7, ht: 3.2, ins: 5.6, hi: 8.1 }, '5': { paso: 5.5, cab: 8.5, hc: 5, tuerca: 8, ht: 4, ins: 6.4, hi: 9.5 } };
+export const TORNILLO_CABEZAS = { cilindrica: '⬛ Escondida', avellanada: '🔻 Avellanada', ninguna: 'Sin rebaje' };
+export const TORNILLO_AGARRES = { rosca: 'Rosca en el plástico', tuerca: 'Tuerca (ranura)', inserto: 'Inserto a calor' };
 export const CONECTOR_FORMAS = { redonda: '● Redonda', cuadrada: '■ Cuadrada', hexagonal: '⬢ Hexagonal' };
 export const CONECTOR_ESTILOS = { recto: '▮ Recto', conico: '▼ Cónico (se centra solo)' };
-const giroA = (eje, inclina) => { // ángulos que llevan la normal del plano a +Z
-  const i = num(inclina, 0);
-  if (eje === 'x') return [0, -90 + i, 0];
-  if (eje === 'y') return [90 + i, 0, 0];
-  return [i, 0, 0];
+// los giros (uno detrás de otro) que llevan la normal del plano a +Z. v30.6: «inclina2» = el segundo giro, para ponerlo como se quiera
+const girosA = (eje, inclina, inclina2) => {
+  const i = num(inclina, 0), j = num(inclina2, 0);
+  if (eje === 'x') return [[0, 0, j], [0, -90 + i, 0]];
+  if (eje === 'y') return [[90 + i, j, 0]];
+  return [[i, j, 0]];
 };
+const gr = a => a * Math.PI / 180, dg = a => Math.round(a * 180 / Math.PI * 100) / 100;
+// v30.6 · el plano de «partir» en el mundo: su normal y el punto por el que pasa (el centro de la pieza, corrido «pos» en su eje)
+export function planoDePartir(o, b0) {
+  const i = gr(num(o.inclina, 0)), j = gr(num(o.inclina2, 0)), eje = o.eje || 'z', ax = { x: 0, y: 1, z: 2 }[eje];
+  const n = eje === 'x' ? [Math.cos(i) * Math.cos(j), -Math.cos(i) * Math.sin(j), Math.sin(i)] : eje === 'y' ? [-Math.sin(j), Math.cos(j) * Math.cos(i), -Math.cos(j) * Math.sin(i)] : [-Math.sin(j), Math.cos(j) * Math.sin(i), Math.cos(j) * Math.cos(i)];
+  const c = [(b0.min[0] + b0.max[0]) / 2, (b0.min[1] + b0.max[1]) / 2, (b0.min[2] + b0.max[2]) / 2]; c[ax] = b0.min[ax] + num(o.pos, b0.dims[ax] / 2);
+  return { n, o: c };
+}
+// …y al revés: de un plano cualquiera (normal n, pasa por p) a «pos / inclina / inclina2» de ese eje (lo que se escribe en las casillas)
+export function paramsDePlano(eje, n, p, b0, tope = 75) {
+  const l = Math.hypot(n[0], n[1], n[2]) || 1, u = [n[0] / l, n[1] / l, n[2] / l], ax = { x: 0, y: 1, z: 2 }[eje || 'z'], ac = x => Math.max(-1, Math.min(1, x)), lim = x => Math.max(-tope, Math.min(tope, x));
+  let i, j;
+  if (eje === 'x') { i = Math.asin(ac(u[2])); j = Math.atan2(-u[1], u[0]); }
+  else if (eje === 'y') { j = -Math.asin(ac(u[0])); i = Math.atan2(-u[2], u[1]); }
+  else { j = -Math.asin(ac(u[0])); i = Math.atan2(u[1], u[2]); }
+  const inclina = lim(dg(i)), inclina2 = lim(dg(j)), n2 = planoDePartir({ eje, inclina, inclina2, pos: 0 }, b0).n;
+  const c = [(b0.min[0] + b0.max[0]) / 2, (b0.min[1] + b0.max[1]) / 2, (b0.min[2] + b0.max[2]) / 2];
+  const pos = ((n2[0] * (p[0] - c[0]) + n2[1] * (p[1] - c[1]) + n2[2] * (p[2] - c[2])) / (n2[ax] || 1e-6)) + c[ax] - b0.min[ax];
+  return { inclina, inclina2, pos: Math.round(pos * 100) / 100 };
+}
+const masCerca = (q, anillos) => { let d = Infinity, p = null; anillos.forEach(r => { for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[j], b = r[i], dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1e-12))), x = a[0] + t * dx, y = a[1] + t * dy, dd = Math.hypot(q[0] - x, q[1] - y); if (dd < d) { d = dd; p = [x, y]; } } }); return { d, p }; };
 const mat = (rx, ry, rz) => { // la misma rotación que Manifold.rotate([rx,ry,rz]) (X, luego Y, luego Z), como matriz 3×3
   const r = a => a * Math.PI / 180, [cx, sx, cy, sy, cz, sz] = [Math.cos(r(rx)), Math.sin(r(rx)), Math.cos(r(ry)), Math.sin(r(ry)), Math.cos(r(rz)), Math.sin(r(rz))];
   const X = [[1, 0, 0], [0, cx, -sx], [0, sx, cx]], Y = [[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]], Z = [[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]];
@@ -401,7 +475,8 @@ export function partir(m, o = {}) {
     const v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
     R = [u, v, n]; m2 = m.transform(aMat4x3(R)); zc = n[0] * o.plano.o[0] + n[1] * o.plano.o[1] + n[2] * o.plano.o[2];
   } else {
-    const ang = giroA(o.eje || 'z', o.inclina); R = mat(...ang); m2 = m.rotate(ang);
+    const G = girosA(o.eje || 'z', o.inclina, o.inclina2), mul3 = (A, B) => A.map(f => [0, 1, 2].map(j => f[0] * B[0][j] + f[1] * B[1][j] + f[2] * B[2][j]));
+    R = G.reduce((A, g) => mul3(mat(...g), A), [[1, 0, 0], [0, 1, 0], [0, 0, 1]]); m2 = G.reduce((x, g) => x.rotate(g), m);
     // «pos» se cuenta desde el principio de la pieza en esa dirección (como la altura de corte de Bambu)
     const ax = { x: 0, y: 1, z: 2 }[o.eje || 'z'], pos = num(o.pos, b0.dims[ax] / 2);
     const centro = [(b0.min[0] + b0.max[0]) / 2, (b0.min[1] + b0.max[1]) / 2, (b0.min[2] + b0.max[2]) / 2]; centro[ax] = b0.min[ax] + pos;
@@ -409,12 +484,27 @@ export function partir(m, o = {}) {
   }
   const Rt = traspuesta(R), b = caja(m2);
   if (!(zc > b.min[2] + 0.05 && zc < b.max[2] - 0.05)) mal('El corte se sale de la pieza: muévelo hacia dentro.');
-  const [arriba0, abajo0] = m2.splitByPlane([0, 0, 1], zc);
+  let [arriba0, abajo0] = m2.splitByPlane([0, 0, 1], zc);
   if (arriba0.isEmpty() || abajo0.isEmpty()) mal('Por ahí no se parte nada: mueve el corte.');
-  const sec = m2.slice(zc), tipo = o.tipo || 'pasadores', hol = ENCAJES[o.encaje || 'justo'] ?? ENCAJES.justo;
-  let arriba = arriba0, abajo = abajo0; const sueltas = [], avisos = []; let sitios = [];
+  // v30.6 · los TROZOS que deja el plano a cada lado (un brazo, la cabeza, el cuerpo…): su volumen y un punto de DENTRO de cada uno (en el mundo)
+  const dentroDe = q => { const g = q.getMesh(), k = g.numProp, V = g.vertProperties, T3 = g.triVerts; if (T3.length < 3) return null; const a = T3[0] * k, b2 = T3[1] * k, c = T3[2] * k, ux = V[b2] - V[a], uy = V[b2 + 1] - V[a + 1], uz = V[b2 + 2] - V[a + 2], vx = V[c] - V[a], vy = V[c + 1] - V[a + 1], vz = V[c + 2] - V[a + 2], nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.hypot(nx, ny, nz) || 1; return [(V[a] + V[b2] + V[c]) / 3 - nx / l * 0.3, (V[a + 1] + V[b2 + 1] + V[c + 1]) / 3 - ny / l * 0.3, (V[a + 2] + V[b2 + 2] + V[c + 2]) / 3 - nz / l * 0.3]; };
+  const Rt0 = traspuesta(R), trozosDe = (x, lado) => x.decompose().map(q => ({ lado, m: q, vol: q.volume(), dentro: dentroDe(q) })).sort((a, b) => b.vol - a.vol);
+  const TA = trozosDe(arriba0, 'arriba'), TB = trozosDe(abajo0, 'abajo'), gordos = L => L.filter(t => t.vol > 0.5); let sec = m2.slice(zc), soloTxt = '', elegido = -1;
+  if (o.solo && (gordos(TA).length > 1 || gordos(TB).length > 1)) { // SOLO se separa el trozo elegido; todo lo demás (lo del otro lado y los otros trozos de este) vuelve a ser una pieza
+    const abajoEl = o.solo.lado === 'abajo', L = abajoEl ? TB : TA, otros = abajoEl ? TA : TB; let el = null;
+    if (o.solo.punto) { const p2 = aplica(R, o.solo.punto), bola = M.sphere(0.6, 12).translate(p2); let mv = 0; gordos(L).forEach(t => { const v = t.m.intersect(bola).volume(); if (v > mv) { mv = v; el = t; } });
+      if (!el) { let md = Infinity; gordos(L).forEach(t => { const c = caja(t.m), d2 = [0, 1, 2].reduce((a, i) => a + Math.max(c.min[i] - p2[i], 0, p2[i] - c.max[i]) ** 2, 0); if (d2 < md) { md = d2; el = t; } }); } }
+    else el = gordos(L)[Math.max(0, Math.min(gordos(L).length - 1, Math.round(num(o.solo.i, 0))))];
+    if (el) { const resto = union(otros.map(t => t.m).concat(L.filter(t => t !== el).map(t => t.m))); elegido = gordos(L).indexOf(el);
+      if (abajoEl) { abajo0 = el.m; arriba0 = resto; } else { arriba0 = el.m; abajo0 = resto; }
+      const s2 = el.m.slice(abajoEl ? zc - 0.02 : zc + 0.02); if (!s2.isEmpty()) sec = s2;
+      soloTxt = 'Solo se separa el trozo elegido (' + String(Math.round(el.vol / 100) / 10).replace('.', ',') + ' cm³); lo demás se queda en una pieza.'; }
+  }
+  const tipo = o.tipo || 'pasadores', hol = (o.holgura !== null && o.holgura !== undefined && o.holgura !== '' && isFinite(Number(o.holgura))) ? Math.max(0, Math.min(1, Number(o.holgura))) : (ENCAJES[o.encaje || 'justo'] ?? ENCAJES.justo);
+  let arriba = arriba0, abajo = abajo0; const sueltas = [], avisos = [], tor = []; let sitios = []; if (soloTxt) avisos.push(soloTxt);
   if (tipo !== 'ninguno') {
-    const d = tipo === 'imanes' ? Math.max(1, num(o.imanD, 6)) : Math.max(1.5, num(o.d, 5)), L = Math.max(2, num(o.largo, 10)), prof = tipo === 'imanes' ? Math.max(0.6, num(o.imanH, 3)) + 0.2 : L / 2 + 0.4;
+    const TOR = TORNILLOS[String(o.metrica || '3')] || TORNILLOS['3'], Mt = Number(o.metrica) || 3;
+    const d = tipo === 'imanes' ? Math.max(1, num(o.imanD, 6)) : tipo === 'tornillo' ? Math.max(TOR.cab, o.agarre === 'tuerca' ? TOR.tuerca / Math.cos(Math.PI / 6) : o.agarre === 'inserto' ? TOR.ins : 0) + 1.2 : Math.max(1.5, num(o.d, 5)), L = Math.max(2, num(o.largo, 10)), prof = tipo === 'imanes' ? Math.max(0.6, num(o.imanH, 3)) + 0.2 : L / 2 + 0.4;
     if (tipo === 'cola') { // colas de milano: atraviesan el corte de delante atrás, repartidas a lo ancho
       const b2 = cajaCS(sec), k = Math.max(1, Math.min(4, o.n > 0 ? Math.round(o.n) : Math.round(b2.w / 60) + 1));
       sitios = b2.w > d * 2.4 ? Array.from({ length: k }, (_, i) => [b2.min[0] + b2.w * (i + 0.5) / k, (b2.min[1] + b2.max[1]) / 2]) : [];
@@ -422,14 +512,14 @@ export function partir(m, o = {}) {
       const dentro = sec.offset(-(d / 2 + hol + 0.8), 'Round', 2, 24), an = dentro.isEmpty() ? [] : dentro.toPolygons();
       sitios = o.sitios.filter(q => an.length && dentroAnillos(q, an)); if (sitios.length < o.sitios.length) avisos.push((o.sitios.length - sitios.length) + ' conector(es) quedaban fuera o pegados al borde: no los pongo.');
     } else sitios = sitiosConectores(sec, d / 2 + hol, o.n, 1.6);
-    if (!sitios.length) avisos.push('El corte es demasiado estrecho para conectores de ' + String(d).replace('.', ',') + ' mm: lo parto sin ellos (o prueba con uno más fino).');
+    if (!sitios.length) avisos.push(tipo === 'tornillo' ? 'El corte es demasiado estrecho para un tornillo M' + String(Mt).replace('.', ',') + ' (su cabeza necesita unos ' + Math.ceil(d + 3.4) + ' mm de ancho): lo parto sin él. Prueba con uno más fino o mueve el corte a donde haya más material.' : 'El corte es demasiado estrecho para conectores de ' + String(d).replace('.', ',') + ' mm: lo parto sin ellos (o prueba con uno más fino).');
     // cuánto «hondo» cabe en cada lado sin atravesar la pieza
     const cil = (dd, z0, z1, q, cuadrado) => (cuadrado ? M.cube([dd, dd, z1 - z0], true).translate([q[0], q[1], (z0 + z1) / 2]) : M.cylinder(z1 - z0, dd / 2, dd / 2, seg(dd)).translate([q[0], q[1], z0]));
     // v20.2 · un prisma con su FORMA (redonda/cuadrada/hexagonal) y su ESTILO (recto o cónico: más estrecho en la punta, abajo)
     const forma = o.forma || (tipo === 'cuadrada' ? 'cuadrada' : 'redonda'), conico = o.estilo === 'conico', kc = 0.72;
     const seccion2 = dd => forma === 'cuadrada' ? CS.square([dd, dd], true) : forma === 'hexagonal' ? CS.circle(dd / 2 / Math.cos(Math.PI / 6), 6) : CS.circle(dd / 2, seg(dd));
     const prisma = (dd, z0, z1, q, cono) => { const h0 = z1 - z0; if (!cono) return seccion2(dd).extrude(h0).translate([q[0], q[1], z0]); return seccion2(dd).extrude(h0, 0, 0, [kc, kc]).scale([1, 1, -1]).translate([q[0], q[1], z1]); };
-    const H = [], A = [], Ab = [];
+    const H = [], A = [], Ab = [], Tc = [], Tg = [], sg = o.entra === 'abajo' ? -1 : 1; // (tornillos: Tc = lo que se quita en la parte de la CABEZA, Tg = en la que AGARRA)
     sitios.forEach(q => {
       if (tipo === 'pasadores') { H.push(prisma(d + 2 * hol, zc - prof, zc + prof, q, false)); sueltas.push(seccion2(d).extrude(L - 0.4).translate([q[0], q[1], 0])); }
       else if (tipo === 'espiga' || tipo === 'cuadrada') { A.push(prisma(d, zc - L / 2, zc + 0.01, q, conico)); Ab.push(prisma(d + 2 * hol, zc - L / 2 - 0.4, zc + 0.01, q, conico)); }
@@ -443,6 +533,27 @@ export function partir(m, o = {}) {
         [0, 90].forEach(a => Ab.push(M.cube([2 * rf + 2 * foso, 0.8, zc + 0.02 - cz], true).rotate([0, 0, a]).translate([q[0], q[1], (zc + cz) / 2]))); // los cortes que hacen los pétalos
       }
       else if (tipo === 'imanes') { H.push(cil(d + 2 * ENCAJES.justo, zc - prof, zc + prof, q)); }
+      else if (tipo === 'tornillo') { // v30.6 · el tornillo entra por FUERA de una parte (la de la cabeza), atraviesa el corte y agarra en la otra
+        // se hace «en local» (el corte en z = 0, la cabeza hacia +z) y luego se pone en su sitio (del revés si entra por abajo)
+        const pon = x => (sg > 0 ? x : x.mirror([0, 0, 1])).translate([q[0], q[1], zc]), cz = (h0, r0, r1, z0) => M.cylinder(h0, r0, r1 === undefined ? r0 : r1, seg(2 * Math.max(r0, r1 || 0))).translate([0, 0, z0]);
+        const fuera = (sg > 0 ? b.max[2] - zc : zc - b.min[2]) + 2, Lt = Math.max(Mt * 2, num(o.largoT, 12)), agarra = Math.min(Lt - 1.5, Math.max(Mt * 1.5, num(o.agarra, Math.min(8, Lt * 0.5)))), hCab = Lt - agarra; // hCab: del corte al asiento de la cabeza
+        Tc.push(pon(cz(fuera + 0.02, TOR.paso / 2, undefined, -0.01))); // el pasante, hasta salir por fuera
+        if (fuera - hCab > 0.05) {
+          if (o.cabeza === 'avellanada') Tc.push(pon(cz(Mt * 0.6, TOR.paso / 2, TOR.cab / 2 + 0.2, hCab - Mt * 0.6)), pon(cz(fuera - hCab, TOR.cab / 2 + 0.2, undefined, hCab - 0.01)));
+          else if (o.cabeza !== 'ninguna') Tc.push(pon(cz(fuera - hCab, TOR.cab / 2 + 0.3, undefined, hCab))); // el rebaje de la cabeza: desde su asiento hasta fuera
+        }
+        let sinSalida = false;
+        if (o.agarre === 'tuerca') { // la tuerca NO puede ir en la cara del corte (tiraría de la otra parte y no sujetaría nada): va más adentro, y entra de lado por una ranura
+          const pared = Math.max(2.4, Mt), alto = TOR.ht + 0.3, ancho = TOR.tuerca + 2 * ENCAJES.justo, zN = zc - sg * (pared + alto / 2), s3 = (sg > 0 ? abajo0 : arriba0).slice(zN), an = s3.isEmpty() ? [] : s3.toPolygons(), mc = an.length ? masCerca(q, an) : { d: 0, p: null };
+          if (!mc.p || !dentroAnillos(q, an)) sinSalida = true;
+          else { const ux = (mc.p[0] - q[0]) / (mc.d || 1), uy = (mc.p[1] - q[1]) / (mc.d || 1), vx = -uy, vy = ux, a0 = -(ancho / 2 / Math.cos(Math.PI / 6)) - 0.1, a1 = mc.d + 1.5, pt = (a, l) => [ux * a + vx * l, uy * a + vy * l];
+            Tg.push(pon(cs([[pt(a0, -ancho / 2), pt(a1, -ancho / 2), pt(a1, ancho / 2), pt(a0, ancho / 2)]]).extrude(alto).translate([0, 0, -pared - alto]))); }
+          Tg.push(pon(cz(Math.max(agarra, pared + alto) + 1.5, TOR.paso / 2, undefined, -Math.max(agarra, pared + alto) - 1.49)));
+        }
+        else if (o.agarre === 'inserto') Tg.push(pon(cz(TOR.hi + 0.6, TOR.ins / 2, undefined, -TOR.hi - 0.59)), pon(cz(Math.max(agarra + 1.5, TOR.hi) + 0.01, TOR.paso / 2, undefined, -Math.max(agarra + 1.5, TOR.hi))));
+        else Tg.push(pon(cz(agarra + 1.2, Mt * 0.85 / 2, undefined, -agarra - 1.19))); // se rosca en el plástico: agujero al 85 %
+        tor.push({ q, hCab, Lt, agarra, pon, cz, sinSalida });
+      }
       else if (tipo === 'cola') { // cola de milano: trapecio en el plano del corte, se desliza en Y
         const ancho = d * 1.8, cuello = d * 1.1, alto = Math.min(L / 2, d), b2 = cajaCS(sec), largo = b2.h + 2;
         const tr = (k) => cs([[[-cuello / 2 - k, 0], [cuello / 2 + k, 0], [ancho / 2 + k, -alto - k], [-ancho / 2 - k, -alto - k]]]);
@@ -452,6 +563,17 @@ export function partir(m, o = {}) {
     });
     if (H.length) { const u = union(H); arriba = arriba.subtract(u); abajo = abajo.subtract(u); }
     if (A.length) { arriba = arriba.add(union(A)); abajo = abajo.subtract(union(Ab)); }
+    if (Tc.length) { // tornillos: se quita lo suyo de cada parte y se comprueba que cada uno tiene carne (asiento de la cabeza y dónde agarrar)
+      const cab0 = sg > 0 ? arriba0 : abajo0, agr0 = sg > 0 ? abajo0 : arriba0, c1 = x => String(Math.round(x * 10) / 10).replace('.', ',');
+      if (sg > 0) { arriba = arriba.subtract(union(Tc)); abajo = abajo.subtract(union(Tg)); } else { abajo = abajo.subtract(union(Tc)); arriba = arriba.subtract(union(Tg)); }
+      tor.forEach((t, i) => {
+        const rA = TOR.cab / 2 + 0.6, anillo = t.pon(t.cz(0.4, rA, undefined, Math.max(0.05, t.hCab - 0.45)).subtract(t.cz(0.5, TOR.paso / 2, undefined, Math.max(0, t.hCab - 0.5)))), lleno = Math.PI * (rA * rA - TOR.paso * TOR.paso / 4) * 0.4;
+        if (cab0.intersect(anillo).volume() < lleno * 0.7) avisos.push('Tornillo ' + (i + 1) + ': a ' + c1(t.hCab) + ' mm del corte no hay material para apoyar la cabeza (esa parte es más fina o se sale por un lado). Usa un tornillo más corto, haz que agarre menos o muévelo.');
+        const rG = Mt / 2 + 1.2, tubo = t.pon(t.cz(t.agarra, rG, undefined, -t.agarra)), lleno2 = Math.PI * rG * rG * t.agarra;
+        if (agr0.intersect(tubo).volume() < lleno2 * 0.9) avisos.push('Tornillo ' + (i + 1) + ': en la otra parte no hay bastante material alrededor para que agarre ' + c1(t.agarra) + ' mm (pared fina o se sale): muévelo o acórtalo.');
+        if (t.sinSalida) avisos.push('Tornillo ' + (i + 1) + ': no encuentro por dónde meter la tuerca de lado: usa «Rosca en el plástico» o «Inserto».');
+      });
+    }
   }
   // para verla montada (un poco abierta) y para imprimirla (cada parte con el corte hacia la cama)
   const vuelve = x => x.transform(aMat4x3(Rt));
@@ -462,7 +584,10 @@ export function partir(m, o = {}) {
   pon('parte_A', saliente ? arriba.rotate([180, 0, 0]) : arriba); // la espiga (o la bola) apunta hacia arriba al imprimir
   pon('parte_B', saliente ? abajo : abajo.rotate([180, 0, 0]));
   sueltas.forEach((s, i) => pon('pasador_' + (i + 1), s.rotate([90, 0, 0])));
-  return { montadas, imprimir, sitios, seccion: sec.area(), normal: nrm, avisos, plano: { R, zc } };
+  // v30.6 · para la VISTA PREVIA: las dos partes en su sitio (sin abrir), los trozos de cada lado y el contorno del corte (rayas, en el mundo)
+  const contorno = []; try { sec.toPolygons().forEach(r => { for (let i = 0; i < r.length; i++) { const a = aplica(Rt, [r[i][0], r[i][1], zc]), c = aplica(Rt, [r[(i + 1) % r.length][0], r[(i + 1) % r.length][1], zc]); contorno.push(a[0], a[1], a[2], c[0], c[1], c[2]); } }); } catch (e) { }
+  const trozos = gordos(TA).concat(gordos(TB)).map((t, i, L) => ({ lado: t.lado, i: L.filter((x, k) => k < i && x.lado === t.lado).length, vol: t.vol, punto: t.dentro ? aplica(Rt0, t.dentro) : null }));
+  return { montadas, imprimir, sitios, seccion: sec.area(), normal: nrm, avisos, plano: { R, zc }, enSitio: { arriba: vuelve(arriba), abajo: vuelve(abajo) }, abre, contorno: new Float32Array(contorno), trozos, elegido, tornillos: tor.length, holgura: hol };
 }
 
 // ---------- vaciar (paredes de «pared» mm, abierta por arriba si quieres) ----------
@@ -587,7 +712,7 @@ export function tresMF(partes, nombre = 'pieza', ajustes = null, op = {}) {
   const te = new TextEncoder(), extra = ajustes ? [{ nombre: 'Metadata/model_settings.config', datos: te.encode('<?xml version="1.0" encoding="UTF-8"?>\n<config>\n' + ms + '</config>\n') }] : [];
   // v30.2 · 🌈 las PAUSAS para cambiar de color (formato de Bambu Studio: tipo 1 = pausa). Ojo: su Bambu, con un 3MF que no es
   // proyecto suyo, no las lee (comprobado por línea de órdenes): van por si acaso; la pausa se pone a mano (el asistente dice la capa).
-  if (op && op.cambios && op.cambios.length) extra.push({ nombre: 'Metadata/custom_gcode_per_layer.xml', datos: te.encode('<?xml version="1.0" encoding="utf-8"?>\n<custom_gcodes_per_layer>\n<plate>\n<plate_info id="1"/>\n' + op.cambios.map(c => '<layer top_z="' + String(Math.round(Number(c.z) * 1000) / 1000) + '" type="1" extruder="1" color="' + esc(String(c.color || '#000000').toUpperCase()) + '" extra="" gcode="M400 U1"/>\n').join('') + '<mode value="SingleExtruder"/>\n</plate>\n</custom_gcodes_per_layer>\n') });
+  if (op && op.cambios && op.cambios.length) extra.push({ nombre: 'Metadata/custom_gcode_per_layer.xml', datos: te.encode('<?xml version="1.0" encoding="utf-8"?>\n<custom_gcodes_per_layer>\n<plate>\n<plate_info id="1"/>\n' + op.cambios.map(c => { const propia = c.tipo === 'gcode' && c.gcode; return '<layer top_z="' + String(Math.round(Number(c.z) * 1000) / 1000) + '" type="' + (propia ? 4 : 1) + '" extruder="1" color="' + esc(String(c.color || '#000000').toUpperCase()) + '" extra="' + (propia ? esc(String(c.gcode)) : '') + '" gcode="' + (propia ? esc(String(c.gcode)) : 'M400 U1') + '"/>\n'; }).join('') + '<mode value="SingleExtruder"/>\n</plate>\n</custom_gcodes_per_layer>\n') });
   return zip([
     { nombre: '[Content_Types].xml', datos: te.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>') },
     { nombre: '_rels/.rels', datos: te.encode('<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>') },

@@ -110,7 +110,7 @@ export function evaluar(P) {
     const H = [];
     vis.filter(c => c.hueco).forEach(c => { try { const e = entradaDe(c, P), M = matriz4(c.t); H.push({ c, e, M, b: cajaMundo(cajaLocal(e), M), k: claveDe(c) + '@' + tKey(c.t) }); } catch (x) { avisos.push((c.nombre || nombreTipo(c)) + ': ' + (x.message || x)); fallan.push(c.id); } });
     // 2) los sólidos: cada uno (o cada hijo de una matriz «de colores») con su matriz; solo si un hueco lo toca, se resta
-    const items = [];
+    const items = [], rotas = [];
     const pon = (c, id, sub, Mpadre, kPadre) => {
       const e = entradaDe(c, P), M = Mpadre ? Mpadre.clone().multiply(matriz4(c.t)) : matriz4(c.t);
       items.push({ id, sub, c, e, M, b: cajaMundo(cajaLocal(e), M), k: claveDe(c) + '@' + kPadre + tKey(c.t), vol: volLocal(e) * detEsc(c.t) * (Mpadre ? Mpadre.determinant() : 1) });
@@ -121,7 +121,7 @@ export function evaluar(P) {
         if (cada && c.hijos.every(x => !x.hueco && x.tipo !== 'grupo')) { const G = matriz4(c.t); c.hijos.filter(x => !x.oculto).forEach(x => pon(x, c.id, x.id, G, tKey(c.t) + '/')); }
         else if (cada) { const r = evalLista(c.hijos.filter(x => !x.oculto), P, false, avisos); r.partes.forEach(x => { const m = N.coloca(x.m, c.t), vista = N.aVista(m); items.push({ id: c.id, sub: x.id, c: Object.assign({}, busca(P, x.id) || {}, { color: x.color, acabado: x.acabado }), vista, b: N.caja(m), vol: m.volume(), hecho: true, k: 'hecho:' + claveDe(c) + '@' + tKey(c.t) + '/' + x.id }); }); }
         else pon(c, c.id, null, null, '');
-      } catch (x) { avisos.push((c.nombre || nombreTipo(c)) + ': ' + (x.message || x)); fallan.push(c.id); }
+      } catch (x) { avisos.push((c.nombre || nombreTipo(c)) + ': ' + (x.message || x)); fallan.push(c.id); if (c.tipo === 'malla' && MALLAS.get(c.p.malla)) rotas.push(c); }
     });
     const partes = [];
     items.forEach(it => {
@@ -137,8 +137,10 @@ export function evaluar(P) {
       } else { csg.delete(k); csg.set(k, r); }
       if (!r.vacia) { const e = it.e, M = it.M, T2 = toca.map(h => ({ m: h.e.m, M: h.M })); partes.push({ id: it.id, sub: it.sub, color: col, acabado: ac, vista: r.vista, caja: r.caja, vol: r.vol, clave: k, hazM: () => N.transforma(e.m, M).subtract(N.union(T2.map(h => N.transforma(h.m, h.M)))) }); }
     });
+    // v30.6 · una malla importada que NO es un sólido (abierta o rota) se enseña tal cual, para verla y saber qué le pasa (no se puede cortar ni unir)
+    rotas.forEach(c => { const v = N.vistaCruda(MALLAS.get(c.p.malla)), M = matriz4(c.t); partes.push({ id: c.id, sub: null, color: c.color || '#b4b8bf', acabado: c.acabado || 'mate', vista: v, matriz: M.elements.slice(), caja: cajaMundo(v.caja, M), vol: 0, clave: 'rota:' + c.p.malla + '@' + tKey(c.t), rota: true }); });
     const huecos = H.map(h => ({ id: h.c.id, vista: vistaDe(h.e), matriz: h.M.elements.slice() }));
-    const proxies = vis.map(c => { try { return { id: c.id, vista: vistaDe(entradaDe(c, P)), t: c.t }; } catch (e) { return null; } }).filter(Boolean);
+    const proxies = vis.map(c => { try { return { id: c.id, vista: vistaDe(entradaDe(c, P)), t: c.t }; } catch (e) { return rotas.includes(c) ? { id: c.id, vista: N.vistaCruda(MALLAS.get(c.p.malla)), t: c.t } : null; } }).filter(Boolean);
     // 3) números rápidos (la caja de todo y el volumen sumado); lo exacto, con infoExacta() cuando no se toca nada
     let info = null;
     if (partes.length) {

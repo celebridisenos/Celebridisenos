@@ -27,7 +27,7 @@ function dibujo() {
   return svg;
 }
 export function abrir(o = {}) {
-  const g0 = CPR.guardado(), estado = { cal: { cero: 0 }, imp: 'P1P', mat: 'PETG', med: {}, R: null, calibre: g0.calibre };
+  const g0 = CPR.guardado(), estado = { cal: { cero: 0, refs: [{ k: 'c20', medido: '' }] }, imp: 'P1P', mat: 'PETG', med: {}, R: null, calibre: g0.calibre };
   let cerrar = () => { };
   const cuerpo = h('div.cpr'), pinta = () => mount(cuerpo, contenido());
   const num = (o, k, t, ph, extra) => h('label.cpr-c', h('span', t), h('input.inp', { type: 'number', step: 0.01, min: k === 'cero' ? -5 : 0, value: o[k] ?? '', placeholder: ph || '', 'data-k': k, oninput: e => { o[k] = e.target.value === '' ? '' : Number(String(e.target.value).replace(',', '.')); } }), extra || null);
@@ -38,9 +38,15 @@ export function abrir(o = {}) {
       act ? h('p.cpr-ok', '🎯 Ahora se usa: «' + act.clave + '» (' + act.fecha + ') · ' + CPR.texto(act)) : h('p.small.muted', 'Todavía no hay ninguna calibración en uso.'),
       // 1 · el calibre
       h('details.cpr-sec', { open: !C }, h('summary', h('b', '1 · Tu calibre'), C ? h('small', C.ok ? ' ✅ comprobado (' + C.fecha + ')' : ' ⚠️ se desvía ' + n2(C.off) + ' mm (' + C.fecha + ')') : h('small', ' sin comprobar')),
-        h('p.small', 'Cierra las patas: tiene que marcar 0,00. Luego mide el DIÁMETRO de una o varias monedas (por el canto, sin apretar). Son patrones con medida oficial.'),
-        h('div.cpr-fila', num(estado.cal, 'cero', 'Cerrado marca', '0,00'), Object.entries(CPR.MONEDAS).map(([k, [t, mm]]) => num(estado.cal, k, 'Moneda de ' + t, n2(mm), h('small.muted', 'oficial ' + n2(mm))))),
-        btn('Comprobar el calibre', () => { const r = CPR.calibre(estado.cal); CPR.guardaCalibre(r); estado.calibre = CPR.guardado().calibre; toast(r.ok ? '✅ Tu calibre mide bien' + (r.monedas.length ? ' (con ' + r.monedas.length + ' moneda' + (r.monedas.length > 1 ? 's' : '') + ')' : '') : '⚠️ ' + r.avisos.join(' '), r.ok ? 'ok' : 'warn', 9000); pinta(); }, { cls: 'sm primary cpr-compcal' })),
+        h('p.small', 'Cierra las patas: tiene que marcar 0,00. Luego mide algo cuya medida de verdad conozcas: el DIÁMETRO de una moneda (por el canto, sin apretar) u otra cosa de medida conocida. La de 20 céntimos mide 22,25 mm.'),
+        h('div.cpr-fila', num(estado.cal, 'cero', 'Cerrado marca', '0,00')),
+        h('div.cpr-refs', estado.cal.refs.map((r, i) => h('div.cpr-fila.cpr-ref', { 'data-ref': i },
+          h('label.cpr-c', h('span', 'Con qué lo compruebo'), h('select.inp', { 'data-k': 'refk', onchange: e => { r.k = e.target.value; pinta(); } }, Object.entries(CPR.MONEDAS).map(([k, [t, mm]]) => h('option', { value: k, selected: r.k === k }, 'Moneda de ' + t + ' · ' + n2(mm) + ' mm')).concat([h('option', { value: 'otra', selected: r.k === 'otra' }, 'Otra cosa de medida conocida…')]))),
+          r.k === 'otra' ? h('label.cpr-c', h('span', 'Su medida de verdad'), h('input.inp', { type: 'number', step: 0.01, min: 0, value: r.oficial ?? '', placeholder: 'mm', 'data-k': 'refoficial', oninput: e => { r.oficial = e.target.value; } })) : null,
+          h('label.cpr-c', h('span', 'Tu calibre marca'), h('input.inp', { type: 'number', step: 0.01, min: 0, value: r.medido ?? '', placeholder: r.k === 'otra' ? 'mm' : n2(CPR.MONEDAS[r.k][1]), 'data-k': 'refmedido', oninput: e => { r.medido = e.target.value; } }), r.k === 'otra' ? null : h('small.muted', 'oficial ' + n2(CPR.MONEDAS[r.k][1]))),
+          estado.cal.refs.length > 1 ? h('button.btn.sm.ghost.cpr-quitaref', { type: 'button', title: 'Quitar esta referencia', onclick: () => { estado.cal.refs.splice(i, 1); pinta(); } }, '✕') : null))),
+        btn('+ Otra referencia', () => { const usadas = estado.cal.refs.map(r => r.k), libre = Object.keys(CPR.MONEDAS).find(k => !usadas.includes(k)) || 'otra'; estado.cal.refs.push({ k: libre, medido: '' }); pinta(); }, { cls: 'sm ghost cpr-masref' }),
+        btn('Comprobar el calibre', () => { const r = CPR.calibre(CPR.medidasDe(estado.cal)); CPR.guardaCalibre(r); estado.calibre = CPR.guardado().calibre; toast(r.ok ? '✅ Tu calibre mide bien' + (r.monedas.length ? ' (con ' + r.monedas.length + ' referencia' + (r.monedas.length > 1 ? 's' : '') + ')' : '') : '⚠️ ' + r.avisos.join(' '), r.ok ? 'ok' : 'warn', 9000); pinta(); }, { cls: 'sm primary cpr-compcal' })),
       // 2 · la probeta
       h('details.cpr-sec', { open: !!C && !act }, h('summary', h('b', '2 · Imprime la probeta')),
         h('p.small', 'Con TU perfil y TU filamento de siempre (la impresora y el material de abajo). La probeta va sin compensaciones para medir tu impresora tal cual. Laminada con tu perfil PRECISION en PETG: 33 min en la P1P, 36 min en la A1 mini, unos 12 g, sin soportes.'),

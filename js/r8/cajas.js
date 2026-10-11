@@ -26,9 +26,14 @@ const impar = x => { x = Math.max(3, Math.round(x)); return x % 2 ? x : x + 1; }
 // ---------- lo que se puede elegir ----------
 export const TAPAS = {
   presion: { e: '⬒', t: 'Tapa a presión', d: 'Un labio que entra justo dentro de la caja. Sin bisagras: se quita entera.' },
-  bisagraFil: { e: '🧵', t: 'Bisagra · eje de filamento', d: 'El eje es un trozo de TU filamento de 1,75 mm: no compras nada.', pin: 1.75, Rk: 3.4, hEje: 0.05, hTapa: 0.2 },
-  bisagraImp: { e: '📌', t: 'Bisagra · eje impreso', d: 'Sale un pasador con cabeza que se mete por los nudos (más fuerte).', pin: 3, Rk: 4.2, hEje: 0.1, hTapa: 0.25 },
-  bisagraClic: { e: '🫰', t: 'Bisagra de clic', d: 'El eje es parte de la caja y la tapa se engancha apretando: sin piezas sueltas (la tapa se puede quitar).', pin: 3, Rk: 4.2, hTapa: 0.2, boca: 2.5 }
+  // v30.6 · LA DUEÑA LAS IMPRIMIÓ Y SE PARTÍAN («no cierran ni abren… se parte todo, es muy fino»). Lo que estaba mal: el agujero del
+  // filamento medía 1,85 (tumbado sale a ~1,7: el filamento de 1,75 no entra), el pasador impreso era de Ø3 (se parte al meterlo) y la
+  // de clic obliga a abrir un aro impreso por capas (se raja). Ahora: nudos más gordos y largos, agujeros con sitio de verdad
+  // (agarre = pin + 0,3; giro = pin + 0,6), pasador de Ø4, y una nueva con TORNILLO M3 de eje. La de clic ya no se ofrece (fragil).
+  bisagraFil: { e: '🧵', t: 'Bisagra · eje de filamento', d: 'El eje es un trozo de TU filamento de 1,75 mm: no compras nada.', pin: 1.75, Rk: 4.2, hEje: 0.15, hTapa: 0.3 },
+  bisagraImp: { e: '📌', t: 'Bisagra · eje impreso', d: 'Sale un pasador gordo (Ø4) con cabeza que se mete por los nudos: fuerte y sin comprar nada.', pin: 4, Rk: 5.5, hEje: 0.15, hTapa: 0.3 },
+  bisagraTor: { e: '🪛', t: 'Bisagra · tornillo M3', d: 'El eje es un tornillo M3 largo que se rosca en el último nudo: la más fuerte (el tornillo se compra).', pin: 3, Rk: 5, hEje: 0.2, hTapa: 0.3, rosca: 1.3, comprado: 'tornillo M3' },
+  bisagraClic: { e: '🫰', t: 'Bisagra de clic (frágil)', d: 'Ya no se recomienda: para engancharla hay que abrir un aro impreso por capas y se raja. Cámbiala por otra.', pin: 4, Rk: 5.5, hTapa: 0.3, boca: 3.4, fragil: true }
 };
 export const AJUSTES = { suave: ['Suave', 'gira'], firme: ['Firme', 'justo'], fuerte: ['Muy firme', 'presion'] };
 export const conBisagra = C => C.tapa !== 'presion';
@@ -47,7 +52,7 @@ export const TIPOS = {
   etiqueta: { e: '🏷️', t: 'Portaetiquetas', d: 'Un marquito para meter una tarjeta', caras: LADOS, p: { ancho: 40, alto: 22 }, campos: [['ancho', 'Ancho de la tarjeta', 16, 140, 1], ['alto', 'Alto de la tarjeta', 10, 90, 1]] },
   separador: { e: '▤', t: 'Separador', d: 'Una pared por dentro (compartimentos)', caras: ['dentro'], p: { dir: 'y' }, campos: [] }
 };
-export function nueva() { return { L: 120, W: 80, H: 50, pared: 2.4, suelo: 2, tapaG: 2.4, radio: 4, tapa: 'bisagraFil', ajuste: 'firme', labio: 5, tope: true, color: '#9d6d3f', colorTapa: '#c9a227', els: [] }; }
+export function nueva() { return { L: 120, W: 80, H: 50, pared: 3, suelo: 2.4, tapaG: 3, radio: 4, tapa: 'bisagraFil', ajuste: 'firme', labio: 5, tope: true, color: '#9d6d3f', colorTapa: '#c9a227', els: [] }; }
 let ids = 0;
 export const nuevoId = () => 'e' + Date.now().toString(36) + (ids++).toString(36);
 export const elemento = (tipo, cara, u, v, p) => ({ id: nuevoId(), tipo, cara, u, v, p: Object.assign({}, TIPOS[tipo].p, p || {}) });
@@ -60,7 +65,7 @@ export const PLANTILLAS = {
     els: [['puerta', 'frente', 0, 50, { ancho: 60, alto: 70 }], ['pomo', 'frente', 20, 50, { d: 12, alto: 10 }]] },
   tornillos: { e: '🔩', t: 'Caja de tornillos', d: 'Tapa a presión y 6 compartimentos', C: { L: 150, W: 100, H: 40, radio: 4, tapa: 'presion', color: '#8e9196', colorTapa: '#f7d117' },
     els: [['separador', 'dentro', -25, 0], ['separador', 'dentro', 25, 0], ['separador', 'dentro', 0, 0, { dir: 'x' }], ['etiqueta', 'frente', 0, 20]] },
-  secreta: { e: '🤫', t: 'Caja secreta', d: 'Bisagra de clic y cierre con imanes', C: { L: 90, W: 90, H: 45, radio: 8, tapa: 'bisagraClic', pared: 3, tapaG: 3, color: '#5e43b7', colorTapa: '#c08ee8' },
+  secreta: { e: '🤫', t: 'Caja secreta', d: 'Bisagra de eje impreso y cierre con imanes', C: { L: 90, W: 90, H: 45, radio: 8, tapa: 'bisagraImp', pared: 3, tapaG: 3, color: '#5e43b7', colorTapa: '#c08ee8' },
     els: [['bisagra', 'atras', 0, 0, { largo: 50 }], ['iman', 'frente', -22, 0], ['iman', 'frente', 22, 0], ['pomo', 'tapa', 0, -20, { d: 14, alto: 9 }]] }
 };
 export function dePlantilla(k) { const P = PLANTILLAS[k], C = Object.assign(nueva(), P.C); C.els = P.els.map(([t, c, u, v, p]) => elemento(t, c, u, v, p)); return C; }
@@ -86,8 +91,12 @@ const enCara = (m, F) => m.transform(matCara(F));
 // ---------- medidas que salen de la caja ----------
 const holTapa = C => ENCAJES[(AJUSTES[C.ajuste] || AJUSTES.firme)[1]];
 export function cierreMedidas(C) {
-  const c = 0.2, r = 1.0, diente = 1.0, tt = 1.8, enganche = diente - c; // la patilla: 1,8 de grueso; el diente engancha 0,8 mm
-  const La = Math.max(10, Math.ceil(Math.sqrt(1.5 * tt * enganche / 0.02))); // largo para que se doble ≤ 2 % (PLA y PETG lo aguantan)
+  // v30.6 · la patilla cuelga de la tapa y se imprime DE PIE: al doblarse tira de las capas, que es por donde el plástico aguanta
+  // menos (el PLA se raja cerca del 1 %). Antes se doblaba un 2 % (0,8 mm en 11 mm) y se partía. Ahora engancha 0,5 mm y es todo
+  // lo larga que deja la caja (hasta 22 mm): se estira un 0,3–0,5 %. Si la caja es baja, la patilla se hace más fina para no pasar.
+  const c = 0.2, r = 0.7, diente = 0.7, enganche = r - c + 0.0; // lo que monta el diente sobre el saliente
+  const sitio = Math.max(8, (C.H || 50) - (C.suelo || 2.4) - 5), La = Math.max(10, Math.min(22, Math.floor(sitio)));
+  let tt = 2; while (tt > 1.2 && 1.5 * tt * enganche / (La * La) > 0.005) tt = Math.round((tt - 0.2) * 10) / 10;
   return { c, r, diente, tt, enganche, La, def: 1.5 * tt * enganche / (La * La) };
 }
 const LADO_HUECO = C => ({ L: C.L - 2 * C.pared, W: C.W - 2 * C.pared });
@@ -182,11 +191,13 @@ export function zona(C, tipo, cara, u, v, p, idIgnora) {
 //     puertas: [{ id, m, eje: { o, dir } }], eje (de la tapa: { o, dir }), avisos, piezas }
 export function construye(C) {
   const L = C.L, W = C.W, H = C.H, pr = C.pared, sf = C.suelo, tg = C.tapaG, R = Math.max(0, Math.min(C.radio, Math.min(L, W) / 2 - 1)), T = TAPAS[C.tapa] || TAPAS.presion;
-  if (pr < 1.2) N.mal('Las paredes tienen que medir al menos 1,2 mm.');
+  if (pr < 1.6) N.mal('Las paredes tienen que medir al menos 1,6 mm (con menos se parten).');
   if (L - 2 * pr < 10 || W - 2 * pr < 10 || H < sf + 8) N.mal('La caja es demasiado pequeña para sus paredes.');
   let cuerpo = prisma(L, W, R, 0, H).subtract(prisma(L - 2 * pr, W - 2 * pr, Math.max(0.3, R - pr), sf, H + 1));
   let tapa = prisma(L, W, R, H, H + tg);
   const masC = [], menosC = [], masT = [], menosT = [], sueltas = [], puertas = [], avisos = [];
+  if (T.fragil) avisos.push('La bisagra de clic se raja al engancharla: cámbiala por la de eje impreso, la de filamento o la de tornillo.');
+  if (pr < 2.4 || tg < 2.4) avisos.push('Paredes o tapa de menos de 2,4 mm: con bisagras y cierres conviene 3 mm (lo fino se parte).');
   const LI = L - 2 * pr, WI = W - 2 * pr, RI = Math.max(0.3, R - pr);
   // el labio de la tapa: a presión (alto «labio», con tu holgura) o, con bisagra, un labio corto que la centra al cerrar
   { const hol = conBisagra(C) ? 0.3 : holTapa(C), alto = conBisagra(C) ? 1.6 : C.labio, g = 1.6;
@@ -197,9 +208,9 @@ export function construye(C) {
   const bis = C.els.filter(e => e.tipo === 'bisagra');
   if (conBisagra(C)) {
     if (!bis.length) avisos.push('La tapa es de bisagra pero no has puesto ninguna: arrastra 🔗 Bisagra al borde de atrás.');
-    const Rk = T.Rk, ay = W / 2 + Rk, az = H, gap = 0.35, ga = 0.4; eje = { o: [0, ay, az], dir: [1, 0, 0] };
+    const Rk = T.Rk, ay = W / 2 + Rk, az = H, gap = 0.4, ga = 0.5; eje = { o: [0, ay, az], dir: [1, 0, 0] };
     bis.forEach(e => {
-      const xc = -e.u, x0 = xc - e.p.largo / 2, x1 = xc + e.p.largo / 2, n = impar(e.p.largo / 7), s = (e.p.largo - (n - 1) * ga) / n;
+      const xc = -e.u, x0 = xc - e.p.largo / 2, x1 = xc + e.p.largo / 2, n = impar(e.p.largo / 9), s = (e.p.largo - (n - 1) * ga) / n;
       for (let i = 0; i < n; i++) {
         const a = x0 + i * (s + ga), b = a + s;
         if (i % 2 === 0) { // nudo de la CAJA (con su escuadra a 45° para imprimirse sin soportes)
@@ -218,8 +229,11 @@ export function construye(C) {
         masC.push(cilX(T.pin / 2, x0 + 0.01, x1 - 0.01, ay, az)); // el eje, de la caja
         const rH = T.pin / 2 + T.hTapa; for (let i = 1; i < n; i += 2) { const a = x0 + i * (s + ga), b = a + s; menosT.push(cilX(rH, a - 0.1, b + 0.1, ay, az)); menosT.push(cubo(a - 0.1, b + 0.1, 0, Rk + 2, -T.boca / 2, T.boca / 2).rotate([-45, 0, 0]).translate([0, ay, az])); }
       } else {
-        menosC.push(cilX(T.pin / 2 + T.hEje, x0 - 1, x1 + 1, ay, az)); menosT.push(cilX(T.pin / 2 + T.hTapa, x0 - 1, x1 + 1, ay, az));
-        if (C.tapa === 'bisagraImp') { // el pasador: Ø3 con cabeza, plano por debajo para que apoye
+        if (C.tapa === 'bisagraTor') { const aUlt = x0 + (n - 1) * (s + ga); // el tornillo pasa libre por todos los nudos y se ROSCA en el último de la caja
+          menosC.push(cilX(T.pin / 2 + T.hEje, x0 - 1, aUlt + 0.01, ay, az)); menosC.push(cilX(T.rosca, aUlt - 0.01, x1 + 1, ay, az)); menosC.push(cilX(3.1, x0 - 1.2, x0 + 2.2, ay, az)); // (y el hueco de la cabeza, Ø6,2 × 2,2)
+        } else menosC.push(cilX(T.pin / 2 + T.hEje, x0 - 1, x1 + 1, ay, az));
+        menosT.push(cilX(T.pin / 2 + T.hTapa, x0 - 1, x1 + 1, ay, az));
+        if (C.tapa === 'bisagraImp') { // el pasador: Ø4 con cabeza, plano por debajo para que apoye
           const lp = e.p.largo + 0.6, pin = cilX(T.pin / 2, 0, lp).add(cilX(T.pin, -1.6, 0.01)).intersect(cubo(-2, lp + 1, -5, 5, -T.pin / 2 + 0.3, 5));
           sueltas.push({ id: 'pin:' + e.id, nombre: 'Pasador de la bisagra', m: pin.translate([x0 - 0.3, ay, az]), imprimir: pin.translate([0, 0, T.pin / 2 - 0.3]), con: null, nota: 'por el lado de la cabeza' });
         }
@@ -362,7 +376,7 @@ export function comprueba(C) {
       else mal('La puerta solo se abre ' + max + '°', 'Algo choca al abrirla: muévela o quita lo que estorba.');
     });
     const ci = C.els.filter(e => e.tipo === 'cierre');
-    if (ci.length) { const K = cierreMedidas(C); out.cierre = K; ok('El cierre engancha ' + n2(K.enganche) + ' mm', 'La patilla mide ' + K.La + ' mm y al cerrar se dobla ' + n2(K.enganche) + ' mm: un ' + n1(K.def * 100) + ' % (PLA y PETG aguantan hasta un 2 %, miles de veces).'); }
+    if (ci.length) { const K = cierreMedidas(C); out.cierre = K; ok('El cierre engancha ' + n2(K.enganche) + ' mm', 'La patilla mide ' + K.La + ' mm y al cerrar se dobla ' + n2(K.enganche) + ' mm: un ' + n1(K.def * 100) + ' % (se imprime de pie: entre capas el PLA aguanta cerca del 1 %; el PETG, más). Grosor de la patilla: ' + n2(K.tt) + ' mm.'); if (K.def > 0.0051) ojo('El cierre se dobla un ' + n1(K.def * 100) + ' %', 'En PLA puede partirse: sube la caja (la patilla será más larga) o imprímelo en PETG.'); }
     const im = C.els.filter(e => e.tipo === 'iman');
     if (im.length) ok(im.length + ' pareja' + (im.length > 1 ? 's' : '') + ' de imanes alineadas', 'Pon los de la tapa con el otro polo hacia abajo (que se atraigan). Una gota de pegamento si bailan.');
     if (!ci.length && !im.length && !C.els.some(e => e.tipo === 'candado') && conBisagra(C)) ojo('No lleva cierre', 'Se queda cerrada por su peso; si quieres que no se abra sola, arrastra un 🔒 cierre o un 🧲 imán.');

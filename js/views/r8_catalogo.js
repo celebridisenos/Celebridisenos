@@ -63,7 +63,7 @@ export async function montarCatalogo(el, ext = {}) {
         h('div.r8e-paleta', COLORES.map(([c, t]) => h('button' + (color === c ? '.on' : ''), { type: 'button', title: t, style: { background: c }, onclick: () => { C.color[k] = c; MINIS.delete(k); abre(k); } }))),
         h('select.inp', { 'aria-label': 'Acabado', onchange: e => { C.acabado[k] = e.target.value; genera(); } }, Object.entries(ACABADOS).map(([a, x]) => h('option', { value: a, selected: a === acab }, x.t))),
         campos, h('div.r8c-nota'),
-        h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio' })),
+        h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio', title: 'La pieza entera, con sus medidas para seguir cambiándolas' }), K.PARTES && K.PARTES[k] && ext.alEstudioPiezas ? btn('🧩 Al Estudio por piezas (editar y abrir)', () => alEstudioPiezas(k), { cls: 'r8c-estudio-p', title: 'Cada parte suelta (base, tapa, cajón…): se editan una a una y en 🎬 Animar se abre y se cierra' }) : null),
         h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })))));
     mount(campos, camposDe(K, k, v, () => genera()));
     detalle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -91,6 +91,8 @@ export async function montarCatalogo(el, ext = {}) {
   }
   // v30 · 🎁 las dos sorpresas: Escaparate e Impresión fantasma
   async function sorpresa(que, k) { const S = await import('../r8/sorpresas.js'), D = K.DISENOS[k]; let partes; try { partes = [{ vista: N.aVista(K.genera(k, C.v[k])), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]; } catch (e) { return toast(e.message || String(e), 'bad'); } finally { N.limpia(); } S[que](partes, { nombre: D.t }); }
+  function alEstudioPiezas(k) { try { const L = K.partesDe(k, Object.assign({}, C.v[k])); if (!L) return alEstudio(k); const col = C.color[k] || (K.DISENOS[k] || {}).color; ext.alEstudioPiezas(L.map((x, i) => Object.assign(x, { color: i ? aclara(col) : col })), (K.DISENOS[k] || {}).t); } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); } }
+  const aclara = c2 => { const m = /^#?([0-9a-f]{6})$/i.exec(c2 || ''); if (!m) return c2; const v = parseInt(m[1], 16), f = x => Math.min(255, Math.round(x + (255 - x) * 0.35)); return '#' + [v >> 16 & 255, v >> 8 & 255, v & 255].map(f).map(x => x.toString(16).padStart(2, '0')).join(''); };
   function alEstudio(k) { if (ext.alEstudio) ext.alEstudio(k, Object.assign({}, C.v[k]), { color: C.color[k], acabado: C.acabado[k] }); }
   function baja(blob, nombre) { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nombre }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); window.__r8c && (window.__r8c.bajado = { nombre, bytes: blob.size }); }
 

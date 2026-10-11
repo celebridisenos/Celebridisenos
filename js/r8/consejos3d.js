@@ -167,6 +167,8 @@ export async function asistente(el, o) {
   const clave = o.clave || 'estudio', R = Object.assign({ impresora: (o.cama || 256) <= 180 ? 'a1m' : 'p1p', material: o.uso === 'flexible' ? 'TPU' : 'PLA', uso: o.uso || 'deco' }, leeResp(clave));
   // v30.2 · 🌈 los cambios de color: los que ya trae el diseño (el QR: negro al acabar la base) o los de sus piezas de colores
   if (!R.cc) R.cc = { cambios: (o.cambios || []).filter(Boolean).map(c => ({ z: Math.round(c.z * 100) / 100, color: c.color })).concat(!o.cambios && colores.length > 1 ? colores.slice(1).map(c => ({ z: Math.round(c.z0 * 100) / 100, color: c.color })) : []), base: colores.length > 1 ? colores[0].color : (o.colorBase || null) };
+  // v30.6 · desde el Estudio, los colores y las pausas viven en el PROYECTO (o.cc): si aún está vacío, se rellena con lo propuesto
+  if (o.cc) { if (!(o.cc.cambios || []).length && !o.cc.base) Object.assign(o.cc, JSON.parse(JSON.stringify(R.cc))); R.cc = o.cc; }
   const pregunta = h('input.inp.cj-preg', { placeholder: '¿Y si lo quiero más resistente? ¿Lo puedo hacer en PETG?…', onkeydown: e => { if (e.key === 'Enter') preguntar(); } }), resp = h('div.cj-resp');
   let hayCC = false; // (si aparecen o desaparecen los cambios de color, se repinta para la pregunta 8 y el botón)
   const pinta = () => {
@@ -187,7 +189,9 @@ export async function asistente(el, o) {
       preg('balsa', '6. ¿Le pongo un borde para que no se despegue?', [['si', 'Sí, borde exterior', 'Si apoya poco o es alta'], ['auto', 'Que decida Bambu', 'Automático'], ['no', 'Sin borde', 'Más limpio']], 'Apoya ' + Math.round(r.mide.apoyo / 100) + ' cm² en la cama.'),
       r.mide.arriba > 1500 && R.uso !== 'jarron' ? preg('planchar', '7. ¿Plancho la cara de arriba?', [['si', 'Sí, lisa como un espejo', 'Tarda un poco más'], ['no', 'No', '']]) : null,
       colores.length > 1 ? h('div.aj-ok', '🎨 Lleva ' + colores.length + ' colores (abajo, en «🌈 Colores por capas», la capa exacta de cada cambio).') : null,
-      CC.bloque(R.cc, { perf, capa: capaArchivo(), colorBase: (L[0] && L[0].color) || '#f4f4f0', alGuardar: () => { guardaResp(clave, R); if (((R.cc.cambios || []).length > 0) !== hayCC) pinta(); }, modo: R.modoColor || 'pausa', conBambu: !!o.desktopAbrir }), // v30.2 · 🎁 🌈
+      (() => { try { localStorage.setItem('cd.r8.capaTaller', String(capaArchivo())); } catch (e) { } return null; })(), // (el taller de colores del Estudio cuenta las capas con la misma altura)
+      CC.bloque(R.cc, { perf, capa: capaArchivo(), colorBase: (L[0] && L[0].color) || '#f4f4f0', alGuardar: () => { guardaResp(clave, R); o.alCambiarCC && o.alCambiarCC(); if (((R.cc.cambios || []).length > 0) !== hayCC) pinta(); }, modo: R.modoColor || 'pausa', conBambu: !!o.desktopAbrir,
+        abrirTaller: sopa ? async () => { const T = await import('./colores_taller.js'); await T.abrirColores({ sopa, nombre: o.nombre || 'Pieza', est: R.cc, capa: capaArchivo(), colorBase: (L[0] && L[0].color) || '#f4f4f0', prop: perf ? perf.prop : [], impresora: (r && r.impresora && (r.impresora.t || r.impresora.nombre || '')) || '', alGuardar: () => { guardaResp(clave, R); o.alCambiarCC && o.alCambiarCC(); pinta(); } }); } : null }), // v30.2 · 🎁 🌈 · v30.6: el taller sobre la pieza
       // v30.2.1 · la dueña: «que al exportar me diga imprimir normal o manual, y que lo exporte él a Bambu directamente» (v30.2.2: «no tengo AMS»)
       (R.cc && R.cc.cambios || []).length ? preg('modoColor', '8. ¿Cómo lo vas a imprimir?', [['pausa', '✋ Cambio a mano', 'Se para sola en la capa y cambias tú la bobina'], ['normal', '🖨️ Normal', 'De un solo color, sin pausas']], o.desktopAbrir ? 'Al abrirlo en Bambu Studio, la pausa ya va PUESTA (lo hace tu propio Bambu Studio).' : 'En el móvil o la tablet: abajo te digo la capa para poner la pausa en Bambu Studio.') : null,
       h('div.aj-resumen', h('b', '📋 Así va a ir'), h('div.aj-perfil', 'Perfil de arriba (Proceso): ', h('b', r.perfil)), enPantalla(R).map(([p, n, v]) => h('div.aj-fila', h('span', p + ' · ' + n), h('b', v))), r.avisos.map(a => h('p.cj-aviso', '⚠️ ' + a)), h('small', '⚖️ ≈ ' + (r.gramos ? Math.max(1, Math.round(r.gramos)) : '?') + ' g · ESTIMADO')),
@@ -233,7 +237,7 @@ export async function asistente(el, o) {
 // El panel del Estudio
 export async function panel(el, o) {
   const d = await import('../desktop.js').catch(() => null);
-  return asistente(el, { clave: 'estudio_' + (o.P.id || ''), partes: () => o.PR.partesFinales(o.P), N: o.N, uso: usoDe(o), texto: tieneTexto(o), nombre: o.nombre, baja: o.baja, alGirar: o.alGirar, cama: o.cama, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+  return asistente(el, { clave: 'estudio_' + (o.P.id || ''), partes: () => o.PR.partesFinales(o.P), N: o.N, uso: usoDe(o), texto: tieneTexto(o), nombre: o.nombre, baja: o.baja, alGirar: o.alGirar, cama: o.cama, desktopAbrir: !!(d && d.desktop && d.desktop.on), cc: o.cc, alCambiarCC: o.alCambiarCC }); // v30.6: los colores y las pausas, los del proyecto
 }
 function usoDe(o) { let uso = 'deco'; o.PR.recorre(o.P.cuerpos, c => { if (c.tipo === 'cat' && o.catalogo && o.catalogo.DISENOS[c.p.k]) { const u = o.catalogo.DISENOS[c.p.k].uso; if (u === 'pieza') uso = 'mecanica'; else if (u && uso !== 'mecanica') uso = u; } if (c.tipo === 'rosca' && uso !== 'mecanica') uso = 'encaje'; }); return uso; } // v20.2: «pieza» (mecánica/RC) = pieza que trabaja
 function tieneTexto(o) { let t = false; o.PR.recorre(o.P.cuerpos, c => { if (c.tipo === 'texto' || (c.p && (c.p.txt || c.p.nombre || c.p.texto))) t = true; }); return t; }

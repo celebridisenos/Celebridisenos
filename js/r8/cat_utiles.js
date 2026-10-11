@@ -109,10 +109,14 @@ function listaGalgas(p) { const a = Math.max(0.5, Math.min(p.desde, p.hasta)), b
 // diente a 45° que salta un nervio de la base. Los tabiques SUBEN dentro de la tapa (los tornillos no se cambian de casilla al
 // llevarla) y se recortan con el arco que barre la tapa al cerrar.
 // Marco «cerrado»: base en x ∈ [−X/2, X/2], y ∈ [0, Y] (bisagra en y = 0, cierre en y = Y), z ∈ [0, Hb]; tapa encima.
-const BIS = { R: 3.6, hueco: 0.5, gapX: 0.4, techo: 1.4, suelo: 1.6, tab: 1.2, diente: 0.7, solape: 0.45, lenG: 1.5 };
+// v30.6 · LA DUEÑA LA IMPRIMIÓ (30.4) Y SE PARTÍA: «las bisagras no cierran ni abren… se parte todo, es muy fino». Lo que estaba mal:
+// nudos de Ø7,2 con conos de Ø5,2 × 2,2 a 0,28 mm (salían pegados), 0,4 mm entre nudos también en la primera capa (se sueldan por
+// el «pie de elefante»), paredes de 1,8, techo de 1,4 y lengüeta de 1,5. Ahora: nudos de Ø10 con conos de Ø7,6 × 3,2, medio
+// milímetro entre nudos (1,1 en la primera capa), paredes de 2,4 como mínimo… y lengüeta de 2 mm, más larga y que salta menos.
+const BIS = { R: 5, hueco: 0.6, gapX: 0.5, techo: 2, suelo: 2, tab: 1.6, diente: 0.6, solape: 0.35, lenG: 2, pie: 0.3, pieZ: 0.6 };
 function cajaBisagraPiezas(p) {
-  const X = Math.max(36, p.x), Y = Math.max(28, p.y), Hb = Math.max(12, p.z), Hl = Math.max(6, Math.min(p.tapa, Hb)), w = Math.max(1.4, p.pared), rE = Math.min(5, X / 5, Y / 5);
-  const R = BIS.R, g = R + BIS.hueco, h = (Hb + Hl) / 2, cR = Math.max(0.2, Math.min(0.7, p.holgura)), cx = Math.max(1, Math.round(p.cx)), cy = Math.max(1, Math.round(p.cy));
+  const X = Math.max(36, p.x), Y = Math.max(28, p.y), Hb = Math.max(12, p.z), Hl = Math.max(6, Math.min(p.tapa, Hb)), w = Math.max(2, p.pared), rE = Math.min(5, X / 5, Y / 5);
+  const R = BIS.R, g = R + BIS.hueco, h = (Hb + Hl) / 2, cR = Math.max(0.35, Math.min(0.8, p.holgura)), cx = Math.max(1, Math.round(p.cx)), cy = Math.max(1, Math.round(p.cy));
   const huella = (d = 0) => rr(X - 2 * d, Y - 2 * d, Math.max(0.6, rE - d)).translate([0, Y / 2]);
   const ejeX = m => m.rotate([0, 90, 0]); // un cilindro de pie → tumbado a lo largo de +X
   // ---- BASE ----
@@ -126,10 +130,10 @@ function cajaBisagraPiezas(p) {
   }
   base = base.subtract(N.union(C));
   // nervio del cierre (triángulo a 45°: se imprime en una pared de pie sin soporte)
-  const ws = Math.max(20, Math.min(60, X * 0.32)), zr = Hb - 3.5, d = BIS.diente;
+  const ws = Math.max(24, Math.min(70, X * 0.4)), d = BIS.diente, zr = Math.max(2.4, Math.min(Hb - 3.5, Hl + d - 0.3)); // el nervio va A LA ALTURA de la tapa o más abajo (v30.6): el eje está a media altura, y un diente más alto que eso se CLAVA en la pared al bajar; así llega por fuera y la lengüeta sale larga (se dobla poco)
   base = base.add(aLoLargoX(poli([[Y - 0.2, zr - d - 0.2], [Y + d, zr], [Y - 0.2, zr + d + 0.2]]), ws + 3));
   // ---- BISAGRA: tramos alternos base / tapa ----
-  const Lh = X - 2 * Math.max(7, rE + 2.5), nseg = Lh >= 84 ? 5 : 3, ls = (Lh - (nseg - 1) * BIS.gapX) / nseg, rc = R - 1, lc = 2.2;
+  const Lh = X - 2 * Math.max(7, rE + 2.5), nseg = Lh >= 84 ? 5 : 3, ls = (Lh - (nseg - 1) * BIS.gapX) / nseg, rc = R - 1.2, lc = 3.2;
   const perfilBase = N.csUnion([circ(2 * R).translate([-g, h]), poli([[-g - R, 0], [0.3, 0], [0.3, h], [-g - R, h]])]);
   const perfilTapa = N.csUnion([circ(2 * R).translate([-g, h]), poli([[-g - R, h], [-0.35, h], [-0.35, Hb + 0.35], [0.3, Hb + 0.35], [0.3, Hb + Hl], [-g - R, Hb + Hl]])]);
   const macho = ejeX(M().cylinder(lc, rc, rc - lc, 48)), hembraL = lc + 0.35 - BIS.gapX, hembraR = rc - BIS.gapX + cR, hembra = ejeX(M().cylinder(hembraL + 0.02, hembraR + 0.02, hembraR - hembraL, 48)).translate([-0.02, 0, 0]);
@@ -139,26 +143,38 @@ function cajaBisagraPiezas(p) {
     if (i % 2 === 0) { nudosB.push(enX(perfilBase)); if (i < nseg - 1) nudosB.push(macho.translate([b, -g, h])); if (i > 0) nudosB.push(macho.mirror([1, 0, 0]).translate([a, -g, h])); }
     else { nudosT.push(enX(perfilTapa)); huecosT.push(hembra.translate([a, -g, h])); huecosT.push(hembra.mirror([1, 0, 0]).translate([b, -g, h])); }
   }
-  base = base.add(N.union(nudosB));
+  const pieB = [], pieT = [], topT = Hb + Hl; // lo que se les quita junto a la cama (la base apoya en z = 0; la tapa, abierta, en su techo)
+  for (let i = 0; i < nseg; i++) { const a = -Lh / 2 + i * (ls + BIS.gapX), b = a + ls, L2 = i % 2 === 0 ? pieB : pieT, z0 = i % 2 === 0 ? -0.01 : topT - BIS.pieZ, y1 = i % 2 === 0 ? -0.05 : -0.36;
+    if (i > 0) L2.push(caja(BIS.pie + 0.01, g + R + 1 + y1, BIS.pieZ + 0.01).translate([a - 0.01 + (BIS.pie + 0.01) / 2, (-g - R - 1 + y1) / 2, z0 + (BIS.pieZ + 0.01) / 2]));
+    if (i < nseg - 1) L2.push(caja(BIS.pie + 0.01, g + R + 1 + y1, BIS.pieZ + 0.01).translate([b + 0.01 - (BIS.pie + 0.01) / 2, (-g - R - 1 + y1) / 2, z0 + (BIS.pieZ + 0.01) / 2])); }
+  base = base.add(N.union(nudosB)).subtract(N.union(pieB));
   // ---- TAPA (en su sitio, cerrada) ----
   let tapa = huella().extrude(Hl).subtract(huella(w).extrude(Hl - BIS.techo + 0.01).translate([0, 0, -0.01])).translate([0, 0, Hb]);
-  tapa = tapa.add(N.union(nudosT).subtract(N.union(huecosT)));
+  tapa = tapa.add(N.union(nudosT).subtract(N.union(huecosT)).subtract(N.union(pieT)));
   // lengüeta: cuelga del techo (unida solo en los 3 mm de arriba), separada 0,95 de la pared de la tapa
-  const yi = Y + d + 0.25, yo = yi + BIS.lenG, zk = zr - d + 0.05, zFin = zk - d - 0.2, top = Hb + Hl;
-  const leng = poli([[Y - 0.2, top], [Y - 0.2, top - 3], [yi, top - 3 - (yi - Y)], [yi, zk + d], [yi - d, zk], [yi, zk - d], [yi, zFin], [yo + 1.6, zFin - 1.6 - BIS.lenG], [yo + 1.6 + BIS.lenG * 0.9, zFin - 1.6], [yo, zFin + BIS.lenG * 0.5], [yo, top - 1.2], [yo - 1.2, top]]);
+  const top = Hb + Hl, zk = zr - d + 0.05, zFin = zk - d - 0.2, tG = (top - 3) - zk >= 16 ? BIS.lenG : 1.5, yi = Y + d + 0.25, yo = yi + tG; // (una lengüeta corta se hace más fina: se estira menos)
+  const leng = poli([[Y - 0.2, top], [Y - 0.2, top - 3], [yi, top - 3 - (yi - Y)], [yi, zk + d], [yi - d, zk], [yi, zk - d], [yi, zFin], [yo + 1.6, zFin - 1.6 - tG], [yo + 1.6 + tG * 0.9, zFin - 1.6], [yo, zFin + tG * 0.5], [yo, top - 1.2], [yo - 1.2, top]]);
   tapa = tapa.add(aLoLargoX(leng, ws));
   if (p.txt && String(p.txt).trim()) { let T = N.centraCS(N.texto2(String(p.txt).trim(), p.fuente || 'gorda', Math.min(14, Y * 0.2))); const bt = N.cajaCS(T), k = Math.min(1, (X - 16) / bt.w); T = T.scale([k, k]).rotate(180).translate([0, Y / 2]); tapa = tapa.subtract(T.extrude(1).translate([0, 0, top - 0.6])); }
+  if (p.estilo === 'cofre') { // tablas grabadas en la tapa y en el frente (0,6 de hondo: no debilitan)
+    const nT = Math.max(2, Math.round(Y / 22)), ran = []; for (let i = 1; i < nT; i++) ran.push(caja(X + 2, 1.2, 0.7).translate([0, Y * i / nT, top - 0.6]));
+    tapa = tapa.subtract(N.union(ran)); const nB = Math.max(1, Math.round(Hb / 14)), rb = []; for (let i = 1; i <= nB; i++) { const z = Hb * i / (nB + 1); if (Math.abs(z - zr) > 3) rb.push(caja(X - 2 * rE - 2, 1.4, 1.2).translate([0, Y - 0.3, z - 0.6]), caja(1.4, Y - 2 * rE - 2, 1.2).translate([-X / 2 + 0.3, Y / 2, z - 0.6]), caja(1.4, Y - 2 * rE - 2, 1.2).translate([X / 2 - 0.3, Y / 2, z - 0.6])); }
+    if (rb.length) base = base.subtract(N.union(rb)); }
   const gira = (m, ang) => m.translate([0, g, -h]).rotate([ang, 0, 0]).translate([0, -g, h]);
-  return { base, tapa, gira, X, Y, Hb, Hl, g, h, nseg, ls, ws, cw, ch, sube, cR };
+  const largoLeng = (top - 3) - zk; // lo que mide la lengüeta desde donde se une al techo hasta el diente
+  return { base, tapa, gira, X, Y, Hb, Hl, g, h, nseg, ls, ws, cw, ch, sube, cR, w, largoLeng, tG, estira: 1.5 * tG * BIS.solape / (largoLeng * largoLeng) };
 }
 const PRUEBA_BIS = p => Object.assign({}, p, { x: 44, y: 34, cx: 1, cy: 1, txt: '' });
 // ¿se abre y se cierra sin rozar? Se gira la tapa de 0 a 180° y se mira cuánto se mete en la base en cada paso.
 const _giros = new Map();
 export function giroCajaBisagra(p) {
-  const k = JSON.stringify([p.x, p.y, p.z, p.tapa, p.pared, p.cx, p.cy, p.holgura, p.rampa, p.que]); if (_giros.has(k)) return _giros.get(k);
+  const k = JSON.stringify(['v306c', p.x, p.y, p.z, p.tapa, p.pared, p.cx, p.cy, p.holgura, p.rampa, p.que, p.estilo || '']); if (_giros.has(k)) return _giros.get(k);
   const r = N.enAmbito(() => { const K = cajaBisagraPiezas(p.que === 'prueba' ? PRUEBA_BIS(p) : p); let cerrada = 0, clic = 0, libre = 0, clicHasta = 0;
-    for (const a of [0, 0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 20, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180]) { const v = K.gira(K.tapa, a).intersect(K.base).volume(); if (a === 0) cerrada = v; else if (a <= 6) { if (v > 0.005) { clic = Math.max(clic, v); clicHasta = a; } } else libre = Math.max(libre, v); }
-    return { cerrada, clic, clicHasta, libre }; });
+    for (const a of [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 1, 1.5, 2, 3, 4, 6, 8, 12, 20, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180]) { const v = K.gira(K.tapa, a).intersect(K.base).volume(); if (a === 0) cerrada = v; else if (a <= 6) { if (v > 0.005) { clic = Math.max(clic, v); clicHasta = a; } } else libre = Math.max(libre, v); }
+    // v30.6 · en la postura de imprimir (abierta 180°), la tapa corrida 0,25 mm hacia cualquier lado NO toca la base: no saldrán soldadas
+    const c = 0.25, q = c * 0.7071, T180 = K.gira(K.tapa, 180); let pegada = 0;
+    for (const v of [[c, 0, 0], [-c, 0, 0], [0, c, 0], [0, -c, 0], [0, 0, c], [0, 0, -c], [0, q, q], [0, -q, q], [0, q, -q], [0, -q, -q], [q, q, 0], [-q, q, 0], [q, 0, q], [-q, 0, q], [q, 0, -q], [-q, 0, -q]]) pegada = Math.max(pegada, T180.translate(v).intersect(K.base).volume());
+    return { cerrada, clic, clicHasta, libre, pegada, sep: c, w: K.w, estira: K.estira, largoLeng: K.largoLeng, tG: K.tG }; });
   if (_giros.size > 40) _giros.clear(); _giros.set(k, r); return r;
 }
 
@@ -368,12 +384,28 @@ export const DISENOS_UTILES = {
       return cal + (C.roce < 0.01 && C.sube > 0.01 && C.cruza > 0.01 && C.muelle > 0.001 ? 'COMPROBADO (en el ordenador): la corredera corre de 0 a ' + rango + ' mm sin rozar, no se puede levantar (cola de milano), cerrada hace tope justo en el 0 y los dos muelles aprietan ' + n2(CAL.muelle) + ' mm: no cabecea' : '⚠️ Con esta holgura algo no va (roce ' + n2(C.roce) + ' mm³): déjala en 0,15') + '. La corredera entra por la punta de la regla (va afilada para eso). CÓMO SE LEE: los milímetros, en la regla, justo a la izquierda del 0 del nonio; la décima, el número del nonio cuya raya coincide con una de la regla (nonio largo: rayas cada 1,9 mm, se ven sin lupa). COMPRUÉBALO: cerrado tiene que marcar 0 y una moneda de 1 € tiene que dar 23,2–23,3 (mide 23,25). Si cerrado marcara otra cosa, escríbela en «Ajuste del cero» y vuelve a imprimir SOLO la corredera. Las bocas de arriba miden por DENTRO. Pasa un rotulador permanente por las rayas (están en relieve) o cambia de color a los ' + n2(CAL.tb) + ' mm (regla) y a los ' + n2(CAL.tp + CAL.cz + CAL.tb) + ' mm (corredera). Mide ' + n2(largo) + ' mm de largo' + (largo > 178 ? ' (cabe en la P1P; para la A1 mini pon «Mide hasta» 90)' : ' (cabe también en la A1 mini)') + '. Imprímelo con el perfil «0.16mm CelebriR8 PRECISION», en PETG o PLA. Es de plástico: fíate a ±0,1–0,2 mm; para ajustes muy finos, el de metal.'; } },
   cajaBisagra: { cat: 'taller', tambien: ['organizar'], e: '🧰', t: 'Caja de tornillería con tapa de bisagra', d: 'Se imprime de una vez y sale montada: bisagra, cierre de clic y casillas que llegan a la tapa', uso: 'encaje', color: '#f7d117',
     campos: [s('que', 'Qué imprimo', 'caja', [['caja', 'La caja entera (sale abierta y montada)'], ['prueba', '🧪 Prueba pequeña (bisagra + cierre)'], ['cerrada', '👀 Verla cerrada (solo para mirar)'], ['media', '👀 Verla a medio abrir (solo para mirar)']]), n('x', 'Ancho', 120, 50, 240), n('y', 'Fondo', 80, 30, 115), n('z', 'Alto de la base', 28, 14, 80), n('tapa', 'Alto de la tapa', 12, 8, 40),
-      n('cx', 'Casillas a lo ancho', 3, 1, 8, 1, ''), n('cy', 'Casillas a lo largo', 2, 1, 5, 1, ''), c('rampa', 'Fondo en rampa hacia delante (los tornillos salen con el dedo)', true), n('pared', 'Paredes', 1.8, 1.4, 3, 0.2),
-      n('holgura', 'Holgura de la bisagra (para imprimir de una vez)', 0.4, 0.25, 0.6, 0.05), tx('txt', 'Texto en la tapa', '')],
+      n('cx', 'Casillas a lo ancho', 3, 1, 8, 1, ''), n('cy', 'Casillas a lo largo', 2, 1, 5, 1, ''), c('rampa', 'Fondo en rampa hacia delante (los tornillos salen con el dedo)', true), n('pared', 'Paredes', 2.4, 2, 4, 0.2),
+      n('holgura', 'Holgura de la bisagra (para imprimir de una vez)', 0.5, 0.35, 0.8, 0.05), tx('txt', 'Texto en la tapa', '')],
     gen(p) { const K = cajaBisagraPiezas(p.que === 'prueba' ? PRUEBA_BIS(p) : p); if (p.que === 'cerrada') return K.base.add(K.tapa.translate([0, 0, 0.03])); // (3 centésimas arriba: si se fundieran, el hueco de dentro quedaría cerrado y se contaría macizo)
       return K.base.add(K.gira(K.tapa, p.que === 'media' ? 62 : 180)); },
     nota: p => { let G = null; try { G = giroCajaBisagra(p); } catch (e) { return '⚠️ ' + e.message; }
       const fondo = 2 * (p.que === 'prueba' ? 34 : p.y) + 2 * (BIS.R + BIS.hueco) + 6, bien = G.cerrada < 0.01 && G.libre < 0.01;
       if (p.que === 'cerrada' || p.que === 'media') return '👀 Esto es solo para VERLA (así queda ' + (p.que === 'cerrada' ? 'cerrada' : 'a medio abrir') + '). Para imprimirla elige «La caja entera»: sale abierta y plana, sin soportes.';
-      return (bien ? 'COMPROBADA (en el ordenador): de abierta del todo a cerrada, la tapa gira sin rozar nada' : '⚠️ Con estas medidas algo roza al girar (' + n2(Math.max(G.cerrada, G.libre)) + ' mm³): cambia el alto de la tapa o la holgura') + (G.clic > 0.005 ? ', y justo al cerrar el diente salta el nervio (' + n2(BIS.solape) + ' mm de «clic»)' : '') + '. Sale ABIERTA y montada: ocupa ' + n2(fondo) + ' mm de fondo en la cama' + (fondo > 178 ? ' (cabe en la P1P; para la A1 mini, baja el «Fondo» a 80 o menos)' : ' (cabe también en la A1 mini)') + '. Bisagra de conos a 45° con ' + n2(p.holgura) + ' mm de holgura: nada cuelga y no lleva eje. Al sacarla, ciérrala despacio la primera vez para soltarla. ' + (p.que === 'prueba' ? 'Esta es la PRUEBA: pocos gramos, misma bisagra y mismo cierre. Si gira y hace clic, imprime la grande con esa holgura. ' : 'Antes de la grande, imprime la 🧪 prueba. ') + 'Las casillas suben dentro de la tapa: cerrada, los tornillos no se pasan de una a otra. Sin soportes. En PETG el cierre dura más que en PLA.'; } },
+      const suelta = G.pegada < 0.005;
+      return (bien && suelta ? 'COMPROBADA EN EL ORDENADOR: de abierta del todo a cerrada la tapa gira sin rozar, y tal como se imprime ninguna parte de la tapa queda a menos de ' + n2(G.sep) + ' mm de la base (no deben salir soldadas)' : !bien ? '⚠️ Con estas medidas algo roza al girar (' + n2(Math.max(G.cerrada, G.libre)) + ' mm³): cambia el alto de la tapa o la holgura' : '⚠️ Con esta holgura la tapa queda a menos de ' + n2(G.sep) + ' mm de la base al imprimir: súbela, o saldrán pegadas') + (G.clic > 0.005 ? '. Al cerrar, el diente salta el nervio (' + n2(BIS.solape) + ' mm de «clic»)' : '') + '. REFORZADA (la primera versión se partía): paredes de ' + n2(G.w) + ' mm, techo y suelo de 2, nudos de Ø10 con conos de Ø7,6 y lengüeta de ' + n2(G.tG) + ' × ' + n2(G.largoLeng) + ' mm que al saltar se estira un ' + n2(G.estira * 100) + ' %' + (G.estira > 0.005 ? ' (⚠️ es mucho para PLA, que entre capas aguanta poco más: imprímela en PETG o sube el alto de la tapa)' : ' (poco: el PLA aguanta cerca del 1 % entre capas)') + '. Sale ABIERTA y montada: ocupa ' + n2(fondo) + ' mm de fondo en la cama' + (fondo > 178 ? ' (cabe en la P1P; para la A1 mini, baja el «Fondo»)' : ' (cabe también en la A1 mini)') + '. Bisagra de conos a 45° con ' + n2(p.holgura) + ' mm de holgura: nada cuelga y no lleva eje. Al sacarla, ábrela y ciérrala despacio la primera vez. LO QUE NO SE PUEDE COMPROBAR SIN IMPRIMIR es si tu filamento la deja suelta: ' + (p.que === 'prueba' ? 'para eso es esta PRUEBA (pocos gramos, misma bisagra y mismo cierre). Si gira y hace clic, imprime la grande con esa holgura; si sale dura, sube la holgura 0,05. ' : 'imprime antes la 🧪 prueba. ') + 'Las casillas suben dentro de la tapa: cerrada, los tornillos no se pasan de una a otra. Sin soportes. En PETG el cierre dura más que en PLA.'; } },
 };
+
+// (v30.5) las ayudas de este archivo, para los demás módulos de útiles (chasis RC, kits de juguete…)
+// v30.6 · MÁS ESTILOS DE CAJA con la MISMA bisagra y el mismo cierre (los comprobados): cambian las medidas de partida, las casillas y el adorno
+const estiloCaja = (o) => { const B = DISENOS_UTILES.cajaBisagra; return Object.assign({}, B, { cat: o.cat, tambien: o.tambien, e: o.e, t: o.t, d: o.d, color: o.color, acabado: o.acabado,
+  campos: B.campos.map(f => (o.def && f.k in o.def ? Object.assign({}, f, { v: o.def[f.k] }) : f)), gen: p => B.gen(Object.assign({}, p, { estilo: o.estilo })), nota: p => B.nota(Object.assign({}, p, { estilo: o.estilo })) }); };
+Object.assign(DISENOS_UTILES, {
+  cofreBisagra: estiloCaja({ estilo: 'cofre', cat: 'organizar', tambien: ['ninos', 'regalos', 'frikis'], e: '🪙', t: 'Cofre con bisagra y cierre', d: 'De tablas, para tesoros, dados o recuerdos: sale montado, con la bisagra reforzada', color: '#9d6d3f', def: { x: 110, y: 75, z: 40, tapa: 30, cx: 1, cy: 1, rampa: false } }),
+  joyeroBisagra: estiloCaja({ estilo: 'joyero', cat: 'cuqui', tambien: ['regalos', 'organizar'], e: '💍', t: 'Joyero con bisagra', d: 'Bajo y con casillas para anillos y pendientes; el nombre grabado en la tapa', color: '#f4a8c8', acabado: 'seda', def: { x: 120, y: 85, z: 22, tapa: 14, cx: 3, cy: 2, rampa: false, txt: 'Joyas' } }),
+  estucheBisagra: estiloCaja({ estilo: 'estuche', cat: 'organizar', tambien: ['ninos', 'taller'], e: '✏️', t: 'Estuche con bisagra', d: 'Largo y bajo: lápices, pinceles, brocas o destornilladores de precisión', color: '#1565d8', def: { x: 210, y: 70, z: 20, tapa: 14, cx: 1, cy: 1, rampa: false } }),
+  botiquinBisagra: estiloCaja({ estilo: 'botiquin', cat: 'hogar', tambien: ['organizar'], e: '🩹', t: 'Botiquín con bisagra', d: 'Alto y con casillas: tiritas, pastillas, hilos…', color: '#f4f4f0', def: { x: 150, y: 100, z: 45, tapa: 20, cx: 3, cy: 2, rampa: false, txt: 'Botiquín' } }),
+});
+// las PARTES sueltas (para pasarlas al Estudio por piezas y poder abrirla): la base y la tapa CERRADA, con su eje de giro
+const partesCaja = estilo => p => { const K = cajaBisagraPiezas(Object.assign({}, p.que === 'prueba' ? PRUEBA_BIS(p) : p, { estilo })); return [{ nombre: 'Base', m: K.base }, { nombre: 'Tapa', m: K.tapa, bisagra: { o: [0, -K.g, K.h], dir: [1, 0, 0], ang: 180 } }]; };
+export const PARTES_UTILES = { cajaBisagra: partesCaja(''), cofreBisagra: partesCaja('cofre'), joyeroBisagra: partesCaja('joyero'), estucheBisagra: partesCaja('estuche'), botiquinBisagra: partesCaja('botiquin') };
+export const AYUDAS = { n, s, c, tx, M, CS, seg, circ, rr, poli, cil, cono, caja, n2, R2, suave, aLoLargoX, porY, torno, hex, texto3d, enFila, enRejilla, conBisel };

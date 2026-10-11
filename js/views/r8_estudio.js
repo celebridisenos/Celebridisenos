@@ -98,15 +98,30 @@ export async function montarEstudio(el, ext = {}) {
   const grupo = (t, ...b) => h('div.r8e-gr', h('div.r8e-grb', b), h('small', t));
   const rb = (ic, t, f, o = {}) => h('button.r8e-b' + (t ? '' : '.mini'), { type: 'button', title: o.title || t, 'aria-label': o.title || t, 'data-b': o.k || t, onclick: e => f(e) }, h('span', ic), t ? h('small', t) : null);
   function pintaCinta() {
+    // v30.6 · LA CINTA POR GRUPOS, como en Fusion: en cada grupo, lo que más se usa a la vista (iconos grandes con su nombre) y lo demás
+    // en su desplegable «▾ Más» (con una línea que explica cada herramienta). Antes eran 39 botones pequeños en fila.
+    const X = (ic, t, f, o = {}) => ({ ic, t, f, o }), B = x => rb(x.ic, x.t, x.f, x.o);
+    const grupoD = (t, princ, mas = []) => h('div.r8e-gr', h('div.r8e-grb', princ.map(B),
+      mas.length ? h('button.r8e-b.r8e-mas', { type: 'button', title: 'Más herramientas de ' + t.toLowerCase() + ': ' + mas.map(x => x.t).join(', '), 'aria-label': 'Más herramientas de ' + t.toLowerCase(), 'data-b': 'mas-' + t.toLowerCase(), 'data-dentro': mas.map(x => x.o.k).join(' '),
+        onclick: e => { const ancla = e.currentTarget; menu(ancla, mas.map(x => [x.ic, x.t, () => x.f({ currentTarget: ancla }), x.o.title && x.o.title !== x.t ? x.o.title : '', x.o.k]), 'r8e-menu-mas'); } }, h('span', '▾'), h('small', 'Más')) : null), h('small', t));
     mount(cinta,
-      grupo('CREAR', rb('✏️', 'Boceto', () => nuevoBoceto(), { k: 'boceto', title: 'Dibujar un boceto y extruirlo, girarlo o inflarlo (B)' }), rb('🧊', 'Formas', e => menuFormas(e.currentTarget), { k: 'formas', title: 'Caja, cilindro, esfera, estrella, corazón, rosca… (F)' }), rb('🔩', 'Componentes', e => menuComponentes(e.currentTarget), { k: 'componentes', title: 'Agujero de tornillo, tuerca, imán, rosca de bote, bisagra…' }), rb('🛍️', 'Catálogo', () => ext.irA && ext.irA('catalogo'), { k: 'catalogo' }), rb('📂', 'Importar', () => fi.click(), { k: 'importar', title: 'Abrir un STL, 3MF, OBJ o un dibujo SVG (o suéltalo encima)' }), rb('🖼', 'Lienzo', () => { herr = 'lienzo'; pintaCinta(); pintaProp(); if (!(P.lienzos || []).length) nuevoLienzo(); }, { k: 'lienzo', title: 'Lienzo: una imagen de referencia en 3D, a su tamaño real (como en Fusion)' }), rb('✨', 'IA', () => ponHerr('ia'), { k: 'ia', title: 'Diseñador IA: descríbelo y lo construye' })),
-      grupo('MODIFICAR', rb('✥', 'Mover', () => ponHerr('mover'), { k: 'mover', title: 'Mover (M)' }), rb('⟳', 'Girar', () => ponHerr('girar'), { k: 'girar', title: 'Girar (R)' }), rb('⤢', 'Escalar', () => ponHerr('escalar'), { k: 'escalar', title: 'Escalar (S)' }), rb('🌈', 'Deformar', () => ponHerr('deformar'), { k: 'deformar', title: 'Doblar, retorcer, estrechar, inclinar, ondas' }), rb('⬓', 'Vaciar', () => vaciarSel(), { k: 'vaciar', title: 'Dejarla hueca con paredes' }), rb('⇋', 'Espejo', e => menuEspejo(e.currentTarget), { k: 'espejo' }), rb('▦', 'Patrón', () => ponHerr('matriz'), { k: 'matriz', title: 'Patrón: copias en fila, en rejilla o en círculo alrededor de un eje' }), rb('✂', 'Cortar', () => ponHerr('cortar'), { k: 'cortar', title: 'Cortar con un plano (o con una cara): te quedas con un lado o con los dos' }), rb('⇔', 'Desfase', () => desfaseSel(), { k: 'desfase', title: 'Desfase: la pieza entera más gorda (+) o más fina (−)' }), rb('⧉', 'Duplicar', () => duplicar(), { k: 'duplicar', title: 'Duplicar (Ctrl+D)' })),
-      grupo('CONSTRUIR', rb('▱', 'Cara', () => ponModoSel(modoSel === 'cara' ? 'pieza' : 'cara'), { k: 'modocara', title: 'Elegir CARAS (C): empujar, boceto encima, plano, a la cama' }), rb('📐', 'Plano', e => menuPlano(e.currentTarget), { k: 'plano', title: 'Plano de construcción: desfasado, en ángulo o en una cara' }), rb('／', 'Eje', e => menuEje(e.currentTarget), { k: 'eje', title: 'Eje de construcción (para patrones en círculo)' })),
-      grupo('COMBINAR', rb('◐', 'Hueco', () => alternaHueco(), { k: 'hueco', title: 'Sólido ↔ hueco (H): un hueco se resta de lo que toca' }), rb('∪', 'Unir', () => combinar('unir'), { k: 'unir' }), rb('−', 'Restar', () => combinar('restar'), { k: 'restar', title: 'El primero que elegiste menos los demás' }), rb('∩', 'Cruce', () => combinar('cruce'), { k: 'cruce', title: 'Solo lo que tienen en común' }), rb('⊡', 'Separar', () => desagrupar(), { k: 'desagrupar', title: 'Deshacer el grupo' })),
-      grupo('INSPECCIONAR', rb('📏', 'Medir', () => ponHerr('medir'), { k: 'medir', title: 'Medir entre dos puntos' }), rb('⌖', 'Centro', () => ponHerr('centro'), { k: 'centro', title: 'Marcar el centro: de la caja, de masa, de una cara o de un círculo' }), rb('✂️', 'Partir', () => ponHerr('partir'), { k: 'partir', title: 'Partir con conectores (pasadores, espiga, imanes, cola de milano)' }), rb('🖨️', 'Imprimir', () => ponHerr('imprimir'), { k: 'imprimir', title: 'Preparar para tu Bambu y descargar (STL / 3MF con los ajustes)' }), rb('🎞️', 'Capas', () => { capas = !capas; escena && escena.capas(capas); recalcula(true); }, { k: 'capas', title: 'Ver las capas de impresión' }), rb('🎬', 'Animar', () => ponHerr('animar'), { k: 'animar', title: 'Ver cómo se mueve: girar, ir y venir, engranajes, despiece… y grabar un vídeo' })),
-      grupo('ARCHIVO', rb('↶', '', () => deshacer(), { k: 'deshacer', title: 'Deshacer (Ctrl+Z)' }), rb('↷', '', () => rehacer(), { k: 'rehacer', title: 'Rehacer (Ctrl+Y)' }), rb('💾', 'Proyectos', () => proyectos(), { k: 'proyectos' }), rb('⚡', 'Precio', () => precio(), { k: 'precio' }), rb('📸', 'Escaparate', () => sorpresa('escaparate'), { k: 'escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), rb('🎬', 'Fantasma', () => sorpresa('fantasma'), { k: 'fantasma', title: 'Impresión fantasma: mira cómo se imprimirá, capa a capa' })),
+      grupoD('ATRÁS', [X('↶', 'Deshacer', () => deshacer(true), { k: 'deshacer', title: 'Deshacer lo último (Ctrl+Z)' }), X('↷', 'Rehacer', () => rehacer(true), { k: 'rehacer', title: 'Volver a hacerlo (Ctrl+Y)' })]),
+      grupoD('CREAR', [X('✏️', 'Boceto', () => nuevoBoceto(), { k: 'boceto', title: 'Dibujar un boceto y extruirlo, girarlo o inflarlo (B)' }), X('🧊', 'Formas', e => menuFormas(e.currentTarget), { k: 'formas', title: 'Caja, cilindro, esfera, estrella, corazón, rosca… (F)' }), X('🛍️', 'Catálogo', () => ext.irA && ext.irA('catalogo'), { k: 'catalogo', title: 'Diseños listos del catálogo' }), X('📂', 'Importar', () => fi.click(), { k: 'importar', title: 'Abrir un STL, 3MF, OBJ o un dibujo SVG (o suéltalo encima)' })],
+        [X('🔩', 'Componentes', e => menuComponentes(e.currentTarget), { k: 'componentes', title: 'Agujero de tornillo, tuerca, imán, rosca de bote, bisagra…' }), X('🖼', 'Lienzo', () => { herr = 'lienzo'; pintaCinta(); pintaProp(); if (!(P.lienzos || []).length) nuevoLienzo(); }, { k: 'lienzo', title: 'Una imagen de referencia en 3D, a su tamaño real (como en Fusion)' }), X('✨', 'IA', () => ponHerr('ia'), { k: 'ia', title: 'Diseñador IA: descríbelo y lo construye' })]),
+      grupoD('MODIFICAR', [X('✥', 'Mover', () => ponHerr('mover'), { k: 'mover', title: 'Mover la pieza, también arriba y abajo (M)' }), X('⟳', 'Girar', () => ponHerr('girar'), { k: 'girar', title: 'Girar (R)' }), X('⤢', 'Escalar', () => ponHerr('escalar'), { k: 'escalar', title: 'Escalar (S)' }), X('⇕', 'Extruir', () => { ponModoSel('cara'); toast('⇕ Toca la cara que quieres sacar o hundir: sale su flecha y la casilla para escribir la medida', '', 4500); }, { k: 'modocara', title: 'Extruir una CARA: tócala, arrastra su flecha o escribe la medida (C · Q)' })],
+        [X('🌈', 'Deformar', () => ponHerr('deformar'), { k: 'deformar', title: 'Doblar, retorcer, estrechar, inclinar, ondas' }), X('⬓', 'Vaciar', () => vaciarSel(), { k: 'vaciar', title: 'Dejarla hueca con paredes' }), X('⇋', 'Espejo', e => menuEspejo(e.currentTarget), { k: 'espejo', title: 'Darle la vuelta en X, Y o Z' }), X('▦', 'Patrón', () => ponHerr('matriz'), { k: 'matriz', title: 'Copias en fila, en rejilla o en círculo alrededor de un eje' }), X('⇔', 'Desfase', () => desfaseSel(), { k: 'desfase', title: 'La pieza entera más gorda (+) o más fina (−)' }), X('⧉', 'Duplicar', () => duplicar(), { k: 'duplicar', title: 'Duplicar (Ctrl+D)' }),
+          X('📐', 'Plano', e => menuPlano(e.currentTarget), { k: 'plano', title: 'Plano de construcción: desfasado, en ángulo o en una cara' }), X('／', 'Eje', e => menuEje(e.currentTarget), { k: 'eje', title: 'Eje de construcción (para patrones en círculo)' })]),
+      grupoD('COMBINAR', [X('∪', 'Unir', () => combinar('unir'), { k: 'unir', title: 'Unir las piezas elegidas en una' }), X('−', 'Restar', () => combinar('restar'), { k: 'restar', title: 'La primera que elegiste menos las demás' })],
+        [X('∩', 'Cruce', () => combinar('cruce'), { k: 'cruce', title: 'Solo lo que tienen en común' }), X('◐', 'Hueco', () => alternaHueco(), { k: 'hueco', title: 'Sólido ↔ hueco (H): un hueco se resta de lo que toca' }), X('⊡', 'Separar', () => desagrupar(), { k: 'desagrupar', title: 'Deshacer el grupo' })]),
+      grupoD('CORTAR', [X('✂️', 'Partir', () => ponHerr('partir'), { k: 'partir', title: 'Partir con un plano que se ve y se coge, y unir con pasadores, tapón, clip, imanes, cola de milano o tornillo' }), X('✂', 'Cortar', () => ponHerr('cortar'), { k: 'cortar', title: 'Cortar con un plano (o con una cara): te quedas con un lado o con los dos' })]),
+      grupoD('COLOR', [X('🎨', 'Colores', () => abrirColores(), { k: 'colores', title: 'Colores y pausas SOBRE LA PIEZA: pintar capas, poner, mover y quitar las paradas' })], [X('🎞️', 'Capas', () => { capas = !capas; escena && escena.capas(capas); recalcula(true); pintaCinta(); }, { k: 'capas', title: 'Ver las capas de impresión' })]),
+      grupoD('REVISAR', [X('📏', 'Medir', () => ponHerr('medir'), { k: 'medir', title: 'Medir entre dos puntos' }), X('🎬', 'Animar', () => ponHerr('animar'), { k: 'animar', title: 'Abrir y cerrar una tapa, girar, engranajes, despiece… y grabar un vídeo' })], [X('⌖', 'Centro', () => ponHerr('centro'), { k: 'centro', title: 'Marcar el centro: de la caja, de masa, de una cara o de un círculo' })]),
+      grupoD('IMPRIMIR', [X('🖨️', 'Imprimir', () => ponHerr('imprimir'), { k: 'imprimir', title: 'Comprobar que se puede imprimir, preparar para tu Bambu y descargar (STL / 3MF)' }), X('🎯', 'Calibrar', () => import('../r8/calibracion_ui.js').then(m => m.abrir({})).catch(e => toast('No se pudo abrir la calibración: ' + (e.message || e), 'bad')), { k: 'calibrar', title: 'Calibrar tu calibre (con una moneda de 20 céntimos) y tu impresora: las piezas salen corregidas solas' }), X('💾', 'Proyectos', () => proyectos(), { k: 'proyectos', title: 'Guardar, abrir y duplicar tus diseños' })],
+        [X('⚡', 'Precio', () => precio(), { k: 'precio', title: 'Cuánto cuesta y a cuánto venderla' }), X('📸', 'Escaparate', () => sorpresa('escaparate'), { k: 'escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), X('🎬', 'Fantasma', () => sorpresa('fantasma'), { k: 'fantasma', title: 'Impresión fantasma: mira cómo se imprimirá, capa a capa' })]),
       grupo('VER', rb('📱', '', () => { PAN.tablet = !PAN.tablet; pintaPaneles(); pintaCinta(); toast(PAN.tablet ? '📱 Barra rápida a la izquierda. Toque con 2 dedos = deshacer · 3 dedos = rehacer · mantén pulsada una pieza = su menú.' : 'Barra rápida quitada', 'ok', 5000); }, { k: 'tablet', title: '📱 Tablet: barra rápida para el dedo y el lápiz (y sus atajos)' }), rb('⛶', '', () => panel('todo'), { k: 'espacio', title: 'Ocultar o enseñar los dos paneles (\\): más sitio para la pieza' }), rb('︿', 'Barra', () => panel('cinta', false), { k: 'ocultacinta', title: '︿ Ocultar esta barra de herramientas (vuelve con «☰ Herramientas»)' })));
+    cinta.querySelectorAll('.r8e-mas').forEach(b => b.classList.toggle('on', (b.dataset.dentro || '').split(' ').some(k => k && (k === herr || (k === 'capas' && capas)))));
     cinta.querySelectorAll('[data-b]').forEach(b => b.classList.toggle('on', b.dataset.b === herr || (b.dataset.b === 'capas' && capas) || (b.dataset.b === 'modocara' && modoSel === 'cara') || (b.dataset.b === 'espacio' && typeof PAN !== 'undefined' && !PAN.nav && !PAN.prop) || (b.dataset.b === 'tablet' && typeof PAN !== 'undefined' && PAN.tablet)));
+    cinta.querySelectorAll('[data-b="deshacer"], [data-b="rehacer"]').forEach(b => { const puede = b.dataset.b === 'deshacer' ? H.puedeAtras : H.puedeAdelante; b.classList.toggle('apagado', !puede); });
     pintaFiltro();
   }
   let capas = false;
@@ -118,7 +133,7 @@ export async function montarEstudio(el, ext = {}) {
   cargando.remove();
   escena.alDibujar = pintaEtiquetas;
   try { escena.cuboVistas(cubo); } catch (e) { console.warn('cubo de vistas', e); } // v20.4
-  try { const op = Number(localStorage.getItem('cd.r8.opacidad')); if (op >= 0.1 && op <= 1) escena.ponOpacidad(op); } catch (e) { }
+  try { localStorage.removeItem('cd.r8.opacidad'); } catch (e) { } // v30.6: antes la opacidad se quedaba guardada y las piezas se veían transparentes para siempre; ahora es un MODO que se pide
   const catalogo = await import('../r8/catalogo.js').catch(e => { console.error(e); return null; });
 
   // ---------- calcular y pintar ----------
@@ -158,9 +173,11 @@ export async function montarEstudio(el, ext = {}) {
   function elige(ids, sumar) { if (herr === 'cons' && ids.length) { herr = null; consSel = null; pintaCons(); } if (herr === 'cara' && modoSel !== 'cara') { quitaCara(); } sel = sumar ? [...new Set(sel.filter(x => !ids.includes(x)).concat(ids.filter(x => !sel.includes(x))))] : ids; ESTUDIO.sel = sel; marcaSel(); pintaFlechas(); pintaNav(); pintaProp(); pintaChiv(); pintaLinea(); window.__r8e && (window.__r8e.sel = sel.slice()); }
   let origen = null;
   function pintaFlechas() {
+    if (herr === 'partir' && partirO && partirO._asas) return partirO._asas(); // v30.6: las asas del plano de corte
     if (caraSel && herr === 'cara' && caraSel.F && !caraSel.F.curva && !caraSel.verEmp) return flechaEmpuje(); // v30: la FLECHA para extruir la cara (como Fusion)
     if (caraSel && herr === 'cara') { escena.flechas(null); dlgCara(); return; }
     const c = sel.length ? PR.busca(P, sel[0]) : null;
+    if (c && c.bloqueo) { escena.flechas(null); return; } // v30.6: bloqueada = no se mueve
     if (!c || !top(c.id) || !['mover', 'girar', 'escalar'].includes(herr) || (sel.length > 1 && herr !== 'mover')) { escena.flechas(null); return; }
     escena.flechas(herr, c.t, t => { if (!origen) origen = sel.map(id => JSON.parse(JSON.stringify((PR.busca(P, id) || {}).t || null))); const d = t.pos.map((v, k) => v - origen[0].pos[k]); c.t = t; escena.moverProxy(c.id, t);
       sel.slice(1).forEach((id, i) => { const o = PR.busca(P, id); if (o && origen[i + 1]) { o.t.pos = origen[i + 1].pos.map((v, k) => r3(v + d[k])); escena.moverProxy(id, o.t); } }); pintaPropLigero(); if (!R || R.ms < 70) recalcula(); },
@@ -295,8 +312,10 @@ export async function montarEstudio(el, ext = {}) {
       onkeydown: ev => { if (ev.key === 'Enter') { ev.preventDefault(); ok(); } else if (ev.key === 'Escape') { ev.preventDefault(); cancela(); } },
       oninput: ev => { const v = Number(String(ev.target.value).replace(',', '.')); if (!isFinite(v)) return; if (esEmp) { o.emp.r = Math.max(0, v); previaEmpalme(); } else { o.d = v; previaEmpuje(); flechaEmpuje(); actualizaD(); } } });
     mount(dlg, h('div.r8e-dlg-c', h('b', esEmp ? (o.emp.tipo === 'chaflan' ? '◺ Chaflán' : '◜ Redondeo') : '⇕ Extruir'), inp, h('i', 'mm'),
+      !esEmp ? h('select.r8e-dlg-op', { 'aria-label': 'Qué hace la extrusión', 'data-dlg': 'op', title: 'Qué se hace con lo extruido: unirlo a la pieza (hacia fuera) o cortarla (hacia dentro), dejarlo como una pieza nueva aparte, o quedarse solo con lo que tienen en común', onchange: ev => { o.op = ev.target.value; } }, [['auto', '+ une · − corta'], ['nuevo', 'Cuerpo nuevo'], ['cruce', 'Cruce']].map(([k, t]) => h('option', { value: k, selected: (o.op || 'auto') === k }, t))) : null,
       esEmp ? h('button.r8e-dlg-t', { type: 'button', title: 'Cambiar entre redondeo y chaflán', onclick: () => { o.emp.tipo = o.emp.tipo === 'chaflan' ? 'redondeo' : 'chaflan'; dlgCara(); panelCara(); } }, o.emp.tipo === 'chaflan' ? '◜' : '◺') : null,
-      h('button.r8e-dlg-ok', { type: 'button', title: 'Aceptar (Intro)', onclick: ok }, '✓'), h('button.r8e-dlg-no', { type: 'button', title: 'Cancelar (Esc)', onclick: cancela }, '✕')));
+      h('button.r8e-dlg-ok', { type: 'button', title: 'Aceptar (Intro)', onclick: ok }, '✓'), h('button.r8e-dlg-no', { type: 'button', title: 'Cancelar (Esc)', onclick: cancela }, '✕'),
+      !esEmp ? h('button.r8e-dlg-mover', { type: 'button', title: 'Esta flecha EXTRUYE la cara. Para MOVER la pieza entera (también arriba y abajo), pulsa aquí (M)', onclick: () => { const id = o.id; quitaCara(); elige([id]); ponHerr('mover'); } }, '✥ Mover pieza') : null));
     posDlg();
   }
   function posDlg() {
@@ -399,21 +418,33 @@ export async function montarEstudio(el, ext = {}) {
       if (cerca2 >= 0) partirO.sitios.splice(cerca2, 1); else partirO.sitios.push([Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
       if (partirO._prepara) partirO._prepara(); panelPartir(); return;
     }
+    if (herr === 'partir' && partirO && partirO.unTrozo && partirO._toca && partirO._toca(e)) return; // v30.6: tocar el trozo que se separa
     if (e.shiftKey && caraSel && herr === 'cara' && caraSel.BD && escena.cuerpoEn(e) === caraSel.id) { sumaArista(e); return; } // v30: Mayús + clic = sumar aristas (como Fusion)
     if (modoSel === 'cara') { eligeCara(e, hoverF && hoverF.A); return; }
-    const id = escena.cuerpoEn(e);
+    const id0 = escena.cuerpoEn(e), id = id0 && (PR.busca(P, id0) || {}).bloqueo ? null : id0; if (id0 && !id) toast('🔒 Esa pieza está bloqueada (se suelta con su candado, en el navegador)', '', 2200);
+    if (id && herr === 'mover' && !herrSola && !(e.shiftKey || e.ctrlKey || e.metaKey)) { elige([id]); return; } // v30.6: con Mover pulsado, tocar una pieza la coge para moverla
     if (id && !(e.shiftKey || e.ctrlKey || e.metaKey) && !['girar', 'escalar'].includes(herr)) { if (herr === 'mover') { herr = null; } eligeCara(e, hoverF && hoverF.A); return; } // v30 · como Fusion: el clic MARCA la cara (con su flecha) o la arista
     if (id) elige([id], e.shiftKey || e.ctrlKey || e.metaKey);
     else { const k = escena.consEn(e); if (k) eligeCons(k); else if (!e.shiftKey) elige([]); }
   });
+  // v30.6 · los conectores puestos a mano se ARRASTRAN por el corte (tocarlos sin mover los sigue quitando)
+  let arrCon = null; const enCorte = e => { const q = escena.puntoPlano(e, partirO._plano); if (!q) return null; const R0 = partirO._R; return [R0[0][0] * q[0] + R0[0][1] * q[1] + R0[0][2] * q[2], R0[1][0] * q[0] + R0[1][1] * q[1] + R0[1][2] * q[2]]; };
+  lienzo.addEventListener('pointerdown', e => { arrCon = null; if (e.button !== 0 || herr !== 'partir' || !partirO || !partirO.manual || !partirO._plano || !partirO._R || escena.sobreFlechas) return;
+    const q = enCorte(e); if (!q) return; const i = partirO.sitios.findIndex(s2 => Math.hypot(s2[0] - q[0], s2[1] - q[1]) < Math.max(3, (partirO.d || 5) * 0.8)); if (i >= 0) arrCon = { i, x: e.clientX, y: e.clientY, movio: false }; });
+  lienzo.addEventListener('pointermove', e => { if (!arrCon || !partirO) return; if (!arrCon.movio && Math.hypot(e.clientX - arrCon.x, e.clientY - arrCon.y) < 6) return; arrCon.movio = true; escena.ctl.enabled = false;
+    const q = enCorte(e); if (!q) return; partirO.sitios[arrCon.i] = [Math.round(q[0] * 100) / 100, Math.round(q[1] * 100) / 100]; if (partirO._ligero) partirO._ligero(); });
+  const sueltaCon = () => { const a = arrCon; arrCon = null; if (!a) return; escena.ctl.enabled = true; if (a.movio && partirO && partirO._prepara) { partirO._prepara(); pintaProp(); } };
+  lienzo.addEventListener('pointerup', sueltaCon); lienzo.addEventListener('pointercancel', sueltaCon);
   lienzo.addEventListener('dblclick', e => { const id = escena.cuerpoEn(e), c = id && PR.busca(P, id); if (c && c.tipo === 'boceto') editaBoceto(c); });
 
   // ---------- cambios ----------
-  function commit() { pintaLienzos(); if (H.apunta(P)) { clearTimeout(guardTic); guardTic = setTimeout(autoguarda, 1500); } ESTUDIO.P = P; recalcula(); pintaNav(); pintaProp(); }
+  function commit() { pintaLienzos(); if (H.apunta(P)) { clearTimeout(guardTic); guardTic = setTimeout(autoguarda, 1500); cinta.querySelectorAll('[data-b="deshacer"]').forEach(b => b.classList.remove('apagado')); cinta.querySelectorAll('[data-b="rehacer"]').forEach(b => b.classList.add('apagado')); } ESTUDIO.P = P; recalcula(); pintaNav(); pintaProp(); }
   function autoguarda() { if (!P.cuerpos.length) return; let foto = ''; try { foto = escena.foto('image/jpeg', 0.6); } catch (e) { } PR.guardar(P, foto).catch(() => { }); }
   function ponProyecto(P2) { P = P2; ESTUDIO.P = P; setTimeout(pintaLienzos, 0); H = PR.historial(P); sel = []; ESTUDIO.sel = sel; escena.cama(P.cama || 256); recalcula(true); pintaNav(); pintaProp(); setTimeout(() => escena.encuadrar('iso'), 80); }
-  function deshacer() { const x = H.deshacer(); if (x) { P = x; ESTUDIO.P = P; pintaLienzos(); sel = sel.filter(id => PR.busca(P, id)); recalcula(true); pintaNav(); pintaProp(); } }
-  function rehacer() { const x = H.rehacer(); if (x) { P = x; ESTUDIO.P = P; pintaLienzos(); sel = sel.filter(id => PR.busca(P, id)); recalcula(true); pintaNav(); pintaProp(); } }
+  // v30.6: «avisa» = decir en pantalla lo que ha pasado (o que ya no hay más), para que se VEA que Ctrl+Z ha hecho algo
+  const trasHistoria = () => { ESTUDIO.P = P; pintaLienzos(); sel = sel.filter(id => PR.busca(P, id)); if (herr === 'partir' || herr === 'cara') { quitaCara(); herr = null; partirO = null; escena.previa(null); escena.planoCorte(null); } recalcula(true); pintaNav(); pintaProp(); pintaCinta(); clearTimeout(guardTic); guardTic = setTimeout(autoguarda, 1500); };
+  function deshacer(avisa) { const x = H.deshacer(); if (x) { P = x; trasHistoria(); if (avisa) toast('↶ Deshecho', '', 1100); } else if (avisa) toast('No hay nada más que deshacer', 'warn', 1600); }
+  function rehacer(avisa) { const x = H.rehacer(); if (x) { P = x; trasHistoria(); if (avisa) toast('↷ Rehecho', '', 1100); } else if (avisa) toast('No hay nada que rehacer', 'warn', 1600); }
   function añade(c, o = {}) {
     const destino = !o.sinOp && opCrear !== 'nuevo' && sel.length === 1 ? PR.busca(P, sel[0]) : null; // la pieza elegida ANTES de crear
     PR.añadir(P, c);
@@ -429,7 +460,7 @@ export async function montarEstudio(el, ext = {}) {
     // lo nuevo aparece al lado de lo que ya hay (no encima), apoyado en la cama
     if (!o.quieto && P.cuerpos.length > 1) { try { const b = PR.cajaDe(P, P.cuerpos.filter(x => x !== c).map(x => x.id)), bc = PR.cajaDe(P, [c.id]); if (b && bc) c.t.pos[0] = r3(c.t.pos[0] + b.max[0] - bc.min[0] + 8); } catch (e) { } }
     if (!o.sinCama) { try { PR.aLaCama(P, [c.id]); } catch (e) { } }
-    commit(); elige([c.id]); if (!herr) ponHerr('mover'); else pintaFlechas(); setTimeout(() => escena.encuadrar(), 60);
+    commit(); elige([c.id]); if (!herr) { ponHerr('mover'); herrSola = true; } else pintaFlechas(); setTimeout(() => escena.encuadrar(), 60);
     return c;
   }
   function añadeForma(tipo) { const F = N.FORMAS3D[tipo]; añade({ tipo, nombre: F.t, p: Object.assign({}, F.p), color: colorSiguiente() }); }
@@ -469,7 +500,7 @@ export async function montarEstudio(el, ext = {}) {
   function menuEspejo(ancla) { if (!sel.length) return toast('Elige antes una pieza.', 'warn'); menu(ancla, [['↔', 'Espejo en X', () => { PR.espejo(P, sel, 'x'); commit(); }], ['↕', 'Espejo en Y', () => { PR.espejo(P, sel, 'y'); commit(); }], ['⬍', 'Espejo en Z', () => { PR.espejo(P, sel, 'z'); PR.aLaCama(P, sel); commit(); }]]); }
   function menu(ancla, items, cls = '') {
     document.querySelectorAll('.r8e-menu').forEach(m => m.remove());
-    const r = ancla.getBoundingClientRect(), m = h('div.r8e-menu' + (cls ? '.' + cls : ''), { style: { left: Math.max(8, Math.min(window.innerWidth - 340, r.left)) + 'px', top: (r.bottom + 6) + 'px' } }, items.map(([ic, t, f]) => h('button', { type: 'button', onclick: () => { m.remove(); f(); } }, h('span', ic), h('b', t))));
+    const r = ancla.getBoundingClientRect(), m = h('div.r8e-menu' + (cls ? '.' + cls : ''), { style: { left: Math.max(8, Math.min(window.innerWidth - 340, r.left)) + 'px', top: (r.bottom + 6) + 'px' } }, items.map(([ic, t, f, d, k]) => h('button', Object.assign({ type: 'button', onclick: () => { m.remove(); f(); } }, k ? { 'data-b': k } : {}), h('span', ic), d ? h('div.r8e-menu-tx', h('b', t), h('small', d)) : h('b', t))));
     document.body.appendChild(m); { const b = m.getBoundingClientRect(); if (b.bottom > window.innerHeight - 8) m.style.top = Math.max(8, window.innerHeight - b.height - 8) + 'px'; } // v30: que no se salga por abajo
     setTimeout(() => document.addEventListener('pointerdown', function fuera(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('pointerdown', fuera); } }), 0);
   }
@@ -477,10 +508,17 @@ export async function montarEstudio(el, ext = {}) {
   // ================= v20.2 · CARAS, CONSTRUCCIÓN, CORTAR, DESFASE (lo que pidió la dueña: «mejor que Fusion») =================
   function pintaFiltro() {
     mount(filtro, h('div.r8e-filtro-g', h('small', 'Elegir'), [['pieza', '🧊 Pieza'], ['cara', '▱ Cara']].map(([k, t]) => h('button' + (modoSel === k ? '.on' : ''), { type: 'button', 'data-sel': k, title: k === 'cara' ? 'Toca una cara plana (C)' : 'Toca una pieza entera', onclick: () => ponModoSel(k) }, t))),
-      h('div.r8e-filtro-g', h('small', 'Ver'), [['aristas', 'Aristas'], ['sombreado', 'Liso'], ['rayosx', 'Rayos X']].map(([k, t]) => h('button' + (escena && escena.vistaModo() === k ? '.on' : ''), { type: 'button', 'data-ver': k, onclick: () => { escena.vistaModo(k); recalcula(true); pintaFiltro(); } }, t))),
-      h('div.r8e-filtro-g.r8e-op', { title: 'Qué hace lo que creas (formas, bocetos, componentes)' }, h('small', 'Al crear'), [['unir', '➕ Unir'], ['cortar', '➖ Cortar'], ['nuevo', '🧩 Nuevo componente']].map(([k, t]) => h('button' + (opCrear === k ? '.on' : ''), { type: 'button', 'data-op': k, title: { unir: 'Se une a la pieza elegida (una sola pieza)', cortar: 'Hace un agujero / corta la pieza que toca', nuevo: 'Pieza aparte (otro componente)' }[k], onclick: () => { opCrear = k; ESTUDIO.op = k; pintaFiltro(); } }, t))),
-      h('label.r8e-filtro-g.r8e-opac', { title: 'Opacidad de las piezas: bájala para ver a través' }, h('small', 'Opacidad'), h('input', { type: 'range', min: 10, max: 100, step: 5, value: Math.round((escena ? escena.ponOpacidad() : 1) * 100), 'aria-label': 'Opacidad de las piezas', oninput: e => { const v = Number(e.target.value) / 100; escena.ponOpacidad(v); try { localStorage.setItem('cd.r8.opacidad', String(v)); } catch (x) { } recalcula(true); e.target.nextSibling.textContent = e.target.value + ' %'; } }), h('b', Math.round((escena ? escena.ponOpacidad() : 1) * 100) + ' %')));
+      h('div.r8e-filtro-g', h('small', 'Ver'), [['aristas', 'Con aristas', 'Sombreado con las aristas marcadas (lo normal)'], ['sombreado', 'Liso', 'Sombreado sin aristas'], ['alambre', 'Alambre', 'Solo la malla'], ['transparente', 'Transparente', 'Ver a través (solo mientras lo tengas puesto)'], ['rayosx', 'Rayos X', 'Ver lo de dentro']].map(([k, t, tt]) => h('button' + (escena && escena.vistaModo() === k ? '.on' : ''), { type: 'button', 'data-ver': k, title: tt, onclick: () => { escena.vistaModo(k); recalcula(true); pintaFiltro(); } }, t)),
+        h('button' + (SEC.on ? '.on' : ''), { type: 'button', 'data-ver': 'seccion', title: 'Sección: un plano que deja ver la pieza por dentro, sin cortarla', onclick: () => { SEC.on = !SEC.on; ponSeccion(); recalcula(true); pintaFiltro(); } }, '◧ Sección')),
+      escena && escena.vistaModo() === 'transparente' ? h('label.r8e-filtro-g.r8e-opac', { title: 'Cuánto se ve a través' }, h('small', 'Opacidad'), h('input', { type: 'range', min: 10, max: 90, step: 5, value: Math.round(escena.ponOpacidad() * 100), 'aria-label': 'Opacidad de las piezas', oninput: e => { escena.ponOpacidad(Number(e.target.value) / 100); recalcula(true); e.target.nextSibling.textContent = e.target.value + ' %'; } }), h('b', Math.round(escena.ponOpacidad() * 100) + ' %')) : null,
+      SEC.on ? h('div.r8e-filtro-g.r8e-sec', h('small', 'Sección'), ['x', 'y', 'z'].map(k => h('button' + (SEC.eje === k ? '.on' : ''), { type: 'button', 'data-sec': k, title: { x: 'De lado a lado', y: 'De delante a atrás', z: 'De abajo arriba' }[k], onclick: () => { SEC.eje = k; ponSeccion(); pintaFiltro(); } }, k.toUpperCase())),
+        h('input', { type: 'range', min: 0, max: 100, step: 0.5, value: SEC.pos * 100, 'aria-label': 'Dónde está la sección', oninput: e => { SEC.pos = Number(e.target.value) / 100; ponSeccion(); } }),
+        h('button', { type: 'button', 'data-sec': 'inv', title: 'Ver el otro lado', onclick: () => { SEC.inv = !SEC.inv; ponSeccion(); } }, '⇄')) : null,
+      h('div.r8e-filtro-g.r8e-op', { title: 'Qué hace lo que creas (formas, bocetos, componentes)' }, h('small', 'Al crear'), [['unir', '➕ Unir'], ['cortar', '➖ Cortar'], ['nuevo', '🧩 Nuevo componente']].map(([k, t]) => h('button' + (opCrear === k ? '.on' : ''), { type: 'button', 'data-op': k, title: { unir: 'Se une a la pieza elegida (una sola pieza)', cortar: 'Hace un agujero / corta la pieza que toca', nuevo: 'Pieza aparte (otro componente)' }[k], onclick: () => { opCrear = k; ESTUDIO.op = k; pintaFiltro(); } }, t))));
   }
+  // v30.6 · SECCIÓN: el plano va de un lado a otro de lo que hay en pantalla (posición de 0 a 100 %)
+  const SEC = ESTUDIO.sec || (ESTUDIO.sec = { on: false, eje: 'z', pos: 0.5, inv: false });
+  function ponSeccion() { if (!escena) return; if (!SEC.on || !R || !R.info) { if (escena.seccion(null)) recalcula(true); return; } const k = 'xyz'.indexOf(SEC.eje), a = R.info.min[k], b = R.info.max[k], d = a + (b - a) * SEC.pos, n = [0, 0, 0]; n[k] = SEC.inv ? -1 : 1; if (escena.seccion({ n, d: SEC.inv ? -d : d })) recalcula(true); window.__r8e && (window.__r8e.seccion = { eje: SEC.eje, d, inv: SEC.inv }); }
   function ponModoSel(k) { modoSel = k; if (k !== 'cara') quitaCara(); else if (['mover', 'girar', 'escalar'].includes(herr)) { herr = null; escena.flechas(null); } pintaCinta(); pintaProp(); toast(k === 'cara' ? '▱ Toca una CARA plana de la pieza' : '🧊 Toca una pieza entera', '', 1800); }
   function quitaCara() { caraSel = null; escena && escena.ponCara(null); escena && escena.fantasmas(null); escena && escena.ponArista(null); escena && escena.ponPunto(null); if (dlg) mount(dlg); if (herr === 'cara') { herr = null; escena && escena.flechas(null); } }
   function eligeCara(e, A, sinArista) { // v30: A = la arista iluminada al tocar (redondear SOLO esa); si no, se busca junto al dedo o al ratón
@@ -497,9 +535,18 @@ export async function montarEstudio(el, ext = {}) {
   function aplicaEmpuje() {
     if (!caraSel || Math.abs(caraSel.d) < 0.01) return toast('Escribe cuánto empujar (+) o tirar hacia dentro (−).', 'warn');
     const src = PR.busca(P, caraSel.id); if (!src) return;
-    const d = Math.round(caraSel.d * 100) / 100, nuevo = PR.añadir(P, { tipo: 'empuje', nombre: (d > 0 ? 'Saliente ' : 'Rebaje ') + n1(Math.abs(d)) + ' mm', p: { base: caraSel.F.base, anillos: caraSel.F.anillos, d }, color: src.color, acabado: src.acabado, hueco: d < 0 });
-    const g = PR.agrupar(P, [src.id, nuevo.id], 'unir', nuevo.n); if (g) { g.nombre = (src.nombre || PR.nombreTipo(src)) + (d > 0 ? ' + saliente' : ' − rebaje'); g.color = src.color; g.acabado = src.acabado; }
-    quitaCara(); commit(); elige(g ? [g.id] : [nuevo.id]); toast((d > 0 ? '⇧ Cara empujada ' : '⇩ Cara hundida ') + n1(Math.abs(d)) + ' mm (se puede cambiar en el navegador)', 'ok');
+    const d = Math.round(caraSel.d * 100) / 100, op = caraSel.op || 'auto';
+    // v30.6 · se VALIDA antes de tocar nada: con «Cruce» la cara tiene que entrar en la pieza (fuera no hay nada en común)
+    if (op === 'cruce' && d > 0) return toast('Con «Cruce» la medida tiene que ser negativa (hacia dentro de la pieza): hacia fuera no hay nada en común.', 'warn', 6000);
+    const antes = JSON.stringify(P), selAntes2 = sel.slice();
+    try {
+      const nuevo = PR.añadir(P, { tipo: 'empuje', nombre: (op === 'nuevo' ? 'Extrusión ' : d > 0 ? 'Saliente ' : 'Rebaje ') + n1(Math.abs(d)) + ' mm', p: { base: caraSel.F.base, anillos: caraSel.F.anillos, d }, color: src.color, acabado: src.acabado, hueco: op === 'auto' && d < 0 });
+      let g = null;
+      if (op !== 'nuevo') { g = PR.agrupar(P, [src.id, nuevo.id], op === 'cruce' ? 'cruce' : 'unir', nuevo.n); if (g) { g.nombre = (src.nombre || PR.nombreTipo(src)) + (op === 'cruce' ? ' ∩ cruce' : d > 0 ? ' + saliente' : ' − rebaje'); g.color = src.color; g.acabado = src.acabado; } }
+      const R2 = PR.evaluar(P); if (!R2.partes.length && !R2.huecos.length) throw new Error('la extrusión deja la pieza vacía');
+      quitaCara(); commit(); elige(g ? [g.id] : [nuevo.id]);
+      toast(op === 'nuevo' ? '⇕ Extrusión de ' + n1(Math.abs(d)) + ' mm como PIEZA NUEVA (suelta: puedes moverla o pintarla aparte)' : op === 'cruce' ? '∩ Me quedo con lo que tienen en común' : (d > 0 ? '⇧ Cara empujada ' : '⇩ Cara hundida ') + n1(Math.abs(d)) + ' mm (se puede cambiar en el navegador)', 'ok');
+    } catch (e) { P = JSON.parse(antes); ESTUDIO.P = P; sel = selAntes2; recalcula(true); pintaNav(); toast('No se ha podido extruir (' + (e.message || e) + '): lo dejo como estaba.', 'bad', 7000); }
   }
   // v30 · ⚫ AGUJERO AQUÍ (como el «Agujero» de Fusion): en el punto tocado de la cara, hacia dentro; pasante o con fondo
   function agujeroAqui(d = 5, fondo = 0) {
@@ -699,11 +746,21 @@ export async function montarEstudio(el, ext = {}) {
     const giro = (id, ang, eje) => { const c0 = cen[id]; return new T3.Matrix4().makeTranslation(c0[0], c0[1], c0[2]).multiply(new T3.Matrix4().makeRotationAxis(EJ[eje || 'z'], ang)).multiply(new T3.Matrix4().makeTranslation(-c0[0], -c0[1], -c0[2])); };
     const angDe = (id, t, prof = 0) => { const m = A.mov[id]; if (!m || prof > 6) return 0; if (m.tipo === 'gira') return 2 * Math.PI * (Number(m.vel) || 30) / 60 * t * A.vel;
       if (m.tipo === 'engrana' && m.con && A.mov[m.con]) { const z1 = Number(m.z) || dientesDe(PR.busca(P, id)) || 1, z2 = Number(A.mov[m.con].z) || dientesDe(PR.busca(P, m.con)) || 1; return -angDe(m.con, t, prof + 1) * z2 / z1; } return 0; };
+    // v30.6 · 🚪 BISAGRA: el eje que trae la pieza (c.bisagra, de Cajas o del catálogo) o el canto de su caja que se elija
+    const ejeBisagra = c => { const m = A.mov[c.id] || {}; if (c.bisagra && m.lado === 'suya') return { o: c.bisagra.o.map((v, i) => v + (c.t.pos[i] || 0)), dir: c.bisagra.dir };
+      const b = PR.cajaDe(P, [c.id]); if (!b) return null; const z = m.nivel === 'arriba' ? b.max[2] : b.min[2], L = m.lado || 'atras';
+      if (L === 'atras') return { o: [0, b.max[1], z], dir: [-1, 0, 0] }; if (L === 'delante') return { o: [0, b.min[1], z], dir: [1, 0, 0] };
+      if (L === 'izq') return { o: [b.min[0], 0, z], dir: [0, -1, 0] }; if (L === 'der') return { o: [b.max[0], 0, z], dir: [0, 1, 0] };
+      if (L === 'cantoIzq') return { o: [b.min[0], b.min[1], 0], dir: [0, 0, -1] }; return { o: [b.max[0], b.min[1], 0], dir: [0, 0, 1] }; };
+    const bisagras = {}; vis.forEach(c => { if ((A.mov[c.id] || {}).tipo === 'bisagra') bisagras[c.id] = ejeBisagra(c); });
+    const matBisagra = (id, grados) => { const E = bisagras[id]; if (!E) return new T3.Matrix4(); const d = new T3.Vector3(...E.dir).normalize(); return new T3.Matrix4().makeTranslation(E.o[0], E.o[1], E.o[2]).multiply(new T3.Matrix4().makeRotationAxis(d, grados * Math.PI / 180)).multiply(new T3.Matrix4().makeTranslation(-E.o[0], -E.o[1], -E.o[2])); };
     return t => {
       const out = {};
       vis.forEach(c => {
         const m = A.mov[c.id] || {}; let M = new T3.Matrix4();
-        if (m.tipo === 'gira' || m.tipo === 'engrana') M = giro(c.id, angDe(c.id, t), m.tipo === 'engrana' ? ((A.mov[m.con] || {}).eje || 'z') : m.eje);
+        if (m.tipo === 'bisagra') { const tope = Number(m.ang) || 100, k = A.mano != null ? A.mano : (0.5 - 0.5 * Math.cos(2 * Math.PI * t * A.vel / (Number(m.per) || 3))); M = matBisagra(c.id, tope * k); }
+        else if (m.tipo === 'cajon') { const D = c.desliza || { dir: [0, -1, 0], d: Number(m.dist) || 30 }, k = (A.mano != null ? A.mano : (0.5 - 0.5 * Math.cos(2 * Math.PI * t * A.vel / (Number(m.per) || 3)))) * D.d; M = new T3.Matrix4().makeTranslation(D.dir[0] * k, D.dir[1] * k, D.dir[2] * k); }
+        else if (m.tipo === 'gira' || m.tipo === 'engrana') M = giro(c.id, angDe(c.id, t), m.tipo === 'engrana' ? ((A.mov[m.con] || {}).eje || 'z') : m.eje);
         else if (m.tipo === 'va' || m.tipo === 'sube') { const d = (Number(m.dist) || 10) * Math.sin(2 * Math.PI * t * A.vel / (Number(m.per) || 2)), v = EJ[m.tipo === 'sube' ? 'z' : (m.eje || 'x')]; M = new T3.Matrix4().makeTranslation(v.x * d, v.y * d, v.z * d); }
         if (A.despiece) { const c0 = cen[c.id], dir = new T3.Vector3(c0[0] - todo[0], c0[1] - todo[1], c0[2] - todo[2]); if (dir.length() < 0.01) dir.set(0, 0, 1); dir.normalize(); const k = (0.5 - 0.5 * Math.cos(2 * Math.PI * t * A.vel / 4)) * Math.max(15, R && R.info ? Math.max(...R.info.dims) * 0.45 : 30); M = new T3.Matrix4().makeTranslation(dir.x * k, dir.y * k, dir.z * k).multiply(M); }
         out[c.id] = M;
@@ -715,20 +772,36 @@ export async function montarEstudio(el, ext = {}) {
   function panelAnimar() {
     const A = ESTUDIO.anim = ESTUDIO.anim || { mov: {}, despiece: false, vel: 1, vuelta: false, play: false };
     const vis = P.cuerpos.filter(c => !c.oculto);
-    const juega = on => { A.play = on; escena.flechas(null); if (on) escena.animar(animacion()); else escena.animar(null); escena.giraCamara(on && A.vuelta ? 1 : 0); panelAnimar(); };
+    // v30.6 · las piezas que traen su bisagra (de Cajas o del catálogo) ya vienen preparadas para abrirse
+    vis.forEach(c => { if (c.bisagra && !A.mov[c.id]) A.mov[c.id] = { tipo: 'bisagra', lado: 'suya', nivel: 'abajo', ang: c.bisagra.ang || 100, per: 3, eje: 'z', vel: 30, dist: 10, con: '', z: '' }; else if (c.desliza && !A.mov[c.id]) A.mov[c.id] = { tipo: 'cajon', per: 3, eje: 'y', vel: 30, dist: c.desliza.d, con: '', z: '' }; });
+    const juega = on => { A.play = on; A.mano = null; escena.flechas(null); if (on) escena.animar(animacion()); else escena.animar(null); escena.giraCamara(on && A.vuelta ? 1 : 0); panelAnimar(); };
+    const aMano = k => { A.mano = k; A.play = false; escena.flechas(null); escena.giraCamara(0); escena.animar(k > 0.001 ? animacion() : null); if (k <= 0.001) A.mano = null; const b = prop.querySelector('.r8e-anim-play'); if (b) b.textContent = '▶ Reproducir'; window.__r8e && (window.__r8e.aMano = k); };
+    const queAbren = vis.filter(c => ['bisagra', 'cajon'].includes((A.mov[c.id] || {}).tipo)), cand = sel.length === 1 ? PR.busca(P, sel[0]) : null;
+    const hazTapa = c => { A.mov[c.id] = Object.assign(A.mov[c.id] || { eje: 'z', vel: 30, dist: 10, con: '', z: '' }, { tipo: 'bisagra', lado: c.bisagra ? 'suya' : 'atras', nivel: 'abajo', ang: (c.bisagra && c.bisagra.ang) || 100, per: 3 }); panelAnimar(); };
     const rehaz = () => { if (A.play) escena.animar(animacion()); };
     const fila = c => {
       const m = A.mov[c.id] = A.mov[c.id] || { tipo: '', eje: 'z', vel: 30, dist: 10, per: 2, con: '', z: dientesDe(c) || '' };
       const otros = vis.filter(x => x.id !== c.id);
       return h('div.r8e-anim-f', { 'data-anim': c.id }, h('b', c.nombre || PR.nombreTipo(c)),
-        h('select.inp', { 'aria-label': 'Movimiento', onchange: e => { m.tipo = e.target.value; rehaz(); panelAnimar(); } }, [['', 'Quieta'], ['gira', '⟳ Gira'], ['va', '↔ Va y viene'], ['sube', '⬆ Sube y baja'], ['engrana', '⚙️ Engrana con…']].map(([k, t]) => h('option', { value: k, selected: m.tipo === k }, t))),
+        h('select.inp', { 'aria-label': 'Movimiento', onchange: e => { m.tipo = e.target.value; rehaz(); panelAnimar(); } }, [['', 'Quieta'], ['bisagra', '🚪 Se abre y se cierra (tapa o puerta)'], ['cajon', '↔ Sale y entra (cajón o tapa que se quita)'], ['gira', '⟳ Gira'], ['va', '↔ Va y viene'], ['sube', '⬆ Sube y baja'], ['engrana', '⚙️ Engrana con…']].map(([k, t]) => h('option', { value: k, selected: m.tipo === k }, t))),
         m.tipo === 'gira' || m.tipo === 'va' ? h('select.inp', { 'aria-label': 'Eje', onchange: e => { m.eje = e.target.value; rehaz(); } }, [['z', 'Eje Z (vertical)'], ['x', 'Eje X'], ['y', 'Eje Y']].map(([k, t]) => h('option', { value: k, selected: m.eje === k }, t))) : null,
+        m.tipo === 'bisagra' ? [h('select.inp', { 'aria-label': 'Dónde está la bisagra', 'data-k': 'lado', onchange: e => { m.lado = e.target.value; rehaz(); if (A.mano != null) aMano(A.mano); } }, (c.bisagra ? [['suya', '🔗 Su bisagra (la que trae)']] : []).concat([['atras', 'Bisagra detrás (tapa)'], ['delante', 'Bisagra delante'], ['izq', 'Bisagra a la izquierda'], ['der', 'Bisagra a la derecha'], ['cantoIzq', 'Puerta: canto izquierdo'], ['cantoDer', 'Puerta: canto derecho']]).map(([k, t]) => h('option', { value: k, selected: (m.lado || 'atras') === k }, t))),
+          !['suya', 'cantoIzq', 'cantoDer'].includes(m.lado || 'atras') ? h('select.inp', { 'aria-label': 'A qué altura', onchange: e => { m.nivel = e.target.value; rehaz(); if (A.mano != null) aMano(A.mano); } }, [['abajo', 'Por su borde de abajo'], ['arriba', 'Por su borde de arriba']].map(([k, t]) => h('option', { value: k, selected: (m.nivel || 'abajo') === k }, t))) : null,
+          campoNum(m, 'ang', 'Hasta dónde se abre', 5, 270, 5, '°', () => { rehaz(); if (A.mano != null) aMano(A.mano); }), campoNum(m, 'per', 'Tarda (abrir y cerrar)', 0.5, 20, 0.5, 's', rehaz)] : null,
         m.tipo === 'gira' ? campoNum(m, 'vel', 'Vueltas por minuto', -600, 600, 5, 'rpm', rehaz) : null,
         m.tipo === 'va' || m.tipo === 'sube' ? [campoNum(m, 'dist', 'Recorrido', 1, 300, 1, 'mm', rehaz), campoNum(m, 'per', 'Tarda (ida y vuelta)', 0.3, 20, 0.1, 's', rehaz)] : null,
         m.tipo === 'engrana' ? [h('select.inp', { 'aria-label': 'Engrana con', onchange: e => { m.con = e.target.value; rehaz(); } }, h('option', { value: '' }, '— elige la otra rueda —'), otros.map(x => h('option', { value: x.id, selected: m.con === x.id }, x.nombre || PR.nombreTipo(x)))),
           campoNum(m, 'z', 'Sus dientes', 4, 400, 1, '', rehaz), h('small.muted', 'La otra rueda tiene que girar (⟳). Esta gira al revés, con la relación de dientes.')] : null);
     };
+    const mano = { k: Math.round((A.mano || 0) * 100) };
     mount(prop, h('div.r8e-prop-t', h('b', '🎬 ANIMAR')), h('p.small.muted', 'Elige qué se mueve y dale al ▶. Nada de líneas de tiempo: lo ves al momento. No cambia tu diseño.'),
+      // v30.6 · lo más pedido, arriba y fácil: ABRIR Y CERRAR
+      h('div.r8e-abrir', h('b', '🚪 ABRIR Y CERRAR'),
+        queAbren.length ? [h('small', (queAbren.length === 1 ? 'Se abre: ' : 'Se abren: ') + queAbren.map(c => c.nombre || PR.nombreTipo(c)).join(', ') + '.'),
+          campoNum(mano, 'k', 'Ábrela tú con el deslizador', 0, 100, 1, '%', () => aMano(mano.k / 100)),
+          h('div.r8e-btns', btn('▶ Que se abra y se cierre sola', () => juega(true), { cls: 'primary r8e-abrir-play' }), btn('⏹ Cerrada', () => { juega(false); aMano(0); panelAnimar(); }, { cls: 'sm r8e-abrir-stop' }))]
+          : h('small', 'Elige la tapa o la puerta (tocándola o en la lista de la izquierda) y pulsa el botón: yo le pongo la bisagra en su borde de atrás.'),
+        cand && (A.mov[cand.id] || {}).tipo !== 'bisagra' ? btn('🚪 «' + (cand.nombre || PR.nombreTipo(cand)) + '» se abre como una tapa', () => hazTapa(cand), { cls: 'r8e-abrir-esta' }) : null),
       h('div.r8e-btns', btn(A.play ? '⏸ Pausa' : '▶ Reproducir', () => juega(!A.play), { cls: 'primary r8e-anim-play' }), btn('🎥 Grabar vídeo (8 s)', async ev => {
         const b = ev.target.closest('button'); b.disabled = true; if (!A.play) juega(true); toast('🎥 Grabando 8 segundos…', '', 8500);
         try { const v = await escena.grabar(8); baja(v, nombreArchivo() + '_animacion.webm'); toast('🎥 Vídeo guardado (' + Math.round(v.size / 1024) + ' KB). Para Instagram: Reels admite este vídeo tal cual.', 'ok', 7000); } catch (e) { toast('No se pudo grabar: ' + (e.message || e), 'bad'); } b.disabled = false;
@@ -871,11 +944,15 @@ export async function montarEstudio(el, ext = {}) {
   function pintaNav() {
     const fila = (c, nivel) => h('div.r8e-fila' + (sel.includes(c.id) ? '.on' : '') + (c.oculto ? '.oculto' : ''), { 'data-id': c.id, style: { paddingLeft: (8 + nivel * 14) + 'px' }, onclick: e => elige([c.id], e.shiftKey || e.ctrlKey || e.metaKey), ondblclick: async () => { const n = await promptDlg('Nombre', 'Nombre de la pieza', c.nombre || ''); if (n !== null) { c.nombre = n.trim().slice(0, 40); commit(); } } },
       h('button.r8e-ojo', { type: 'button', title: c.oculto ? 'Mostrar' : 'Ocultar', onclick: e => { e.stopPropagation(); c.oculto = !c.oculto; commit(); } }, c.oculto ? '◌' : '👁'),
-      h('span.r8e-ic', icono(c)), h('span.r8e-n', c.nombre || PR.nombreTipo(c)), c.hueco ? h('span.r8e-hueco', 'hueco') : h('span.r8e-dot', { style: { background: c.color } }));
+      h('span.r8e-ic', icono(c)), h('span.r8e-n', c.nombre || PR.nombreTipo(c)), c.hueco ? h('span.r8e-hueco', 'hueco') : h('span.r8e-dot', { style: { background: c.color } }),
+      nivel === 0 ? h('button.r8e-ojo.r8e-candado' + (c.bloqueo ? '.on' : ''), { type: 'button', 'data-candado': c.id, title: c.bloqueo ? 'Bloqueada: no se elige al tocarla en la vista ni se mueve. Pulsa para soltarla.' : 'Bloquear: que no se mueva ni se elija sin querer', onclick: e => { e.stopPropagation(); c.bloqueo = !c.bloqueo; if (!c.bloqueo) delete c.bloqueo; commit(); } }, c.bloqueo ? '🔒' : '🔓') : null);
+    const aislar = () => { const A2 = ESTUDIO.aislado; if (A2) { A2.forEach(id => { const x = PR.busca(P, id); if (x) x.oculto = false; }); ESTUDIO.aislado = null; } else { if (!sel.length) return toast('Elige antes la pieza que quieres ver sola.', 'warn'); const L = P.cuerpos.filter(x => !x.oculto && !sel.includes(x.id)); L.forEach(x => { x.oculto = true; }); ESTUDIO.aislado = L.map(x => x.id); } commit(); };
     const filas = []; const rec = (L, n) => L.forEach(c => { filas.push(fila(c, n)); if (c.hijos) rec(c.hijos, n + 1); }); rec(P.cuerpos, 0);
     const cons = (P.cons || []).map(c => h('div.r8e-fila.r8e-cons' + (consSel === c.id ? '.on' : '') + (c.oculto ? '.oculto' : ''), { 'data-cons': c.id, onclick: () => eligeCons(c.id) },
       h('button.r8e-ojo', { type: 'button', title: c.oculto ? 'Mostrar' : 'Ocultar', onclick: e => { e.stopPropagation(); c.oculto = !c.oculto; commit(); } }, c.oculto ? '◌' : '👁'), h('span.r8e-ic', c.tipo === 'plano' ? '📐' : '／'), h('span.r8e-n', c.nombre || 'Construcción')));
-    mount(nav, h('div.r8e-nav-t', h('b', 'NAVEGADOR'), h('small', P.cuerpos.length + ' cuerpo' + (P.cuerpos.length === 1 ? '' : 's'))), filas.length ? filas : h('p.r8e-nada', 'Aún no hay nada. Crea una forma o un boceto.'),
+    mount(nav, h('div.r8e-nav-t', h('b', 'NAVEGADOR'), h('small', P.cuerpos.length + ' cuerpo' + (P.cuerpos.length === 1 ? '' : 's'))),
+      P.cuerpos.length > 1 ? h('div.r8e-nav-b', h('button' + (ESTUDIO.aislado ? '.on' : ''), { type: 'button', 'data-nav': 'aislar', title: 'Ver SOLO lo elegido (lo demás se esconde); otra vez, y vuelve todo', onclick: aislar }, ESTUDIO.aislado ? '◎ Ver todo otra vez' : '◎ Aislar lo elegido'), P.cuerpos.some(x => x.oculto) && !ESTUDIO.aislado ? h('button', { type: 'button', 'data-nav': 'todo', title: 'Enseñar todas las piezas', onclick: () => { P.cuerpos.forEach(x => { x.oculto = false; }); commit(); } }, '👁 Enseñar todo') : null) : null,
+      h('p.r8e-nav-ay', '👁 esconder · 🔓 bloquear · doble clic: cambiar el nombre'), filas.length ? filas : h('p.r8e-nada', 'Aún no hay nada. Crea una forma o un boceto.'),
       cons.length ? [h('div.r8e-nav-t.r8e-nav-cons', h('b', 'CONSTRUCCIÓN'), h('small', 'no se imprime')), cons] : null);
   }
 
@@ -929,6 +1006,8 @@ export async function montarEstudio(el, ext = {}) {
         h('select.inp', { 'aria-label': 'Acabado', onchange: e => { c.acabado = e.target.value; commit(); } }, Object.entries(ACABADOS).map(([k, a]) => h('option', { value: k, selected: c.acabado === k }, a.t))), h('small.muted', 'El color en pantalla es APROXIMADO al de la bobina.')) : null,
       forma.length ? seccion('📐 Forma', forma) : null,
       seccion('📏 Tamaño', tam, h('label.check.small', h('input', { type: 'checkbox', checked: prop2, onchange: e => { prop2 = e.target.checked; } }), 'Mantener la proporción')),
+      herr === 'mover' ? h('div.r8e-moverb', h('b', '✥ MOVER'), h('small', 'Arrastra las flechas de la pieza: la AZUL es arriba y abajo. O con el teclado: ← → ↑ ↓ y Re Pág / Av Pág (Mayús = 0,1 · Alt = 10).'),
+        h('div.r8e-btns', btn('⬆ Subir 1', () => empuja([0, 0, 1]), { cls: 'sm r8e-subir' }), btn('⬇ Bajar 1', () => empuja([0, 0, -1]), { cls: 'sm r8e-bajar' }), btn('⬆ 10', () => empuja([0, 0, 10]), { cls: 'sm' }), btn('⬇ 10', () => empuja([0, 0, -10]), { cls: 'sm' }), btn('⤓ A la cama', () => { PR.aLaCama(P, sel); commit(); }, { cls: 'sm' }))) : null,
       seccion('✥ Posición', h('div.r8e-tres', ['x', 'y', 'z'].map(e => campoNum(pos, e, e.toUpperCase(), -1000, 1000, 0.5, 'mm', fin => { c.t.pos = [pos.x, pos.y, pos.z].map(r3); escena.moverProxy(c.id, c.t); if (fin) commit(); else recalcula(); }))),
         h('div.r8e-btns', btn('⤓ A la cama', () => { PR.aLaCama(P, [c.id]); commit(); }, { cls: 'sm' }), btn('⌖ Al centro', () => { const bb = PR.cajaDe(P, [c.id]); if (bb) { c.t.pos[0] = r3(c.t.pos[0] - (bb.min[0] + bb.max[0]) / 2); c.t.pos[1] = r3(c.t.pos[1] - (bb.min[1] + bb.max[1]) / 2); commit(); } }, { cls: 'sm' }))),
       seccion('⟳ Giro', h('div.r8e-tres', ['x', 'y', 'z'].map(e => campoNum(rot, e, e.toUpperCase(), -360, 360, 1, '°', fin => { c.t.rot = [rot.x, rot.y, rot.z].map(r3); escena.moverProxy(c.id, c.t); if (fin) { PR.aLaCama(P, [c.id]); commit(); } else recalcula(); }))),
@@ -944,11 +1023,14 @@ export async function montarEstudio(el, ext = {}) {
   }
 
   // ---------- herramientas con panel propio ----------
+  let herrSola = false; // v30.6: «Mover» se encendió solo (al poner una forma), no porque ella lo pulsara
   function ponHerr(k) {
+    herrSola = false;
     herr = herr === k && !['mover', 'girar', 'escalar'].includes(k) ? null : k;
     if (herr !== 'medir') { medida = []; escena.medida(null); }
     if (herr !== 'centro' && escena) escena.marcadores(null);
     if (herr !== 'partir' && herr !== 'cortar') { partirO = null; escena.planoCorte(null); }
+    if (herr !== 'partir' && escena) escena.previa(null);
     if (herr !== 'cortar') cortarO = null;
     if (herr !== 'animar' && escena && escena.animando()) { escena.animar(null); escena.giraCamara(0); }
     if (herr !== 'cons') { consSel = null; pintaCons(); }
@@ -1034,78 +1116,158 @@ export async function montarEstudio(el, ext = {}) {
       lista, h('div.r8e-addmod', Object.entries(N.DEFORMACIONES).map(([k, d]) => btn(d.t, () => { c.mods.push(Object.assign({ t: k }, Object.fromEntries(d.c.map(x => [x[0], x[2]])))); commit(); }, { cls: 'sm' }))),
       h('div.r8e-btns', btn('✓ Listo', () => ponHerr(null), { cls: 'primary' })));
   }
-  // ✂️ PARTIR con conectores (vista previa del plano y de los conectores en directo)
+  // ✂️ PARTIR con conectores. v30.6 (el encargo «como Fusion»): el plano se VE y se COGE (flecha para moverlo, aros para inclinarlo, o sus
+  // números), la vista previa es la pieza DE VERDAD ya partida (cada parte de su color; se separan o se ven de una en una), se elige qué
+  // trozo se separa cuando el plano corta varios, te quedas con las dos partes o con una, llevan nombre, y hay unión con TORNILLO.
+  const COL_PARTE = { a: '#4c9fff', b: '#ff9a3d' };
   function panelPartir() {
     const objetivo = sel.length === 1 ? PR.busca(P, sel[0]) : null;
-    const o = partirO = partirO || Object.assign({ eje: 'z', pos: null, inclina: 0, tipo: 'pasadores', forma: 'redonda', estilo: 'recto', n: 0, d: 5, largo: 10, imanD: 6, imanH: 3, encaje: 'justo', manual: false, sitios: [], planoId: '' }, ESTUDIO.partir || {});
-    const info = h('div.r8e-medida'), aviso = h('div');
+    const o = partirO = partirO || Object.assign({ eje: 'z', pos: null, inclina: 0, inclina2: 0, tipo: 'pasadores', forma: 'redonda', estilo: 'recto', n: 0, d: 5, largo: 10, imanD: 6, imanH: 3, encaje: 'justo', holgura: null, manual: false, sitios: [], planoId: '',
+      metrica: '3', largoT: 12, cabeza: 'cilindrica', agarre: 'rosca', entra: 'arriba', asa: 'mover', ver: 'dos', abre: 60, verPlano: true, quedar: 'dos', solo: null, unTrozo: false, nombreA: '', nombreB: '' }, ESTUDIO.partir || {});
+    const base = ((objetivo && (objetivo.nombre || PR.nombreTipo(objetivo))) || P.nombre || 'Pieza').replace(/ · parte [AB]$/, '');
+    if (!o.nombreA || o._base !== base) o.nombreA = base + ' · parte A'; if (!o.nombreB || o._base !== base) o.nombreB = base + ' · parte B'; o._base = base;
+    const info = h('div.r8e-medida'), aviso = h('div'), trozosEl = h('div');
     const planos = PR.construccionDe(P).filter(c => c.tipo === 'plano'), pl = o.planoId && planos.find(c => c.id === o.planoId);
     o.plano = pl ? { o: pl.o, n: pl.n } : null;
-    let total = null;
+    const recto = () => !o.inclina && !o.inclina2, dCon = () => (o.tipo === 'imanes' ? o.imanD : o.tipo === 'tornillo' ? (N.TORNILLOS[String(o.metrica)] || N.TORNILLOS['3']).cab : o.d);
+    const opciones = () => Object.assign({}, o, { sitios: o.manual ? o.sitios : null, tipo: o.quedar === 'dos' ? o.tipo : 'ninguno', holgura: o.encaje === 'medida' ? o.holgura : null, solo: o.unTrozo ? o.solo : null });
+    // todo el cálculo va en un «ámbito»: lo que crea el motor se suelta al acabar (se llama muchas veces mientras se arrastra el plano)
+    const calcula = fn => { try { return N.enAmbito(() => {
+      const L = objetivo ? [PR.colocado(objetivo, P)] : PR.partesFinales(P).map(x => x.m); if (!L.length) throw new Error('No hay nada que partir.');
+      const total = N.union(L), b = N.caja(total), k = { x: 0, y: 1, z: 2 }[o.eje]; o._b = b;
+      if (!o.plano && (o.pos === null || !isFinite(o.pos) || (recto() && o.pos > b.dims[k]))) o.pos = Math.round(b.dims[k] / 2 * 2) / 2;
+      return fn(N.partir(total, opciones()), b);
+    }); } finally { N.limpia(); } };
+    let ultimo = null, msCalc = 0, ticPrev = 0;
+    const centroPlano = () => { const b = o._b; if (!b) return null; if (!o.plano) { const p2 = N.planoDePartir(o, b); return { normal: p2.n, punto: p2.o }; }
+      const c0 = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2], l = Math.hypot(...o.plano.n) || 1, n = o.plano.n.map(x => x / l), dd = n[0] * (c0[0] - o.plano.o[0]) + n[1] * (c0[1] - o.plano.o[1]) + n[2] * (c0[2] - o.plano.o[2]); return { normal: n, punto: c0.map((v, i) => v - n[i] * dd) }; };
+    const aMundo = v => { const R0 = o._R; return [0, 1, 2].map(i => R0[0][i] * v[0] + R0[1][i] * v[1] + R0[2][i] * v[2]); };
+    const desp = d => { const n = ultimo.normal; return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, n[0] * d, n[1] * d, n[2] * d, 1]; };
+    const sepa = () => (ultimo && o.quedar === 'dos' ? (o.abre / 100) * ultimo.abre / 2 : 0), verA = () => o.quedar !== 'b' && (o.quedar !== 'dos' || o.ver !== 'b'), verB = () => o.quedar !== 'a' && (o.quedar !== 'dos' || o.ver !== 'a');
+    function pintaPlano(ligero) {
+      const pc = o._plano; if (!pc || !o._b || o.verPlano === false) return escena.planoCorte(null);
+      const r = ultimo, con = o.quedar === 'dos' && o.tipo !== 'ninguno' && o._R;
+      const sitios = !con ? [] : o.manual ? o.sitios.map(q => aMundo([q[0], q[1], o._zc])) : (!ligero && r ? r.sitios.map(q => aMundo([q[0], q[1], r.zc])) : []);
+      escena.planoCorte({ normal: pc.normal, punto: pc.punto, tam: Math.max(...o._b.dims) * 1.4, color: 0xffe14a, sitios, d: dCon(), contorno: !ligero && r ? r.contorno : null });
+    }
+    function pintaVista() {
+      if (!ultimo) { escena.previa(null); return pintaPlano(true); } const r = ultimo, k = sepa();
+      escena.previa([{ vista: r.vA, color: COL_PARTE.a, matriz: desp(k), oculta: !verA() }, { vista: r.vB, color: COL_PARTE.b, matriz: desp(-k), oculta: !verB() }], objetivo ? [objetivo.id] : true);
+      pintaPlano();
+    }
+    const ponCasillas = () => ['pos', 'inclina', 'inclina2'].forEach(k => { const c = prop.querySelector('input[data-k="' + k + '"]'); if (!c || document.activeElement === c) return; c.value = o[k]; const rg = c.closest('label') && c.closest('label').querySelector('input[type=range]'); if (rg) rg.value = o[k]; });
+    // las ASAS del plano: la flecha lo mueve a lo largo de su normal; los dos aros lo inclinan. Lo que se arrastra se escribe en las casillas
+    function ponAsas() {
+      if (o.planoId || o.asa === 'no' || !o._plano || herr !== 'partir') return escena.flechas(null);
+      const mover = m => { const q = N.paramsDePlano(o.eje, m.n, m.pos, o._b); o.pos = q.pos; o.inclina = q.inclina; o.inclina2 = q.inclina2; o.sitios = []; o._plano = centroPlano(); ponCasillas(); pintaPlano(true); clearTimeout(ticPrev); ticPrev = setTimeout(() => prepara(), Math.max(30, Math.min(400, msCalc * 1.3))); };
+      const soltar = () => { clearTimeout(ticPrev); guardaPrefs(); prepara(); };
+      escena.flechas(o.asa === 'girar' ? 'girar' : 'mover', { pos: o._plano.punto, normal: o._plano.normal }, mover, soltar, o.asa === 'girar' ? { sinZ: true, snap: [0.5, 1] } : { soloZ: true, snap: [0.5, 1] });
+    }
+    function pintaInfo() {
+      const r = ultimo; if (!r) return;
+      mount(info, h('div', h('span', 'Corte'), h('b', n1(r.seccion / 100) + ' cm²')), h('div', h('span', h('i.r8e-pt.a'), 'Parte A'), h('b', n1(r.volA / 1000) + ' cm³')), h('div', h('span', h('i.r8e-pt.b'), 'Parte B'), h('b', n1(r.volB / 1000) + ' cm³')), h('div', h('span', o.tipo === 'tornillo' ? 'Tornillos' : 'Conectores'), h('b', o.tipo === 'ninguno' || o.quedar !== 'dos' ? '—' : String(r.sitios.length))));
+      mount(aviso, r.avisos.map(a => (/^Solo se separa/.test(a) ? h('p.r8e-nota', 'ℹ️ ' + a) : h('p.r8e-mal', '⚠️ ' + a))));
+      const T2 = r.trozos, varios = T2.length > 2 || o.unTrozo, letra = t => (t.lado === 'arriba' ? 'A' : 'B') + (t.i + 1);
+      mount(trozosEl, !varios ? null : [h('b.r8e-sub', '¿Qué separo?'),
+        h('p.small.muted', T2.length > 2 ? 'El plano corta la pieza en ' + T2.length + ' trozos (por ejemplo, un brazo y el cuerpo a la vez).' : 'Ahora el plano solo deja dos trozos.'),
+        h('div.r8e-seg', h('button' + (!o.unTrozo ? '.on' : ''), { type: 'button', 'data-trozo': 'todo', onclick: () => { o.unTrozo = false; o.solo = null; prepara(); } }, 'Todo lo de cada lado'), h('button' + (o.unTrozo ? '.on' : ''), { type: 'button', 'data-trozo': 'uno', onclick: () => { o.unTrozo = true; if (!o.solo) { const c = T2.slice().sort((a, b2) => a.vol - b2.vol)[0]; if (c && c.punto) o.solo = { lado: c.lado, punto: c.punto }; } prepara(); } }, 'Solo UN trozo')),
+        o.unTrozo ? [h('p.r8e-nota', '👆 Toca en la pieza el trozo que quieres separar, o elígelo aquí. Lo demás se queda en una sola pieza.'),
+          h('div.r8e-trozos', T2.map(t => h('button' + (o.solo && r.elegido === t.i && o.solo.lado === t.lado ? '.on' : ''), { type: 'button', 'data-tz': letra(t), disabled: !t.punto, onclick: () => { o.solo = { lado: t.lado, punto: t.punto }; prepara(); } }, h('i.r8e-pt.' + (t.lado === 'arriba' ? 'a' : 'b')), letra(t) + ' · ' + n1(t.vol / 1000) + ' cm³')))] : null]);
+    }
     const prepara = () => {
+      const t0 = performance.now();
       try {
-        const L = objetivo ? [PR.colocado(objetivo, P)] : PR.partesFinales(P).map(x => x.m); if (!L.length) throw new Error('No hay nada que partir.');
-        total = N.union(L); const b = N.caja(total), k = { x: 0, y: 1, z: 2 }[o.eje]; // (sin guardar: puede ser la misma pieza de la caché)
-        if (!o.plano && (o.pos === null || o.pos > b.dims[k])) o.pos = Math.round(b.dims[k] / 2 * 2) / 2;
-        const r = N.partir(total, Object.assign({}, o, { sitios: o.manual ? o.sitios : null })), cs = r.plano, Rt = [[cs.R[0][0], cs.R[1][0], cs.R[2][0]], [cs.R[0][1], cs.R[1][1], cs.R[2][1]], [cs.R[0][2], cs.R[1][2], cs.R[2][2]]], aW = v => [0, 1, 2].map(i => Rt[i][0] * v[0] + Rt[i][1] * v[1] + Rt[i][2] * v[2]);
-        const centro = o.plano ? (() => { const c0 = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2], n = o.plano.n, dd = (n[0] * (c0[0] - o.plano.o[0]) + n[1] * (c0[1] - o.plano.o[1]) + n[2] * (c0[2] - o.plano.o[2])); return c0.map((v, i) => v - n[i] * dd); })()
-          : (() => { const c = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]; c[k] = b.min[k] + o.pos; return c; })();
-        o._R = cs.R; o._plano = { normal: r.normal, punto: centro };
-        escena.planoCorte({ normal: r.normal, punto: centro, tam: Math.max(...b.dims) * 1.4, sitios: r.sitios.map(q => aW([q[0], q[1], cs.zc])), d: o.tipo === 'imanes' ? o.imanD : o.d });
-        mount(info, h('div', h('span', 'Corte'), h('b', n1(r.seccion / 100) + ' cm²')), h('div', h('span', 'Conectores'), h('b', o.tipo === 'ninguno' ? '—' : String(r.sitios.length))), h('div', h('span', 'Piezas'), h('b', String(r.imprimir.length))));
-        mount(aviso, r.avisos.map(a => h('p.r8e-mal', '⚠️ ' + a)));
-        window.__r8e && (window.__r8e.partir = { sitios: r.sitios.length, piezas: r.imprimir.map(x => x.t), seccion: Math.round(r.seccion) });
+        const r = calcula((r2, b) => ({ b, seccion: r2.seccion, sitios: r2.sitios, normal: r2.normal, avisos: r2.avisos, R: r2.plano.R, zc: r2.plano.zc, abre: r2.abre, contorno: r2.contorno, trozos: r2.trozos, elegido: r2.elegido, holgura: r2.holgura, tornillos: r2.tornillos, piezas: r2.imprimir.map(x => x.t),
+          vA: N.aVista(r2.enSitio.arriba), vB: N.aVista(r2.enSitio.abajo), volA: r2.enSitio.arriba.volume(), volB: r2.enSitio.abajo.volume() }));
+        msCalc = performance.now() - t0; ultimo = r; o._R = r.R; o._zc = r.zc; o._plano = centroPlano();
+        pintaVista(); pintaInfo(); if (!escena.arrastrando) ponAsas();
+        window.__r8e && (window.__r8e.partir = { sitios: r.sitios.length, piezas: r.piezas, seccion: Math.round(r.seccion), trozos: r.trozos.length, elegido: r.elegido, volA: Math.round(r.volA), volB: Math.round(r.volB), normal: r.normal.map(x => Math.round(x * 1000) / 1000), pos: o.pos, inclina: o.inclina, inclina2: o.inclina2, holgura: r.holgura, tornillos: r.tornillos, avisos: r.avisos, abre: r.abre, ms: Math.round(msCalc) });
         return r;
-      } catch (e) { mount(aviso, h('p.r8e-mal', '⚠️ ' + (e.message || e))); escena.planoCorte(null); return null; }
-      finally { N.limpia(); total = null; }
+      } catch (e) {
+        ultimo = null; o._plano = centroPlano(); mount(aviso, h('p.r8e-mal', '⚠️ ' + (e.message || e))); mount(info); mount(trozosEl); escena.previa(null); pintaPlano(true); if (!escena.arrastrando) ponAsas();
+        window.__r8e && (window.__r8e.partir = { error: String(e.message || e), sitios: 0, piezas: [] }); return null;
+      }
     };
-    partirO._prepara = prepara;
-    const cambia = () => { ESTUDIO.partir = Object.assign({}, o, { pos: null, sitios: [], _R: null, _plano: null, _prepara: null, plano: null }); prepara(); };
-    const b0 = (() => { try { const L = objetivo ? [objetivo.id] : P.cuerpos.map(c => c.id); return PR.cajaDe(P, L); } catch (e) { return null; } })();
-    const maxPos = b0 ? b0.dims[{ x: 0, y: 1, z: 2 }[o.eje]] : 200;
-    if (o.pos === null || o.pos > maxPos) o.pos = Math.round(maxPos / 2 * 2) / 2; // a la mitad, ya escrito en su casilla
+    const guardaPrefs = () => { ESTUDIO.partir = Object.assign({}, o, { pos: null, inclina: 0, inclina2: 0, sitios: [], solo: null, unTrozo: false, nombreA: '', nombreB: '', quedar: 'dos', ver: 'dos', planoId: '', plano: null, _R: null, _plano: null, _prepara: null, _asas: null, _toca: null, _ligero: null, _b: null, _zc: null, _base: null }); };
+    const cambia = () => { guardaPrefs(); prepara(); };
+    o._prepara = prepara; o._asas = ponAsas; o._ligero = () => pintaPlano(true);
+    // tocar un trozo en la pieza (con «Solo UN trozo»): el punto tocado, devuelto a su sitio si las partes están separadas
+    o._toca = e => { if (!ultimo) return false; const t = escena.previaEn(e); if (!t) return false; const k = sepa() * (t.i === 0 ? 1 : -1), n = ultimo.normal, p = t.p.map((v, i) => v - n[i] * k), c = o._plano.punto;
+      o.solo = { lado: n[0] * (p[0] - c[0]) + n[1] * (p[1] - c[1]) + n[2] * (p[2] - c[2]) >= 0 ? 'arriba' : 'abajo', punto: p.map(r3) }; prepara(); return true; };
+    const maxPos = (() => { try { const b = PR.cajaDe(P, objetivo ? [objetivo.id] : P.cuerpos.map(c => c.id)); return b ? b.dims[{ x: 0, y: 1, z: 2 }[o.eje]] : 200; } catch (e) { return 200; } })();
+    if (o.pos === null || (recto() && o.pos > maxPos)) o.pos = Math.round(maxPos / 2 * 2) / 2; // a la mitad, ya escrito en su casilla
     const T = N.CONECTOR_TIPOS.find(x => x.k === (o.tipo === 'cuadrada' ? 'espiga' : o.tipo)) || N.CONECTOR_TIPOS[1];
-    const seg = (L, k, cls) => h('div.r8e-seg' + (cls ? '.' + cls : ''), Object.entries(L).map(([v, t2]) => h('button' + (o[k] === v ? '.on' : ''), { type: 'button', ['data-' + k]: v, onclick: () => { o[k] = v; if (k === 'forma' && o.tipo === 'cuadrada') o.tipo = 'espiga'; cambia(); panelPartir(); } }, t2)));
+    const seg = (L, k, cls) => h('div.r8e-seg' + (cls ? '.' + cls : ''), Object.entries(L).map(([v, t2]) => h('button' + (String(o[k]) === v ? '.on' : ''), { type: 'button', ['data-' + k]: v, onclick: () => { o[k] = v; if (k === 'forma' && o.tipo === 'cuadrada') o.tipo = 'espiga'; cambia(); panelPartir(); } }, t2)));
+    const TOR = N.TORNILLOS[String(o.metrica)] || N.TORNILLOS['3'], c2 = x => String(x).replace('.', ',');
+    const dos = o.quedar === 'dos', conCon = dos && o.tipo !== 'ninguno';
     mount(prop, h('div.r8e-prop-t', h('b', '✂️ PARTIR' + (objetivo ? ' · ' + (objetivo.nombre || PR.nombreTipo(objetivo)) : ' · TODO EL DISEÑO'))),
-      h('p.small.muted', objetivo ? 'Parto la pieza elegida en dos y les pongo conectores para unirlas.' : 'Parto todo el diseño (o elige antes una pieza).'),
+      h('p.small.muted', objetivo ? 'Parto la pieza elegida y les pongo con qué unirlas. Lo que ves ya es el resultado: ' : 'Parto todo el diseño (o elige antes una pieza). Lo que ves ya es el resultado: ', h('i.r8e-pt.a'), 'parte A · ', h('i.r8e-pt.b'), 'parte B.'),
       h('b.r8e-sub', '1 · Dónde corto'),
-      h('div.r8e-seg', [['z', '⬌ Tumbado'], ['x', '⬍ De pie (X)'], ['y', '⬍ De pie (Y)']].map(([k, t2]) => h('button' + (!o.planoId && o.eje === k ? '.on' : ''), { type: 'button', 'data-eje': k, onclick: () => { o.eje = k; o.pos = null; o.planoId = ''; o.sitios = []; panelPartir(); } }, t2))),
-      planos.length ? h('label.r8e-c.col', h('span', 'O con un plano de construcción'), h('select.inp.r8e-partir-plano', { onchange: e => { o.planoId = e.target.value; o.sitios = []; panelPartir(); } }, h('option', { value: '' }, '—'), planos.map(c => h('option', { value: c.id, selected: o.planoId === c.id }, '📐 ' + c.nombre)))) : null,
-      !o.planoId ? [campoNum(o, 'pos', 'Dónde corto (desde el principio)', 0.5, Math.max(1, maxPos - 0.5), 0.5, 'mm', () => { o.sitios = []; cambia(); }), campoNum(o, 'inclina', 'Inclinar el corte', -60, 60, 1, '°', () => { o.sitios = []; cambia(); })] : null,
-      h('b.r8e-sub', '2 · Con qué los uno'),
-      h('div.r8e-conect', N.CONECTOR_TIPOS.map(x => h('button.r8e-con' + (T.k === x.k ? '.on' : ''), { type: 'button', 'data-con': x.k, title: x.d, onclick: () => { o.tipo = x.k; if (x.k === 'clip') o.forma = 'redonda'; cambia(); panelPartir(); } }, h('span', x.e), h('b', x.t)))),
-      h('p.small.muted.r8e-con-d', T.d),
-      h('label.r8e-c.col.r8e-oculto', h('span', 'Conectores'), h('select.inp', { 'data-k': 'tipo', onchange: e => { o.tipo = e.target.value; panelPartir(); } }, Object.entries(N.CONECTORES).map(([k, t2]) => h('option', { value: k, selected: o.tipo === k }, t2)))),
-      ['espiga', 'cuadrada', 'pasadores'].includes(o.tipo) ? seg(N.CONECTOR_FORMAS, 'forma') : null,
-      ['espiga', 'cuadrada'].includes(o.tipo) ? seg(N.CONECTOR_ESTILOS, 'estilo') : null,
-      o.tipo !== 'ninguno' ? [
-        h('b.r8e-sub', '3 · Cuántos y dónde'),
-        h('div.r8e-seg', h('button' + (!o.manual ? '.on' : ''), { type: 'button', onclick: () => { o.manual = false; cambia(); panelPartir(); } }, '🤖 Los pone el programa'), h('button.r8e-manual' + (o.manual ? '.on' : ''), { type: 'button', onclick: () => { o.manual = true; cambia(); panelPartir(); } }, '📍 Los pongo yo (tocando)')),
-        o.manual ? h('p.r8e-nota', '📍 Toca el corte azul para poner un conector; tócalo otra vez para quitarlo. Llevas ' + o.sitios.length + '.', o.sitios.length ? btn('Quitar todos', () => { o.sitios = []; cambia(); panelPartir(); }, { cls: 'sm ghost' }) : null) : campoNum(o, 'n', 'Cuántos (0 = los que quepan)', 0, 8, 1, '', cambia),
-        o.tipo === 'imanes' ? [campoNum(o, 'imanD', 'Diámetro del imán', 2, 30, 0.5, 'mm', cambia), campoNum(o, 'imanH', 'Grosor del imán', 1, 15, 0.5, 'mm', cambia)] : [campoNum(o, 'd', o.tipo === 'cola' ? 'Tamaño de la cola' : o.tipo === 'clip' ? 'Grosor del clip' : 'Tamaño del conector', 2, 20, 0.5, 'mm', cambia), campoNum(o, 'largo', 'Largo del conector', 4, 60, 1, 'mm', cambia)],
-        o.tipo !== 'imanes' ? h('label.r8e-c.col', h('span', 'Encaje (tus holguras)'), h('select.inp', { onchange: e => { o.encaje = e.target.value; cambia(); } }, [['justo', 'Justo (' + ENCAJES.justo.toFixed(2).replace('.', ',') + ' mm por lado)'], ['presion', 'A presión (' + ENCAJES.presion.toFixed(2).replace('.', ',') + ')'], ['gira', 'Holgado (' + ENCAJES.gira.toFixed(2).replace('.', ',') + ')']].map(([k, t2]) => h('option', { value: k, selected: o.encaje === k }, t2)))) : null] : null,
+      h('div.r8e-seg', [['z', '⬌ Tumbado'], ['x', '⬍ De pie (X)'], ['y', '⬍ De pie (Y)']].map(([k, t2]) => h('button' + (!o.planoId && o.eje === k ? '.on' : ''), { type: 'button', 'data-eje': k, onclick: () => { o.eje = k; o.pos = null; o.inclina = 0; o.inclina2 = 0; o.planoId = ''; o.sitios = []; o.solo = null; panelPartir(); } }, t2))),
+      planos.length ? h('label.r8e-c.col', h('span', 'O con un plano de construcción'), h('select.inp.r8e-partir-plano', { onchange: e => { o.planoId = e.target.value; o.sitios = []; o.solo = null; panelPartir(); } }, h('option', { value: '' }, '—'), planos.map(c => h('option', { value: c.id, selected: o.planoId === c.id }, '📐 ' + c.nombre)))) : null,
+      !o.planoId ? [campoNum(o, 'pos', 'Dónde corto (desde el principio)', recto() ? 0.5 : -maxPos, recto() ? Math.max(1, maxPos - 0.5) : 2 * maxPos, 0.5, 'mm', () => { o.sitios = []; cambia(); }),
+        campoNum(o, 'inclina', 'Inclinar el corte', -75, 75, 1, '°', () => { o.sitios = []; cambia(); }), campoNum(o, 'inclina2', 'Inclinarlo hacia el otro lado', -75, 75, 1, '°', () => { o.sitios = []; cambia(); }),
+        h('div.r8e-seg.r8e-asas', [['mover', '↕ Mover con la flecha'], ['girar', '⟳ Inclinar con los aros'], ['no', 'Sin asas']].map(([k, t2]) => h('button' + (o.asa === k ? '.on' : ''), { type: 'button', 'data-asa': k, title: 'Coge el plano en la vista 3D. Con Mayús va más fino.', onclick: () => { o.asa = k; guardaPrefs(); ponAsas(); panelPartir(); } }, t2))),
+        !recto() ? btn('↺ Poner el corte recto', () => { o.inclina = 0; o.inclina2 = 0; o.pos = null; o.sitios = []; panelPartir(); }, { cls: 'sm ghost r8e-partir-recto' }) : null] : null,
+      trozosEl,
+      h('b.r8e-sub', '2 · Con qué me quedo'),
+      h('div.r8e-seg', [['dos', 'Las dos partes'], ['a', 'Solo la A'], ['b', 'Solo la B']].map(([k, t2]) => h('button' + (o.quedar === k ? '.on' : ''), { type: 'button', 'data-quedar': k, onclick: () => { o.quedar = k; cambia(); panelPartir(); } }, k === 'a' ? h('i.r8e-pt.a') : k === 'b' ? h('i.r8e-pt.b') : null, t2))),
+      dos ? [h('b.r8e-sub', '3 · Con qué las uno'),
+        h('div.r8e-conect', N.CONECTOR_TIPOS.map(x => h('button.r8e-con' + (T.k === x.k ? '.on' : ''), { type: 'button', 'data-con': x.k, title: x.d, onclick: () => { o.tipo = x.k; if (x.k === 'clip') o.forma = 'redonda'; cambia(); panelPartir(); } }, h('span', x.e), h('b', x.t)))),
+        h('p.small.muted.r8e-con-d', T.d),
+        h('label.r8e-c.col.r8e-oculto', h('span', 'Conectores'), h('select.inp', { 'data-k': 'tipo', onchange: e => { o.tipo = e.target.value; panelPartir(); } }, Object.entries(N.CONECTORES).map(([k, t2]) => h('option', { value: k, selected: o.tipo === k }, t2)))),
+        ['espiga', 'cuadrada', 'pasadores'].includes(o.tipo) ? seg(N.CONECTOR_FORMAS, 'forma') : null,
+        ['espiga', 'cuadrada'].includes(o.tipo) ? seg(N.CONECTOR_ESTILOS, 'estilo') : null,
+        o.tipo === 'tornillo' ? [seg({ 2: 'M2', 2.5: 'M2,5', 3: 'M3', 4: 'M4', 5: 'M5' }, 'metrica', 'r8e-metrica'), campoNum(o, 'largoT', 'Largo del tornillo', Math.max(4, Number(o.metrica) * 2), 60, 1, 'mm', cambia),
+          h('small.muted', 'La cabeza'), seg(N.TORNILLO_CABEZAS, 'cabeza'), h('small.muted', 'En la otra parte agarra con'), seg(N.TORNILLO_AGARRES, 'agarre'),
+          seg({ arriba: 'Entra por la parte A', abajo: 'Entra por la parte B' }, 'entra'),
+          h('p.tiny.muted.r8e-tor-d', 'M' + c2(o.metrica) + ': agujero pasante Ø' + c2(TOR.paso) + ' · cabeza Ø' + c2(TOR.cab) + (o.agarre === 'tuerca' ? ' · tuerca de ' + c2(TOR.tuerca) + ' entre caras, que entra de lado por su ranura' : o.agarre === 'inserto' ? ' · inserto en agujero de Ø' + c2(TOR.ins) + ' × ' + c2(TOR.hi) + ' (se mete con el soldador)' : ' · agujero de Ø' + c2(Math.round(Number(o.metrica) * 85) / 100) + ' para que el tornillo haga su rosca') + '.')] : null,
+        o.tipo !== 'ninguno' ? [
+          h('b.r8e-sub', '4 · Cuántos y dónde'),
+          h('div.r8e-seg', h('button' + (!o.manual ? '.on' : ''), { type: 'button', onclick: () => { o.manual = false; cambia(); panelPartir(); } }, '🤖 Los pone el programa'), h('button.r8e-manual' + (o.manual ? '.on' : ''), { type: 'button', onclick: () => { o.manual = true; cambia(); panelPartir(); } }, '📍 Los pongo yo (tocando)')),
+          o.manual ? h('p.r8e-nota', '📍 Toca el corte para poner uno; arrástralo para moverlo; tócalo otra vez para quitarlo. Llevas ' + o.sitios.length + '.', o.sitios.length ? btn('Quitar todos', () => { o.sitios = []; cambia(); panelPartir(); }, { cls: 'sm ghost' }) : null) : campoNum(o, 'n', 'Cuántos (0 = los que quepan)', 0, 8, 1, '', cambia),
+          o.tipo === 'imanes' ? [campoNum(o, 'imanD', 'Diámetro del imán', 2, 30, 0.5, 'mm', cambia), campoNum(o, 'imanH', 'Grosor del imán', 1, 15, 0.5, 'mm', cambia)]
+            : o.tipo === 'tornillo' ? null : [campoNum(o, 'd', o.tipo === 'cola' ? 'Tamaño de la cola' : o.tipo === 'clip' ? 'Grosor del clip' : 'Tamaño del conector', 2, 20, 0.5, 'mm', cambia), campoNum(o, 'largo', 'Largo del conector', 4, 60, 1, 'mm', cambia)],
+          !['imanes', 'tornillo'].includes(o.tipo) ? [h('small.muted', 'Ajuste (holgura por lado, con las de tu Bambu)'),
+            h('div.r8e-seg.r8e-ajuste', [['presion', 'Apretado', ENCAJES.presion], ['justo', 'Normal', ENCAJES.justo], ['gira', 'Suelto', ENCAJES.gira], ['medida', 'A medida', null]].map(([k, t2, v]) => h('button' + (o.encaje === k ? '.on' : ''), { type: 'button', 'data-aj': k, onclick: () => { if (k === 'medida' && !(o.holgura >= 0 && o.holgura !== null)) o.holgura = ENCAJES[o.encaje] ?? 0.1; o.encaje = k; cambia(); panelPartir(); } }, t2, v != null ? h('small', ' ' + v.toFixed(2).replace('.', ',')) : null))),
+            o.encaje === 'medida' ? campoNum(o, 'holgura', 'Holgura por lado', 0, 0.6, 0.01, 'mm', cambia) : null] : null] : null] : null,
+      h('b.r8e-sub', (dos ? '5' : '3') + ' · Cómo lo veo'),
+      dos ? [h('div.r8e-seg', [['dos', 'Las dos'], ['a', 'Solo la A'], ['b', 'Solo la B']].map(([k, t2]) => h('button' + (o.ver === k ? '.on' : ''), { type: 'button', 'data-pv': k, onclick: () => { o.ver = k; pintaVista(); panelPartir(); } }, t2))),
+        campoNum(o, 'abre', 'Separarlas para ver', 0, 100, 5, '%', () => { if (ultimo) { escena.previaPon(0, desp(sepa()), !verA()); escena.previaPon(1, desp(-sepa()), !verB()); } })] : null,
+      h('label.check.r8e-c', h('input', { type: 'checkbox', checked: o.verPlano !== false, 'data-k': 'verPlano', onchange: e => { o.verPlano = e.target.checked; pintaPlano(); } }), 'Ver el plano del corte'),
+      h('b.r8e-sub', (dos ? '6' : '4') + ' · Cómo se llaman'),
+      o.quedar !== 'b' ? h('label.r8e-c.col', h('span', h('i.r8e-pt.a'), 'Parte A'), h('input.inp.r8e-partir-na', { type: 'text', maxlength: 40, value: o.nombreA, oninput: e => { o.nombreA = e.target.value; } })) : null,
+      o.quedar !== 'a' ? h('label.r8e-c.col', h('span', h('i.r8e-pt.b'), 'Parte B'), h('input.inp.r8e-partir-nb', { type: 'text', maxlength: 40, value: o.nombreB, oninput: e => { o.nombreB = e.target.value; } })) : null,
       info, aviso,
-      h('div.r8e-btns', btn('⬇ Descargar las partes (3MF)', () => descargaPartes('3mf'), { cls: 'primary r8e-partir-3mf' }), btn('🧩 STL por separado (.zip)', () => descargaPartes('zip'), { cls: 'r8e-partir-zip' }), btn('✂️ Partir en el diseño', () => aplicaPartir(), { cls: 'r8e-partir-ok' }), btn('Cancelar', () => ponHerr(null), { cls: 'ghost' })),
-      h('p.tiny.muted', 'Al descargar, cada parte va tumbada con el corte hacia la cama (lista para imprimir sin soportes en esa cara). Los pasadores van tumbados aparte. Antes de la pieza entera, imprime una prueba pequeña del conector.'));
+      h('div.r8e-btns', btn('✂️ Partir en el diseño', () => aplicaPartir(), { cls: 'primary r8e-partir-ok' }), btn('⬇ Descargar (3MF)', () => descargaPartes('3mf'), { cls: 'r8e-partir-3mf' }), btn('🧩 STL por separado (.zip)', () => descargaPartes('zip'), { cls: 'r8e-partir-zip' }), btn('Cancelar', () => ponHerr(null), { cls: 'ghost' })),
+      h('p.tiny.muted', '«Partir en el diseño» deja cada parte como una pieza suelta (con su nombre) que puedes mover, esconder, pintar o descargar sola. Al descargar, cada parte va tumbada con el corte hacia la cama. Antes de la pieza entera, imprime una prueba pequeña del conector.'));
     prepara();
+    const queda = t => (o.quedar === 'dos' ? true : o.quedar === 'a' ? t === 'parte_A' : t === 'parte_B');
     function descargaPartes(como) {
       try {
-        const L = objetivo ? [PR.colocado(objetivo, P)] : PR.partesFinales(P).map(x => x.m); const r = N.partir(N.union(L), Object.assign({}, o, { sitios: o.manual ? o.sitios : null }));
-        // las partes, una al lado de la otra en la cama
-        let x = 0; const col = (objetivo && objetivo.color) || '#b4b8bf', partes = r.imprimir.map(p => { const b = N.caja(p.m), m = p.m.translate([x - b.min[0], 0, 0]); x += b.dims[0] + 6; return { m, nombre: p.t, color: p.t.startsWith('pasador') ? '#f7d117' : col }; });
-        const base = nombreArchivo(); if (como === '3mf') baja(N.tresMF(partes.map(p => ({ m: N.aLaCama(p.m).translate([0, 0, 0]), nombre: p.nombre, color: p.color })), base), base + '_partido.3mf');
-        else baja(zipStl(partes.map(p => ({ nombre: base + '_' + p.nombre + '.stl', m: N.aLaCama(p.m) }))), base + '_partido.zip');
-        toast('✂️ ' + partes.length + ' partes descargadas', 'ok');
-      } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); }
+        const col = (objetivo && objetivo.color) || '#b4b8bf', base2 = nombreArchivo(), limpio = s => String(s || '').replace(/[^\wáéíóúñÁÉÍÓÚÑ -]+/g, '').trim().replace(/\s+/g, '_') || 'parte';
+        const n = calcula(r => { let x = 0; // las partes, una al lado de la otra en la cama
+          const partes = r.imprimir.filter(p => queda(p.t)).map(p => { const b = N.caja(p.m), m = N.aLaCama(p.m.translate([x - b.min[0], 0, 0])).translate([x + b.dims[0] / 2, 0, 0]); x += b.dims[0] + 6; return { m, nombre: p.t === 'parte_A' ? limpio(o.nombreA) : p.t === 'parte_B' ? limpio(o.nombreB) : p.t, color: p.t.startsWith('pasador') ? '#f7d117' : col }; });
+          if (como === '3mf') baja(N.tresMF(partes, base2), base2 + '_partido.3mf'); else baja(zipStl(partes.map(p => ({ nombre: base2 + '_' + p.nombre + '.stl', m: N.aLaCama(p.m) }))), base2 + '_partido.zip');
+          return partes.length; });
+        toast('✂️ ' + n + ' parte' + (n === 1 ? '' : 's') + ' descargada' + (n === 1 ? '' : 's'), 'ok');
+      } catch (e) { toast(e.message || String(e), 'bad', 7000); }
     }
     function aplicaPartir() {
       try {
-        const L = objetivo ? [PR.colocado(objetivo, P)] : PR.partesFinales(P).map(x => x.m); const r = N.partir(N.union(L), Object.assign({}, o, { sitios: o.manual ? o.sitios : null })), col = (objetivo && objetivo.color) || '#b4b8bf';
-        const nuevos = r.montadas.map(p => { const s = N.aSopa(p.m), id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); PR.MALLAS.set(id, s); return { tipo: 'malla', nombre: 'Parte ' + (p.t === 'arriba' ? 'A' : 'B'), p: { malla: id, archivo: 'corte' }, color: col }; });
+        const col = (objetivo && objetivo.color) || '#b4b8bf', acab = objetivo && objetivo.acabado;
+        const r = calcula(r2 => ({ n: r2.normal, k: o.quedar === 'dos' ? (o.abre / 100) * r2.abre / 2 : 0, sueltas: r2.imprimir.length - 2, A: o.quedar !== 'b' ? N.aSopa(r2.enSitio.arriba) : null, B: o.quedar !== 'a' ? N.aSopa(r2.enSitio.abajo) : null }));
+        const grupo = 'c' + Date.now().toString(36), nuevos = [['A', r.A, 1, o.nombreA], ['B', r.B, -1, o.nombreB]].filter(x => x[1]).map(([t, s, sg, nom]) => {
+          const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); PR.MALLAS.set(id, s);
+          return { c: { tipo: 'malla', nombre: (String(nom || '').trim() || base + ' · parte ' + t).slice(0, 40), p: { malla: id, archivo: 'corte' }, color: col, acabado: acab || undefined }, sg };
+        });
         if (objetivo) PR.borrar(P, [objetivo.id]); else P.cuerpos = [];
-        nuevos.forEach(c => PR.añadir(P, c)); sel = nuevos.map(c => c.id); herr = null; partirO = null; // v20.2: el siguiente corte empieza de cero (antes se quedaba la altura del anterior)
-        commit(); pintaCinta(); escena.planoCorte(null); toast('✂️ Partida en ' + nuevos.length + ' (con sus conectores). Los pasadores sueltos salen al descargar.', 'ok', 6000);
-      } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); }
+        // cada parte se queda como se ve (separada lo que marque «Separarlas para ver») y recuerda hacia dónde se montó: «Montar / Separar» las junta y las abre
+        nuevos.forEach(x => { const c = PR.añadir(P, x.c); c.t.pos = r.n.map(v => r3(v * r.k * x.sg)); if (nuevos.length > 1) c.montaje = { g: grupo, dir: r.n.map(v => r3(v * x.sg)), d: r3(Math.max(r.k, 0)) || 0, abre: r3((ultimo ? ultimo.abre : 10) / 2) }; });
+        sel = nuevos.map(x => x.c.id); herr = null; partirO = null; // v20.2: el siguiente corte empieza de cero (antes se quedaba la altura del anterior)
+        escena.previa(null); escena.planoCorte(null); escena.flechas(null); commit(); pintaCinta();
+        toast('✂️ ' + (nuevos.length > 1 ? 'Partida en 2: «' + nuevos[0].c.nombre + '» y «' + nuevos[1].c.nombre + '»' : 'Me quedo con «' + nuevos[0].c.nombre + '»') + (o.quedar === 'dos' && r.sueltas > 0 ? '. Los pasadores sueltos salen al descargar.' : '.'), 'ok', 6000);
+      } catch (e) { toast(e.message || String(e), 'bad', 7000); }
     }
   }
   // ✨ DISEÑADOR IA
@@ -1120,10 +1282,20 @@ export async function montarEstudio(el, ext = {}) {
     commit(); elige(cuerpos.filter(c => P.cuerpos.includes(c)).map(c => c.id).slice(-1));
   }
   // 🖨️ ajustes recomendados + descargar
+  // v30.6 · 🎨 COLORES Y PAUSAS sobre la pieza: se guardan en el proyecto (P.colores) y los usa el asistente de imprimir
+  async function abrirColores() {
+    if (!P.cuerpos.length) return toast('Primero pon o importa una pieza.', 'warn');
+    let sopa = null; try { const L = PR.partesFinales(P); if (!L.length) throw new Error('No hay nada que pintar (¿está todo oculto o es un hueco?).'); sopa = N.aSopa(N.union(L.map(x => x.m))); } catch (e) { return toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); }
+    const T = await import('../r8/colores_taller.js'); if (!P.colores) P.colores = { base: (P.cuerpos.find(c => !c.hueco) || {}).color || '#f4f4f0', cambios: [] };
+    const antes = JSON.stringify(P.colores), capa = Number(localStorage.getItem('cd.r8.capaTaller')) || 0.2;
+    const r = await T.abrirColores({ sopa, nombre: P.nombre || 'Mi diseño', est: P.colores, capa, colorBase: P.colores.base, impresora: (P.cama || 256) <= 180 ? 'A1 mini' : 'P1P' });
+    if (r && JSON.stringify(P.colores) !== antes) { commit(); toast('🎨 Colores y pausas guardados en el proyecto' + ((P.colores.cambios || []).length ? ' (' + P.colores.cambios.length + ')' : ''), 'ok', 4000); if (herr === 'imprimir') panelImprimir(); }
+    window.__r8e && (window.__r8e.colores = P.colores ? JSON.parse(JSON.stringify(P.colores)) : null);
+  }
   async function panelImprimir() {
     const m = await import('../r8/consejos3d.js').catch(e => { console.error(e); return null; }); if (!m || herr !== 'imprimir') return;
     if (!P.cuerpos.length) return mount(prop, h('div.r8e-prop-t', h('b', '🖨️ IMPRIMIR')), h('p.small', 'Primero diseña algo 🙂'));
-    await m.panel(prop, { P, PR, N, nombre: nombreArchivo(), cama: P.cama || 256, alGirar: rot => { const g = PR.agrupar(P, P.cuerpos.map(c => c.id), 'unir'); if (g) { g.colores = 'cada'; g.nombre = 'Todo (tumbado para imprimir)'; g.t.rot = rot; PR.aLaCama(P, [g.id]); commit(); elige([g.id]); panelImprimir(); } }, baja, zipStl, catalogo });
+    await m.panel(prop, { P, PR, N, nombre: nombreArchivo(), cama: P.cama || 256, cc: (P.colores = P.colores || { base: null, cambios: [] }), alCambiarCC: () => { commit(); }, alGirar: rot => { const g = PR.agrupar(P, P.cuerpos.map(c => c.id), 'unir'); if (g) { g.colores = 'cada'; g.nombre = 'Todo (tumbado para imprimir)'; g.t.rot = rot; PR.aLaCama(P, [g.id]); commit(); elige([g.id]); panelImprimir(); } }, baja, zipStl, catalogo });
     if (herr === 'imprimir') prop.appendChild(h('div.r8e-btns.r8e-adoctor', btn('🩺 Revisar a fondo en el Print Doctor', async () => { try { const L = PR.partesFinales(P), E = await import('../r8/estado.js'); E.ponEnMesa({ nombre: P.nombre || 'Mi diseño', origen: 'estudio', stl: new Uint8Array(N.stl(N.union(L.map(x => x.m)), nombreArchivo())) }); N.limpia(); ext.irA && ext.irA('doctor'); } catch (e) { N.limpia(); toast(e.message || String(e), 'bad'); } }, { cls: 'sm', title: 'Paredes finas, orientación con voladizos en rojo, soportes, informe… (v20)' })));
   }
   const nombreArchivo = () => String(P.nombre || 'diseno').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 50) || 'diseno';
@@ -1149,11 +1321,15 @@ export async function montarEstudio(el, ext = {}) {
   }
 
   // ---------- teclado, soltar archivos ----------
+  let empujaTic = 0; const empuja = d => { sel.forEach(id => { const c = PR.busca(P, id); if (c && top(c.id) && !c.bloqueo) { c.t.pos = c.t.pos.map((v, i) => r3(v + d[i])); escena.moverProxy(c.id, c.t); } }); recalcula(); pintaPropLigero(); pintaFlechas(); clearTimeout(empujaTic); empujaTic = setTimeout(() => commit(), 350); };
   const teclas = e => {
-    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || document.querySelector('.r8b')) return;
-    const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
-    if (ctrl && k === 'z') { e.preventDefault(); e.shiftKey ? rehacer() : deshacer(); return; }
-    if (ctrl && k === 'y') { e.preventDefault(); rehacer(); return; }
+    if (document.querySelector('.r8b')) return;
+    const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey, tg = e.target.tagName, enCampo = /^(INPUT|SELECT|TEXTAREA)$/.test(tg);
+    // v30.6 (la dueña: «no funciona el Ctrl Z»): con el cursor en una casilla de número o en un deslizador, Ctrl+Z no llegaba al diseño.
+    // Ahora deshace SIEMPRE el diseño, menos cuando se está escribiendo un texto (ahí deshace lo escrito, como en cualquier programa).
+    const escribiendo = tg === 'TEXTAREA' || (tg === 'INPUT' && !/^(number|range|checkbox|radio|color|button|submit|file)$/.test(e.target.type || 'text'));
+    if (ctrl && (k === 'z' || k === 'y') && !escribiendo) { e.preventDefault(); if (enCampo) e.target.blur(); (k === 'y' || e.shiftKey) ? rehacer(true) : deshacer(true); return; }
+    if (enCampo) return;
     if (ctrl && k === 'd') { e.preventDefault(); duplicar(); return; }
     if (ctrl && k === 'c') { e.preventDefault(); copiar(); return; } // v30
     if (ctrl && k === 'v') { e.preventDefault(); pegar(); return; } // v30
@@ -1162,6 +1338,9 @@ export async function montarEstudio(el, ext = {}) {
     if (ctrl && k === 's') { e.preventDefault(); autoguarda(); toast('💾 Guardado', 'ok'); return; }
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); borrar(); return; }
     if (e.key === 'Escape') { if (caraSel) { quitaCara(); pintaProp(); return; } if (herr) ponHerr(null); else if (modoSel === 'cara') ponModoSel('pieza'); else elige([]); return; }
+    if (sel.length && !ctrl && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key) && !['cara', 'partir', 'cortar', 'medir', 'animar'].includes(herr)) { // v30.6: mover con el teclado
+      e.preventDefault(); const paso = e.shiftKey ? 0.1 : e.altKey ? 10 : 1, d = { ArrowLeft: [-1, 0, 0], ArrowRight: [1, 0, 0], ArrowUp: [0, 1, 0], ArrowDown: [0, -1, 0], PageUp: [0, 0, 1], PageDown: [0, 0, -1] }[e.key];
+      empuja(d.map(v => v * paso)); return; }
     if (e.shiftKey) escena.fino(true);
     const t = { m: 'mover', r: 'girar', s: 'escalar' }[k]; if (t) { ponHerr(t); return; }
     if (k === 'c' && !ctrl) return ponModoSel(modoSel === 'cara' ? 'pieza' : 'cara'); // v20.2
@@ -1171,7 +1350,10 @@ export async function montarEstudio(el, ext = {}) {
   raiz.addEventListener('keydown', teclas);
   // v20.4 · DESHACER FIABLE: tras pulsar un botón del panel (que se vuelve a pintar) el foco se queda en la página, fuera del Estudio, y
   // Ctrl+Z no llegaba. Si el foco está «en ninguna parte» y el Estudio se ve (sin ventanas encima), las teclas van al Estudio.
-  const teclasFuera = e => { if (vivo && raiz.isConnected && raiz.offsetParent !== null && (e.target === document.body || e.target === document.documentElement) && !document.querySelector('.modal, .r8b')) teclas(e); };
+  const teclasFuera = e => { if (!vivo || !raiz.isConnected || raiz.offsetParent === null || document.querySelector('.modal, .r8b, .ct-fondo')) return;
+    if (e.target === document.body || e.target === document.documentElement) return teclas(e);
+    // v30.6: con el foco en un botón de fuera del Estudio (las pestañas de arriba…), Ctrl+Z / Ctrl+Y también son del diseño
+    if (!raiz.contains(e.target) && (e.ctrlKey || e.metaKey) && /^[zy]$/i.test(e.key) && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && !e.target.isContentEditable) teclas(e); };
   document.addEventListener('keydown', teclasFuera);
   raiz.addEventListener('keyup', e => { if (e.key === 'Shift') escena.fino(false); });
   vista.addEventListener('dragover', e => { if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); vista.classList.add('encima'); } });
@@ -1184,9 +1366,19 @@ export async function montarEstudio(el, ext = {}) {
   recogePendiente();
   // una pieza que llega de otra pestaña (Foto → 3D, una parte cortada…) como malla editable
   function añadeMalla(sopa, nombre) { const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); PR.MALLAS.set(id, sopa); return añade({ tipo: 'malla', nombre: String(nombre || 'Pieza').slice(0, 40), p: { malla: id, archivo: nombre || 'pieza' }, color: colorSiguiente() }); }
-  window.__r8eApi = { panel, PAN, añadeMalla, añadeForma, añadeDiseno, importar, ponHerr, elige, commit, get P() { return P; }, set P(x) { ponProyecto(x); }, escena, PR, N, construyeAnimado, ponModoSel, eligeCons, nuevaCons, get caraSel() { return caraSel; }, get R() { return R; }, irPaso, hazChivatos, arregla, compruebaMov, CHIV, editaPaso, eligePaso };
+  // v30.6 · «pasar al Estudio» POR PIEZAS: L = [{ sopa, nombre, color, bisagra: { o, dir, ang } }] → piezas sueltas (no se funden entre sí) listas para editar y animar
+  function añadePiezas(L, nombre) {
+    const antes = opCrear; opCrear = 'nuevo'; const nuevos = [];
+    try { L.forEach(x => { const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); PR.MALLAS.set(id, x.sopa); const c = PR.añadir(P, { tipo: 'malla', nombre: String(x.nombre || 'Pieza').slice(0, 40), p: { malla: id, archivo: nombre || 'pieza' }, color: x.color || colorSiguiente() }); if (x.bisagra) c.bisagra = { o: x.bisagra.o.map(r3), dir: x.bisagra.dir.map(r3), ang: x.bisagra.ang || 100 }; if (x.desliza) c.desliza = { dir: x.desliza.dir.map(r3), d: r3(x.desliza.d) }; nuevos.push(c); }); } finally { opCrear = antes; }
+    if (nombre && P.cuerpos.length === nuevos.length) P.nombre = String(nombre).slice(0, 60);
+    commit(); elige([]); setTimeout(() => escena.encuadrar(), 80);
+    const abren = nuevos.filter(c => c.bisagra || c.desliza).length; toast('🧰 En el Estudio, en ' + nuevos.length + ' pieza' + (nuevos.length === 1 ? '' : 's') + ' sueltas: tócalas para editarlas' + (abren ? '. Para abrirla y cerrarla: 🎬 Animar.' : '.'), 'ok', 7000);
+    if (abren) ponHerr('animar');
+    return nuevos;
+  }
+  window.__r8eApi = { añadePiezas, abrirColores, panel, PAN, añadeMalla, añadeForma, añadeDiseno, importar, ponHerr, elige, commit, get P() { return P; }, set P(x) { ponProyecto(x); }, escena, PR, N, construyeAnimado, ponModoSel, eligeCons, nuevaCons, get caraSel() { return caraSel; }, get R() { return R; }, irPaso, hazChivatos, arregla, compruebaMov, CHIV, editaPaso, eligePaso };
   return {
-    añadeDiseno, añadeMalla, construyeAnimado, ponProyecto, importar, get P() { return P; },
+    añadeDiseno, añadeMalla, añadePiezas, construyeAnimado, ponProyecto, importar, get P() { return P; },
     pausa() { try { if (escena && escena.animando()) { escena.animar(null); escena.giraCamara(0); if (ESTUDIO.anim) ESTUDIO.anim.play = false; if (herr === 'animar') pintaProp(); } } catch (e) { } }, // v20.2: al esconder la pestaña
     reanuda() { if (!vivo || !escena) return; window.__r8eApi = window.__r8eApi || null; escena.pide(); recalcula(true); recogePendiente(); }, // v20.2: al volver a la pestaña (sigue encendido)
     destroy() { document.removeEventListener('keydown', teclasFuera); vivo = false; clearTimeout(tic); clearTimeout(guardTic); clearTimeout(CHIV.tic); if (P.cuerpos.length) autoguarda(); document.querySelectorAll('.r8e-menu').forEach(m => m.remove()); try { escena && escena.destruir(); } catch (e) { } delete window.__r8eApi; }

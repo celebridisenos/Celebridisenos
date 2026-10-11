@@ -600,3 +600,60 @@ html[data-modo="dia"] .r8cj-aviso.bien { color: #0f8a3d; } html[data-modo="dia"]
 .r8i-regalos { width: 100%; margin: 4px 0 2px; background: linear-gradient(135deg, color-mix(in srgb, #ffd23f 18%, var(--surface)), color-mix(in srgb, #ff4d6d 12%, var(--surface)) 55%, var(--surface)); border-color: color-mix(in srgb, #ffb02e 60%, var(--line)); box-shadow: 0 10px 30px color-mix(in srgb, #ffb02e 18%, transparent); }
 .r8i-regalos > span { animation: rg-bote 2.4s ease-in-out infinite; display: inline-block; } @keyframes rg-bote { 0%, 70%, 100% { transform: none; } 80% { transform: translateY(-4px) rotate(-8deg); } 90% { transform: translateY(0) rotate(6deg); } }
 @media (prefers-reduced-motion: reduce) { .r8i-regalos > span { animation: none; } }
+
+/* ================= v30.6 · ✂️ PARTIR: partes de color, trozos, asas ================= */
+.r8e-pt { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin: 0 5px 0 2px; vertical-align: -1px; border: 1px solid color-mix(in srgb, var(--text, #fff) 35%, transparent) }
+.r8e-pt.a { background: #4c9fff }
+.r8e-pt.b { background: #ff9a3d }
+.r8e-trozos { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 }
+.r8e-trozos button { border: 1px solid color-mix(in srgb, var(--text, #fff) 18%, transparent); background: transparent; color: inherit; border-radius: 9px; padding: 7px 9px; cursor: pointer; font-size: 12.5px }
+.r8e-trozos button.on { border-color: var(--accent, #7c6cff); background: color-mix(in srgb, var(--accent, #7c6cff) 22%, transparent) }
+.r8e-ajuste button small, .r8e-seg button small { opacity: .7; font-weight: 400 }
+.r8e-asas button { font-size: 12px }
+.r8e-metrica button { min-width: 0 }
+
+/* ================= v30.6 · deshacer a la vista, mover de verdad ================= */
+.r8e-b.apagado { opacity: .35 }
+.r8e-moverb { display: flex; flex-direction: column; gap: 6px; padding: 10px; margin: 8px 0; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent, #7c6cff) 55%, transparent); background: color-mix(in srgb, var(--accent, #7c6cff) 12%, transparent) }
+.r8e-moverb small { opacity: .8; line-height: 1.4 }
+.r8e-dlg-mover { border: 1px solid color-mix(in srgb, var(--text, #fff) 25%, transparent); background: transparent; color: inherit; border-radius: 8px; padding: 6px 9px; margin-left: 6px; cursor: pointer; font: 600 12px/1 system-ui; white-space: nowrap }
+.r8e-dlg-mover:hover { border-color: var(--accent, #7c6cff) }
+
+/* v30.6 · 🚪 abrir y cerrar (animar fácil) */
+.r8e-abrir { display: flex; flex-direction: column; gap: 8px; padding: 12px; margin: 8px 0 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, #3ddc84 55%, transparent); background: color-mix(in srgb, #3ddc84 10%, transparent) }
+.r8e-abrir > b { font-size: 14px; letter-spacing: .04em }
+.r8e-abrir small { opacity: .85; line-height: 1.4 }
+
+/* ================= v30.6 · la cinta por grupos (iconos grandes + «▾ Más») ================= */
+.r8e-cinta .r8e-b { min-width: 54px; padding: 6px 5px 5px }
+.r8e-cinta .r8e-b span { font-size: 21px; line-height: 24px }
+.r8e-cinta .r8e-b small { font-size: 11px; max-width: none; letter-spacing: 0 }
+.r8e-cinta .r8e-b.mini { min-width: 30px }
+.r8e-cinta .r8e-b.r8e-mas { min-width: 34px; opacity: .85 }
+.r8e-cinta .r8e-b.r8e-mas span { font-size: 15px }
+.r8e-cinta .r8e-gr { padding: 0 6px }
+.r8e-cinta .r8e-gr > small { display: block; font-size: 9.5px; letter-spacing: .12em; opacity: .6 }
+.r8e-menu-mas { min-width: 300px; max-width: 380px }
+.r8e-menu-mas button { align-items: flex-start }
+.r8e-menu-tx { display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 0 }
+.r8e-menu-tx small { font-size: 11.5px; opacity: .7; white-space: normal; line-height: 1.3; font-weight: 400 }
+@media (max-width: 1500px) { .r8e-cinta .r8e-b { min-width: 46px; padding: 5px 3px 4px } .r8e-cinta .r8e-b span { font-size: 18px; line-height: 21px } .r8e-cinta .r8e-b small { font-size: 10px } .r8e-cinta .r8e-gr { padding: 0 3px } }
+@media (max-width: 1280px) { .r8e-cinta .r8e-b { min-width: 40px } .r8e-cinta .r8e-b small { font-size: 9.5px } .r8e-cinta .r8e-gr > small { display: none } }
+
+/* v30.6 · boceto: medidas que se escriben sobre el dibujo */
+.r8b-cotas { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3 }
+.r8b-cota { position: absolute; pointer-events: auto; display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 7px; border-radius: 9px; border: 2px solid #ffd23f; background: rgba(12, 15, 28, .94); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .45); font: 600 12px/1 system-ui }
+.r8b-cota small { opacity: .75; font-weight: 500 }
+.r8b-cota i { opacity: .7; font-style: normal }
+.r8b-cota input { width: 62px; border: 0; background: transparent; color: #fff; font: 700 14px/1.2 system-ui; text-align: right; padding: 3px 0; outline: none }
+.r8b-cota:focus-within { border-color: #29d3ff; box-shadow: 0 0 0 3px rgba(41, 211, 255, .25) }
+
+/* v30.6 · navegador: bloquear y aislar */
+.r8e-candado { margin-left: auto; opacity: .28; font-size: 12px }
+.r8e-fila:hover .r8e-candado, .r8e-candado.on { opacity: 1 }
+.r8e-nav-b { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 8px 6px }
+.r8e-nav-b button { border: 1px solid color-mix(in srgb, var(--text, #fff) 18%, transparent); background: transparent; color: inherit; border-radius: 8px; padding: 5px 8px; font-size: 11.5px; cursor: pointer }
+.r8e-nav-b button.on { border-color: var(--accent, #7c6cff); background: color-mix(in srgb, var(--accent, #7c6cff) 20%, transparent) }
+.r8e-nav-ay { margin: 0; padding: 0 10px 6px; font-size: 10.5px; opacity: .55 }
+
+.r8e-dlg-op { border: 1px solid color-mix(in srgb, var(--text, #fff) 22%, transparent); background: rgba(12, 15, 28, .9); color: inherit; border-radius: 8px; padding: 6px 6px; font: 600 12px/1 system-ui; max-width: 132px }

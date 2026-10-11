@@ -52,7 +52,7 @@ export async function montarFundas(el, ext = {}) {
       h('label.r8e-c.col', h('span', 'Estilo de la trasera'), h('select.inp', { 'data-k': 'estilo', onchange: e => { F.estilo = e.target.value; regenera(); pintaIzq(); } }, Object.entries(ESTILOS_FUNDA).map(([k, x]) => h('option', { value: k, selected: F.estilo === k }, x.t)))),
       (ESTILOS_FUNDA[F.estilo] || {}).texto || (ESTILOS_FUNDA[F.estilo] || {}).figura ? h('label.r8e-c.col', h('span', 'Nombre o figura'), h('input.inp', { value: F.txt, maxlength: 20, oninput: e => { F.txt = e.target.value; regenera(); } })) : null,
       h('label.check.r8e-c', h('input', { type: 'checkbox', checked: F.cordon, onchange: e => { F.cordon = e.target.checked; regenera(); } }), 'Anillas para colgante'),
-      h('div.fu-acc', btn('🧪 Preparar prueba de ajuste', () => preparaKit(), { cls: 'primary fu-kit' }), btn('🖨️ Funda completa → Bambu', () => imprimir(false), { cls: 'fu-imprimir' })),
+      h('div.fu-acc', btn('🧪 Preparar prueba de ajuste', () => preparaKit(), { cls: 'primary fu-kit' }), btn('🖨️ Funda completa → Bambu', () => imprimir(false), { cls: 'fu-imprimir' }), ext.alEstudioMalla ? btn('🧰 Al Estudio', () => { try { ext.alEstudioMalla(N.aSopa(funda(p())), 'Funda ' + F.modelo); } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); } }, { cls: 'fu-estudio', title: 'Pasarla al Estudio para añadirle o quitarle cosas' }) : null),
       h('p.tiny.muted', 'Primero la prueba (5 g, unos minutos). Cuando encaje, la funda completa.'));
   }
   // ---------- derecha: los ajustes reales ----------
