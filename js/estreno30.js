@@ -68,14 +68,15 @@ export function estreno30(opts = {}) {
     if (snd) snd.cerrar();
     try { if (R) { R.renderer.dispose(); R.geos.forEach(x => x.dispose()); } } catch (e) { }
     raiz.remove();
-    if (destino) irR8(destino);
+    if (destino === 'calibrar') import('./r8/calibracion_ui.js').then(m => m.abrir()); // v30: directo a la ventana de calibrar
+    else if (destino) irR8(destino);
     if (opts.alCerrar) opts.alCerrar();
   };
   const NOV = [
     ['📦', 'Taller de cajas', 'Bisagras, cierres, pomos y puertas: arrastra y te dice verde o rojo', 'cajas'],
     ['📸', 'Escaparate', 'Foto de estudio y vídeo 360° para anunciar antes de imprimir', 'catalogo'],
     ['🎬', 'Impresión fantasma', 'Mira cómo se imprimirá, capa a capa, con su tiempo', 'catalogo'],
-    ['🎯', 'Calibra tu calibre y tu impresora', 'Imprimes una probeta, la mides y todo sale corregido', 'precision'],
+    ['🎯', 'Calibra tu calibre y tu impresora', 'Una moneda para tu calibre y una probeta para tu impresora: todo sale corregido', 'calibrar'],
     ['🧬', 'CelebriCLON', 'Repuestos desde tus fotos: te dice qué medir y dónde', 'clon'],
     ['🧰', 'Estudio pro', 'Redondeos, centro, SVG, foto para calcar y tablet', 'estudio']
   ];

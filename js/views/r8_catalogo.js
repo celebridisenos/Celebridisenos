@@ -6,6 +6,7 @@ import { h, mount, btn, toast } from '../ui.js';
 import * as N from '../r8/nucleo.js';
 import { crearEscena, miniatura, COLORES, ACABADOS } from '../r8/escena3d.js';
 import { MOVILES } from '../r8/moviles.js';
+import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar la pieza en la cama
 
 const MINIS = new Map(); // miniaturas ya dibujadas (clave → dataURL)
 // v20: las miniaturas se guardan en este aparato (IndexedDB «celebrir8_minis»): la primera vez se dibujan; las siguientes,
@@ -50,11 +51,11 @@ export async function montarCatalogo(el, ext = {}) {
     });
   }
   // ---------- una pieza abierta ----------
-  let escena = null, lienzo = null, tic = 0, info = null;
+  let escena = null, lienzo = null, tic = 0, info = null, MESA = null;
   function abre(k) {
     C.abierto = k; const D = K.DISENOS[k], v = C.v[k] = C.v[k] || K.valores(k);
     rejilla.querySelectorAll('.r8c-tar').forEach(b => b.classList.toggle('on', b.dataset.k === k));
-    if (escena) { escena.destruir(); escena = null; }
+    if (MESA) { MESA.destruir(); MESA = null; } if (escena) { escena.destruir(); escena = null; }
     lienzo = h('canvas.r8c-cv', { 'aria-label': 'Vista 3D de ' + D.t }); info = h('div.r8c-info');
     const campos = h('div.r8c-campos'), color = C.color[k] || D.color || '#7c6cff', acab = C.acabado[k] || D.acabado || 'mate';
     mount(detalle, h('div.r8c-panel', h('div.r8c-vista', lienzo, info),
@@ -66,7 +67,7 @@ export async function montarCatalogo(el, ext = {}) {
         h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })))));
     mount(campos, camposDe(K, k, v, () => genera()));
     detalle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    try { escena = crearEscena(lienzo, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); } catch (e) { mount(info, '⚠️ ' + e.message); }
+    try { escena = crearEscena(lienzo, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); MESA = mesa(escena, lienzo, { cama: 256 }); } catch (e) { mount(info, '⚠️ ' + e.message); }
     genera(true);
   }
   function genera(ya) {
@@ -74,7 +75,7 @@ export async function montarCatalogo(el, ext = {}) {
       const k = C.abierto; if (!k || !escena) return; const D = K.DISENOS[k], v = C.v[k];
       try { const t0 = performance.now(), m = K.genera(k, v), I = N.info(m); escena.ponPartes([{ id: k, vista: N.aVista(m), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]); if (ya) escena.encuadrar('iso');
         mount(info, h('span', I.dims.map(x => (Math.round(x * 10) / 10).toLocaleString('es-ES')).join(' × ') + ' mm'), h('span', Math.round(I.vol / 1000) + ' cm³'), h('span', Math.round(performance.now() - t0) + ' ms'));
-        const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null);
+        const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, D.soportes ? h('p.r8e-nota.r8c-sopn', '🌲 Lleva soportes (por su forma: asa, orejas, gancho…). Al prepararla para tu Bambu salen marcados los de árbol, que se quitan fácil.') : null, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null);
         window.__r8c = { k, dims: I.dims.map(x => Math.round(x * 10) / 10), vol: I.vol, piezas: m.decompose().length, valores: Object.assign({}, v) };
       } catch (e) { mount(info, h('span.r8e-mal', '⚠️ ' + (e.message || e))); window.__r8c = { k, error: e.message }; }
       finally { N.limpia(); }
@@ -84,7 +85,7 @@ export async function montarCatalogo(el, ext = {}) {
     const { modal } = await import('../ui.js'), A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null), cuerpo = h('div.r8c-aj'); const D = K.DISENOS[k];
     modal('🖨️ ' + D.t + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const nombre = (D.t + '_' + Object.values(C.v[k] || {}).filter(x => typeof x === 'string' && x.length < 14 && /[a-z]/i.test(x)).slice(0, 1).join('')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
-    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => [{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }], N, uso: D.uso === 'pieza' ? 'mecanica' : D.uso, texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, sinCalibrar: !!D.sinCalibrar, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.uso === 'pieza' ? 'mecanica' : D.uso, texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
   }
   // v30 · 🎁 las dos sorpresas: Escaparate e Impresión fantasma
   async function sorpresa(que, k) { const S = await import('../r8/sorpresas.js'), D = K.DISENOS[k]; let partes; try { partes = [{ vista: N.aVista(K.genera(k, C.v[k])), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]; } catch (e) { return toast(e.message || String(e), 'bad'); } finally { N.limpia(); } S[que](partes, { nombre: D.t }); }
@@ -101,7 +102,7 @@ export async function montarCatalogo(el, ext = {}) {
       cola = cola.then(() => new Promise(res => setTimeout(() => { if (!vivo) return res(); try { const m = K.genera('funda', { modelo: mov, estilo: est, txt: est.startsWith('nombre') ? 'Lucía' : est.startsWith('figura') ? '🦋' : '' }).rotate([180, 0, 0]); const url = miniatura(N.aVista(m), '#1b1b1d', 'mate', 260); MINIS.set(kk, url); const img = b.querySelector('.r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); } catch (e) { MINIS.set(kk, ''); } finally { N.limpia(); } res(); }, 16))); });
   }
   pinta(); if (C.abierto) abre(C.abierto);
-  return { destroy() { vivo = false; clearTimeout(tic); if (escena) escena.destruir(); }, abre };
+  return { destroy() { vivo = false; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); }, abre };
 }
 // los textos de ejemplo no se dibujan en la miniatura si cuestan (se usan los de serie)
 function sinNombre(K, k) { return {}; }

@@ -26,7 +26,7 @@ function dibujo() {
   svg.append(el('text', { x: 6, y: 16, class: 'cpr-sub' }, 'desde arriba'));
   return svg;
 }
-export function abrir() {
+export function abrir(o = {}) {
   const g0 = CPR.guardado(), estado = { cal: { cero: 0 }, imp: 'P1P', mat: 'PETG', med: {}, R: null, calibre: g0.calibre };
   let cerrar = () => { };
   const cuerpo = h('div.cpr'), pinta = () => mount(cuerpo, contenido());
@@ -78,5 +78,5 @@ export function abrir() {
     } catch (e) { toast(e.message || String(e), 'bad'); }
   }
   pinta();
-  return modal('🎯 Calibrar tu calibre y tu impresora', cuerpo, close => { cerrar = close; void cerrar; return [btn('Cerrar', close, { cls: 'ghost' })]; });
+  return modal('🎯 Calibrar tu calibre y tu impresora', cuerpo, close => { cerrar = close; void cerrar; return [btn('Cerrar', close, { cls: 'ghost' })]; }, { onclose: () => { if (o.alCerrar) o.alCerrar(); } });
 }

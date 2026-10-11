@@ -19,6 +19,7 @@ import * as CA from '../r8/caras.js'; // v20.2: elegir caras (empujar, boceto en
 import * as EM from '../r8/empalme.js'; // v20.4: empalme (redondeo) y chaflán de bordes
 import * as CH from '../r8/chivatos.js'; // v20.2: los chivatos (gira / encaja / choca / engrana / en el aire)
 import * as T3 from '../../vendor/three/three_r8.js';
+import { IMAGENES, cargaArchivo } from '../r8/foto_medida.js'; // v30: 🖼 Lienzo (imagen de referencia en 3D)
 
 // ---------- las medidas de cada forma básica ----------
 const nf = (k, t, min, max, paso = 0.5, u = 'mm') => ({ k, t, min, max, paso, u });
@@ -98,7 +99,7 @@ export async function montarEstudio(el, ext = {}) {
   const rb = (ic, t, f, o = {}) => h('button.r8e-b' + (t ? '' : '.mini'), { type: 'button', title: o.title || t, 'aria-label': o.title || t, 'data-b': o.k || t, onclick: e => f(e) }, h('span', ic), t ? h('small', t) : null);
   function pintaCinta() {
     mount(cinta,
-      grupo('CREAR', rb('✏️', 'Boceto', () => nuevoBoceto(), { k: 'boceto', title: 'Dibujar un boceto y extruirlo, girarlo o inflarlo (B)' }), rb('🧊', 'Formas', e => menuFormas(e.currentTarget), { k: 'formas', title: 'Caja, cilindro, esfera, estrella, corazón, rosca… (F)' }), rb('🔩', 'Componentes', e => menuComponentes(e.currentTarget), { k: 'componentes', title: 'Agujero de tornillo, tuerca, imán, rosca de bote, bisagra…' }), rb('🛍️', 'Catálogo', () => ext.irA && ext.irA('catalogo'), { k: 'catalogo' }), rb('📂', 'Importar', () => fi.click(), { k: 'importar', title: 'Abrir un STL, 3MF, OBJ o un dibujo SVG (o suéltalo encima)' }), rb('✨', 'IA', () => ponHerr('ia'), { k: 'ia', title: 'Diseñador IA: descríbelo y lo construye' })),
+      grupo('CREAR', rb('✏️', 'Boceto', () => nuevoBoceto(), { k: 'boceto', title: 'Dibujar un boceto y extruirlo, girarlo o inflarlo (B)' }), rb('🧊', 'Formas', e => menuFormas(e.currentTarget), { k: 'formas', title: 'Caja, cilindro, esfera, estrella, corazón, rosca… (F)' }), rb('🔩', 'Componentes', e => menuComponentes(e.currentTarget), { k: 'componentes', title: 'Agujero de tornillo, tuerca, imán, rosca de bote, bisagra…' }), rb('🛍️', 'Catálogo', () => ext.irA && ext.irA('catalogo'), { k: 'catalogo' }), rb('📂', 'Importar', () => fi.click(), { k: 'importar', title: 'Abrir un STL, 3MF, OBJ o un dibujo SVG (o suéltalo encima)' }), rb('🖼', 'Lienzo', () => { herr = 'lienzo'; pintaCinta(); pintaProp(); if (!(P.lienzos || []).length) nuevoLienzo(); }, { k: 'lienzo', title: 'Lienzo: una imagen de referencia en 3D, a su tamaño real (como en Fusion)' }), rb('✨', 'IA', () => ponHerr('ia'), { k: 'ia', title: 'Diseñador IA: descríbelo y lo construye' })),
       grupo('MODIFICAR', rb('✥', 'Mover', () => ponHerr('mover'), { k: 'mover', title: 'Mover (M)' }), rb('⟳', 'Girar', () => ponHerr('girar'), { k: 'girar', title: 'Girar (R)' }), rb('⤢', 'Escalar', () => ponHerr('escalar'), { k: 'escalar', title: 'Escalar (S)' }), rb('🌈', 'Deformar', () => ponHerr('deformar'), { k: 'deformar', title: 'Doblar, retorcer, estrechar, inclinar, ondas' }), rb('⬓', 'Vaciar', () => vaciarSel(), { k: 'vaciar', title: 'Dejarla hueca con paredes' }), rb('⇋', 'Espejo', e => menuEspejo(e.currentTarget), { k: 'espejo' }), rb('▦', 'Patrón', () => ponHerr('matriz'), { k: 'matriz', title: 'Patrón: copias en fila, en rejilla o en círculo alrededor de un eje' }), rb('✂', 'Cortar', () => ponHerr('cortar'), { k: 'cortar', title: 'Cortar con un plano (o con una cara): te quedas con un lado o con los dos' }), rb('⇔', 'Desfase', () => desfaseSel(), { k: 'desfase', title: 'Desfase: la pieza entera más gorda (+) o más fina (−)' }), rb('⧉', 'Duplicar', () => duplicar(), { k: 'duplicar', title: 'Duplicar (Ctrl+D)' })),
       grupo('CONSTRUIR', rb('▱', 'Cara', () => ponModoSel(modoSel === 'cara' ? 'pieza' : 'cara'), { k: 'modocara', title: 'Elegir CARAS (C): empujar, boceto encima, plano, a la cama' }), rb('📐', 'Plano', e => menuPlano(e.currentTarget), { k: 'plano', title: 'Plano de construcción: desfasado, en ángulo o en una cara' }), rb('／', 'Eje', e => menuEje(e.currentTarget), { k: 'eje', title: 'Eje de construcción (para patrones en círculo)' })),
       grupo('COMBINAR', rb('◐', 'Hueco', () => alternaHueco(), { k: 'hueco', title: 'Sólido ↔ hueco (H): un hueco se resta de lo que toca' }), rb('∪', 'Unir', () => combinar('unir'), { k: 'unir' }), rb('−', 'Restar', () => combinar('restar'), { k: 'restar', title: 'El primero que elegiste menos los demás' }), rb('∩', 'Cruce', () => combinar('cruce'), { k: 'cruce', title: 'Solo lo que tienen en común' }), rb('⊡', 'Separar', () => desagrupar(), { k: 'desagrupar', title: 'Deshacer el grupo' })),
@@ -146,6 +147,7 @@ export async function montarEstudio(el, ext = {}) {
   }
   // las medidas encima de la vista (regla de medir)
   function pintaEtiquetas() {
+    posDlg(); // v30: la cajita de extruir/redondear sigue a su cara
     if (herr !== 'medir' || medida.length < 2) { if (etiquetas.childNodes.length) mount(etiquetas); return; }
     const [a, b] = medida, m = [(a.p[0] + b.p[0]) / 2, (a.p[1] + b.p[1]) / 2, (a.p[2] + b.p[2]) / 2], s = escena.aPantalla(m), d = Math.hypot(b.p[0] - a.p[0], b.p[1] - a.p[1], b.p[2] - a.p[2]);
     mount(etiquetas, s.delante ? h('div.r8e-etq-m', { style: { left: s.x + 'px', top: s.y + 'px' } }, n1(d) + ' mm') : null);
@@ -156,6 +158,8 @@ export async function montarEstudio(el, ext = {}) {
   function elige(ids, sumar) { if (herr === 'cons' && ids.length) { herr = null; consSel = null; pintaCons(); } if (herr === 'cara' && modoSel !== 'cara') { quitaCara(); } sel = sumar ? [...new Set(sel.filter(x => !ids.includes(x)).concat(ids.filter(x => !sel.includes(x))))] : ids; ESTUDIO.sel = sel; marcaSel(); pintaFlechas(); pintaNav(); pintaProp(); pintaChiv(); pintaLinea(); window.__r8e && (window.__r8e.sel = sel.slice()); }
   let origen = null;
   function pintaFlechas() {
+    if (caraSel && herr === 'cara' && caraSel.F && !caraSel.F.curva && !caraSel.verEmp) return flechaEmpuje(); // v30: la FLECHA para extruir la cara (como Fusion)
+    if (caraSel && herr === 'cara') { escena.flechas(null); dlgCara(); return; }
     const c = sel.length ? PR.busca(P, sel[0]) : null;
     if (!c || !top(c.id) || !['mover', 'girar', 'escalar'].includes(herr) || (sel.length > 1 && herr !== 'mover')) { escena.flechas(null); return; }
     escena.flechas(herr, c.t, t => { if (!origen) origen = sel.map(id => JSON.parse(JSON.stringify((PR.busca(P, id) || {}).t || null))); const d = t.pos.map((v, k) => v - origen[0].pos[k]); c.t = t; escena.moverProxy(c.id, t);
@@ -164,6 +168,204 @@ export async function montarEstudio(el, ext = {}) {
   }
   // tocar la vista: elegir (o medir)
   let abajo = null;
+
+  // ================= v30 · COMO FUSION (la dueña, 11-10-2026: «no me deja tocar ningún objeto… no se marcan las caras que toco ni
+  // las esquinas… no veo extruir o flechita para arriba o para abajo… similar a Fusion»). Lo que cambia, sin quitar nada de antes:
+  //  · al PASAR el ratón, la cara de debajo se ilumina en azul y la ARISTA que vas a tocar, en amarillo;
+  //  · un CLIC en una cara la marca (naranja) con su FLECHA para extruir arrastrando (y su cajita: medida, ✓ y ✕); junto a una arista,
+  //    marca esa arista para redondearla o biselarla (con su cajita de radio). Ya no hace falta cambiar a «Cara»;
+  //  · ARRASTRAR una pieza la mueve por la cama (como Tinkercad); para girar la vista, arrastra fuera de las piezas;
+  //  · CLIC DERECHO: menú (extruir, redondear, vaciar, mover, copiar, pegar, duplicar, hueco, espejo, a la cama, borrar);
+  //  · Ctrl C / Ctrl V (copiar y pegar, también entre diseños), Ctrl D duplicar, Intro acepta, Esc cancela.
+  var hoverK = null, hoverF = null, hovRaf = 0, hovPend = null, arrastreP = null, derAbajo = null, dlg = null, portapapeles = null;
+  dlg = h('div.r8e-dlg'); vista.appendChild(dlg);
+  const v3 = { sub: (a, b) => a.map((x, k) => x - b[k]), dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len: a => Math.hypot(a[0], a[1], a[2]), mid: (a, b) => a.map((x, k) => (x + b[k]) / 2) };
+  const cacheCaras = new Map();
+  function caraDe(c) { // la cara plana de ese triángulo (guardada: al pasar el ratón por la misma cara no se recalcula)
+    const k = c.id + '|' + (c.sub || '') + '|' + c.matriz.map(x => Math.round(x * 1000)).join(',');
+    let L = cacheCaras.get(k); if (!L) { if (cacheCaras.size > 40) cacheCaras.clear(); cacheCaras.set(k, L = []); }
+    let F = L.find(x => x.set && x.set.has(c.tri)); if (F) return F;
+    if (c.vista.idx.length > 450000) return null; // (mallas enormes: sin iluminar al pasar, para no ir a tirones)
+    try { F = CA.caraPlana(c.vista, c.tri, c.matriz); F.set = new Set(F.idx || []); L.push(F); return F; } catch (e) { return null; }
+  }
+  // la arista de esa cara más cerca del ratón (en la pantalla): una recta entera o un círculo entero
+  function aristaCerca(F, e, px = 9) {
+    const r = lienzo.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; let mejor = null, md = px;
+    // v30 · ESQUINAS: un vértice de verdad (donde la arista cambia de dirección más de 20°) a menos de 8 px
+    let vx = null, mv = Math.min(8, px);
+    F.bordes.forEach(ring => { const n = ring.length; for (let i = 0; i < n; i++) { const p = ring[i], a = v3.sub(p, ring[(i - 1 + n) % n]), b = v3.sub(ring[(i + 1) % n], p), la = v3.len(a), lb = v3.len(b); if (la < 1e-6 || lb < 1e-6 || v3.dot(a, b) / (la * lb) > Math.cos(20 * Math.PI / 180)) continue;
+      const S = escena.aPantalla(p); if (!S.delante) continue; const d = Math.hypot(S.x - x, S.y - y); if (d < mv) { mv = d; vx = p; } } });
+    if (vx) return { vertice: vx, segs: [], mid: vx };
+    F.bordes.forEach(ring => { for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length], A = escena.aPantalla(a), B = escena.aPantalla(b); if (!A.delante || !B.delante) continue;
+      const vx = B.x - A.x, vy = B.y - A.y, L2 = vx * vx + vy * vy || 1, t = Math.max(0, Math.min(1, ((x - A.x) * vx + (y - A.y) * vy) / L2)), d = Math.hypot(A.x + vx * t - x, A.y + vy * t - y); if (d < md) { md = d; mejor = { ring, i }; } } });
+    if (!mejor) return null;
+    const { ring, i } = mejor, n = ring.length, c0 = ring.reduce((s, p) => s.map((v, k) => v + p[k] / n), [0, 0, 0]), rad = ring.map(p => v3.len(v3.sub(p, c0))), Rm = rad.reduce((s, v) => s + v, 0) / n;
+    if (n >= 12 && Rm > 0.3 && rad.every(v => Math.abs(v - Rm) < Math.max(0.02, 0.03 * Rm))) return { segs: ring.map((p, k) => [p, ring[(k + 1) % n]]), mid: v3.mid(ring[i], ring[(i + 1) % n]), circulo: true };
+    const a0 = ring[i], b0 = ring[(i + 1) % n], e0 = v3.sub(b0, a0), l0 = v3.len(e0) || 1, enLinea = (p, q) => { const d = v3.sub(q, p), l = v3.len(d); return l > 1e-6 && v3.dot(d, e0) / (l * l0) > 0.9999; };
+    let ia = i, ib = (i + 1) % n;
+    for (let k = 0; k < n && enLinea(ring[(ia - 1 + n) % n], ring[ia]); k++) ia = (ia - 1 + n) % n;
+    for (let k = 0; k < n && enLinea(ring[ib], ring[(ib + 1) % n]); k++) ib = (ib + 1) % n;
+    return { segs: [[ring[ia], ring[ib]]], mid: v3.mid(a0, b0) };
+  }
+  // de la arista tocada, qué borde de la lista del empalme es (recto o círculo)
+  function bordeMasCerca(L, A) {
+    let j = -1, md = 1.0; const p = A.mid;
+    L.forEach((x, k) => { let d;
+      if (x.tipo === 'recta') { const ab = v3.sub(x.b, x.a), t = Math.max(0, Math.min(1, v3.dot(v3.sub(p, x.a), ab) / (v3.dot(ab, ab) || 1))); d = v3.len(v3.sub(p, x.a.map((v, q) => v + ab[q] * t))); }
+      else { const v = v3.sub(p, x.c), hh = v3.dot(v, x.n), rr = v3.len(v.map((q, k2) => q - x.n[k2] * hh)); d = Math.hypot(rr - x.R, hh); }
+      if (d < md) { md = d; j = k; } });
+    return j;
+  }
+  const sinHover = () => !escena || escena.arrastrando || arrastreP || ['medir', 'partir', 'cortar', 'cons', 'animar', 'matriz', 'centro', 'girar', 'escalar'].includes(herr) || document.querySelector('.r8b');
+  function hover() {
+    hovRaf = 0; const e = hovPend; if (!e || sinHover() || escena.sobreFlechas) return quitaHover();
+    const c = escena.caraEn(e); if (!c) return quitaHover();
+    const F = caraDe(c); if (!F) return quitaHover();
+    const A = aristaCerca(F, e), k = c.id + ':' + F.o.map(v => v.toFixed(2)).join(',') + ':' + (A ? A.mid.map(v => v.toFixed(2)).join(',') : '');
+    if (k === hoverK) return; hoverK = k; hoverF = { c, F, A }; window.__r8e && (window.__r8e.hover = { cara: true, arista: !!(A && !A.vertice), esquina: !!(A && A.vertice), area: F.area });
+    const yaMarcada = caraSel && caraSel.F && Math.hypot(...v3.sub(caraSel.F.o, F.o)) < 1e-3 && v3.dot(caraSel.F.n, F.n) > 0.999;
+    escena.ponHover(yaMarcada || A ? null : { tris: F.tris, bordes: F.bordes }); escena.ponArista(A && !A.vertice ? A.segs : (caraSel && caraSel.arista) || null); escena.ponPunto(A && A.vertice ? A.vertice : (caraSel && caraSel.vertice) || null); lienzo.style.cursor = 'pointer';
+  }
+  function quitaHover() { if (hoverK === null) return; hoverK = null; hoverF = null; window.__r8e && (window.__r8e.hover = null); if (escena) { escena.ponHover(null); escena.ponArista(caraSel && caraSel.arista ? caraSel.arista : null); escena.ponPunto(caraSel && caraSel.vertice ? caraSel.vertice : null); } lienzo.style.cursor = ''; }
+  lienzo.addEventListener('pointermove', e => { if (e.buttons || e.pointerType !== 'mouse') return; hovPend = { clientX: e.clientX, clientY: e.clientY }; if (!hovRaf) hovRaf = requestAnimationFrame(hover); });
+  lienzo.addEventListener('pointerleave', () => { hovPend = null; quitaHover(); });
+  // ---------- v30 · ESQUINAS y VARIAS ARISTAS (Mayús + clic), como en Fusion ----------
+  const casi = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.02;
+  const mismaArista = (x, y) => x.tipo === 'recta' && y.tipo === 'recta' ? casi(v3.mid(x.a, x.b), v3.mid(y.a, y.b)) && Math.abs(Math.abs(v3.dot(x.e, y.e)) - 1) < 1e-3 : x.tipo === 'circulo' && y.tipo === 'circulo' ? casi(x.c, y.c) && Math.abs(x.R - y.R) < 0.02 : false;
+  function segsDe(x) { // los trocitos para dibujarla
+    if (x.tipo === 'recta') return [[x.a, x.b]];
+    const n = 48, P2 = []; for (let i = 0; i < n; i++) { const t = i / n * 2 * Math.PI, ct = Math.cos(t), st = Math.sin(t); P2.push([0, 1, 2].map(k => x.c[k] + x.R * (ct * x.u[k] + st * x.v[k]))); }
+    return P2.map((p, i) => [p, P2[(i + 1) % n]]);
+  }
+  // las aristas que llegan a una esquina: las 2 de esta cara y la de las caras de al lado (en una caja, 3)
+  function aristasEnVertice(c, BD, v) {
+    const enV = x => x.tipo === 'recta' && (casi(x.a, v) || casi(x.b, v));
+    const propias = BD.rectas.map((x, i) => [x, i]).filter(([x]) => enV(x)), extra = [];
+    const X = c.vista.pos, I = c.vista.idx, M = c.matriz, W = i => [0, 1, 2].map(k => M[k] * X[i * 3] + M[4 + k] * X[i * 3 + 1] + M[8 + k] * X[i * 3 + 2] + M[12 + k]);
+    propias.forEach(([x]) => {
+      for (let t = 0; t < I.length / 3; t++) {
+        const a = W(I[t * 3]), b = W(I[t * 3 + 1]), d = W(I[t * 3 + 2]); if (!(casi(a, v) || casi(b, v) || casi(d, v))) continue;
+        const u1 = v3.sub(b, a), u2 = v3.sub(d, a), nn = [u1[1] * u2[2] - u1[2] * u2[1], u1[2] * u2[0] - u1[0] * u2[2], u1[0] * u2[1] - u1[1] * u2[0]], l = v3.len(nn); if (l < 1e-9 || v3.dot(nn, x.n2) / l < 0.999) continue;
+        let B2 = null; try { B2 = EM.bordesDeCara(c.vista, t, M); } catch (e) { B2 = null; }
+        if (B2) B2.rectas.filter(enV).forEach(y => { if (!propias.some(([z]) => mismaArista(z, y)) && !extra.some(z => mismaArista(z, y))) extra.push(y); });
+        break;
+      }
+    });
+    return { propias: propias.map(p => p[1]), extra };
+  }
+  // Mayús + clic junto a una arista (o una esquina) de la MISMA pieza: se suma (o se quita si ya estaba)
+  function sumaArista(e) {
+    const c = escena.caraEn(e); if (!c || c.id !== caraSel.id) return toast('Las aristas tienen que ser de la misma pieza.', 'warn');
+    const F = caraDe(c); if (!F) return;
+    const A = aristaCerca(F, e, e.pointerType === 'touch' || e.pointerType === 'pen' ? 18 : 9); if (!A) return toast('Mayús + clic JUNTO a una arista (o en una esquina) para sumarla.', 'info', 2600);
+    let B2; try { B2 = EM.bordesDeCara(c.vista, c.tri, c.matriz); } catch (x) { return; }
+    let nuevas = [];
+    if (A.vertice) { const r = aristasEnVertice(c, B2, A.vertice); nuevas = r.propias.map(i => B2.rectas[i]).concat(r.extra); }
+    else { const L2 = B2.rectas.concat(B2.circulos), j = bordeMasCerca(L2, A); if (j >= 0) nuevas = [L2[j]]; }
+    if (!nuevas.length) return toast('Esa arista no se puede redondear (es una curva libre).', 'info');
+    const L = caraSel.BD.rectas.concat(caraSel.BD.circulos);
+    if (!caraSel.verEmp) { caraSel.verEmp = true; L.forEach((x, i) => { caraSel.emp.quita[i] = true; }); caraSel.extra = []; }
+    caraSel.extra = caraSel.extra || [];
+    nuevas.forEach(y => {
+      const i = L.findIndex(x => mismaArista(x, y)); if (i >= 0) { caraSel.emp.quita[i] = !caraSel.emp.quita[i]; return; }
+      const k = caraSel.extra.findIndex(z => mismaArista(z.x, y)); if (k >= 0) caraSel.extra.splice(k, 1); else caraSel.extra.push({ x: y });
+    });
+    caraSel.vertice = null; caraSel.arista = bordesElegidos().flatMap(segsDe); escena.ponArista(caraSel.arista); escena.ponPunto(null);
+    const n = bordesElegidos().length; toast('◜ ' + n + ' arista' + (n === 1 ? '' : 's') + ' elegida' + (n === 1 ? '' : 's') + ' · radio en la cajita + Intro', 'info', 2200);
+    pintaFlechas(); panelCara(); dlgCara(); previaEmpalme(); window.__r8e && (window.__r8e.aristas = n);
+  }
+  // ---------- la FLECHA para extruir la cara elegida (solo su eje) y su cajita ----------
+  function flechaEmpuje() {
+    const F = caraSel.F, n = F.n, q = new T3.Quaternion().setFromUnitVectors(new T3.Vector3(0, 0, 1), new T3.Vector3(...n)), eu = new T3.Euler().setFromQuaternion(q, 'ZYX'), rot = [eu.x, eu.y, eu.z].map(a => Math.round(a * 180 / Math.PI * 1000) / 1000);
+    const enD = t => Math.round(((t.pos[0] - F.o[0]) * n[0] + (t.pos[1] - F.o[1]) * n[1] + (t.pos[2] - F.o[2]) * n[2]) * 100) / 100;
+    const sigue = t => { if (!caraSel) return; caraSel.d = enD(t); previaEmpuje(); actualizaD(); posDlg(); };
+    escena.flechas('mover', { pos: F.o.map((v, k) => v + n[k] * (caraSel.d || 0)), rot, esc: [1, 1, 1] }, sigue, sigue, { soloZ: true });
+    if (!(dlg && dlg.contains(document.activeElement))) dlgCara(); else posDlg();
+  }
+  function actualizaD() {
+    const i = dlg && dlg.querySelector('input'); if (i && document.activeElement !== i && !(caraSel && caraSel.verEmp)) i.value = caraSel.d;
+    const nn = prop.querySelector('input.inp[data-k="d"]'); if (nn && document.activeElement !== nn) { nn.value = caraSel.d; const rr = nn.closest('label') && nn.closest('label').querySelector('input[type=range]'); if (rr) rr.value = caraSel.d; }
+  }
+  // la cajita junto a la cara (o a la arista): medida, ✓ (Intro) y ✕ (Esc) — como la de Fusion
+  function dlgCara() {
+    if (!dlg) return; if (!caraSel || !caraSel.F || (caraSel.F.curva && !caraSel.verEmp)) return mount(dlg);
+    const o = caraSel, esEmp = !!(o.verEmp && o.BD);
+    const ok = () => (esEmp ? aplicaEmpalme() : aplicaEmpuje()), cancela = () => { quitaCara(); pintaProp(); };
+    const inp = h('input.inp', { type: 'number', step: esEmp ? 0.1 : 0.5, value: esEmp ? o.emp.r : o.d, 'aria-label': esEmp ? 'Radio' : 'Distancia', 'data-dlg': esEmp ? 'r' : 'd',
+      onkeydown: ev => { if (ev.key === 'Enter') { ev.preventDefault(); ok(); } else if (ev.key === 'Escape') { ev.preventDefault(); cancela(); } },
+      oninput: ev => { const v = Number(String(ev.target.value).replace(',', '.')); if (!isFinite(v)) return; if (esEmp) { o.emp.r = Math.max(0, v); previaEmpalme(); } else { o.d = v; previaEmpuje(); flechaEmpuje(); actualizaD(); } } });
+    mount(dlg, h('div.r8e-dlg-c', h('b', esEmp ? (o.emp.tipo === 'chaflan' ? '◺ Chaflán' : '◜ Redondeo') : '⇕ Extruir'), inp, h('i', 'mm'),
+      esEmp ? h('button.r8e-dlg-t', { type: 'button', title: 'Cambiar entre redondeo y chaflán', onclick: () => { o.emp.tipo = o.emp.tipo === 'chaflan' ? 'redondeo' : 'chaflan'; dlgCara(); panelCara(); } }, o.emp.tipo === 'chaflan' ? '◜' : '◺') : null,
+      h('button.r8e-dlg-ok', { type: 'button', title: 'Aceptar (Intro)', onclick: ok }, '✓'), h('button.r8e-dlg-no', { type: 'button', title: 'Cancelar (Esc)', onclick: cancela }, '✕')));
+    posDlg();
+  }
+  function posDlg() {
+    if (!dlg || !dlg.firstChild || !caraSel || !caraSel.F || !escena) return;
+    const F = caraSel.F, p = caraSel.verEmp && caraSel.arista ? v3.mid(caraSel.arista[0][0], caraSel.arista[0][1]) : F.o.map((v, k) => v + F.n[k] * (caraSel.d || 0)), s = escena.aPantalla(p);
+    dlg.style.display = s.delante ? '' : 'none'; const w = dlg.firstChild.offsetWidth || 300; dlg.style.left = Math.round(Math.max(8, Math.min(s.x + 30 + w > lienzo.clientWidth - 8 ? s.x - 30 - w : s.x + 30, lienzo.clientWidth - w - 8))) + 'px'; dlg.style.top = Math.round(Math.max(8, Math.min(s.y - 20, lienzo.clientHeight - 60))) + 'px'; // (si no cabe a la derecha, a la izquierda)
+  }
+  // ---------- ARRASTRAR una pieza por la cama (como Tinkercad) ----------
+  vista.addEventListener('pointerdown', e => {
+    if (arrastreP && e.pointerType === 'touch') { cancelaArrastre(); return; } // (segundo dedo: girar o pellizcar la vista)
+    if (e.target !== lienzo || e.button !== 0 || !escena || escena.sobreFlechas || modoSel === 'cara' || ['medir', 'partir', 'cortar', 'cons', 'animar', 'centro', 'matriz'].includes(herr)) return;
+    if (e.pointerType === 'touch' && toques.size) return;
+    const id = escena.cuerpoEn(e); if (!id || !top(id)) return;
+    if (e.pointerType !== 'mouse' && !sel.includes(id)) return; // en tablet: primero se toca (elegir) y luego se arrastra
+    const q = escena.puntoEn(e); if (!q) return;
+    const ids = sel.includes(id) ? sel.filter(top) : [id];
+    arrastreP = { ids, x0: e.clientX, y0: e.clientY, z: q.p[2], p0: q.p, orig: ids.map(i => ((PR.busca(P, i) || {}).t || { pos: [0, 0, 0] }).pos.slice()), movido: false, pid: e.pointerId };
+    escena.ctl.enabled = false;
+  }, true);
+  function cancelaArrastre() { const a = arrastreP; arrastreP = null; if (escena) escena.ctl.enabled = true; if (a && a.movido) { a.ids.forEach((id, i) => { const c = PR.busca(P, id); if (c) { c.t.pos = a.orig[i].slice(); escena.moverProxy(id, c.t); } }); recalcula(); } }
+  const mueveArrastre = e => {
+    const a = arrastreP; if (!a || e.pointerId !== a.pid) return;
+    if (!a.movido) { if (Math.hypot(e.clientX - a.x0, e.clientY - a.y0) < 5) return; a.movido = true; quitaHover(); if (caraSel) quitaCara(); escena.flechas(null); }
+    const p = escena.puntoPlano(e, { normal: [0, 0, 1], punto: [0, 0, a.z] }); if (!p) return;
+    const paso = e.shiftKey ? 0.1 : 1, dx = Math.round((p[0] - a.p0[0]) / paso) * paso, dy = Math.round((p[1] - a.p0[1]) / paso) * paso;
+    a.ids.forEach((id, i) => { const c = PR.busca(P, id); if (!c) return; c.t.pos[0] = r3(a.orig[i][0] + dx); c.t.pos[1] = r3(a.orig[i][1] + dy); escena.moverProxy(id, c.t); });
+    a.dx = dx; a.dy = dy; if (!R || R.ms < 70) recalcula(); toastArrastre(dx, dy);
+  };
+  let tArr = null; const toastArrastre = (dx, dy) => { if (!tArr) { tArr = h('div.r8e-arr'); vista.appendChild(tArr); } tArr.textContent = '✥ ' + (dx >= 0 ? '+' : '') + n1(dx) + ' · ' + (dy >= 0 ? '+' : '') + n1(dy) + ' mm   (Mayús = de 0,1 en 0,1)'; tArr.hidden = false; };
+  const sueltaArrastre = e => {
+    const a = arrastreP; if (!a || (e && e.pointerId !== a.pid)) return; arrastreP = null; escena.ctl.enabled = true; if (tArr) tArr.hidden = true;
+    if (a.movido) { recalcula(); commit(); elige(a.ids); }
+  };
+  window.addEventListener('pointermove', mueveArrastre); window.addEventListener('pointerup', sueltaArrastre); window.addEventListener('pointercancel', () => cancelaArrastre());
+  // ---------- COPIAR y PEGAR (también entre diseños: se guarda en este aparato) ----------
+  function copiar() {
+    const L = sel.filter(top).map(id => PR.busca(P, id)).filter(Boolean); if (!L.length) return toast('Elige antes algo para copiar.', 'warn');
+    portapapeles = JSON.parse(JSON.stringify(L)); try { localStorage.setItem('cd.r8.portapapeles', JSON.stringify(portapapeles)); } catch (e) { }
+    toast('📋 Copiad' + (L.length > 1 ? 'as ' + L.length + ' piezas' : 'a «' + (L[0].nombre || PR.nombreTipo(L[0])) + '»') + ' · Ctrl V para pegar', 'ok', 2200);
+  }
+  function pegar() {
+    let L = portapapeles; if (!L) { try { L = JSON.parse(localStorage.getItem('cd.r8.portapapeles') || 'null'); } catch (e) { L = null; } }
+    if (!L || !L.length) return toast('No hay nada copiado (Ctrl C sobre una pieza).', 'warn');
+    const paso = PR.nuevoPaso(P), nuevos = L.map(x => { const c = JSON.parse(JSON.stringify(x)); PR.recorre([c], y => { y.id = PR.nuevoId(); y.n = paso; delete y.une; }); P.cuerpos.push(c); return c; });
+    try { const otros = P.cuerpos.filter(x => !nuevos.includes(x)).map(x => x.id), b = otros.length ? PR.cajaDe(P, otros) : null, bn = PR.cajaDe(P, nuevos.map(x => x.id)); if (b && bn) nuevos.forEach(c => { c.t.pos[0] = r3(c.t.pos[0] + b.max[0] - bn.min[0] + 8); }); } catch (e) { }
+    commit(); elige(nuevos.map(x => x.id)); toast('📌 Pegad' + (nuevos.length > 1 ? 'as ' + nuevos.length + ' piezas' : 'a') + ' al lado: arrástrala donde quieras', 'ok', 2500);
+  }
+  // ---------- CLIC DERECHO: el menú de lo que hay debajo ----------
+  lienzo.addEventListener('pointerdown', e => { if (e.button === 2) derAbajo = { x: e.clientX, y: e.clientY }; });
+  lienzo.addEventListener('contextmenu', e => {
+    e.preventDefault(); const d = derAbajo; derAbajo = null; if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5) return; // (si se arrastró, era mover la vista)
+    menuContexto({ clientX: e.clientX, clientY: e.clientY });
+  });
+  function menuContexto(ev0) {
+    const id = escena.cuerpoEn(ev0), ancla = h('div', { style: { position: 'fixed', left: ev0.clientX + 'px', top: (ev0.clientY - 8) + 'px', width: '1px', height: '1px' } }); document.body.appendChild(ancla);
+    const items = [];
+    if (id && top(id)) {
+      if (!sel.includes(id)) elige([id]);
+      const c = PR.busca(P, id), cara = escena.caraEn(ev0), F = cara && caraDe(cara);
+      if (F && !F.curva) items.push(['⇕', 'Extruir esta cara (flecha)', () => { eligeCara(ev0, null, true); }]);
+      if (F) items.push(['◜', 'Redondear sus aristas', () => { eligeCara(ev0, null, true); if (caraSel && caraSel.BD) { caraSel.verEmp = true; caraSel.emp.tipo = 'redondeo'; pintaFlechas(); dlgCara(); panelCara(); } }], ['◺', 'Chaflán en sus aristas', () => { eligeCara(ev0, null, true); if (caraSel && caraSel.BD) { caraSel.verEmp = true; caraSel.emp.tipo = 'chaflan'; pintaFlechas(); dlgCara(); panelCara(); } }]);
+      if (F) items.push(['⚫', 'Agujero aquí (Ø5, pasante)', () => { eligeCara(ev0, null, true); agujeroAqui(5, 0); }]);
+      items.push(['⬓', 'Vaciar (dejarla hueca)', () => { elige([id]); vaciarSel(); }], ['✥', 'Mover con flechas', () => { elige([id]); ponHerr('mover'); }],
+        ['📋', 'Copiar  (Ctrl C)', () => { elige([id]); copiar(); }], ['📌', 'Pegar  (Ctrl V)', () => pegar()], ['⧉', 'Duplicar  (Ctrl D)', () => { elige([id]); duplicar(); }],
+        [c && c.hueco ? '●' : '◐', c && c.hueco ? 'Hacerla sólida' : 'Hacerla hueco', () => { elige([id]); alternaHueco(); }], ['⇋', 'Espejo en X', () => { PR.espejo(P, [id], 'x'); commit(); }],
+        ['⤓', 'A la cama', () => { PR.aLaCama(P, [id]); commit(); }], ['🗑️', 'Borrar  (Supr)', () => { elige([id]); borrar(); }]);
+    } else items.push(['📌', 'Pegar  (Ctrl V)', () => pegar()], ['🧊', 'Poner una forma', () => menuFormas(cinta.querySelector('[data-b="formas"]'))], ['✏️', 'Dibujar un boceto', () => nuevoBoceto()], ['⌂', 'Encuadrar', () => escena.encuadrar('iso', true)]);
+    menu(ancla, items, 'r8e-menu-pieza.r8e-menu-ctx'); setTimeout(() => ancla.remove(), 0);
+  }
   // v20.4 · TABLET PRO (la dueña: «funciones pro para la tablet, atajos»): toque con 2 dedos = deshacer · con 3 = rehacer (sin moverlos;
   // girar y pellizcar la vista sigue igual) · MANTENER PULSADO sobre una pieza = su menú (duplicar, hueco, espejo, a la cama, borrar…)
   const toques = new Map(); let multi = null, largo = null;
@@ -196,18 +398,21 @@ export async function montarEstudio(el, ext = {}) {
       if (cerca2 >= 0) partirO.sitios.splice(cerca2, 1); else partirO.sitios.push([Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
       if (partirO._prepara) partirO._prepara(); panelPartir(); return;
     }
-    if (modoSel === 'cara') { eligeCara(e); return; }
-    const id = escena.cuerpoEn(e); if (id) elige([id], e.shiftKey || e.ctrlKey || e.metaKey);
+    if (e.shiftKey && caraSel && herr === 'cara' && caraSel.BD && escena.cuerpoEn(e) === caraSel.id) { sumaArista(e); return; } // v30: Mayús + clic = sumar aristas (como Fusion)
+    if (modoSel === 'cara') { eligeCara(e, hoverF && hoverF.A); return; }
+    const id = escena.cuerpoEn(e);
+    if (id && !(e.shiftKey || e.ctrlKey || e.metaKey) && !['girar', 'escalar'].includes(herr)) { if (herr === 'mover') { herr = null; } eligeCara(e, hoverF && hoverF.A); return; } // v30 · como Fusion: el clic MARCA la cara (con su flecha) o la arista
+    if (id) elige([id], e.shiftKey || e.ctrlKey || e.metaKey);
     else { const k = escena.consEn(e); if (k) eligeCons(k); else if (!e.shiftKey) elige([]); }
   });
   lienzo.addEventListener('dblclick', e => { const id = escena.cuerpoEn(e), c = id && PR.busca(P, id); if (c && c.tipo === 'boceto') editaBoceto(c); });
 
   // ---------- cambios ----------
-  function commit() { if (H.apunta(P)) { clearTimeout(guardTic); guardTic = setTimeout(autoguarda, 1500); } ESTUDIO.P = P; recalcula(); pintaNav(); pintaProp(); }
+  function commit() { pintaLienzos(); if (H.apunta(P)) { clearTimeout(guardTic); guardTic = setTimeout(autoguarda, 1500); } ESTUDIO.P = P; recalcula(); pintaNav(); pintaProp(); }
   function autoguarda() { if (!P.cuerpos.length) return; let foto = ''; try { foto = escena.foto('image/jpeg', 0.6); } catch (e) { } PR.guardar(P, foto).catch(() => { }); }
-  function ponProyecto(P2) { P = P2; ESTUDIO.P = P; H = PR.historial(P); sel = []; ESTUDIO.sel = sel; escena.cama(P.cama || 256); recalcula(true); pintaNav(); pintaProp(); setTimeout(() => escena.encuadrar('iso'), 80); }
-  function deshacer() { const x = H.deshacer(); if (x) { P = x; ESTUDIO.P = P; sel = sel.filter(id => PR.busca(P, id)); recalcula(true); pintaNav(); pintaProp(); } }
-  function rehacer() { const x = H.rehacer(); if (x) { P = x; ESTUDIO.P = P; sel = sel.filter(id => PR.busca(P, id)); recalcula(true); pintaNav(); pintaProp(); } }
+  function ponProyecto(P2) { P = P2; ESTUDIO.P = P; setTimeout(pintaLienzos, 0); H = PR.historial(P); sel = []; ESTUDIO.sel = sel; escena.cama(P.cama || 256); recalcula(true); pintaNav(); pintaProp(); setTimeout(() => escena.encuadrar('iso'), 80); }
+  function deshacer() { const x = H.deshacer(); if (x) { P = x; ESTUDIO.P = P; pintaLienzos(); sel = sel.filter(id => PR.busca(P, id)); recalcula(true); pintaNav(); pintaProp(); } }
+  function rehacer() { const x = H.rehacer(); if (x) { P = x; ESTUDIO.P = P; pintaLienzos(); sel = sel.filter(id => PR.busca(P, id)); recalcula(true); pintaNav(); pintaProp(); } }
   function añade(c, o = {}) {
     const destino = !o.sinOp && opCrear !== 'nuevo' && sel.length === 1 ? PR.busca(P, sel[0]) : null; // la pieza elegida ANTES de crear
     PR.añadir(P, c);
@@ -264,7 +469,8 @@ export async function montarEstudio(el, ext = {}) {
   function menu(ancla, items, cls = '') {
     document.querySelectorAll('.r8e-menu').forEach(m => m.remove());
     const r = ancla.getBoundingClientRect(), m = h('div.r8e-menu' + (cls ? '.' + cls : ''), { style: { left: Math.max(8, Math.min(window.innerWidth - 340, r.left)) + 'px', top: (r.bottom + 6) + 'px' } }, items.map(([ic, t, f]) => h('button', { type: 'button', onclick: () => { m.remove(); f(); } }, h('span', ic), h('b', t))));
-    document.body.appendChild(m); setTimeout(() => document.addEventListener('pointerdown', function fuera(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('pointerdown', fuera); } }), 0);
+    document.body.appendChild(m); { const b = m.getBoundingClientRect(); if (b.bottom > window.innerHeight - 8) m.style.top = Math.max(8, window.innerHeight - b.height - 8) + 'px'; } // v30: que no se salga por abajo
+    setTimeout(() => document.addEventListener('pointerdown', function fuera(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('pointerdown', fuera); } }), 0);
   }
 
   // ================= v20.2 · CARAS, CONSTRUCCIÓN, CORTAR, DESFASE (lo que pidió la dueña: «mejor que Fusion») =================
@@ -275,10 +481,14 @@ export async function montarEstudio(el, ext = {}) {
       h('label.r8e-filtro-g.r8e-opac', { title: 'Opacidad de las piezas: bájala para ver a través' }, h('small', 'Opacidad'), h('input', { type: 'range', min: 10, max: 100, step: 5, value: Math.round((escena ? escena.ponOpacidad() : 1) * 100), 'aria-label': 'Opacidad de las piezas', oninput: e => { const v = Number(e.target.value) / 100; escena.ponOpacidad(v); try { localStorage.setItem('cd.r8.opacidad', String(v)); } catch (x) { } recalcula(true); e.target.nextSibling.textContent = e.target.value + ' %'; } }), h('b', Math.round((escena ? escena.ponOpacidad() : 1) * 100) + ' %')));
   }
   function ponModoSel(k) { modoSel = k; if (k !== 'cara') quitaCara(); else if (['mover', 'girar', 'escalar'].includes(herr)) { herr = null; escena.flechas(null); } pintaCinta(); pintaProp(); toast(k === 'cara' ? '▱ Toca una CARA plana de la pieza' : '🧊 Toca una pieza entera', '', 1800); }
-  function quitaCara() { caraSel = null; escena && escena.ponCara(null); escena && escena.fantasmas(null); if (herr === 'cara') herr = null; }
-  function eligeCara(e) {
+  function quitaCara() { caraSel = null; escena && escena.ponCara(null); escena && escena.fantasmas(null); escena && escena.ponArista(null); escena && escena.ponPunto(null); if (dlg) mount(dlg); if (herr === 'cara') { herr = null; escena && escena.flechas(null); } }
+  function eligeCara(e, A, sinArista) { // v30: A = la arista iluminada al tocar (redondear SOLO esa); si no, se busca junto al dedo o al ratón
     const c = escena.caraEn(e); if (!c) { quitaCara(); pintaProp(); return; }
-    try { const F = CA.caraPlana(c.vista, c.tri, c.matriz); let BD = null; try { BD = EM.bordesDeCara(c.vista, c.tri, c.matriz); } catch (x) { BD = null; } caraSel = { id: c.id, sub: c.sub || null, F, BD, emp: (caraSel && caraSel.emp) || { tipo: 'redondeo', r: 1, quita: {} }, d: (caraSel && caraSel.d) || 2 }; caraSel.emp.quita = {}; escena.ponCara({ tris: F.tris, bordes: F.bordes }); sel = [c.id]; ESTUDIO.sel = sel; marcaSel(); pintaNav(); herr = 'cara'; escena.flechas(null); pintaCinta(); pintaProp(); window.__r8e && (window.__r8e.cara = { id: c.id, area: F.area, n: F.n, curva: F.curva, anillos: F.anillos.length }); }
+    try { const F = CA.caraPlana(c.vista, c.tri, c.matriz); let BD = null; try { BD = EM.bordesDeCara(c.vista, c.tri, c.matriz); } catch (x) { BD = null; } caraSel = { id: c.id, sub: c.sub || null, F, BD, p: c.p, emp: (caraSel && caraSel.emp) || { tipo: 'redondeo', r: 1, quita: {} }, d: 0 }; caraSel.emp.quita = {};
+      if (!A && !sinArista && e.clientX != null) A = aristaCerca(F, e, e.pointerType === 'touch' || e.pointerType === 'pen' ? 18 : 9);
+      if (A && !sinArista && BD && A.vertice) { const L = BD.rectas.concat(BD.circulos), r = aristasEnVertice(c, BD, A.vertice); if (r.propias.length || r.extra.length) { L.forEach((x, i) => { if (!r.propias.includes(i)) caraSel.emp.quita[i] = true; }); caraSel.extra = r.extra.map(y => ({ x: y })); caraSel.verEmp = true; caraSel.vertice = A.vertice; caraSel.arista = bordesElegidos().flatMap(segsDe); } }
+      else if (A && !sinArista && BD) { const L = BD.rectas.concat(BD.circulos), j = bordeMasCerca(L, A); if (j >= 0) { L.forEach((x, i) => { if (i !== j) caraSel.emp.quita[i] = true; }); caraSel.verEmp = true; caraSel.arista = A.segs; } }
+      escena.ponCara({ tris: F.tris, bordes: F.bordes }); escena.ponHover(null); hoverK = null; escena.ponArista(caraSel.arista || null); escena.ponPunto(caraSel.vertice || null); sel = [c.id]; ESTUDIO.sel = sel; marcaSel(); pintaNav(); herr = 'cara'; pintaFlechas(); pintaCinta(); pintaProp(); dlgCara(); window.__r8e && (window.__r8e.cara = { id: c.id, area: F.area, n: F.n, curva: F.curva, anillos: F.anillos.length }); }
     catch (x) { toast(x.message || String(x), 'bad'); }
   }
   // vista previa de empujar/tirar (fantasma azul) y aplicarlo: la cara + su cuerpo pasan a ser UN cuerpo (un grupo)
@@ -289,6 +499,17 @@ export async function montarEstudio(el, ext = {}) {
     const d = Math.round(caraSel.d * 100) / 100, nuevo = PR.añadir(P, { tipo: 'empuje', nombre: (d > 0 ? 'Saliente ' : 'Rebaje ') + n1(Math.abs(d)) + ' mm', p: { base: caraSel.F.base, anillos: caraSel.F.anillos, d }, color: src.color, acabado: src.acabado, hueco: d < 0 });
     const g = PR.agrupar(P, [src.id, nuevo.id], 'unir', nuevo.n); if (g) { g.nombre = (src.nombre || PR.nombreTipo(src)) + (d > 0 ? ' + saliente' : ' − rebaje'); g.color = src.color; g.acabado = src.acabado; }
     quitaCara(); commit(); elige(g ? [g.id] : [nuevo.id]); toast((d > 0 ? '⇧ Cara empujada ' : '⇩ Cara hundida ') + n1(Math.abs(d)) + ' mm (se puede cambiar en el navegador)', 'ok');
+  }
+  // v30 · ⚫ AGUJERO AQUÍ (como el «Agujero» de Fusion): en el punto tocado de la cara, hacia dentro; pasante o con fondo
+  function agujeroAqui(d = 5, fondo = 0) {
+    if (!caraSel || !caraSel.p) return toast('Toca antes el punto de la cara donde va el agujero.', 'warn');
+    const src = PR.busca(P, caraSel.id); if (!src) return; d = Math.max(0.3, Number(d) || 5); fondo = Math.max(0, Number(fondo) || 0);
+    const n = caraSel.F.n, b = PR.cajaDe(P, [caraSel.id]), prof = fondo > 0 ? fondo : Math.hypot(...b.dims) + 2;
+    const q = new T3.Quaternion().setFromUnitVectors(new T3.Vector3(0, 0, 1), new T3.Vector3(-n[0], -n[1], -n[2])), eu = new T3.Euler().setFromQuaternion(q, 'ZYX');
+    const ag = PR.añadir(P, { tipo: 'cilindro', nombre: 'Agujero Ø' + n1(d), p: { d, h: r3(prof + 0.3), lados: 0 }, hueco: true, color: '#ff4d6d', t: { pos: caraSel.p.map((v, k) => r3(v + n[k] * 0.3)), rot: [eu.x, eu.y, eu.z].map(a => r3(a * 180 / Math.PI)), esc: [1, 1, 1] } });
+    const g = PR.agrupar(P, [src.id, ag.id], 'unir', ag.n); if (g) { const base = src.nombre || PR.nombreTipo(src); g.nombre = / con agujeros?$/.test(base) ? base.replace(/ con agujeros?$/, ' con agujeros') : base + ' con agujero'; g.color = src.color; g.acabado = src.acabado; }
+    quitaCara(); commit(); elige(g ? [g.id] : [ag.id]);
+    toast('⚫ Agujero de Ø' + n1(d) + (fondo > 0 ? ' y ' + n1(fondo) + ' mm de fondo' : ' pasante') + ' (cámbialo en el navegador: «Agujero»)', 'ok', 4500);
   }
   // boceto SOBRE una cara o un plano: lo dibujado se pega a esa cara (y suma o corta, hacia fuera o hacia dentro)
   let caraOrigen = null;
@@ -303,7 +524,7 @@ export async function montarEstudio(el, ext = {}) {
     c.t = PR.deMatriz(M); commit(); escena.encuadrar();
   }
   // ---------- v20.4 · ◜ EMPALME (redondeo) y CHAFLÁN de los bordes de la cara elegida ----------
-  const bordesElegidos = () => { const B = caraSel && caraSel.BD; if (!B) return []; return B.rectas.concat(B.circulos).filter((x, i) => !caraSel.emp.quita[i]); };
+  const bordesElegidos = () => { const B = caraSel && caraSel.BD; if (!B) return []; return B.rectas.concat(B.circulos).filter((x, i) => !caraSel.emp.quita[i]).concat((caraSel.extra || []).map(e => e.x)); }; // v30: + las sumadas con Mayús
   function previaEmpalme() {
     const L = bordesElegidos(), o = caraSel && caraSel.emp; if (!L.length || !(o.r > 0)) return escena.fantasmas(null);
     try { const max = EM.maximo(L, o.tipo); if (o.r > max + 1e-9) return escena.fantasmas(null); const reg = N.union(L.map(x => EM.regionDe(x, o.tipo, o.r))); escena.fantasmas([{ vista: N.aVista(reg), matriz: null }], L.some(x => x.convexa) ? '#ff4d6d' : '#3ddc84'); }
@@ -331,6 +552,7 @@ export async function montarEstudio(el, ext = {}) {
       h('p.small.muted', o.tipo === 'chaflan' ? 'Corte plano: se lleva esa distancia de cada cara.' : 'Curva tangente a las dos caras. En un rincón (borde hacia dentro) RELLENA y refuerza.'),
       campoNum(o, 'r', o.tipo === 'chaflan' ? 'Distancia' : 'Radio', 0.1, 50, 0.1, 'mm', fin => { caraSel.verEmp = true; if (fin) panelCara(); else previaEmpalme(); }),
       h('p.small.r8e-emp-max' + (o.r > max + 1e-9 ? '.r8e-mal' : '.muted'), isFinite(max) ? (o.r > max + 1e-9 ? '⚠️ Radio imposible: ' : '') + 'como mucho ' + n1(Math.max(0, max)) + ' mm en los bordes marcados' : ''),
+      (caraSel.extra || []).length ? h('div.r8e-emp-l.r8e-emp-extra', h('small.muted', '＋ De otras caras (Mayús + clic para sumar o quitar):'), caraSel.extra.map((z, k) => h('label.check.small', h('input', { type: 'checkbox', checked: true, onchange: () => { caraSel.extra.splice(k, 1); caraSel.arista = bordesElegidos().flatMap(segsDe); escena.ponArista(caraSel.arista); panelCara(); } }), EM.textoBorde(z.x)))) : null,
       h('div.r8e-emp-l', L.map((x, i) => h('label.check.small', h('input', { type: 'checkbox', checked: !o.quita[i], 'data-borde': i, onchange: e => { o.quita[i] = !e.target.checked; caraSel.verEmp = true; refresca(); } }), EM.textoBorde(x)))),
       B.otras ? h('p.small.muted', '(' + B.otras + ' borde' + (B.otras === 1 ? '' : 's') + ' curvo' + (B.otras === 1 ? '' : 's') + ' libre' + (B.otras === 1 ? '' : 's') + ': no se tocan)') : null,
       h('div.r8e-btns', btn('✓ Aplicar', aplicaEmpalme, { cls: 'primary r8e-empalme' })));
@@ -339,14 +561,20 @@ export async function montarEstudio(el, ext = {}) {
     if (!caraSel) return mount(prop, h('div.r8e-prop-t', h('b', '▱ CARAS')), h('div.r8e-ayuda', h('p', '👆 Toca una cara PLANA de una pieza: se pone en azul.'), h('p', 'Luego puedes empujarla o hundirla (desfase de cara), dibujar encima, poner un plano o apoyarla en la cama.')), btn('Volver a elegir piezas', () => ponModoSel('pieza'), { cls: 'sm' }));
     const F = caraSel.F, src = PR.busca(P, caraSel.id), o = caraSel;
     const angulo = Math.round(Math.acos(Math.max(-1, Math.min(1, F.n[2]))) * 180 / Math.PI);
-    mount(prop, h('div.r8e-prop-t', h('b', '▱ CARA · ' + ((src && (src.nombre || PR.nombreTipo(src))) || ''))),
+    const piezaFila = h('div.r8e-pieza-f', h('span', '🧊 ' + ((src && (src.nombre || PR.nombreTipo(src))) || 'Pieza')), btn('📐 Sus medidas', () => { const id = caraSel.id; quitaCara(); elige([id]); }, { cls: 'sm ghost r8e-sus-medidas', title: 'Ver y cambiar las medidas de la pieza entera' }), btn('⧉', () => { const id = caraSel.id; quitaCara(); elige([id]); duplicar(); }, { cls: 'sm ghost', title: 'Duplicar la pieza (Ctrl D)' }), btn('📋', () => { const id = caraSel.id; quitaCara(); elige([id]); copiar(); }, { cls: 'sm ghost', title: 'Copiar la pieza (Ctrl C)' }), btn('🗑️', () => { const id = caraSel.id; quitaCara(); elige([id]); borrar(); }, { cls: 'sm ghost', title: 'Borrar la pieza (Supr)' }));
+    const aristaPrimero = !!(caraSel.arista && caraSel.verEmp);
+    mount(prop, h('div.r8e-prop-t', h('b', (caraSel.vertice ? '◉ ESQUINA · ' : aristaPrimero ? (bordesElegidos().length > 1 ? '◜ ' + bordesElegidos().length + ' ARISTAS · ' : '◜ ARISTA · ') : '▱ CARA · ') + ((src && (src.nombre || PR.nombreTipo(src))) || ''))), piezaFila,
+      aristaPrimero ? panelEmpalme() : null,
+      caraSel.vertice ? h('div.r8e-btns', btn('📏 Medir desde esta esquina', () => { const p = caraSel.vertice; quitaCara(); medida = [{ p }]; ponHerr('medir'); escena.medida(p); }, { cls: 'sm ghost' })) : null,
+      aristaPrimero ? h('p.small.muted', '💡 Mayús + clic en más aristas (o en una esquina) para redondearlas todas a la vez.') : null,
       h('div.r8e-medida', h('div', h('span', 'Área'), h('b', n1(F.area) + ' mm²')), h('div', h('span', 'Mira hacia'), h('b', angulo === 0 ? 'arriba' : angulo === 180 ? 'abajo' : angulo === 90 ? 'un lado' : angulo + '° de arriba')), h('div', h('span', 'Contornos'), h('b', String(F.anillos.length) + (F.anillos.length > 1 ? ' (con agujeros)' : '')))),
-      F.curva ? h('p.r8e-nota', '〰️ Es una cara CURVA (tocaste un trocito). Para empujar elige una cara plana; aquí puedes medir o poner un plano tangente.') : null,
-      !F.curva ? seccion('⇕ Empujar / hundir (desfase de cara)', h('p.small.muted', '+ saca material hacia fuera · − hunde la cara hacia dentro (un rebaje). Se ve en verde (sumar) o rojo (quitar) antes de aceptar.'),
+      F.curva ? h('div.r8e-nota', '〰️ Es una cara CURVA. Para hacerla más gorda o más fina:', h('div.r8e-btns', src && ['cilindro', 'tubo', 'esfera', 'semiesfera', 'cono', 'toro', 'prisma'].includes(src.tipo) ? btn('Ø Cambiar su diámetro', () => { const id = caraSel.id; quitaCara(); elige([id]); }, { cls: 'sm' }) : null, btn('⇔ Engordar o adelgazar la pieza (Desfase)', () => { const id = caraSel.id; quitaCara(); elige([id]); desfaseSel(); }, { cls: 'sm' }))) : null,
+      (() => { const o2 = { d: 5, f: 0 }; return seccion('⚫ Agujero en el punto tocado', h('p.small.muted', 'Hacia dentro de la cara, donde tocaste. Fondo 0 = pasante (lo atraviesa).'), h('div.r8e-agu', h('label', 'Ø ', h('input.inp', { type: 'number', min: 0.3, step: 0.1, value: 5, 'data-k': 'agujeroD', oninput: e => { o2.d = e.target.value; } }), ' mm'), h('label', 'Fondo ', h('input.inp', { type: 'number', min: 0, step: 0.5, value: 0, 'data-k': 'agujeroF', oninput: e => { o2.f = e.target.value; } }), ' mm'), btn('⚫ Hacer el agujero', () => agujeroAqui(o2.d, o2.f), { cls: 'sm primary r8e-agujero' }))); })(),
+      !F.curva ? seccion('⇕ Extruir: empujar / hundir (o arrastra la flecha)', h('p.small.muted', '+ saca material hacia fuera · − hunde la cara hacia dentro (un rebaje). Se ve en verde (sumar) o rojo (quitar) antes de aceptar.'),
         campoNum(o, 'd', 'Distancia', -200, 200, 0.5, 'mm', fin => { previaEmpuje(); if (fin) previaEmpuje(); }),
         h('div.r8e-btns', [-5, -2, -1, 1, 2, 5].map(v => btn((v > 0 ? '+' : '') + v, () => { o.d = v; panelCara(); }, { cls: 'sm ghost' }))),
         h('div.r8e-btns', btn('✓ Aplicar', aplicaEmpuje, { cls: 'primary r8e-empujar' }))) : null,
-      panelEmpalme(),
+      aristaPrimero ? null : panelEmpalme(),
       seccion('Más cosas con esta cara',
         h('div.r8e-btns.col', btn('✏️ Dibujar un boceto encima', () => bocetoEnPlano(F.base, F.anillos, 'cara'), { cls: 'r8e-bocara' }),
           btn('🧲 Apoyar esta cara en la cama', () => { if (PR.caraALaCama(P, caraSel.id, F.n)) { const id = caraSel.id; quitaCara(); commit(); elige([id]); toast('🧲 Apoyada en la cama por esa cara (como «Colocar en la cara» de Bambu)', 'ok'); } }, { cls: 'r8e-acama' }),
@@ -630,9 +858,11 @@ export async function montarEstudio(el, ext = {}) {
     if (herr !== 'matriz') escena && escena.fantasmas(null);
     if (herr === 'animar') return panelAnimar();
     if (herr === 'centro') return panelCentro(); // v20.4
+    if (herr === 'lienzo') return panelLienzo(); // v30
     if (herr === 'cara' || (modoSel === 'cara' && !['medir', 'cortar', 'cons'].includes(herr))) return panelCara(); if (herr === 'cons') return panelCons(); if (herr === 'cortar') return panelCortar();
     if (herr === 'medir') return panelMedir(); if (herr === 'partir') return panelPartir(); if (herr === 'matriz') return panelMatriz(); if (herr === 'imprimir') return panelImprimir(); if (herr === 'ia') return panelIA(); if (herr === 'deformar' && sel.length === 1) return panelDeformar();
-    if (!sel.length) return mount(prop, h('div.r8e-prop-t', h('b', 'PROPIEDADES')), h('div.r8e-ayuda', h('p', '👆 Toca una pieza para ver sus medidas y cambiarlas con números exactos.'), h('p', '⌨️ Atajos: ', h('b', 'M'), ' mover · ', h('b', 'R'), ' girar · ', h('b', 'S'), ' escalar · ', h('b', 'H'), ' hueco · ', h('b', 'B'), ' boceto · ', h('b', 'Supr'), ' borrar · ', h('b', 'Ctrl+Z'), ' deshacer · ', h('b', 'Ctrl+D'), ' duplicar'), h('p', '🖱️ Arrastra para girar la vista · rueda para acercar · botón derecho para moverla. En el iPad: un dedo gira, dos dedos acercan y mueven.')),
+    if (!sel.length) return mount(prop, h('div.r8e-prop-t', h('b', 'PROPIEDADES')), h('div.r8e-ayuda', h('div.r8e-como', h('b', 'Como en Fusion:'), h('ul', h('li', '🔦 Pasa el ratón: la cara o la arista se ilumina.'), h('li', '🖱️ Clic en una CARA: sale su flecha ⇕ para extruir (arrastra o escribe la medida e Intro).'), h('li', '◜ Clic junto a una ARISTA o en una ESQUINA: redondeo o chaflán. Mayús + clic: varias.'), h('li', '✥ Arrastra una pieza para moverla · 🖱️ clic derecho: menú · Ctrl C / Ctrl V copiar y pegar.'))),
+        h('p', '👆 En el navegador (izquierda) eliges la pieza entera para ver y cambiar sus medidas.'), h('p', '⌨️ Atajos: ', h('b', 'M'), ' mover · ', h('b', 'R'), ' girar · ', h('b', 'S'), ' escalar · ', h('b', 'H'), ' hueco · ', h('b', 'B'), ' boceto · ', h('b', 'Supr'), ' borrar · ', h('b', 'Ctrl+Z'), ' deshacer · ', h('b', 'Ctrl+D'), ' duplicar'), h('p', '🖱️ Arrastra para girar la vista · rueda para acercar · botón derecho para moverla. En el iPad: un dedo gira, dos dedos acercan y mueven.')),
       h('div.r8e-tarjeta', h('b', '🎨 Color de todo'), h('div.r8e-paleta', COLORES.map(([c, t]) => h('button', { type: 'button', title: t, style: { background: c }, onclick: () => { PR.recorre(P.cuerpos, x => { if (!x.hueco) x.color = c; }); commit(); } })))));
     if (sel.length > 1) return mount(prop, h('div.r8e-prop-t', h('b', sel.length + ' PIEZAS ELEGIDAS')),
       seccion('Combinar', h('div.r8e-btns', btn('∪ Unir', () => combinar('unir')), btn('− Restar', () => combinar('restar')), btn('∩ Cruce', () => combinar('cruce')), btn('🗑️ Borrar', borrar, { cls: 'ghost' }))),
@@ -682,6 +912,33 @@ export async function montarEstudio(el, ext = {}) {
     if (herr === 'cons') selAntes = sel.slice();
     if (herr !== 'matriz') escena.fantasmas(null);
     pintaCinta(); pintaFlechas(); pintaProp(); if (window.__r8e) window.__r8e.herr = herr;
+  }
+  // ---------- v30 · 🖼 LIENZO: una imagen de referencia EN la vista 3D (como en Fusion), a su tamaño real ----------
+  // Se guarda con el diseño (la imagen va aparte, como las de los bocetos). Plano: suelo (XY), delante (XZ) o de lado (YZ).
+  const PLANOS_L = { xy: '⬇ En el suelo', xz: '⬜ De frente (delante)', yz: '◧ De lado' };
+  function lienzoEn(l) { const I = IMAGENES.get(l.img); if (!I) return null; const w = Math.max(1, Number(l.ancho) || 100), hh = w * I.h / I.w;
+    const pos = l.plano === 'xy' ? [l.x || 0, l.y || 0, 0.06] : l.plano === 'yz' ? [l.x || 0, l.y || 0, (l.z || 0) + hh / 2] : [l.x || 0, l.y || 0, (l.z || 0) + hh / 2];
+    return { url: I.url, w, h: hh, plano: l.plano, pos, opac: l.opac == null ? 0.6 : l.opac }; }
+  function pintaLienzos() { if (!escena || !escena.lienzos) return; escena.lienzos((P.lienzos || []).filter(l => !l.oculto).map(lienzoEn).filter(Boolean)); window.__r8e && (window.__r8e.lienzos = (P.lienzos || []).length); }
+  function nuevoLienzo() {
+    const i = h('input', { type: 'file', accept: 'image/*', style: { display: 'none' } }); document.body.appendChild(i);
+    i.onchange = async () => { const f = i.files && i.files[0]; i.remove(); if (!f) return;
+      try { const r = await cargaArchivo(f, 2000); P.lienzos = (P.lienzos || []).concat([{ id: PR.nuevoId(), img: r.id, nombre: f.name.replace(/\.[^.]+$/, ''), plano: 'xz', ancho: 100, x: 0, y: 0, z: 0, opac: 0.6 }]); commit(); herr = 'lienzo'; pintaCinta(); pintaProp(); escena.encuadrar('frente', true); toast('🖼 Lienzo puesto de frente: pon su ANCHO real (mm) y muévelo con los números', 'ok', 5000); }
+      catch (e) { toast(e.message || String(e), 'bad'); } };
+    i.click();
+  }
+  function panelLienzo() {
+    const L = P.lienzos || [], fila = l => { const o = l, cambia = () => { pintaLienzos(); }, fin = () => commit();
+      const num = (k, t, paso = 1) => h('label.r8e-l-n', h('span', t), h('input.inp', { type: 'number', step: paso, value: o[k] || 0, 'data-l': k, oninput: e => { o[k] = Number(String(e.target.value).replace(',', '.')) || 0; cambia(); }, onchange: fin }));
+      return h('div.r8e-lienzo', h('div.r8e-l-t', h('b', '🖼 ' + (o.nombre || 'Imagen')), btn(o.oculto ? '👁 Ver' : '🙈 Ocultar', () => { o.oculto = !o.oculto; commit(); pintaProp(); }, { cls: 'sm ghost' }), btn('🗑', () => { P.lienzos = L.filter(x => x !== o); commit(); pintaProp(); }, { cls: 'sm ghost', title: 'Quitar el lienzo' })),
+        h('label.r8e-l-n', h('span', 'Plano'), h('select.inp', { 'data-l': 'plano', onchange: e => { o.plano = e.target.value; commit(); } }, Object.entries(PLANOS_L).map(([k, t]) => h('option', { value: k, selected: o.plano === k }, t)))),
+        num('ancho', 'Ancho real (mm)', 0.5), h('div.r8e-l-xyz', num('x', 'X'), num('y', 'Y'), num('z', 'Z (abajo)')),
+        h('label.r8e-l-n', h('span', 'Transparencia'), h('input', { type: 'range', min: 0.1, max: 1, step: 0.05, value: o.opac == null ? 0.6 : o.opac, oninput: e => { o.opac = Number(e.target.value); cambia(); }, onchange: fin }))); };
+    mount(prop, h('div.r8e-prop-t', h('b', '🖼 LIENZOS (imágenes de referencia)')),
+      h('p.small.muted', 'Como el «Lienzo» de Fusion: una foto o un plano dentro de la vista, a su tamaño real, para dibujar encima o comparar. Mide algo de la foto con el calibre y pon su ANCHO aquí.'),
+      btn('＋ Poner una imagen', nuevoLienzo, { cls: 'primary r8e-lienzo-mas' }),
+      L.length ? L.map(fila) : h('p.small.muted', 'Todavía no hay ninguna.'),
+      h('div.r8e-btns', btn('Terminar', () => ponHerr(null), { cls: 'sm ghost' })));
   }
   // ---------- v20.4 · ⌖ MARCAR EL CENTRO (la dueña: «marcar el centro»): cada centro con su nombre, porque NO son lo mismo ----------
   function panelCentro() {
@@ -855,6 +1112,10 @@ export async function montarEstudio(el, ext = {}) {
     if (ctrl && k === 'z') { e.preventDefault(); e.shiftKey ? rehacer() : deshacer(); return; }
     if (ctrl && k === 'y') { e.preventDefault(); rehacer(); return; }
     if (ctrl && k === 'd') { e.preventDefault(); duplicar(); return; }
+    if (ctrl && k === 'c') { e.preventDefault(); copiar(); return; } // v30
+    if (ctrl && k === 'v') { e.preventDefault(); pegar(); return; } // v30
+    if ((k === 'q' || k === 'e') && !ctrl) { e.preventDefault(); if (caraSel && herr === 'cara') { const i = dlg && dlg.querySelector('input'); if (i) { i.focus(); i.select(); } } else toast('⇕ Extruir (Q / E, como en Fusion): toca antes una cara', 'info', 2200); return; } // v30
+    if (e.key === 'Enter' && caraSel && herr === 'cara') { e.preventDefault(); if (caraSel.verEmp && caraSel.BD) aplicaEmpalme(); else aplicaEmpuje(); return; } // v30
     if (ctrl && k === 's') { e.preventDefault(); autoguarda(); toast('💾 Guardado', 'ok'); return; }
     if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); borrar(); return; }
     if (e.key === 'Escape') { if (caraSel) { quitaCara(); pintaProp(); return; } if (herr) ponHerr(null); else if (modoSel === 'cara') ponModoSel('pieza'); else elige([]); return; }

@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '30.0.0';
+export const APP_VERSION = '30.1.0';
 export const SERVIDOR_NECESARIO = '18.0.0'; // v20: la versión MÍNIMA del Servidor.gs que necesita esta app (la 20 no cambia nada del servidor)
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 

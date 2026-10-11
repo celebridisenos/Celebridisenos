@@ -61,7 +61,7 @@ export function caraPlana(vista, tri, M) {
   for (let t = 0; t < nt && suaves < 50; t++) { if (enCara[t]) continue; const c = nrm[t * 3] * n0[0] + nrm[t * 3 + 1] * n0[1] + nrm[t * 3 + 2] * n0[2]; if (c > 0.94 && c < 0.9999) { const a = vtx(I[t * 3]); if (Math.hypot(...resta(a, s.a)) < Math.sqrt(area) * 2 + 2) suaves++; } }
   const curva = tris.length <= 4 && suaves >= 6;
   const T3 = new Float32Array(tris.length * 9); tris.forEach((t, i) => { for (let j = 0; j < 3; j++) { const v = I[t * 3 + j]; T3[i * 9 + j * 3] = W[v * 3]; T3[i * 9 + j * 3 + 1] = W[v * 3 + 1]; T3[i * 9 + j * 3 + 2] = W[v * 3 + 2]; } });
-  return { base: B, n: n0, o, area, curva, triangulos: tris.length, tris: T3, bordes: anillos3D, anillos: anillos3D.map(r => r.map(p => a2D(B, p))) };
+  return { base: B, n: n0, o, area, curva, triangulos: tris.length, tris: T3, idx: tris, bordes: anillos3D, anillos: anillos3D.map(r => r.map(p => a2D(B, p))) };
 }
 
 // Giro que lleva la normal «n» a «hacia» (para «poner esta cara en la cama»: hacia = [0, 0, -1]) como cuaternión [x,y,z,w]

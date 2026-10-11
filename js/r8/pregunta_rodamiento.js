@@ -9,13 +9,19 @@ import { h, btn, toast, modal } from '../ui.js';
 import * as RI from './rodamiento_impreso.js';
 
 const SIN_PREGUNTAR = 'cd.r8.prr.no'; // (solo esta vez que está abierto el programa)
+// v30 · la dueña (10-10-2026, noche): «aún me pregunta lo de los rodamientos, yo ya te dije que lo arreglaras». Ya nos dijo lo de la
+// prueba vieja (el nº 1 gira, se salen las bolas) y el rodamiento NUEVO está hecho por eso. Desde la 30 SOLO se pregunta al arrancar si
+// mandó la prueba nueva a imprimir desde aquí (ENVIADA) y ya ha dado tiempo a imprimirla; «Todavía no la he impreso» calla hasta
+// que la vuelva a mandar. Se abre cuando quiera: Ctrl K → «rodamientos».
+const ENVIADA = 'cd.r8.rodPruebaEnviada', CALLADA = 'cd.r8.rodPruebaCallada', TARDA_MIN = 80;
+const apunta = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } }, lee = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 async function mandarPrueba(boton) {
   try {
     if (boton) { boton.disabled = true; boton.textContent = '⏳ Preparando la prueba…'; }
     const N = await import('./nucleo.js'); await N.cargar();
     const CAT = await import('./catalogo.js'), A = await import('./consejos3d.js'), D = CAT.DISENOS.pruebaRodImpreso;
     let blob; try { blob = N.tresMF([{ m: CAT.genera('pruebaRodImpreso', {}), color: D.color, nombre: D.t }], 'Prueba_rodamientos_impresos', Object.assign(A.claves({ acabado: 'equilibrado', uso: 'mecanica', soporte: 'no', balsa: 'no' }), D.bambu)); } finally { N.limpia(); }
-    const d = await import('../desktop.js').catch(() => null);
+    const d = await import('../desktop.js').catch(() => null); apunta(ENVIADA, new Date().toISOString()); // v30: ahora sí tiene sentido preguntar (cuando dé tiempo a imprimirla)
     if (d && d.desktop && d.desktop.on) { const res = await d.desktop.bambuAbrir(blob, 'Prueba_rodamientos_impresos'); toast(res && res.abierto ? '🖨️ Abriendo la prueba en Bambu Studio… (guardada en Documentos\\CelebriDiseños_R8). Elige tu impresora y tu filamento y dale a imprimir: unos 40–50 minutos.' : '📦 Guardada en ' + (res && res.path), 'ok', 12000); window.__pruebaRod = { abierto: res }; }
     else { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: 'Prueba_rodamientos_impresos.3mf' }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); toast('📦 Prueba descargada (3MF con sus ajustes). Ábrela con Bambu Studio.', 'ok', 8000); window.__pruebaRod = { bajado: blob.size }; }
   } catch (e) { toast('No he podido preparar la prueba: ' + (e.message || e), 'error', 9000); }
@@ -47,7 +53,8 @@ export function preguntar(o = {}) {
   }
   const bMandar = h('button.btn.prr-mandar', { type: 'button', onclick: e => mandarPrueba(e.currentTarget) }, '🖨️ Mandar la prueba a Bambu Studio');
   const cuerpo = h('div.col.prr',
-    h('p', 'La ', h('b', 'prueba de rodamientos impresos'), ' son 4 rodamientos pequeños en una tira, cada uno con su ', h('b', 'número en relieve'), ', y una ', h('b', 'llave'), ' con un cuadradito.'),
+    h('p.prr-ya', '✅ Ya apuntado de tu prueba anterior: ', h('b', 'el nº 1 giraba bien pero se salían las bolas'), '. Por eso el rodamiento es NUEVO: un labio sujeta cada rodillo y, para que se salga, el plástico tendría que ceder 2–3 mm (antes, menos de 1). Esta prueba es solo para confirmarlo con tu impresora.'),
+    h('p', 'La ', h('b', 'prueba nueva'), ' son 4 rodamientos pequeños en una tira, cada uno con su ', h('b', 'número en relieve'), ', y una ', h('b', 'llave'), ' con un cuadradito.'),
     h('ol.prr-pasos',
       h('li', 'Despega la tira. Mete la ', h('b', 'llave'), ' en el centro de un rodamiento y gírala. Los primeros giros pueden ir duros: fuerza un poco (un «crac» es normal).'),
       h('li', 'Ponlo ', h('b', 'boca abajo'), ', sacúdelo y empuja los rodillos con la uña: ¿se sale alguno?'),
@@ -55,15 +62,17 @@ export function preguntar(o = {}) {
     h('div.prr-fila', bMandar, h('span.tiny.muted', 'Si aún no la has impreso. Laminada con tu Bambu Studio (PETG, perfil «0.16mm CelebriR8 PRECISION»): 1 h 15 min y 15 g en la P1P o en la A1 mini.')),
     h('div.prr-rods', T.map(tarjeta)), bGuardar,
     antes.c ? h('p.tiny.muted', 'Ahora tienes apuntado ' + RI.n2(antes.c) + ' mm' + (antes.deV203 ? ' (de la prueba antigua, la de los rodillos que se salían)' : ', retención ' + (antes.ret || 'alta')) + (antes.fecha ? ' (' + antes.fecha + ')' : '') + '.') : null);
-  return modal('🧪 ¿Qué tal tus rodamientos de prueba?', cuerpo, close => { cerrar = close; return [btn('Todavía no la he impreso', () => { try { sessionStorage.setItem(SIN_PREGUNTAR, '1'); } catch (e) { } close(); }, { cls: 'ghost prr-luego' })]; });
+  return modal('🧪 ¿Qué tal tus rodamientos de prueba?', cuerpo, close => { cerrar = close; return [btn('Todavía no la he impreso', () => { try { sessionStorage.setItem(SIN_PREGUNTAR, '1'); } catch (e) { } apunta(CALLADA, new Date().toISOString()); close(); toast('Vale: no te lo vuelvo a preguntar hasta que mandes la prueba a imprimir. Cuando quieras: Ctrl K → «rodamientos».', 'info', 7000); }, { cls: 'ghost prr-luego' })]; });
 }
 // al arrancar el programa: solo si aún no ha contestado la prueba NUEVA (nunca en las pruebas automáticas, salvo que la prueba lo pida)
 export function alArrancar() {
   try {
-    const forzar = localStorage.getItem('cd.r8.preguntaPlantilla') === 'forzar';
-    if (navigator.webdriver && !forzar) return false;
+    const modo = localStorage.getItem('cd.r8.preguntaPlantilla'), forzar = modo === 'forzar'; // (las pruebas: «forzar» = siempre; «probar» = con las reglas de la 30)
+    if (navigator.webdriver && !forzar && modo !== 'probar') return false;
     const g = RI.guardado();
     if ((g.c && !g.deV203) || sessionStorage.getItem(SIN_PREGUNTAR)) return false;
+    if (!forzar) { const env = lee(ENVIADA), cal = lee(CALLADA); // v30: solo si mandó la prueba NUEVA y ya ha dado tiempo a imprimirla
+      if (!env || (cal && cal >= env) || Date.now() - Date.parse(env) < TARDA_MIN * 60000) return false; }
     if (document.querySelector('.modal, .lockbox-full, .r8vis, .est20, .drawer')) { setTimeout(alArrancar, 8000); return false; } // si hay otra ventana, luego
     preguntar(); return true;
   } catch (e) { return false; }

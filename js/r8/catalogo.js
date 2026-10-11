@@ -313,7 +313,7 @@ export function juegoAcople(p) { // grados que gira B (con A quieta) hasta que a
 
 export const DISENOS = {
   // ======================= 🌸 CUQUI =======================
-  macetaAnimal: { cat: 'cuqui', e: '🐱', t: 'Maceta animalito', d: 'Gatito, osito, conejito o rana', uso: 'deco', color: '#f9c6d9',
+  macetaAnimal: { cat: 'cuqui', soportes: true, e: '🐱', t: 'Maceta animalito', d: 'Gatito, osito, conejito o rana', uso: 'deco', color: '#f9c6d9',
     campos: [s('animal', 'Animal', 'gato', [['gato', '🐱 Gatito'], ['oso', '🐻 Osito'], ['conejo', '🐰 Conejito'], ['rana', '🐸 Ranita']]), n('d', 'Diámetro', 80, 40, 200), n('h', 'Alto', 70, 30, 200), n('pared', 'Pared', 2, 1.2, 5, 0.2), c('agujero', 'Agujero de drenaje', true)],
     gen(p) {
       const R = p.d / 2, m0 = recipiente(p.h, t => R * (0.86 + 0.14 * Math.sin(Math.PI * (0.25 + t * 0.6))), p.pared, 2.4); let m = m0;
@@ -344,7 +344,7 @@ export const DISENOS = {
       const ojal = N.csUnion([circ(9), N.cs([N.ccw(N.ranura2(14, 5))], 'Positive').rotate(90).translate([0, 6])]).extrude(p.grosor + 2).rotate([90, 0, 0]);
       [-1, 1].forEach(k => { m = m.subtract(ojal.translate([k * p.ancho * 0.25, p.fondo / 2 + 1, p.alto * 0.55])); }); return m; },
     nota: () => 'Imprímela de pie (la nube contra la cama) para que la balda aguante. Dos tornillos de cabeza plana de 4 mm.' },
-  conejoLapicero: { cat: 'cuqui', e: '🐰', t: 'Lapicero con orejas', d: 'Conejo, gato u oso', uso: 'deco', color: '#f9c6d9',
+  conejoLapicero: { cat: 'cuqui', soportes: true, e: '🐰', t: 'Lapicero con orejas', d: 'Conejo, gato u oso', uso: 'deco', color: '#f9c6d9',
     campos: [s('animal', 'Orejas de', 'conejo', [['conejo', '🐰 Conejo'], ['gato', '🐱 Gato'], ['oso', '🐻 Oso']]), n('d', 'Diámetro', 70, 40, 140), n('h', 'Alto', 95, 50, 180), tx('nombre', 'Nombre (opcional)', '')],
     gen(p) { const m = DISENOS.macetaAnimal.gen({ animal: p.animal, d: p.d, h: p.h, pared: 2, agujero: false }); return p.nombre ? m.add(textoDePie(p.nombre, 'redonda', Math.min(14, p.h * 0.14), 1.2).translate([0, -p.d / 2 + 0.6, p.h * 0.25])) : m; } },
   setaLampara: { cat: 'cuqui', e: '🍄', t: 'Seta lámpara', d: 'Para una vela LED', uso: 'deco', color: '#c8102e',
@@ -474,7 +474,7 @@ export const DISENOS = {
       const ranuras = []; for (let i = 0; i < 8; i++) ranuras.push(caja(3, R * 2, 18).translate([0, 0, 3]).rotate([0, 0, i * 22.5])); const m2 = maceta.subtract(N.union(ranuras).intersect(cil(R * 0.7, 30, -1))).subtract(cil(14, 6, -1));
       return dep.add(m2.translate([p.d + 10, 0, 0])); },
     nota: () => 'La maceta de dentro cuelga de su borde y deja un depósito de agua abajo. Pasa un cordón de algodón por el agujero central como mecha. Imprímela en PETG si va a estar siempre mojada.' },
-  macetaColgante: { cat: 'macetas', e: '🪢', t: 'Maceta colgante', d: 'Con tres agujeros para la cuerda', uso: 'deco', color: '#f4f4f2',
+  macetaColgante: { cat: 'macetas', soportes: true, e: '🪢', t: 'Maceta colgante', d: 'Con tres agujeros para la cuerda', uso: 'deco', color: '#f4f4f2',
     campos: [n('d', 'Diámetro', 120, 60, 220), n('h', 'Alto', 80, 40, 180), n('ondas', 'Ondas', 10, 0, 30, 1, '')],
     gen(p) { const R = p.d / 2; let m = recipiente(p.h, t => R * (0.62 + 0.38 * Math.sin(t * Math.PI / 2) ** 0.7), 2, 2.4);
       if (p.ondas > 0) m = N.deformar(m, [{ t: 'ondas', n: p.ondas, amp: 2, giro: 0 }]);
@@ -496,7 +496,7 @@ export const DISENOS = {
     gen(p) { const L = [], nP = Math.round(p.pisos); for (let i = 0; i <= nP; i++) { const t = i / nP, r = p.d / 2 * (0.62 + 0.38 * Math.sin(Math.PI * (0.15 + t * 0.75))); L.push({ z: t * p.h, r, a: i * p.giro }); }
       const P = []; for (let i = 0; i < L.length - 1; i++) { const A = L[i], B = L[i + 1]; P.push(M().hull([N.cs([N.poligono2(Math.round(p.lados), A.r * 2, A.a)], 'Positive').extrude(0.01).translate([0, 0, A.z]), N.cs([N.poligono2(Math.round(p.lados), B.r * 2, B.a)], 'Positive').extrude(0.01).translate([0, 0, B.z - 0.01])])); }
       return N.union(P); }, nota: () => 'Macizo: imprímelo con «Jarrón en espiral».' },
-  jarronBurbujas: { cat: 'jarrones', e: '🫧', t: 'Jarrón de pompas', d: 'Bolas apiladas', uso: 'deco', color: '#f9c6d9',
+  jarronBurbujas: { cat: 'jarrones', soportes: true, e: '🫧', t: 'Jarrón de pompas', d: 'Bolas apiladas', uso: 'deco', color: '#f9c6d9',
     campos: [n('d', 'Ancho', 80, 40, 160), n('n', 'Pompas', 4, 2, 8, 1, ''), n('pared', 'Pared', 1.8, 1, 4, 0.2), n('boca', 'Boca', 28, 10, 80)],
     gen(p) { const R = p.d / 2, L = [], I = []; let z = R * 0.8; for (let i = 0; i < p.n; i++) { const r = R * (1 - i * 0.12); L.push(M().sphere(r, 72).translate([0, 0, z])); I.push(M().sphere(r - p.pared, 64).translate([0, 0, z])); z += r * 1.35; }
       let m = N.union(L).trimByPlane([0, 0, 1], R * 0.18).translate([0, 0, -R * 0.18]); const b = N.caja(m); m = m.subtract(N.union(I).translate([0, 0, -R * 0.18]).trimByPlane([0, 0, 1], 2)).subtract(cil(p.boca, 40, b.max[2] - 20));
@@ -511,7 +511,7 @@ export const DISENOS = {
     campos: [n('d', 'Diámetro', 75, 40, 140), n('h', 'Alto', 100, 40, 200), n('ondas', 'Ondas', 14, 0, 40, 1, ''), n('fuerza', 'Fuerza', 2, 0.4, 8, 0.2), n('giro', 'Giro', 90, -360, 360, 5, '°'), n('pared', 'Pared', 1.8, 1, 4, 0.2)],
     gen(p) { const m = recipiente(p.h, t => p.d / 2 * (0.88 + 0.12 * t), p.pared, 2.4); return p.ondas > 0 ? N.deformar(m, [{ t: 'ondas', n: p.ondas, amp: p.fuerza, giro: p.giro }]) : m; },
     nota: () => 'El PLA no es para beber ni para el lavavajillas. Como vaso de baño, mejor PETG.' },
-  taza: { cat: 'vasos', e: '☕', t: 'Taza con asa', d: 'Portalápices o decoración', uso: 'deco', color: '#f4f4f2',
+  taza: { cat: 'vasos', soportes: true, e: '☕', t: 'Taza con asa', d: 'Portalápices o decoración', uso: 'deco', color: '#f4f4f2',
     campos: [n('d', 'Diámetro', 80, 50, 120), n('h', 'Alto', 90, 50, 140), tx('nombre', 'Nombre', 'Mamá'), s('fuente', 'Letra', 'cursiva', FUENTES_OPS)],
     gen(p) { const R = p.d / 2; let m = recipiente(p.h, () => R, 2.4, 3); const asa = CS().circle(5, 24).translate([p.h * 0.28, 0]).revolve(64, 180).rotate([90, 90, 0]).translate([R - 3, 0, p.h * 0.5]);
       m = m.add(asa); if (p.nombre) m = m.add(textoDePie(p.nombre, p.fuente, Math.min(16, p.h * 0.18), 1.2).translate([0, -R + 0.6, p.h * 0.38]));
@@ -558,10 +558,10 @@ export const DISENOS = {
     gen(p) { let m = caja(p.largo, p.grueso, p.alto, 1).translate([0, 0, 0]); m = N.deformar(m, [{ t: 'retorcer', ang: p.giro }]); m = m.warp(v => { v[1] += Math.sin(v[0] / p.largo * Math.PI * 2 * p.ondas) * p.alto * 0.18; });
       return m.add(caja(p.largo * 0.5, 40, 6, 3)); } },
   letraGrande: { cat: 'deco', e: '🔠', t: 'Letra o nombre de pie', d: 'Para estanterías y bodas', uso: 'deco', color: '#f4f4f2',
-    campos: [tx('txt', 'Letra, nombre o palabra', 'LOVE'), s('fuente', 'Letra', 'gorda', FUENTES_OPS), n('alto', 'Alto', 80, 15, 220), n('fondo', 'Grosor', 20, 3, 80), s('patron', 'Calado de las letras', 'ninguno', OPS_PAT), c('peana', 'Con peana', false)],
-    gen(p) { let s2 = N.centraCS(N.texto2(p.txt || 'A', p.fuente, p.alto)); if (p.patron !== 'ninguno') s2 = PT.caladoPlano(s2, p.patron, Math.max(6, p.alto / 7), 2, Math.max(2.4, p.alto / 18));
+    campos: [tx('txt', 'Letra, nombre o palabra', 'LOVE'), s('fuente', 'Letra', 'gorda', FUENTES_OPS), n('alto', 'Alto', 80, 15, 220), n('fondo', 'Grosor', 20, 3, 80), s('patron', 'Calado de las letras', 'ninguno', OPS_PAT), c('peana', 'Con peana', true)],
+    gen(p) { let s2 = N.centraCS(N.texto2(p.txt || 'A', p.fuente, p.alto)); { const bb = N.cajaCS(s2); if (bb.w > 236) s2 = s2.scale([236 / bb.w, 236 / bb.w]); } // v30: que quepa en tu cama (256) · y con peana: nada empieza en el aire if (p.patron !== 'ninguno') s2 = PT.caladoPlano(s2, p.patron, Math.max(6, p.alto / 7), 2, Math.max(2.4, p.alto / 18));
       let m = s2.extrude(p.fondo).rotate([90, 0, 0]); const b = N.caja(m); m = m.translate([0, 0, -b.min[2]]);
-      if (p.peana) m = m.translate([0, 0, 4]).add(caja(b.dims[0] + 10, p.fondo + 10, 4, 2)); return m; } },
+      if (p.peana) m = m.translate([0, 0, 3]).add(caja(b.dims[0] + 10, p.fondo + 10, 4, 2)); return m; } }, // v30: las letras se hunden 1 mm en la peana (la O y la V salen de ella, no de un punto)
   esferaVoronoi: { cat: 'deco', e: '🔮', t: 'Bola de decoración', d: 'Esfera calada o facetada', uso: 'deco', color: '#5e43b7',
     campos: [n('d', 'Diámetro', 80, 30, 200), s('estilo', 'Estilo', 'calada', [['calada', 'Calada (nido)'], ['facetas', 'Facetada (diamante)'], ['estrellas', 'Estrellada']]), c('colgar', 'Con anilla para colgar', true)],
     gen(p) { const R = p.d / 2; let m;
@@ -570,7 +570,8 @@ export const DISENOS = {
         for (let i = 0; i < nA; i++) { const y = 1 - 2 * (i + 0.5) / nA, th = Math.acos(y), ph = i * 2.39996, tam = R * (p.estilo === 'estrellas' ? 0.32 : 0.42) * (0.8 + r() * 0.3), f = p.estilo === 'estrellas' ? N.estrella2(5, tam / 2, tam / 4) : N.poligono2(5 + (i % 3), tam);
           L.push(N.cs([N.ccw(f)], 'Positive').extrude(R * 0.6, 0, 0, [1.7, 1.7]).translate([0, 0, R * 0.55]).rotate([th * 57.2958, 0, ph * 57.2958]).translate([0, 0, R])); }
         m = m.subtract(N.union(L)); }
-      if (p.colgar) m = m.add(M().sphere(R, 72).translate([0, 0, R]).intersect(cil(12, 6, 2 * R - 5))).add(N.forma3d('toro', { d: 12, grueso: 3 }).rotate([90, 0, 0]).translate([0, 0, 2 * R + 3]));
+      if (p.colgar) m = m.add(M().sphere(R, 72).subtract(M().sphere(R - 2, 72)).translate([0, 0, R]).intersect(cil(Math.min(2 * R - 4, R * 0.9), 11, 2 * R - 10))).add(N.forma3d('toro', { d: 12, grueso: 3 }).rotate([90, 0, 0]).translate([0, 0, 2 * R + 5])); // v30: un parche de cáscara arriba (ahí había un hueco del calado) y la anilla nace EN él
+      { const h0 = Math.max(1.5, R * 0.07), rb = Math.sqrt(Math.max(0, R * R - (R - h0) * (R - h0))); m = m.trimByPlane([0, 0, 1], h0).add(M().sphere(R, 72).translate([0, 0, R]).intersect(cil(2 * rb + 2, 1.6, h0))).translate([0, 0, -h0]); } // v30: base PLANA (antes se apoyaba en un punto)
       return m; } },
 
   // ======================= ✴️ CALADOS CON ESTILO =======================
@@ -593,7 +594,7 @@ export const DISENOS = {
       return m.subtract(N.union([pared(p.x - 16, 0, -p.y / 2), pared(p.x - 16, 180, -p.y / 2), pared(p.y - 16, 90, -p.x / 2), pared(p.y - 16, 270, -p.x / 2)])); } },
 
   // ======================= 🏠 HOGAR Y COCINA =======================
-  colgadorLlaves: { cat: 'hogar', e: '🔑', t: 'Colgador de llaves', d: 'Con nombre y ganchos', uso: 'funcional', color: '#1b1b1d',
+  colgadorLlaves: { cat: 'hogar', soportes: true, e: '🔑', t: 'Colgador de llaves', d: 'Con nombre y ganchos', uso: 'funcional', color: '#1b1b1d',
     campos: [tx('txt', 'Texto', 'HOME'), s('fuente', 'Letra', 'gorda', FUENTES_OPS), n('alto', 'Alto de las letras', 40, 15, 80), n('ganchos', 'Ganchos', 4, 1, 8, 1, '')],
     gen(p) { const t = N.centraCS(N.texto2(p.txt || 'HOME', p.fuente, p.alto)), b = N.cajaCS(t), w = b.w + 16; let m = t.extrude(8).add(rr(w, 14, 4).translate([0, -b.h / 2 - 5]).extrude(8));
       for (let i = 0; i < p.ganchos; i++) { const x = -w / 2 + 8 + (w - 16) * (p.ganchos === 1 ? 0.5 : i / (p.ganchos - 1)); m = m.add(M().hull([cil(6, 1).translate([x, -b.h / 2 - 5, 7.5]), cil(6, 1).translate([x, -b.h / 2 - 5, 20])])).add(M().sphere(4.2, 20).translate([x, -b.h / 2 - 5, 20])); }
@@ -689,7 +690,7 @@ export const DISENOS = {
     gen(p) { const [a, b, g] = { switch: [21, 31, 3.3], sd: [24, 32, 2.1], micro: [11, 15, 1] }[p.tipo], ga = g + 0.6, paso = ga + 3, W = p.cols * paso + 6, D = p.filas * (a + 6) + 4, H = b * 0.55 + 3;
       let m = caja(W, D, H, 3); for (let i = 0; i < p.cols; i++) for (let j = 0; j < p.filas; j++) m = m.subtract(caja(ga, a + 0.6, b).translate([-W / 2 + 3 + paso * (i + 0.5), -D / 2 + 2 + (a + 6) * (j + 0.5), 3])); return m; },
     nota: () => 'Medidas de los cartuchos ESTIMADAS (con 0,6 mm de holgura): imprime una fila de prueba.' },
-  soporteAuriculares: { cat: 'gaming', e: '🎧', t: 'Soporte de auriculares', d: 'De mesa, con arco', uso: 'funcional', color: '#1b1b1d',
+  soporteAuriculares: { cat: 'gaming', soportes: true, e: '🎧', t: 'Soporte de auriculares', d: 'De mesa, con arco', uso: 'funcional', color: '#1b1b1d',
     campos: [n('alto', 'Alto', 240, 150, 250), n('ancho', 'Ancho del arco', 100, 60, 140), n('base', 'Base', 110, 80, 160), tx('txt', 'Texto en la base', '')],
     gen(p) { const g = 18; let m = cil(p.base, 8).add(caja(g, 12, p.alto - 6, 4).translate([0, 0, 8])).add(CS().circle(6, 32).translate([p.ancho / 2 - 6, 0]).revolve(96, 180).rotate([90, 0, 0]).rotate([0, 0, 0]).translate([0, 0, 0]).scale([1, 4, 0.5]).translate([0, 0, p.alto - 20]));
       if (p.txt) m = m.add(texto3d(p.txt, 'gorda', 12, 1.2).translate([0, -p.base * 0.25, 8])); return m; },

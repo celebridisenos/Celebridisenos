@@ -23,7 +23,7 @@ export async function montarFoto(el, ext = {}) {
   const raiz = h('div.r8f', fi, h('div.r8f-izq', h('div.r8f-intro', h('b', '🪄 De una foto a una pieza'), h('small', 'Elige qué quieres hacer, sube una foto y mueve las medidas.')), modos, foto, campos, aviso,
     h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(), { cls: 'primary r8f-imprimir' }), btn('🧰 Al Estudio', () => alEstudio(), { cls: 'r8f-estudio' }))), h('div.r8f-vista', lienzo, info));
   el.appendChild(raiz);
-  let escena = null; try { escena = crearEscena(lienzo, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); escena.encuadrar('iso'); } catch (e) { mount(info, '⚠️ ' + e.message); }
+  let escena = null, MESA = null; try { escena = crearEscena(lienzo, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); escena.encuadrar('iso'); MESA = mesa(escena, lienzo, { cama: 256 }); } catch (e) { mount(info, '⚠️ ' + e.message); }
   let tic = 0, ultima = null, vivo = true;
   const MOD = [['figura3d', '🧸 Figura 3D completa (IA top)', 'Por todos los lados, para imprimirla de pie'], ['relieve', '🪄 Relieve con IA', 'La foto en 3D (o la figura recortada)'], ['lito', '💡 Litofanía', 'Aparece al ponerle luz detrás'], ['inflada', '🎈 Figura inflada', 'La silueta, blandita como un globo']];
   function pintaModos() { mount(modos, MOD.map(([k, t, dd]) => h('button.r8f-modo' + (F.modo === k ? '.on' : ''), { type: 'button', 'data-modo': k, onclick: () => { F.modo = k; pintaModos(); pintaCampos(); genera(true); } }, h('b', t), h('small', dd)))); }
@@ -250,12 +250,13 @@ export async function montarFoto(el, ext = {}) {
     if (!ultima) return toast('Primero sube una foto.', 'warn');
     if (F.modo === 'figura3d' && !(F.insp && F.insp.problemas && !F.insp.problemas.length && F.revisada)) { if (!(await confirmDlg('La figura no está dada por buena', 'Todavía ' + (!F.revisada ? 'no has revisado la parte de atrás' : 'tiene cosas por reparar') + '. ¿La preparas igualmente para imprimir?', 'Sí, prepararla'))) return; }
     import('../r8/consejos3d.js').then(A => import('../ui.js').then(({ modal }) => { const cuerpo = h('div.r8c-aj'); modal('🖨️ ' + (F.nombre || 'Foto') + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
-      A.asistente(cuerpo, { clave: 'foto_' + F.modo, partes: () => [{ m: ultima, color: F.modo === 'lito' ? '#f4f4f2' : '#c08ee8', nombre: F.nombre || 'foto' }], N, uso: 'deco', texto: F.modo !== 'inflada', nombre: (F.modo === 'lito' ? 'litofania_' : F.modo === 'relieve' ? 'relieve_' : 'figura_') + (F.nombre || 'foto').replace(/[^\w-]+/g, '_').slice(0, 30), baja: (blob, nom) => { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nom }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); }, cama: 256, desktopAbrir: pc }); }));
+      A.asistente(cuerpo, { clave: 'foto_' + F.modo, partes: () => (MESA ? MESA.expande : x => x)([{ m: ultima, color: F.modo === 'lito' ? '#f4f4f2' : '#c08ee8', nombre: F.nombre || 'foto' }]), N, uso: 'deco', texto: F.modo !== 'inflada', nombre: (F.modo === 'lito' ? 'litofania_' : F.modo === 'relieve' ? 'relieve_' : 'figura_') + (F.nombre || 'foto').replace(/[^\w-]+/g, '_').slice(0, 30), baja: (blob, nom) => { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nom }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); }, cama: 256, desktopAbrir: pc }); }));
   }
   function alEstudio() { if (!ultima) return toast('Primero sube una foto.', 'warn'); const s2 = N.aSopa(ultima); if (ext.alEstudioMalla) ext.alEstudioMalla(s2, (F.modo === 'lito' ? 'Litofanía ' : F.modo === 'relieve' ? 'Relieve ' : 'Figura ') + (F.nombre || '')); }
   pintaModos(); pintaFoto(); pintaCampos(); genera(true);
-  return { destroy() { vivo = false; clearTimeout(tic); if (escena) escena.destruir(); if (ultima) N.suelta(ultima); } };
+  return { destroy() { vivo = false; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); if (ultima) N.suelta(ultima); } };
 }
 // el contorno de una imagen en blanco y negro (lo opaco) → polígonos en mm (1 px = 1 unidad; luego se escala)
 import { trazar } from '../r8/motor.js';
+import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar en la cama
 function traza(cv) { const g = cv.getContext('2d', { willReadFrequently: true }); return trazar(g.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height, 1); }

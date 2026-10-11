@@ -158,11 +158,16 @@ export async function asistente(el, o) {
   const zmin = info.min[2], cols = {}; L.forEach(x => { const b = N.caja(x.m); cols[x.color] = Math.min(cols[x.color] ?? Infinity, b.min[2] - zmin); });
   const colores = Object.entries(cols).sort((a, b) => a[1] - b[1]).map(([color, z0]) => ({ color, z0 }));
   N.limpia();
+  // v30 · 🎯 la calibración, a la vista también aquí
+  const calAviso = h('div.aj-cal');
+  import('./calibracion.js').then(CPR => { const A = o.sinCalibrar ? null : CPR.activa();
+    mount(calAviso, A ? h('div.aj-ok', '🎯 Va corregida con tu calibración «' + A.clave + '» (' + A.fecha + ').')
+      : o.sinCalibrar ? null : h('div.aj-cal-no', h('span', '🎯 Tu impresora aún no está calibrada: con una probeta de 33 min tus piezas salen a medida solas.'), h('button.btn.sm.aj-calibrar', { type: 'button', onclick: () => import('./calibracion_ui.js').then(m => m.abrir()) }, 'Calibrar ahora'))); }).catch(() => { });
   const clave = o.clave || 'estudio', R = Object.assign({ impresora: (o.cama || 256) <= 180 ? 'a1m' : 'p1p', material: o.uso === 'flexible' ? 'TPU' : 'PLA', uso: o.uso || 'deco' }, leeResp(clave));
   const pregunta = h('input.inp.cj-preg', { placeholder: '¿Y si lo quiero más resistente? ¿Lo puedo hacer en PETG?…', onkeydown: e => { if (e.key === 'Enter') preguntar(); } }), resp = h('div.cj-resp');
   const pinta = () => {
     r = aconseja(sopa, info, { uso: R.uso, texto: o.texto, material: R.material, impresora: R.impresora, colores: colores.length > 1 ? colores : [] });
-    const fino = /0\.12/.test(r.perfil), rec = { acabado: R.uso === 'jarron' || R.uso === 'funcional' || R.uso === 'encaje' ? 'rapido' : fino ? 'fino' : 'equilibrado', soporte: r.mide.voladizo > 30 && R.uso !== 'jarron' ? (r.mide.alturaVoladizo < r.mide.alto * 0.25 ? 'cama' : 'arbol') : 'no', balsa: r.ajustes.some(a => a.nombre === 'Tipo de balsa' && /borde/.test(a.valor)) ? 'si' : 'auto', planchar: r.ajustes.some(a => a.nombre === 'Tipo de planchado') ? 'si' : 'no' };
+    const fino = /0\.12/.test(r.perfil), rec = { acabado: R.uso === 'jarron' || R.uso === 'funcional' || R.uso === 'encaje' ? 'rapido' : fino ? 'fino' : 'equilibrado', soporte: o.soportes ? 'arbol' : r.mide.voladizo > 30 && R.uso !== 'jarron' ? (r.mide.alturaVoladizo < r.mide.alto * 0.25 ? 'cama' : 'arbol') : 'no', balsa: r.ajustes.some(a => a.nombre === 'Tipo de balsa' && /borde/.test(a.valor)) ? 'si' : 'auto', planchar: r.ajustes.some(a => a.nombre === 'Tipo de planchado') ? 'si' : 'no' };
     ['acabado', 'soporte', 'balsa', 'planchar'].forEach(k => { if (!R[k]) R[k] = rec[k]; });
     const preg = (k, titulo, ops, ayuda) => h('div.aj-preg', { 'data-preg': k }, h('b', titulo), ayuda ? h('small', ayuda) : null, h('div.aj-ops', ops.map(([v, t, d]) => h('button.aj-op' + (R[k] === v ? '.on' : ''), { type: 'button', 'data-v': v, onclick: () => { R[k] = v; guardaResp(clave, R); pinta(); } }, h('span', t), rec[k] === v ? h('i.aj-rec', '⭐ recomendado') : null, d ? h('small', d) : null))));
     const imp = (perfiles || PERFILES_DE_SERIE).impresoras, vol = r.mide.voladizo;
@@ -177,6 +182,7 @@ export async function asistente(el, o) {
       r.mide.arriba > 1500 && R.uso !== 'jarron' ? preg('planchar', '7. ¿Plancho la cara de arriba?', [['si', 'Sí, lisa como un espejo', 'Tarda un poco más'], ['no', 'No', '']]) : null,
       colores.length > 1 ? h('div.aj-ok', '🎨 Lleva ' + colores.length + ' colores: en Bambu Studio, cambio de color a ' + colores.slice(1).map(c => String(Math.round(c.z0 * 100) / 100).replace('.', ',') + ' mm').join(' y a ') + ' (clic derecho en la barra de capas → «Añadir cambio de color»).') : null,
       h('div.aj-resumen', h('b', '📋 Así va a ir'), h('div.aj-perfil', 'Perfil de arriba (Proceso): ', h('b', r.perfil)), enPantalla(R).map(([p, n, v]) => h('div.aj-fila', h('span', p + ' · ' + n), h('b', v))), r.avisos.map(a => h('p.cj-aviso', '⚠️ ' + a)), h('small', '⚖️ ≈ ' + (r.gramos ? Math.max(1, Math.round(r.gramos)) : '?') + ' g · ESTIMADO')),
+      calAviso, // v30: 🎯 si va corregida con su calibración, o el botón para calibrar
       h('div.r8e-btns.aj-bajar', o.desktopAbrir ? btn('🖨️ Abrir en Bambu Studio', () => sale('abrir'), { cls: 'primary aj-abrir' }) : null, btn('📦 3MF con los ajustes', () => sale('3mf'), { cls: (o.desktopAbrir ? '' : 'primary ') + 'aj-3mf' }), btn('⬇ Solo el STL', () => sale('stl'), { cls: 'aj-stl' })),
       h('p.tiny.muted', 'En Bambu Studio elige arriba el perfil «' + r.perfil + '». Los ajustes de esta pieza ya van DENTRO del archivo (en la lista de objetos, junto a la pieza, sale el icono de sus ajustes). Luego: Laminar placa → Imprimir.'),
       h('div.cj-ia', h('b', '🤖 ¿Alguna duda?'), pregunta, resp));

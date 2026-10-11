@@ -10,6 +10,7 @@ import { crearEscena, miniatura } from '../r8/escena3d.js';
 import { MOVILES } from '../r8/moviles.js';
 import { funda, kitFunda, valoresFunda, anclasFunda, AJUSTE_FUNDA, LABIO, ALTO_EXTRA, ESTILOS_FUNDA, ajusteMedido, guardaAjusteMedido } from '../r8/fundas.js';
 import { estimarGramos } from '../datos3d.js';
+import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar la funda en la cama
 
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MAT = { pla: 'PLA', petg: 'PETG', tpu: 'TPU' };
@@ -32,6 +33,7 @@ export async function montarFundas(el, ext = {}) {
   const info = h('div.r8c-info'), barraVista = h('div.fu-vbar'), izq = h('div.fu-izq'), der = h('div.fu-der'), centro = h('div.fu-vista', lienzo, info, barraVista);
   const raiz = h('div.fu', izq, centro, der, lineas); el.appendChild(raiz);
   let escena = null; try { escena = crearEscena(lienzo, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); } catch (e) { mount(info, '⚠️ ' + e.message); }
+  const MESA = escena ? mesa(escena, lienzo, { cama: 256 }) : null; // v30
   let vivo = true, tic = 0, actual = null, antes = null, comparar = false;
   const ponAntes = x => { if (antes && antes !== actual && antes !== x) N.suelta(antes); antes = x; };
   const p = () => Object.assign({ modelo: F.modelo, material: F.material, ajuste: F.ajuste, estilo: F.estilo, txt: F.txt, cordon: F.cordon }, F.v || {});
@@ -178,12 +180,12 @@ export async function montarFundas(el, ext = {}) {
     let m; try { m = funda(p()); } catch (e) { N.limpia(); return toast(e.message, 'bad'); }
     const { modal } = await import('../ui.js'), cuerpo = h('div.r8c-aj'); modal('🖨️ Funda ' + F.modelo + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null);
-    A.asistente(cuerpo, { clave: 'funda_' + F.material, partes: () => [{ m: funda(p()), color: '#1b1b1d', nombre: 'funda ' + F.modelo }], N, uso: F.material === 'tpu' ? 'flexible' : 'encaje', texto: !!F.txt, nombre: 'funda_' + F.modelo.replace(/\W+/g, '_') + '_' + F.material, baja, cama: 256, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'funda_' + F.material, partes: () => (MESA ? MESA.expande : x => x)([{ m: funda(p()), color: '#1b1b1d', nombre: 'funda ' + F.modelo }]), /* v30: con sus copias */ N, uso: F.material === 'tpu' ? 'flexible' : 'encaje', texto: !!F.txt, nombre: 'funda_' + F.modelo.replace(/\W+/g, '_') + '_' + F.material, baja, cama: 256, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
     void m; N.limpia();
   }
   function baja(blob, nombre) { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nombre }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); window.__r8fu = Object.assign(window.__r8fu || {}, { bajado: { nombre, bytes: blob.size } }); }
   function todo() { pintaIzq(); pintaDer(); ponAntes(null); comparar = false; regenera(true); }
   todo();
   window.__r8fuApi = { cambia, propone, rapido, deshacer, guardar: () => { const V = valores(); guardaAjusteMedido(F.modelo, F.material, { holAncho: V.holAncho, holLargo: V.holLargo, radio: V.radio, prof: V.prof, labio: V.labio }); }, F, valores, preparaKit };
-  return { destroy() { vivo = false; clearTimeout(tic); if (ro) ro.disconnect(); if (escena) escena.destruir(); if (actual) N.suelta(actual); if (antes) N.suelta(antes); delete window.__r8fuApi; } };
+  return { destroy() { vivo = false; clearTimeout(tic); if (ro) ro.disconnect(); if (MESA) MESA.destruir(); if (escena) escena.destruir(); if (actual) N.suelta(actual); if (antes) N.suelta(antes); delete window.__r8fuApi; } };
 }

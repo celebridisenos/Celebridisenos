@@ -529,3 +529,27 @@ html[data-modo="dia"] .r8cj-aviso.bien { color: #0f8a3d; } html[data-modo="dia"]
 .sp-datos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .sp-datos > div { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2, var(--surface)); } .sp-datos small { display: block; color: var(--muted); font-size: 11px; } .sp-datos b { font: 800 17px var(--font-d); }
 .r8c-sorpresas { margin-top: 6px; }
 @media (max-width: 900px) { .sp { grid-template-columns: 1fr; } .sp-vista { min-height: 52vh; } .sp-lado { max-height: none; } }
+
+/* v30 · 🎯 la tarjeta del calibre en el inicio de CelebriR8, y su aviso en el asistente */
+.r8i-cal { margin: 4px 0 2px; } .r8i-calb { width: 100%; background: linear-gradient(160deg, color-mix(in srgb, #ff9f1a 16%, var(--surface)), var(--surface) 65%); border-color: color-mix(in srgb, #ff9f1a 55%, var(--line)); }
+.r8i-calb.hecho { background: linear-gradient(160deg, color-mix(in srgb, #3ddc84 12%, var(--surface)), var(--surface) 65%); border-color: color-mix(in srgb, #3ddc84 45%, var(--line)); }
+.aj-cal-no { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 9px 12px; border-radius: 12px; border: 1px dashed #ff9f1a; font-size: 13px; margin: 6px 0; }
+.prr-ya { padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, #3ddc84 12%, transparent); border: 1px solid color-mix(in srgb, #3ddc84 45%, transparent); }
+
+/* ================= v30 · el Estudio como Fusion: la cajita junto a la cara, el menú del clic derecho y la etiqueta al arrastrar ================= */
+.r8e-dlg { position: absolute; z-index: 6; pointer-events: none; }
+.r8e-dlg-c { pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid color-mix(in srgb, #ff7a1a 60%, var(--line)); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.r8e-dlg-c b { font-size: 12.5px; white-space: nowrap; } .r8e-dlg-c i { font-style: normal; font-size: 12px; color: var(--muted); }
+.r8e-dlg-c .inp { width: 74px; padding: 5px 6px; }
+.r8e-dlg-c button { width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2, var(--surface)); color: var(--text); cursor: pointer; font-size: 15px; display: grid; place-items: center; }
+.r8e-dlg-ok { background: #2fdc72 !important; color: #062a14 !important; border-color: #2fdc72 !important; } .r8e-dlg-no:hover { color: #ff6b7a; }
+.r8e-arr { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 6px 12px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); font-weight: 700; font-size: 13px; pointer-events: none; z-index: 6; }
+.r8e-pieza-f { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); margin-bottom: 8px; } .r8e-pieza-f > span { flex: 1; font-weight: 700; font-size: 12.5px; min-width: 90px; }
+/* v30 · ✋ la cama de las pestañas: la barrita (tocar, mover, duplicar, copiar, girar, colocar) */
+.mesa-bar { position: absolute; left: 10px; bottom: 10px; z-index: 5; display: flex; gap: 4px; align-items: center; padding: 4px 6px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 90%, transparent); border: 1px solid var(--line); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.mesa-n { font-size: 12px; font-weight: 700; padding: 0 6px; white-space: nowrap; }
+.mesa-b { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2, var(--surface)); color: var(--text); cursor: pointer; font-size: 15px; display: grid; place-items: center; }
+.mesa-b:hover { border-color: var(--a1, #7c6cff); }
+.r8e-agu { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; } .r8e-agu .inp { width: 62px; padding: 4px 6px; }
+.r8e-como { padding: 8px 10px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--a1, #7c6cff) 45%, var(--line)); margin-bottom: 8px; } .r8e-como ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; font-size: 12.5px; }
+.r8e-lienzo { display: grid; gap: 6px; padding: 8px; border-radius: 12px; border: 1px solid var(--line); margin: 8px 0; } .r8e-l-t { display: flex; gap: 4px; align-items: center; } .r8e-l-t b { flex: 1; font-size: 12.5px; } .r8e-l-n { display: grid; grid-template-columns: 1fr 110px; gap: 6px; align-items: center; font-size: 12px; } .r8e-l-n .inp { padding: 4px 6px; } .r8e-l-xyz { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; } .r8e-l-xyz .r8e-l-n { grid-template-columns: 1fr; }

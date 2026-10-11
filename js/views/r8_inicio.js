@@ -10,6 +10,16 @@ export async function montarInicio(el, ext = {}) {
   const d = await import('../desktop.js').catch(() => null), D = d && d.desktop, pc = !!(D && D.on);
   const ir = k => ext.irA && ext.irA(k);
   const sis = h('div.r8i-sis'), rec = h('div.r8i-rec'), arch = h('div.r8i-arch');
+  // v30 · 🎯 tu calibre y tu impresora: cómo están y el botón para hacerlo (sale de r8/calibracion.js)
+  function calibreTarjeta() {
+    const caja = h('div.r8i-cal');
+    const pinta = async () => { let A = null, cal = null; try { const CPR = await import('../r8/calibracion.js'); A = CPR.activa(); cal = CPR.guardado().calibre; } catch (e) { }
+      mount(caja, h('button.r8i-gran.r8i-calb' + (A ? '.hecho' : ''), { type: 'button', 'data-ir': 'calibrar', onclick: () => import('../r8/calibracion_ui.js').then(m => m.abrir({ alCerrar: pinta })) },
+        h('span', '🎯'), h('b', 'Calibra tu calibre y tu impresora'),
+        h('small', (cal ? (cal.ok ? '✅ Tu calibre mide bien (' + cal.fecha + '). ' : '⚠️ Tu calibre se desvía ' + String(Math.round(cal.off * 100) / 100).replace('.', ',') + ' mm: se descuenta solo. ') : '1) Tu CALIBRE: ciérralo y mide una moneda de 1 € o 2 €. ') + (A ? '✅ Impresora calibrada: «' + A.clave + '» (' + A.fecha + '): todo lo que mandas a Bambu sale corregido solo.' : '2) Tu IMPRESORA: imprime la probeta (33 min, 12 g), mídela y escribe las medidas: desde ese momento tus piezas salen corregidas solas.')),
+        h('i', A ? 'Ver o repetir' : 'Empezar (5 minutos + imprimir)'))); };
+    pinta(); return caja;
+  }
   const tarjeta = (k, ic, t, txt, extra) => h('button.r8i-t', { type: 'button', 'data-ir': k, onclick: () => ir(k) }, h('span.r8i-ic', ic), h('div', h('b', t), h('small', txt), extra || null));
   const raiz = h('div.r8i',
     h('section.r8i-hero',
@@ -22,6 +32,7 @@ export async function montarInicio(el, ext = {}) {
         h('div.r8i-dos',
           h('button.r8i-gran', { type: 'button', 'data-ir': 'lab', onclick: () => ir('lab') }, h('span', '🧸'), h('b', 'Una figura desde una foto'), h('small', 'Para decorar o regalar: una persona, una mascota, un personaje. La IA imagina la forma; importa que se PAREZCA. La parte de atrás la inventa: siempre se revisa.'), h('i', 'Smart Lab · Foto → 3D')),
           h('button.r8i-gran.rep', { type: 'button', 'data-ir': 'precision', onclick: () => ir('precision') }, h('span', '⚙️'), h('b', 'Un repuesto con medidas'), h('small', 'Para que ENCAJE: un engranaje, un casquillo, un soporte. Se construye con tus medidas de calibre, no con IA. Lo que no sepas, el programa te lo pide; nunca se lo inventa.'), h('i', 'Precision Lab'))),
+        calibreTarjeta(), // v30 · «te olvidaste lo de mi calibre»: aquí, a la vista
         h('h2.r8p-h', 'Herramientas'),
         h('div.r8i-tools',
           tarjeta('lab', '🧪', 'Smart Lab', 'Prueba los motores de IA instalados uno a uno y te dice cuál ha salido mejor y por qué.'),
@@ -30,6 +41,7 @@ export async function montarInicio(el, ext = {}) {
           tarjeta('taller', '🛠️', 'Blender Workshop', 'Comprueba y repara un modelo; puedes deshacerlo y volver al original.'),
           tarjeta('doctor', '🩺', 'Print Doctor', 'Revisión antes de imprimir: paredes, piezas sueltas, orientación, soportes y 3MF para Bambu.'),
           tarjeta('estudio', '🧰', 'Estudio', 'Diseña con formas, bocetos y operaciones, como en Fusion.'),
+          tarjeta('cajas', '📦', 'Taller de cajas', 'Bisagras, cierres, pomos y puertas que arrastras: verde donde va bien, rojo donde no.'),
           tarjeta('catalogo', '🛍️', 'Catálogo', 'Más de 80 diseños propios listos para cambiar medidas.'),
           tarjeta('fundas', '📱', 'Fundas', '39 móviles con sus medidas oficiales y kit de prueba.'),
           tarjeta('plantillas', '📐', 'Plantillas', 'Las de siempre: caja, nombre, molde, tapón, prueba de holgura…'))),

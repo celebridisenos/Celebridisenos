@@ -7,6 +7,7 @@ import * as N from '../r8/nucleo.js';
 import * as FM from '../r8/foto_medida.js';
 import * as CL from '../r8/clon.js';
 import { crearEscena } from '../r8/escena3d.js';
+import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar en la cama
 
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES');
 // ---------- guardar en este aparato (IndexedDB «celebriclon»): el trabajo y sus fotos ----------
@@ -29,7 +30,7 @@ export async function montarClon(el, ext = {}) {
   raiz.append(cab, h('div.clon-main', izq, centro, der), abajo); el.appendChild(raiz);
   const fi = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp', multiple: true, style: { display: 'none' }, onchange: e => { const L = [...(e.target.files || [])]; e.target.value = ''; añadeFotos(L); } });
   raiz.appendChild(fi);
-  let escena = null; try { escena = crearEscena(lienzo3, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); } catch (e) { mount(info3, h('p.r8e-mal', '⚠️ Sin vista 3D en este aparato: ' + (e.message || e))); }
+  let escena = null, MESA = null; try { escena = crearEscena(lienzo3, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); MESA = mesa(escena, lienzo3, { cama: 256 }); } catch (e) { mount(info3, h('p.r8e-mal', '⚠️ Sin vista 3D en este aparato: ' + (e.message || e))); }
 
   // ---------- el trabajo ----------
   async function arranca() { let L = []; try { L = await listaClones(); } catch (e) { } if (L.length) { try { C = await abreClon(L[0].id); } catch (e) { C = nuevo(); } } else C = nuevo(); await analizaTodo(); todo(); }
@@ -261,7 +262,7 @@ export async function montarClon(el, ext = {}) {
   function mallaFinal() { const r = CL.construye(fotosA(), plan); return r.m; }
   function alEstudio() { try { const s = N.aSopa(N.aLaCama(mallaFinal())); N.limpia(); if (ext.alEstudioMalla) ext.alEstudioMalla(s, C.nombre); toast('🧰 En el Estudio como pieza. Si cambias una medida aquí, vuelve a mandarla (la de aquí es la que manda).', 'ok', 7000); } catch (e) { N.limpia(); toast(e.message, 'bad'); } }
   async function baja(tipo) {
-    try { const m = N.aLaCama(mallaFinal()), CPR = await import('../r8/calibracion.js'), X = tipo === '3mf' ? CPR.paraImprimir([{ m, color: '#7c6cff', nombre: C.nombre }], null) : null, blob = tipo === 'stl' ? N.stl(m, C.nombre) : N.tresMF(X.partes, C.nombre, X.ajustes); N.limpia(); descarga(blob, nombreArchivo() + '.' + tipo); if (X && X.aplicada) toast('🎯 3MF con tu calibración «' + X.aplicada + '»', 'ok', 4000); }
+    try { const m = N.aLaCama(mallaFinal()), CPR = await import('../r8/calibracion.js'), L0 = [{ m, color: '#7c6cff', nombre: C.nombre }], L = MESA ? MESA.expande(L0) : L0, X = tipo === '3mf' ? CPR.paraImprimir(L, null) : null, blob = tipo === 'stl' ? N.stl(L.length > 1 ? N.union(L.map(p => p.m)) : m, C.nombre) : N.tresMF(X.partes, C.nombre, X.ajustes); /* v30: con sus copias */ N.limpia(); descarga(blob, nombreArchivo() + '.' + tipo); if (X && X.aplicada) toast('🎯 3MF con tu calibración «' + X.aplicada + '»', 'ok', 4000); }
     catch (e) { N.limpia(); toast(e.message, 'bad'); }
   }
   async function probeta() {
@@ -280,5 +281,5 @@ export async function montarClon(el, ext = {}) {
   const ro = window.ResizeObserver ? new ResizeObserver(() => pintaFoto()) : null; if (ro) ro.observe(cv.parentElement);
   window.__clon = { get C() { return C; }, get plan() { return plan; }, get pieza() { return pieza; }, eligeMedida, añadeFotos, fotosA, todo, aPantalla: (u, v) => { const r = cv.getBoundingClientRect(); return { x: r.left + vistaF.ox + u * vistaF.s, y: r.top + vistaF.oy + v * vistaF.s }; }, get zonas() { return zonas; }, get fotoSel() { return fotoSel; }, get vistaF() { return vistaF; }, get ptsF() { return ptsF; } }; // (para las pruebas)
   await arranca();
-  return { destroy() { vivo = false; clearTimeout(tic); if (ro) ro.disconnect(); try { escena && escena.destruir(); } catch (e) { } if (C && C.fotos.length) guardaClon(C).catch(() => { }); delete window.__clon; } };
+  return { destroy() { vivo = false; clearTimeout(tic); if (ro) ro.disconnect(); try { MESA && MESA.destruir(); escena && escena.destruir(); } catch (e) { } if (C && C.fotos.length) guardaClon(C).catch(() => { }); delete window.__clon; } };
 }

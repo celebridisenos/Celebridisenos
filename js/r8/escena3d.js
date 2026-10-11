@@ -171,11 +171,12 @@ export function crearEscena(lienzo, opts = {}) {
   tc.addEventListener('change', pide);
   const r1 = x => Math.round(x * 1000) / 1000;
   function leeManija() { const e = new T.Euler().setFromQuaternion(manija.quaternion, 'ZYX'); return { pos: manija.position.toArray().map(r1), rot: [e.x, e.y, e.z].map(a => r1(T.MathUtils.radToDeg(a))), esc: manija.scale.toArray().map(r1) }; }
-  function flechas(modo, t, mover, soltar) {
+  function flechas(modo, t, mover, soltar, op = {}) {
     alMover = mover; alSoltar = soltar;
+    tc.showX = tc.showY = !op.soloZ; tc.showZ = true; tc.setSize(op.soloZ ? 1.35 : 0.9); // v30: la flecha de EXTRUIR una cara (solo su eje, más grande)
     if (!modo || !t) { tc.detach(); pide(); return; }
     manija.position.set(...(t.pos || [0, 0, 0])); manija.quaternion.setFromEuler(eulerDe(t.rot)); manija.scale.set(...(t.esc || [1, 1, 1]));
-    tc.setMode({ mover: 'translate', girar: 'rotate', escalar: 'scale' }[modo] || 'translate'); tc.setSpace(modo === 'mover' ? 'world' : 'local'); tc.attach(manija); pide();
+    tc.setMode({ mover: 'translate', girar: 'rotate', escalar: 'scale' }[modo] || 'translate'); tc.setSpace(op.soloZ ? 'local' : modo === 'mover' ? 'world' : 'local'); tc.attach(manija); pide();
   }
   const fino = on => { tc.setTranslationSnap(on ? 0.1 : 1); tc.setRotationSnap(T.MathUtils.degToRad(on ? 1 : 15)); };
 
@@ -227,6 +228,39 @@ export function crearEscena(lienzo, opts = {}) {
     const m = new T.Mesh(g, new T.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.5, side: T.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); m.renderOrder = 6; cara.add(m);
     (o.bordes || []).forEach(r => { const pts = r.concat([r[0]]).map(q => new T.Vector3(...q)); const l = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color: 0xff7a1a, depthTest: false })); l.renderOrder = 8; cara.add(l); });
     extra.add(cara); pide();
+  }
+  // ---- v30 · COMO FUSION: lo que hay bajo el ratón se ilumina (la cara en azul claro) y la arista que vas a tocar, en amarillo ----
+  let hov = null, ari = null;
+  function ponHover(o) { // { tris, bordes } o null
+    if (hov) { tira(hov); extra.remove(hov); hov = null; }
+    if (o) { hov = new T.Group(); const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(o.tris, 3));
+      const m = new T.Mesh(g, new T.MeshBasicMaterial({ color: 0x29d3ff, transparent: true, opacity: 0.3, side: T.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })); m.renderOrder = 5; hov.add(m);
+      (o.bordes || []).forEach(r => { const pts = r.concat([r[0]]).map(q => new T.Vector3(...q)); const l = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color: 0x29d3ff, depthTest: false, transparent: true, opacity: 0.9 })); l.renderOrder = 7; hov.add(l); });
+      extra.add(hov); }
+    pide();
+  }
+  // ---- v30 · 🖼 LIENZOS (como el «Lienzo» de Fusion): imágenes de referencia en el suelo, delante o de lado, a su tamaño real ----
+  const lienz = new T.Group(); esc.add(lienz); const texs = new Map();
+  function lienzos(L) { // [{ url, w, h (mm), plano: 'xy'|'xz'|'yz', pos: [x,y,z] (centro), opac }]
+    lienz.children.slice().forEach(m => { m.geometry.dispose(); m.material.dispose(); lienz.remove(m); });
+    (L || []).forEach(l => { let tx = texs.get(l.url); if (!tx) { tx = new T.TextureLoader().load(l.url, () => pide()); tx.colorSpace = T.SRGBColorSpace; texs.set(l.url, tx); }
+      const m = new T.Mesh(new T.PlaneGeometry(l.w, l.h), new T.MeshBasicMaterial({ map: tx, transparent: true, opacity: l.opac == null ? 0.6 : l.opac, side: T.DoubleSide, depthWrite: false }));
+      if (l.plano === 'xz') m.rotation.set(Math.PI / 2, 0, 0); else if (l.plano === 'yz') m.quaternion.setFromEuler(new T.Euler(Math.PI / 2, 0, Math.PI / 2, 'ZYX'));
+      m.position.set(...l.pos); m.renderOrder = -1; lienz.add(m); });
+    pide();
+  }
+  let pto = null;
+  function ponPunto(p, color = 0xffd23f) { // v30: la ESQUINA (vértice) bajo el ratón o elegida
+    if (pto) { tira(pto); extra.remove(pto); pto = null; }
+    if (p) { const r = Math.max(0.45, cam.position.distanceTo(ctl.target) * 0.007); pto = new T.Mesh(new T.SphereGeometry(r, 16, 12), new T.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 })); pto.position.set(...p); pto.renderOrder = 10; extra.add(pto); }
+    pide();
+  }
+  function ponArista(L, color = 0xffd23f) { // [[a, b], …] en el mundo, o null
+    if (ari) { tira(ari); extra.remove(ari); ari = null; }
+    if (L && L.length) { ari = new T.Group(); const r = Math.max(0.2, cam.position.distanceTo(ctl.target) * 0.003), mt = new T.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 });
+      L.forEach(([a, b]) => { const A = new T.Vector3(...a), B = new T.Vector3(...b), l = A.distanceTo(B); if (l < 1e-6) return; const m = new T.Mesh(new T.CylinderGeometry(r, r, l, 10, 1, false), mt); m.position.copy(A).add(B).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), B.clone().sub(A).normalize()); m.renderOrder = 9; ari.add(m); });
+      extra.add(ari); }
+    pide();
   }
   // ---- v20.2 · GEOMETRÍA DE CONSTRUCCIÓN: planos (cristal con borde y nombre) y ejes (línea discontinua) ----
   const cons = new T.Group(); esc.add(cons);
@@ -340,6 +374,7 @@ export function crearEscena(lienzo, opts = {}) {
     T, esc, cam, ctl, ponPartes, ponProxies, moverProxy, marcar, flechas, fino, cuerpoEn, puntoEn, medida, planoCorte, marcadores, encuadrar, aPantalla, foto, pide,
     caraEn, ponCara, construccion, consEn, fantasmas, vistaModo, puntoPlano, ponOpacidad, animar, animando, giraCamara, grabar, // v20.2
     cuboVistas, get cuboV() { return cuboV; }, // v20.4
+    ponHover, ponArista, ponPunto, lienzos, get sobreFlechas() { return !!(tc.object && tc.axis); }, // v30 (como Fusion)
     get arrastrando() { return arrastrando; },
     set alDibujar(f) { alDibujar = f; },
     capas(on) { capas = !!on; }, cama(l) { lado = l; pintaCama(); },

@@ -11,6 +11,7 @@
 import { h, mount, btn, toast, confirmDlg } from '../ui.js';
 import * as E from '../r8/estado.js';
 import * as C from '../r8/comun.js';
+import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar en la cama
 
 const LIB = 'cd.r8.precision.lib';
 const leeLib = () => { try { return JSON.parse(localStorage.getItem(LIB) || '[]'); } catch (e) { return []; } };
@@ -26,6 +27,7 @@ export async function montarPrecision(el, ext = {}) {
   const raiz = h('div.r8p.r8pr', izq, h('div.r8p-vista.r8pr-vista', lienzo, capaFoto, etiquetas, vacio, vbar, bCal), der);
   el.appendChild(raiz);
   let esc = null; try { esc = await C.vista3d(lienzo); } catch (e) { }
+  const MESA = esc ? mesa(esc, lienzo, { cama: 256 }) : null; // v30
   const S = Object.assign({ id: null, nombre: '' }, R.nuevo(guardadoTipo()), { avisos: [], calc: [], choque: null, info: null, faltan: [], kitG: null, foto: null, fotoOp: 0.5, fotoEsc: 60, fotoX: 50, fotoY: 50, ms: 0 });
   function guardadoTipo() { try { return localStorage.getItem('cd.r8.precision.tipo') || 'engranaje'; } catch (e) { return 'engranaje'; } }
   let tic = 0, vivo = true, cotasG = null, cotasL = [];
@@ -149,7 +151,7 @@ export async function montarPrecision(el, ext = {}) {
     return L.map(p => Object.assign({}, p, { m: p.m.translate([dx, dy, 0]) })); }
   function construye(kit) { const T = R.TIPOS[S.tipo], vals = R.valores(S.tipo, S.v); if (kit) return enFila(T.kit(vals).partes.filter(p => p.m)); const r = T.construye(vals); return r.imprimir ? enFila(r.imprimir) : r.partes; }
   async function saca(como) {
-    try { const P = construye(), nom = C.limpioNombre(nombrePieza());
+    try { const P0 = construye(), P = MESA ? MESA.expande(P0) : P0, nom = C.limpioNombre(nombrePieza()); // v30: con sus copias
       if (como === 'stl') { const stl = N.stl(N.union(P.map(p => p.m)), nom); await C.guardaEnPC(stl, 'Repuestos', nom + '.stl', 'model/stl'); }
       else { const A = await import('../r8/consejos3d.js'), blob = N.tresMF(P.map(p => ({ m: p.m, color: p.color || '#2f7bff', nombre: p.nombre })), nom, A.claves({ acabado: 'equilibrado', uso: 'encaje', soporte: 'no', balsa: 'auto' })); await C.guardaEnPC(blob, 'Repuestos', nom + '.3mf', 'model/3mf'); }
     } catch (e) { toast(e.message || String(e), 'bad', 8000); } finally { N.limpia(); }
@@ -164,5 +166,5 @@ export async function montarPrecision(el, ext = {}) {
   function publica() { window.__r8pr = Object.assign(window.__r8pr || {}, { tipo: S.tipo, faltan: S.faltan.slice(), avisos: S.avisos.map(x => x.n + ':' + x.t), calc: S.calc.map(x => [x[0], x[1]]), choque: S.choque && S.choque.vol, dims: S.info && S.info.dims, kit: S.kit, est: Object.assign({}, S.est), elige, ejemplo, aImprimir, pon: (k, v) => { S.v[k] = v; S.est[k] = 'tuya'; pintaIzq(); genera(true); } }); }
 
   pintaIzq(); pintaDer(); genera(true);
-  return { destroy() { vivo = false; clearTimeout(tic); if (S.foto) URL.revokeObjectURL(S.foto); if (esc) esc.destruir(); } };
+  return { destroy() { vivo = false; clearTimeout(tic); if (S.foto) URL.revokeObjectURL(S.foto); if (MESA) MESA.destruir(); if (esc) esc.destruir(); } };
 }
