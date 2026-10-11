@@ -168,10 +168,12 @@ export async function asistente(el, o) {
   // v30.2 · 🌈 los cambios de color: los que ya trae el diseño (el QR: negro al acabar la base) o los de sus piezas de colores
   if (!R.cc) R.cc = { cambios: (o.cambios || []).filter(Boolean).map(c => ({ z: Math.round(c.z * 100) / 100, color: c.color })).concat(!o.cambios && colores.length > 1 ? colores.slice(1).map(c => ({ z: Math.round(c.z0 * 100) / 100, color: c.color })) : []), base: colores.length > 1 ? colores[0].color : (o.colorBase || null) };
   const pregunta = h('input.inp.cj-preg', { placeholder: '¿Y si lo quiero más resistente? ¿Lo puedo hacer en PETG?…', onkeydown: e => { if (e.key === 'Enter') preguntar(); } }), resp = h('div.cj-resp');
+  let hayCC = false; // (si aparecen o desaparecen los cambios de color, se repinta para la pregunta 8 y el botón)
   const pinta = () => {
+    hayCC = !!(R.cc && (R.cc.cambios || []).length);
     r = aconseja(sopa, info, { uso: R.uso, texto: o.texto, material: R.material, impresora: R.impresora, colores: colores.length > 1 ? colores : [] });
-    const fino = /0\.12/.test(r.perfil), rec = { acabado: R.uso === 'jarron' || R.uso === 'funcional' || R.uso === 'encaje' ? 'rapido' : fino ? 'fino' : 'equilibrado', soporte: o.soportes ? 'arbol' : r.mide.voladizo > 30 && R.uso !== 'jarron' ? (r.mide.alturaVoladizo < r.mide.alto * 0.25 ? 'cama' : 'arbol') : 'no', balsa: r.ajustes.some(a => a.nombre === 'Tipo de balsa' && /borde/.test(a.valor)) ? 'si' : 'auto', planchar: r.ajustes.some(a => a.nombre === 'Tipo de planchado') ? 'si' : 'no' };
-    ['acabado', 'soporte', 'balsa', 'planchar'].forEach(k => { if (!R[k]) R[k] = rec[k]; });
+    const fino = /0\.12/.test(r.perfil), rec = { acabado: R.uso === 'jarron' || R.uso === 'funcional' || R.uso === 'encaje' ? 'rapido' : fino ? 'fino' : 'equilibrado', soporte: o.soportes ? 'arbol' : r.mide.voladizo > 30 && R.uso !== 'jarron' ? (r.mide.alturaVoladizo < r.mide.alto * 0.25 ? 'cama' : 'arbol') : 'no', balsa: r.ajustes.some(a => a.nombre === 'Tipo de balsa' && /borde/.test(a.valor)) ? 'si' : 'auto', planchar: r.ajustes.some(a => a.nombre === 'Tipo de planchado') ? 'si' : 'no', modoColor: 'pausa' };
+    ['acabado', 'soporte', 'balsa', 'planchar', 'modoColor'].forEach(k => { if (!R[k]) R[k] = rec[k]; });
     const preg = (k, titulo, ops, ayuda) => h('div.aj-preg', { 'data-preg': k }, h('b', titulo), ayuda ? h('small', ayuda) : null, h('div.aj-ops', ops.map(([v, t, d]) => h('button.aj-op' + (R[k] === v ? '.on' : ''), { type: 'button', 'data-v': v, onclick: () => { R[k] = v; guardaResp(clave, R); pinta(); } }, h('span', t), rec[k] === v ? h('i.aj-rec', '⭐ recomendado') : null, d ? h('small', d) : null))));
     const imp = (perfiles || PERFILES_DE_SERIE).impresoras, vol = r.mide.voladizo;
     mount(el, h('div.r8e-prop-t', h('b', '🖨️ PREPARAR PARA TU BAMBU')), h('p.small.muted', 'Toca lo que quieras. Lo marcado con ⭐ es lo que haría yo con esta pieza. Al final, el archivo sale con todo puesto.'),
@@ -184,10 +186,12 @@ export async function asistente(el, o) {
       preg('balsa', '6. ¿Le pongo un borde para que no se despegue?', [['si', 'Sí, borde exterior', 'Si apoya poco o es alta'], ['auto', 'Que decida Bambu', 'Automático'], ['no', 'Sin borde', 'Más limpio']], 'Apoya ' + Math.round(r.mide.apoyo / 100) + ' cm² en la cama.'),
       r.mide.arriba > 1500 && R.uso !== 'jarron' ? preg('planchar', '7. ¿Plancho la cara de arriba?', [['si', 'Sí, lisa como un espejo', 'Tarda un poco más'], ['no', 'No', '']]) : null,
       colores.length > 1 ? h('div.aj-ok', '🎨 Lleva ' + colores.length + ' colores (abajo, en «🌈 Colores por capas», la capa exacta de cada cambio).') : null,
-      CC.bloque(R.cc, { perf, capa: CC.capaPerfil(r.perfil), colorBase: (L[0] && L[0].color) || '#f4f4f0', alGuardar: () => guardaResp(clave, R) }), // v30.2 · 🎁 🌈
+      CC.bloque(R.cc, { perf, capa: capaArchivo(), colorBase: (L[0] && L[0].color) || '#f4f4f0', alGuardar: () => { guardaResp(clave, R); if (((R.cc.cambios || []).length > 0) !== hayCC) pinta(); }, modo: R.modoColor || 'pausa', conBambu: !!o.desktopAbrir }), // v30.2 · 🎁 🌈
+      // v30.2.1 · la dueña: «que al exportar me diga imprimir normal, AMS o manual, y que lo exporte él a Bambu directamente»
+      (R.cc && R.cc.cambios || []).length ? preg('modoColor', '8. ¿Cómo lo vas a imprimir?', [['pausa', '✋ Cambio a mano', 'Se para sola y cambias tú el filamento'], ['ams', '🌈 Con AMS', 'Se para sola y eliges la ranura del AMS'], ['normal', '🖨️ Normal', 'De un solo color, sin pausas']], o.desktopAbrir ? 'Al abrirlo en Bambu Studio, la pausa ya va PUESTA (lo hace tu propio Bambu Studio).' : 'En el móvil o la tablet: abajo te digo la capa para poner la pausa en Bambu Studio.') : null,
       h('div.aj-resumen', h('b', '📋 Así va a ir'), h('div.aj-perfil', 'Perfil de arriba (Proceso): ', h('b', r.perfil)), enPantalla(R).map(([p, n, v]) => h('div.aj-fila', h('span', p + ' · ' + n), h('b', v))), r.avisos.map(a => h('p.cj-aviso', '⚠️ ' + a)), h('small', '⚖️ ≈ ' + (r.gramos ? Math.max(1, Math.round(r.gramos)) : '?') + ' g · ESTIMADO')),
       calAviso, // v30: 🎯 si va corregida con su calibración, o el botón para calibrar
-      h('div.r8e-btns.aj-bajar', o.desktopAbrir ? btn('🖨️ Abrir en Bambu Studio', () => sale('abrir'), { cls: 'primary aj-abrir' }) : null, btn('📦 3MF con los ajustes', () => sale('3mf'), { cls: (o.desktopAbrir ? '' : 'primary ') + 'aj-3mf' }), btn('⬇ Solo el STL', () => sale('stl'), { cls: 'aj-stl' })),
+      h('div.r8e-btns.aj-bajar', o.desktopAbrir ? btn(conPausas() ? '🖨️ Abrir en Bambu Studio con la pausa puesta' : '🖨️ Abrir en Bambu Studio', () => sale('abrir'), { cls: 'primary aj-abrir' }) : null, btn('📦 3MF con los ajustes', () => sale('3mf'), { cls: (o.desktopAbrir ? '' : 'primary ') + 'aj-3mf' }), btn('⬇ Solo el STL', () => sale('stl'), { cls: 'aj-stl' })),
       h('p.tiny.muted', 'En Bambu Studio elige arriba el perfil «' + r.perfil + '». Los ajustes de esta pieza ya van DENTRO del archivo (en la lista de objetos, junto a la pieza, sale el icono de sus ajustes). Luego: Laminar placa → Imprimir.'),
       h('div.cj-ia', h('b', '🤖 ¿Alguna duda?'), pregunta, resp));
     window.__r8aj = { R: Object.assign({}, R), claves: claves(R), perfil: r.perfil, voladizo: Math.round(vol), apoyo: Math.round(r.mide.apoyo), orient: r.orient && r.orient.t };
@@ -198,6 +202,10 @@ export async function asistente(el, o) {
       const txt = await E.write('Eres experto en impresión 3D con Bambu Studio EN ESPAÑOL (usa sus nombres: Altura de la capa, Bucles de pared, Densidad de relleno, Habilitar el soporte, Árbol orgánico, Tipo de balsa, Jarrón en espiral). ' + datos + ' Pregunta de la dueña: «' + q + '». Responde en 3 frases cortas y concretas, sin inventar datos de la pieza.', { onToken: t => mount(resp, h('p', t)) }); mount(resp, h('p', txt)); }
     catch (e) { mount(resp, h('p.r8e-mal', '🤖 ' + (e.message || 'La IA no está disponible ahora.'))); }
   }
+  // hay cambios de color y no se ha elegido imprimirla «normal» (de un color)
+  // la altura de capa que va DENTRO del archivo (la que usará Bambu para esta pieza): de ella sale el número de capa de la pausa
+  const capaArchivo = () => Number(Object.assign(claves(R), o.forzar || {}).layer_height) || CC.capaPerfil(r && r.perfil);
+  const conPausas = () => !!(R.cc && (R.cc.cambios || []).length) && (R.modoColor || 'pausa') !== 'normal';
   async function sale(como) {
     try {
       if (R.soporte === 'tumbar' && r.orient && o.alGirar) { R.soporte = 'no'; guardaResp(clave, R); o.alGirar(r.orient.rot); return; }
@@ -205,10 +213,18 @@ export async function asistente(el, o) {
       if (como === 'stl') { o.baja(new Blob([N.stl(N.union(P2.map(x => x.m)), base)], { type: 'model/stl' }), base + '.stl'); toast('⬇ STL descargado', 'ok'); return; }
       // v20.4 · 🎯 tu CALIBRACIÓN (impresora + material): compensaciones de Bambu dentro de la pieza y, si encoge, escalada (no en las probetas de calibrar)
       const CPR = await import('./calibracion.js'), X = CPR.paraImprimir(P2.map(x => ({ m: x.m, color: x.color, nombre: x.nombre })), Object.assign(claves(R), o.forzar || {}), { sin: !!o.sinCalibrar });
-      const blob = N.tresMF(X.partes, base, X.ajustes, { cambios: CC.paraArchivo(R.cc && R.cc.cambios, CC.capaPerfil(r.perfil)) }); window.__r8calib = X.aplicada; // v20.3: lo que un diseño NECESITA sí o sí (el rodamiento impreso: sin soportes ni balsa)
+      const pausas = conPausas() ? CC.paraArchivo(R.cc.cambios, capaArchivo()) : [];
+      const blob = N.tresMF(X.partes, base, X.ajustes, { cambios: pausas }); window.__r8calib = X.aplicada; // v20.3: lo que un diseño NECESITA sí o sí (el rodamiento impreso: sin soportes ni balsa)
       const conCal = X.aplicada ? ' · 🎯 con tu calibración «' + X.aplicada + '»' : '';
+      const extra = pausas.length ? { pausas: JSON.stringify(pausas.map(c => ({ z: c.z, color: c.color }))), imp: R.impresora, mat: R.material, proc: r.perfil } : null;
+      const capasTxt = pausas.length ? R.cc.cambios.slice().sort((a, b) => a.z - b.z).map(c => { const K = CC.capaDe(c.z, capaArchivo()); return 'capa ' + K.capa + ' (' + String(K.z).replace('.', ',') + ' mm)'; }).join(', ') : '';
+      // v30.2.1 · en el PC: Bambu Studio hace SU proyecto con la pausa puesta (y se abre, o se guarda en Documentos con «3MF»)
+      if (extra && o.desktopAbrir) { const d = await import('../desktop.js'); toast('🌈 Tu Bambu Studio está poniendo la pausa…', 'info', 4000); const res = await d.desktop.bambuAbrir(blob, base, como === 'abrir', extra); window.__r8aj && (window.__r8aj.abierto = res);
+        if (res && res.pausa) toast((como === 'abrir' ? '🖨️ Abriendo en Bambu Studio CON LA PAUSA PUESTA' : '📦 Guardado con la pausa puesta en ' + res.path) + ' (' + capasTxt + '; verás la marca en la barra de capas). Lamina e imprime: se parará sola' + (R.modoColor === 'ams' ? ' y eliges la ranura del AMS.' : ' para que cambies el filamento.') + conCal, 'ok', 12000);
+        else toast('⚠️ No he podido poner la pausa sola (' + ((res && res.motivo) || 'Bambu Studio no respondió') + '). ' + (res && res.abierto ? 'Se abre sin ella: ' : 'Ponla a mano: ') + 'clic derecho en la barra de capas → «Añadir pausa» en la ' + capasTxt + '.', 'warn', 14000);
+        return; }
       if (como === 'abrir') { const d = await import('../desktop.js'), res = await d.desktop.bambuAbrir(blob, base); toast((res && res.abierto ? '🖨️ Abriendo en Bambu Studio… (guardado en Documentos\\CelebriDiseños_R8)' : '📦 Guardado en ' + (res && res.path)) + conCal, 'ok', 8000); window.__r8aj && (window.__r8aj.abierto = res); return; }
-      o.baja(blob, base + '.3mf'); toast('📦 3MF con los ajustes descargado' + conCal + '. Ábrelo con Bambu Studio.', 'ok', 6000);
+      o.baja(blob, base + '.3mf'); toast('📦 3MF con los ajustes descargado' + conCal + '. Ábrelo con Bambu Studio.' + (pausas.length ? ' 🌈 Pon la pausa en la ' + capasTxt + ': clic derecho en la barra de capas → «Añadir pausa».' : ''), 'ok', pausas.length ? 12000 : 6000);
     } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); }
   }
   pinta();

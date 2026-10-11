@@ -60,7 +60,14 @@ export function bloque(est, o) {
         filas.length ? filas : h('p.small.muted', 'Sin cambios: sale de un color.'),
         props.length ? h('div.cc-props', h('small', '💡 Donde cambia la forma:'), props.map(z => h('button.btn.sm.ghost.cc-prop', { type: 'button', 'data-z': String(z), onclick: () => añade(z) }, '＋ a ' + f1(z) + ' mm'))) : null,
         h('button.btn.sm.cc-mas', { type: 'button', onclick: () => añade(Math.round(alto / 2 * 10) / 10) }, '＋ Cambio de color'))),
-      L.length ? h('div.cc-como', h('b', '📋 Cómo se hace en Bambu Studio (10 segundos):'),
+      // v30.2.1 · en el PC, la pausa la pone su propio Bambu Studio (bambu_pausas.go); en el móvil o la tablet, a mano
+      L.length && o.conBambu && o.modo !== 'normal' ? h('div.cc-como.cc-auto', h('b', '✅ La pausa la pone TU Bambu Studio solo:'),
+        h('ol', h('li', 'Pulsa ', h('b', '«🖨️ Abrir en Bambu Studio con la pausa puesta»'), ' (abajo). Se abre como proyecto suyo, con la marca en la barra de capas (capa ' + L.map(c => capaDe(c.z, capa).capa).join(', ') + ').'),
+          h('li', 'Dale a ', h('b', 'Laminar placa'), ' e ', h('b', 'Imprimir'), ' como siempre.'),
+          o.modo === 'ams' ? h('li', 'Cuando se pare: en la pantalla de la impresora, ', h('b', 'Filamento'), ' → elige la ranura del AMS con el color nuevo → ', h('b', 'Cargar'), ' → ', h('b', 'Reanudar'), '.')
+            : h('li', 'Cuando se pare: en la pantalla de la impresora, ', h('b', 'Filamento → Descargar'), ', pon la bobina nueva, ', h('b', 'Cargar'), ' (que purgue un poco) y ', h('b', 'Reanudar'), '.')),
+        h('small.muted', 'Comprobado con tu Bambu Studio: la parada va al empezar esa capa, antes de imprimir nada de ella.'))
+      : L.length && o.modo !== 'normal' ? h('div.cc-como', h('b', '📋 Cómo se hace en Bambu Studio (10 segundos):'),
         h('ol', h('li', 'Ábrelo y dale a ', h('b', 'Laminar placa'), '.'),
           h('li', 'En la vista previa, sube la ', h('b', 'barra de capas'), ' de la derecha hasta la capa que pone arriba (' + L.map(c => capaDe(c.z, capa).capa).join(', ') + ').'),
           h('li', 'Clic derecho en el circulito → ', h('b', '«Añadir pausa»'), ' (con AMS: «Cambiar el filamento»). Sale una marca en la barra.'),
