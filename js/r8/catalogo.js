@@ -16,11 +16,22 @@ import * as RI from './rodamiento_impreso.js';
 import * as CPR from './calibracion.js'; // v20.4: probeta de precisión // v20.3: rodamientos que se IMPRIMEN (lo que la dueña pidió de verdad)
 import { DISENOS_RC } from './rc_mas.js';
 import { qrMatrix } from '../qr.js'; // v30.2 · 🎁 llavero / placa con QR
+import { DISENOS_FIGURAS } from './cat_figuras.js';
+import { DISENOS_DECO } from './cat_deco.js';
+import { DISENOS_SILUETAS } from './cat_siluetas.js';
+import { DISENOS_JUEGOS } from './cat_juegos.js';
+import { DISENOS_CASA } from './cat_casa.js';
+import { DISENOS_REFERENCIAS } from './cat_referencias.js'; // v30.4 · 📸 las fotos de la dueña: organizador corazón, estantería de arcos, funda de mechero
+import * as MARCA from './marca.js'; // v30.4 · ✍️ «CelebriDiseños» grabado en lo premium (casilla para quitarlo)
+import { DISENOS_ESCULTURAS } from './cat_esculturas.js';
+import { DISENOS_UTILES } from './cat_utiles.js'; // v30.4 · 🧰 herramientas y accesorios que funcionan
+import { DISENOS_PREMIUM30 } from './cat_premium30.js'; // v30.4 · 💎 vasos premium con relieve // v30.4 · 🗿 esculturas de sus fotos (mano titiritera, columpio de la luna)
+import { DISENOS_NAVIDAD } from './cat_navidad.js'; // v30.4 · 🎄 pueblo navideño, adornos con nombre, calendario de adviento, farol, belén con peana // v30.3 · 🏠 casa de muñecas, 🐜 hormiguero, 🗄️ cajonera, 🪴 macetas con plato // v30.3 · 🧸 juegos, 🔮 canicas, 🔬 ciencia y 👾 rol // v30.3 · 🖼️ siluetas y cuadros con dibujos de dominio público (CC0) // v30.3 · 🍷 decoración premium (siluetas, abstractas, cisnes, cesta, balón con frase…) // v30.3 · 🧸 figuras esculpidas (niños, Navidad, fantasía)
 import { DISENOS_PREMIUM } from './catalogo_premium.js'; // v20.4: miniaturas, jarrones de lujo, esculturas de equilibrio, tornillos, autorriego // v20.2: spool, diferencial de rectos, accesorios y repuestos (con su prueba de encaje)
 import { asiento, plantilla, medidasRod, OPS_RODAMIENTOS, APRETES, n2 as n2r, ajusteParaDiseno, OPS_AJUSTE, textoAjuste } from './rodamientos.js'; // v20.2: rodamientos que funcionan en plástico
 
-export const CATEGORIAS = [['', '✨ Todo'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
-  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
+export const CATEGORIAS = [['', '✨ Todo'], ['ninos', '🧸 Niños'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
+  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas y hormigas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas y casa de muñecas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
 const n = (k, t, v, min, max, paso = 0.5, u = 'mm') => ({ k, t, v, min, max, paso, u });
 const s = (k, t, v, ops) => ({ k, t, v, ops });
 const c = (k, t, v) => ({ k, t, v: !!v, chk: 1 });
@@ -483,20 +494,21 @@ export const DISENOS = {
       return m.add(N.union(L)); } },
 
   // ======================= 🏺 JARRONES =======================
-  jarronOndas: { cat: 'jarrones', e: '🌊', t: 'Jarrón de ondas', d: 'Ondas que giran al subir', uso: 'jarron', color: '#00a4e4', acabado: 'seda',
-    campos: [n('h', 'Alto', 180, 60, 250), n('d', 'Ancho de la panza', 100, 40, 200), n('boca', 'Ancho de la boca', 60, 20, 200), n('ondas', 'Ondas', 9, 3, 30, 1, ''), n('fuerza', 'Fuerza de la onda', 4, 0.5, 15, 0.5), n('giro', 'Giro de las ondas', 120, -720, 720, 5, '°'), n('pared', 'Pared (0 = macizo, para «Jarrón en espiral»)', 0, 0, 5, 0.2)],
+  jarronOndas: { cat: 'jarrones', e: '🌊', t: 'Jarrón de ondas', d: 'Ondas que giran al subir', uso: 'jarron', usoDe: p => p.pared > 0 ? 'deco' : 'jarron', color: '#00a4e4', acabado: 'seda',
+    campos: [n('h', 'Alto', 180, 60, 250), n('d', 'Ancho de la panza', 100, 40, 200), n('boca', 'Ancho de la boca', 60, 20, 200), n('ondas', 'Ondas', 9, 3, 30, 1, ''), n('fuerza', 'Fuerza de la onda', 4, 0.5, 15, 0.5), n('giro', 'Giro de las ondas', 120, -720, 720, 5, '°'), n('pared', 'Pared (0 = macizo, para «Jarrón en espiral»)', 2, 0, 5, 0.2)],
     gen(p) { const R = p.d / 2, b = p.boca / 2, rad = t => { const panza = R * Math.sin(Math.PI * Math.min(1, t * 1.25 + 0.15)) ** 0.8, k = Math.max(0, (t - 0.65) / 0.35); return Math.max(R * 0.45, panza * (1 - k) + b * k); };
       return N.deformar(recipiente(p.h, t => Math.max(rad(t), R * 0.55), p.pared, 2), [{ t: 'ondas', n: p.ondas, amp: p.fuerza, giro: p.giro }]); },
     nota: p => p.pared > 0 ? 'Con pared: se imprime normal (relleno 15 %).' : 'Es MACIZO a propósito: en Bambu Studio activa «Jarrón en espiral» (pestaña Otros) y sale hueco, con una sola pared y sin costura.' },
-  jarronEspiral: { cat: 'jarrones', e: '🌀', t: 'Jarrón espiral', d: 'Estrella retorcida', uso: 'jarron', color: '#5e43b7', acabado: 'seda',
-    campos: [n('h', 'Alto', 160, 60, 250), n('d', 'Ancho', 90, 40, 200), n('puntas', 'Puntas', 8, 3, 20, 1, ''), n('hondo', 'Lo marcadas que van', 22, 5, 45, 1, '%'), n('giro', 'Giro', 160, 0, 720, 5, '°'), n('arriba', 'Tamaño arriba', 85, 30, 200, 1, '%')],
-    gen(p) { const st = N.cs([N.estrella2(Math.round(p.puntas), p.d / 2, p.d / 2 * (1 - p.hondo / 100))], 'Positive').offset(-p.d * 0.03, 'Round').offset(p.d * 0.03, 'Round'); return st.extrude(p.h, Math.ceil(p.h / 2), p.giro, [p.arriba / 100, p.arriba / 100]); },
-    nota: () => 'Macizo: actívale «Jarrón en espiral» en Bambu Studio. En PLA seda queda espectacular.' },
-  jarronFacetado: { cat: 'jarrones', e: '🔷', t: 'Jarrón facetado', d: 'Low poly, como un diamante', uso: 'jarron', color: '#c08ee8',
-    campos: [n('h', 'Alto', 170, 60, 250), n('d', 'Ancho', 95, 40, 200), n('lados', 'Caras', 6, 3, 12, 1, ''), n('pisos', 'Pisos', 5, 2, 12, 1, ''), n('giro', 'Giro por piso', 30, 0, 90, 1, '°')],
-    gen(p) { const L = [], nP = Math.round(p.pisos); for (let i = 0; i <= nP; i++) { const t = i / nP, r = p.d / 2 * (0.62 + 0.38 * Math.sin(Math.PI * (0.15 + t * 0.75))); L.push({ z: t * p.h, r, a: i * p.giro }); }
+  jarronEspiral: { cat: 'jarrones', e: '🌀', t: 'Jarrón espiral', d: 'Estrella retorcida', uso: 'jarron', usoDe: p => p.pared > 0 ? 'deco' : 'jarron', color: '#5e43b7', acabado: 'seda',
+    campos: [n('h', 'Alto', 160, 60, 250), n('d', 'Ancho', 90, 40, 200), n('puntas', 'Puntas', 8, 3, 20, 1, ''), n('hondo', 'Lo marcadas que van', 22, 5, 45, 1, '%'), n('giro', 'Giro', 160, 0, 720, 5, '°'), n('arriba', 'Tamaño arriba', 85, 30, 200, 1, '%'), n('pared', 'Pared (0 = macizo, para «Jarrón en espiral»)', 2, 0, 5, 0.2)],
+    gen(p) { const st = N.cs([N.estrella2(Math.round(p.puntas), p.d / 2, p.d / 2 * (1 - p.hondo / 100))], 'Positive').offset(-p.d * 0.03, 'Round').offset(p.d * 0.03, 'Round'); const ex = c2 => c2.extrude(p.h, Math.ceil(p.h / 2), p.giro, [p.arriba / 100, p.arriba / 100]); let m = ex(st); if (p.pared > 0) m = m.subtract(ex(st.offset(-p.pared, 'Round')).trimByPlane([0, 0, 1], 2.4).add(ex(st.offset(-p.pared, 'Round')).trimByPlane([0, 0, 1], p.h - 0.5).translate([0, 0, 1]))); return m; }, // v30.3: HUECO de serie (la dueña: «hay jarrones que es sólido puro»)
+    nota: p => p.pared > 0 ? 'Hueco, con pared de ' + p.pared + ' mm y fondo de 2,4: se imprime normal. En PLA seda queda espectacular.' : 'Macizo: actívale «Jarrón en espiral» en Bambu Studio.' },
+  jarronFacetado: { cat: 'jarrones', e: '🔷', t: 'Jarrón facetado', d: 'Low poly, como un diamante', uso: 'jarron', usoDe: p => p.pared > 0 ? 'deco' : 'jarron', color: '#c08ee8',
+    campos: [n('h', 'Alto', 170, 60, 250), n('d', 'Ancho', 95, 40, 200), n('lados', 'Caras', 6, 3, 12, 1, ''), n('pisos', 'Pisos', 5, 2, 12, 1, ''), n('giro', 'Giro por piso', 30, 0, 90, 1, '°'), n('pared', 'Pared (0 = macizo, para «Jarrón en espiral»)', 2, 0, 5, 0.2)],
+    gen(p) { const cuerpo = (dr, extra) => { const L = [], nP = Math.round(p.pisos); for (let i = 0; i <= nP; i++) { const t = i / nP, r = p.d / 2 * (0.62 + 0.38 * Math.sin(Math.PI * (0.15 + t * 0.75))) - dr / Math.cos(Math.PI / Math.round(p.lados)); L.push({ z: t * p.h, r, a: i * p.giro }); } if (extra) L.push(Object.assign({}, L[L.length - 1], { z: p.h + 5 }));
       const P = []; for (let i = 0; i < L.length - 1; i++) { const A = L[i], B = L[i + 1]; P.push(M().hull([N.cs([N.poligono2(Math.round(p.lados), A.r * 2, A.a)], 'Positive').extrude(0.01).translate([0, 0, A.z]), N.cs([N.poligono2(Math.round(p.lados), B.r * 2, B.a)], 'Positive').extrude(0.01).translate([0, 0, B.z - 0.01])])); }
-      return N.union(P); }, nota: () => 'Macizo: imprímelo con «Jarrón en espiral».' },
+      return N.union(P); }; let m = cuerpo(0); if (p.pared > 0) m = m.subtract(cuerpo(p.pared, true).trimByPlane([0, 0, 1], 2.4)); return m; }, // v30.3: hueco de serie
+    nota: p => p.pared > 0 ? 'Hueco (pared ' + p.pared + ' mm, fondo 2,4): se imprime normal.' : 'Macizo: imprímelo con «Jarrón en espiral».' },
   jarronBurbujas: { cat: 'jarrones', soportes: true, e: '🫧', t: 'Jarrón de pompas', d: 'Bolas apiladas', uso: 'deco', color: '#f9c6d9',
     campos: [n('d', 'Ancho', 80, 40, 160), n('n', 'Pompas', 4, 2, 8, 1, ''), n('pared', 'Pared', 1.8, 1, 4, 0.2), n('boca', 'Boca', 28, 10, 80)],
     gen(p) { const R = p.d / 2, L = [], I = []; let z = R * 0.8; for (let i = 0; i < p.n; i++) { const r = R * (1 - i * 0.12); L.push(M().sphere(r, 72).translate([0, 0, z])); I.push(M().sphere(r - p.pared, 64).translate([0, 0, z])); z += r * 1.35; }
@@ -719,7 +731,7 @@ export const DISENOS = {
   // ======================= 📱 FUNDAS =======================
   funda: { cat: 'movil', e: '📱', t: 'Funda de móvil', d: MOVILES.length + ' móviles · ' + Object.keys(ESTILOS_FUNDA).length + ' estilos', uso: 'flexible', color: '#1b1b1d',
     campos: [s('modelo', 'Móvil', 'iPhone 16', MOVILES.map(m => [m[1], m[0] + ' · ' + m[1]])), s('estilo', 'Estilo', 'panal', Object.entries(ESTILOS_FUNDA).map(([k, v]) => [k, v]).map(([k, v]) => [k, v.t])), tx('txt', 'Nombre o figura (estilos con texto)', ''), s('material', 'Material', 'pla', [['pla', 'PLA (rígida)'], ['petg', 'PETG'], ['tpu', 'TPU (flexible)']]), s('ajuste', 'Ajuste', 'estandar', [['estandar', 'Estándar'], ['ajustada', 'Más ajustada'], ['holgada', 'Más holgada'], ['medido', '✓ Medido por ti']]), c('cordon', 'Anillas para colgante', false), c('kit', '🧪 Solo la PRUEBA DE AJUSTE (≈5 g)', false)],
-    gen(p) { return p.kit ? kitFunda(p) : funda(p); }, nota: p => { const m = movil(p.modelo); return (m ? 'Alto, ancho y grosor: medidas oficiales del ' + m.modelo + '. ' : '') + 'Cámara y botones: ESTIMADOS. Imprime antes la «prueba rápida» y pon el móvil encima.'; } },
+    gen(p) { return p.kit ? kitFunda(p) : funda(p); }, nota: p => { const m = movil(p.modelo); return (m ? 'Alto, ancho y grosor: medidas oficiales del ' + m.modelo + '. ' : '') + 'Cámara y botones: ESTIMADOS. Imprime antes la «prueba rápida» y pon el móvil encima. ' + (p.material === 'tpu' ? 'TPU 95A: se estira y abraza el móvil (la mejor para vender).' : '⚠️ ' + (p.material === 'pla' ? 'PLA' : 'PETG') + ' es RÍGIDO: para que no se parta al meter el móvil, mete primero un lado largo y luego aprieta el otro (no por las esquinas). Mejor PETG que PLA, a 2 paredes y temperatura alta (las capas pegan más). Lo ideal para vender: TPU 95A.'); } },
 
   // ======================= ⚙️ PIEZAS MECÁNICAS (v20) =======================
   // Para piezas de máquina, la IA de fotos se inventa los dientes y tapa los agujeros (medido con un engranaje de prueba):
@@ -875,9 +887,9 @@ export const DISENOS = {
     },
     nota: () => 'Base para hacer tu propio chasis: la rejilla de agujeros sirve para atornillar soportes, servos y la electrónica. Si es más grande que tu cama, pártela en el Estudio con «Partir» (conector de cola de milano).' },
   llantaRC: { cat: 'rc', e: '🛞', t: 'Llanta RC', d: '1.9", 2.2", 2.8", 3.8" o a medida', uso: 'pieza', color: '#e2231a',
-    campos: [s('talla', 'Talla (asiento del neumático)', '2.2', [['1.9', '1.9" (48,3 mm)'], ['2.2', '2.2" (55,9 mm)'], ['2.8', '2.8" (71,1 mm)'], ['3.8', '3.8" (96,5 mm)'], ['medida', 'A medida']]), n('asiento', 'Asiento a medida (diámetro)', 52, 30, 150, 0.1), n('ancho', 'Ancho', 30, 12, 80),
-      s('radios', 'Diseño', 'r6', [['r5', '5 radios'], ['r6', '6 radios'], ['estrella', 'Estrella (radios dobles)'], ['malla', 'Malla de panal'], ['disco', 'Disco con agujeros'], ['beadlock', 'Estilo crawler (anillo con tornillos)']]),
-      s('hex', 'Hexágono', '12', [['12', '12 mm (1/10)'], ['14', '14 mm'], ['17', '17 mm (1/8)'], ['medida', 'A medida']]), n('hexM', 'Hexágono a medida (entre caras)', 12, 5, 30, 0.1),
+    campos: [s('talla', 'Talla (asiento del neumático)', '2.2', [['1.0', '1.0" (25,4 mm · SCX24, TRX-4M)'], ['1.55', '1.55" (39,4 mm)'], ['1.9', '1.9" (48,3 mm)'], ['2.2', '2.2" (55,9 mm)'], ['2.8', '2.8" (71,1 mm)'], ['3.8', '3.8" (96,5 mm)'], ['medida', 'A medida']]), n('asiento', 'Asiento a medida (diámetro)', 52, 30, 150, 0.1), n('ancho', 'Ancho', 30, 12, 80),
+      s('radios', 'Diseño', 'r6', [['r5', '5 radios'], ['r6', '6 radios'], ['r8', '8 radios finos'], ['r10', '10 radios (5 dobles)'], ['turbina', 'Turbina (radios curvos)'], ['estrella', 'Estrella (radios dobles)'], ['malla', 'Malla de panal'], ['disco', 'Disco con agujeros'], ['beadlock', 'Estilo crawler (anillo con tornillos)']]),
+      s('hex', 'Hexágono', '12', [['7', '7 mm (1/24 SCX24 · 1/18 TRX-4M)'], ['12', '12 mm (1/10)'], ['14', '14 mm'], ['17', '17 mm (1/8)'], ['medida', 'A medida']]), n('hexM', 'Hexágono a medida (entre caras)', 12, 5, 30, 0.1),
       n('buje', 'Grosor del centro (más = rueda más hacia fuera)', 8, 4, 40, 0.5), n('eje', 'Tornillo de la tuerca de rueda', 4, 2, 8, 0.1),
       c('prueba', '🧪 Solo la PRUEBA DE ENCAJE (anillo del asiento + centro con el hexágono, 2–3 g)', false)],
     gen(p) {
@@ -894,6 +906,9 @@ export const DISENOS = {
       const zona = circ(2 * ri + 1).subtract(circ(dHub - 1)), barra = (a, w1, w2, fin) => M().hull([cil(w1, t).translate([dHub / 2, 0, 0]), cil(w2, t).translate([fin, 0, 0])]).rotate([0, 0, a]);
       let rad;
       if (p.radios === 'r5' || p.radios === 'r6' || p.radios === 'beadlock') { const k = p.radios === 'r5' ? 5 : 6; rad = N.union([...Array(k)].map((_, i) => barra(i * 360 / k, 5, S / 8, ri - 1))); }
+      else if (p.radios === 'r8') rad = N.union([...Array(8)].map((_, i) => barra(i * 45, 3.6, Math.max(2.4, S / 14), ri - 1)));
+      else if (p.radios === 'r10') { const L2 = []; for (let i = 0; i < 5; i++) [-1, 1].forEach(sg => L2.push(M().hull([cil(3.4, t).translate([dHub / 2, 0, 0]), cil(3, t).translate([(ri - 1) * Math.cos(sg * 0.13), (ri - 1) * Math.sin(sg * 0.13), 0])]).rotate([0, 0, i * 72]))); rad = N.union(L2); }
+      else if (p.radios === 'turbina') { const L2 = []; for (let i = 0; i < 7; i++) { const P2 = [0, 0.25, 0.5, 0.75, 1].map(f => { const r0 = dHub / 2 + f * (ri - 1 - dHub / 2), a = f * 0.75; return [r0 * Math.cos(a), r0 * Math.sin(a)]; }); for (let j = 0; j < 4; j++) L2.push(M().hull([cil(4.2 - j * 0.3, t).translate([P2[j][0], P2[j][1], 0]), cil(4.2 - (j + 1) * 0.3, t).translate([P2[j + 1][0], P2[j + 1][1], 0])]).rotate([0, 0, i * 360 / 7])); } rad = N.union(L2); }
       else if (p.radios === 'estrella') { const L2 = []; for (let i = 0; i < 5; i++) [-1, 1].forEach(sg => L2.push(M().hull([cil(4.5, t).translate([dHub / 2, 0, 0]), cil(4, t).translate([(ri - 1) * Math.cos(sg * 0.24), (ri - 1) * Math.sin(sg * 0.24), 0])]).rotate([0, 0, i * 72]))); rad = N.union(L2); }
       else if (p.radios === 'malla') rad = zona.subtract(PT.agujeros2D('panal', 2 * ri, 2 * ri, Math.max(6, S / 8), 2.2, 3).intersect(circ(2 * ri - 5)).subtract(circ(dHub + 5))).extrude(t);
       else { let d0 = zona; const k = 8, r0 = (dHub / 2 + ri) / 2, dh = Math.min((ri - dHub / 2) * 0.6, 2 * Math.PI * r0 / k * 0.6); for (let i = 0; i < k; i++) d0 = d0.subtract(circ(dh).translate([r0 * Math.cos(i * 2 * Math.PI / k), r0 * Math.sin(i * 2 * Math.PI / k)])); rad = d0.extrude(t); }
@@ -904,8 +919,8 @@ export const DISENOS = {
     },
     nota: p => { const S = p.talla === 'medida' ? p.asiento : Number(p.talla) * 25.4; if (p.prueba) return 'PRUEBA DE ENCAJE: mete el talón de TU neumático en el anillo (debe entrar justo, sin holgura) y el centro en el hexágono de TU coche (debe entrar sin bailar). Si algo no encaja, cambia «Asiento a medida» o «Hexágono a medida» y repite la prueba antes de imprimir la llanta entera.'; return 'Antes de la llanta entera, imprime la «🧪 prueba de encaje» (2–3 g). Asiento del neumático: ' + n2(S) + ' mm (para el neumático de la MISMA talla). Imprime con la cara de los radios en la cama (sin soportes), 4 paredes; en PETG o nailon aguanta los golpes. El hueco del hexágono lleva tu holgura «encaja» (0,10 por cara).' + (p.radios === 'beadlock' ? ' El anillo con tornillos es decorativo (estilo crawler).' : ''); } },
   neumaticoRC: { cat: 'rc', e: '⚫', t: 'Neumático RC (TPU)', d: 'Tacos, bloques, barras, chevron, rayas o liso', uso: 'flexible', color: '#2b2b2b',
-    campos: [s('talla', 'Talla (la de la llanta)', '2.2', [['1.9', '1.9" (48,3 mm)'], ['2.2', '2.2" (55,9 mm)'], ['2.8', '2.8" (71,1 mm)'], ['3.8', '3.8" (96,5 mm)'], ['medida', 'A medida']]), n('asiento', 'Asiento a medida (diámetro)', 52, 30, 150, 0.1), n('ancho', 'Ancho de la llanta', 30, 12, 80), n('alto', 'Alto del neumático (de la llanta al suelo)', 14, 5, 50, 0.5),
-      s('dibujo', 'Dibujo', 'tacos', [['tacos', 'Tacos (pinchos): tierra'], ['bloques', 'Bloques: todo terreno'], ['barras', 'Barras: barro y arena'], ['chevron', 'Chevron (en V): tracción'], ['rayas', 'Rayas: asfalto mojado'], ['slick', 'Liso (slick): asfalto']]), n('prof', 'Profundidad del dibujo', 2.5, 0, 6, 0.1)],
+    campos: [s('talla', 'Talla (la de la llanta)', '2.2', [['1.0', '1.0" (25,4 mm · SCX24, TRX-4M)'], ['1.55', '1.55" (39,4 mm)'], ['1.9', '1.9" (48,3 mm)'], ['2.2', '2.2" (55,9 mm)'], ['2.8', '2.8" (71,1 mm)'], ['3.8', '3.8" (96,5 mm)'], ['medida', 'A medida']]), n('asiento', 'Asiento a medida (diámetro)', 52, 30, 150, 0.1), n('ancho', 'Ancho de la llanta', 30, 12, 80), n('alto', 'Alto del neumático (de la llanta al suelo)', 14, 5, 50, 0.5),
+      s('dibujo', 'Dibujo', 'tacos', [['tacos', 'Tacos (pinchos): tierra'], ['crawler', 'Crawler (tacos grandes alternos): rocas'], ['bloques', 'Bloques: todo terreno'], ['barras', 'Barras: barro y arena'], ['paletas', 'Paletas: arena de playa'], ['chevron', 'Chevron (en V): tracción'], ['semislick', 'Semislick (pinchitos): pista'], ['rayas', 'Rayas: asfalto mojado'], ['slick', 'Liso (slick): asfalto']]), n('prof', 'Profundidad del dibujo', 2.5, 0, 6, 0.1)],
     gen(p) {
       const S = p.talla === 'medida' ? p.asiento : Number(p.talla) * 25.4, R = S / 2 - 0.3, W = p.ancho - 2.6, pr = p.dibujo === 'slick' ? 0 : p.prof, Ro = S / 2 + p.alto - pr, rc = Math.min(4, (Ro - R) / 2.5, W / 4);
       if (W < 6) N.mal('La llanta es demasiado estrecha.');
@@ -919,6 +934,9 @@ export const DISENOS = {
       if (p.dibujo === 'bloques') { const n = Math.max(10, Math.round(2 * Math.PI * Ro / 11)); [0.27, 0.73].forEach((zz, f) => vuelta(n, (i, a) => L.push(pieza(7, Math.min(6, W * 0.32), 0, W * zz).rotate([0, 0, a + f * 180 / n])))); }
       if (p.dibujo === 'barras') { const n = Math.max(10, Math.round(2 * Math.PI * Ro / 9)); [0.27, 0.73].forEach((zz, f) => vuelta(n, (i, a) => L.push(pieza(3.5, W * 0.46, 0, W * zz).rotate([0, 0, a + f * 180 / n])))); }
       if (p.dibujo === 'chevron') { const n = Math.max(10, Math.round(2 * Math.PI * Ro / 10)); vuelta(n, (i, a) => [-1, 1].forEach(sg => L.push(pieza(3.2, W * 0.5, sg * 35, W / 2 + sg * W * 0.2).rotate([0, 0, a])))); }
+      if (p.dibujo === 'crawler') { const n = Math.max(10, Math.round(2 * Math.PI * Ro / 9)); vuelta(n, (i, a) => { const lado = i % 2 ? 1 : -1; L.push(pieza(6, W * 0.5, lado * 12, W / 2 + lado * W * 0.18).rotate([0, 0, a])); L.push(pieza(4, Math.min(5, W * 0.18), 0, lado < 0 ? rc / 2 + 2 : W - rc / 2 - 2).rotate([0, 0, a + 180 / n])); }); }
+      if (p.dibujo === 'paletas') { const n = Math.max(8, Math.round(2 * Math.PI * Ro / 16)); vuelta(n, (i, a) => L.push(pieza(2.6, W * 0.86, 0, W / 2).rotate([0, 0, a]))); }
+      if (p.dibujo === 'semislick') { const filas = Math.max(3, Math.floor(Hb / 3.5)), n = Math.max(24, Math.round(2 * Math.PI * Ro / 3.6)); for (let f = 0; f < filas; f++) vuelta(n, (i, a) => L.push(pieza(1.6, 1.6, 0, rc / 2 + (f + 0.5) * Hb / filas).rotate([0, 0, a + (f % 2) * 180 / n]))); }
       if (p.dibujo === 'rayas') { const k = Math.max(2, Math.floor(W / 6)); for (let i = 0; i < k; i++) L.push(CS().ofPolygons([N.ccw([[Ro - 1, 0], [Ro + pr, 0], [Ro + pr, 2.4], [Ro - 1, 2.4]])]).revolve(seg(2 * Ro) * 2).translate([0, 0, rc / 2 + (i + 0.5) * Hb / k - 1.2])); }
       return m.add(N.union(L).intersect(cil(2 * (Ro + pr + 1), W)));
     },
@@ -1191,9 +1209,33 @@ function aDir(v) { const ry = Math.atan2(Math.hypot(v[0], v[1]), v[2]) * 180 / M
 // ---------- para el Estudio y la pantalla del catálogo ----------
 export const valores = k => Object.fromEntries((DISENOS[k].campos || []).map(x => [x.k, x.v]));
 export const especDe = k => (DISENOS[k].campos || []).map(x => (x.ops ? { k: x.k, t: x.t, ops: x.ops } : x.chk ? { k: x.k, t: x.t, chk: 1 } : x.txt ? { k: x.k, t: x.t, txt: 1, ayuda: x.ayuda } : { k: x.k, t: x.t, min: x.min, max: x.max, paso: x.paso, u: x.u }));
-export function genera(k, p) { const D = DISENOS[k]; if (!D) N.mal('No encuentro ese diseño.'); const v = Object.assign(valores(k), p || {}); const m = D.gen(v); if (!m || m.isEmpty()) N.mal('Con esas medidas no sale la pieza.'); return N.aLaCama(m); }
+export function genera(k, p) { const D = DISENOS[k]; if (!D) N.mal('No encuentro ese diseño.'); const v = Object.assign(valores(k), p || {}); const haz = () => { let m = D.gen(v); if (!m || m.isEmpty()) N.mal('Con esas medidas no sale la pieza.'); m = sinMigas(m); if (D.marca && v.marca) { const o = typeof D.marca === 'function' ? D.marca(v) : D.marca; if (o) m = MARCA.graba(m, o); } return m; }; return N.enAmbito(() => N.aLaCama((D.pesado && N.enAparte(haz)) || haz())); } // v30.4 · enAmbito: se borran los pasos intermedios (antes se quedaban ocupando memoria)
+// v30.3 · fuera las «migas»: trocitos de menos de 1 mm³ que a veces salen al mallar (no son parte de ningún diseño)
+// (ojo: una burbuja CERRADA por dentro sale de decompose() como un trozo de volumen negativo y también se quita aquí, es decir, se
+// rellena: es lo que se quiere al imprimir —nadie llega a ese hueco— y así «piezas» cuenta solo cuerpos de verdad)
+// v30.4: «miga» = menos de 1 mm³ o menos de una milésima de la pieza más grande (hasta 20 mm³): la punta de una ramita que se suelta al
+// simplificar una figura low poly (5 mm³ en una de 21.000) no es una pieza.
+function sinMigas(m) { try { const P = m.decompose(); if (P.length < 2) return m; const v = P.map(q => q.volume()), lim = Math.max(1, Math.min(20, Math.max(...v) * 0.001)); if (!v.some(x => x < lim)) return m; const B = P.filter((q, i) => v[i] >= lim); return B.length ? N.union(B) : m; } catch (e) { return m; } }
 Object.assign(DISENOS, DISENOS_RC); // v20.2
 Object.assign(DISENOS, DISENOS_PREMIUM); // v20.4
+Object.assign(DISENOS, DISENOS_FIGURAS); // v30.3
+Object.assign(DISENOS, DISENOS_DECO); // v30.3
+Object.assign(DISENOS, DISENOS_SILUETAS); // v30.3
+Object.assign(DISENOS, DISENOS_JUEGOS); // v30.3
+Object.assign(DISENOS, DISENOS_CASA); // v30.3
+Object.assign(DISENOS, DISENOS_NAVIDAD); // v30.4
+Object.assign(DISENOS, DISENOS_REFERENCIAS); // v30.4
+Object.assign(DISENOS, DISENOS_ESCULTURAS); // v30.4
+Object.assign(DISENOS, DISENOS_PREMIUM30); // v30.4
+Object.assign(DISENOS, DISENOS_UTILES); // v30.4
+// v30.4 · las esculpidas (muchos triángulos) se hacen enteras en el motor aparte: el principal no se llena de memoria
+['titiritero', 'columpioLuna', 'pensadores', 'parejaCisnes'].concat(Object.keys(DISENOS_FIGURAS)).forEach(k => { if (DISENOS[k]) DISENOS[k].pesado = true; });
+// v30.4 · ✍️ dónde va «CelebriDiseños» en cada uno (debajo = la cara de la cama: queda como la firma de una cerámica)
+const DONDE_MARCA = { cajaBisagra: p => p.que === 'caja' || p.que === 'prueba' ? { cara: 'abajo' } : null, jabonera: p => p.que === 'rejilla' ? null : { cara: 'abajo' }, soportePuntas: { cara: 'abajo', pos: [0.5, 0.3] }, pieDeRey: p => p.que === 'todo' || p.que === 'regla' ? { cara: 'abajo', alto: 7, pos: [0.55, (9 + p.boca) / (p.boca + 40.2)] } : null,
+  cajaCorredera: { cara: 'abajo' }, cajonOrganizador: { cara: 'abajo' }, portaboligrafos: { cara: 'abajo' }, bandejaLlaves: { cara: 'abajo' }, boteRosca: p => p.pieza === 'tapa' ? null : { cara: 'abajo' }, organizadorCables: { cara: 'abajo' }, cajaTornillos: { cara: 'abajo' }, soporteMovil: { cara: 'abajo' }, soporteAuriculares: { cara: 'abajo' }, soporteMando: { cara: 'abajo' }, taza: { cara: 'abajo' }, vasoOndas: { cara: 'abajo' }, portavelas: { cara: 'abajo' },
+  organizadorCorazon: { cara: '+X', pos: [0.5, 0.22] }, estanteriaArcos: p => p.que === 'arcoLiso' ? { cara: 'abajo', pos: [0.5, 0.1] } : p.que === 'bandeja' ? { cara: 'abajo' } : p.que === 'montada' ? { cara: '+X', pos: [0.5, 0.06], ancho: 0.7 } : null,
+  vasoPremium: { cara: 'abajo' }, macetaPremium: { cara: 'abajo', pos: [0.5, 0.3] }, jarronPremium: p => p.pared > 0 ? { cara: 'abajo' } : null, calendarioAdviento: p => p.que === 'marco' ? { cara: 'abajo', pos: [0.5, 0.3] } : null, farolNavidad: { cara: 'abajo', alto: 4.5, pos: [0.5, 0.24] }, casitaNavidad: null };
+Object.entries(DONDE_MARCA).forEach(([k, o]) => { const D = DISENOS[k]; if (!D || !o) return; D.marca = o; D.campos = D.campos || []; if (!D.campos.some(x => x.k === 'marca')) D.campos.push(MARCA.campoMarca()); });
 Object.keys(DISENOS).forEach(k => registrar(k, p => genera(k, p)));
-export const porCategoria = cat => Object.entries(DISENOS).filter(([, d]) => !cat || d.cat === cat);
+export const porCategoria = cat => Object.entries(DISENOS).filter(([, d]) => !cat || d.cat === cat || (d.tambien || []).includes(cat)); // v30.3: un diseño puede salir en varias secciones
 void ico; void movil; void MATERIAL;

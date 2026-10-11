@@ -22,7 +22,7 @@ const C = { cat: '', abierto: null, v: {}, color: {}, acabado: {}, movil: 'iPhon
 export async function montarCatalogo(el, ext = {}) {
   const raiz = h('div.r8c'), barra = h('div.r8c-barra'), rejilla = h('div.r8c-rejilla'), detalle = h('div.r8c-det');
   el.appendChild(raiz); mount(raiz, h('div.r8e-carga.r8c-carga', h('div.r8e-anillo'), h('b', 'Preparando el catálogo…')));
-  await N.cargar(); const K = await import('../r8/catalogo.js'); let vivo = true;
+  await N.cargar(); const K = await import('../r8/catalogo.js'); let vivo = true; const SDF = await import('../r8/sdf.js').catch(() => null); // v30.3: miniaturas rápidas de las figuras esculpidas
   if (ext.cat !== undefined) C.cat = ext.cat; else if (C.cat === 'movil') C.cat = '';
   mount(raiz, barra, rejilla, detalle);
   const buscar = h('input.inp.r8c-buscar', { type: 'search', placeholder: '🔎 Buscar: maceta, gato, lámpara, organizador…', value: C.buscar, oninput: e => { C.buscar = e.target.value; pinta(); } });
@@ -46,8 +46,8 @@ export async function montarCatalogo(el, ext = {}) {
     if (!vivo) return;
     [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k)).forEach(b => {
       const k = b.dataset.k; cola = cola.then(() => new Promise(res => setTimeout(() => { if (!vivo || MINIS.has(k)) return res();
-        try { const m = K.genera(k, sinNombre(K, k)), url = miniatura(N.aVista(m), C.color[k] || K.DISENOS[k].color, K.DISENOS[k].acabado || 'mate', 300); MINIS.set(k, url); guardaMini(huella(K, k, C.color[k] || K.DISENOS[k].color), url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); }
-        catch (e) { MINIS.set(k, ''); console.warn(k, e); } finally { N.limpia(); } res(); }, 16)));
+        try { if (SDF) SDF.ajustes.rapido = true; const m = K.genera(k, sinNombre(K, k)), url = miniatura(N.aVista(m), C.color[k] || K.DISENOS[k].color, K.DISENOS[k].acabado || 'mate', 300); MINIS.set(k, url); guardaMini(huella(K, k, C.color[k] || K.DISENOS[k].color), url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); }
+        catch (e) { MINIS.set(k, ''); console.warn(k, e); } finally { if (SDF) SDF.ajustes.rapido = false; N.limpia(); } res(); }, 16)));
     });
   }
   // ---------- una pieza abierta ----------
@@ -87,7 +87,7 @@ export async function montarCatalogo(el, ext = {}) {
     const { modal } = await import('../ui.js'), A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null), cuerpo = h('div.r8c-aj'); const D = K.DISENOS[k];
     modal('🖨️ ' + D.t + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const nombre = (D.t + '_' + Object.values(C.v[k] || {}).filter(x => typeof x === 'string' && x.length < 14 && /[a-z]/i.test(x)).slice(0, 1).join('')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
-    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.uso === 'pieza' ? 'mecanica' : D.uso, texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.usoDe ? D.usoDe(C.v[k]) : D.uso === 'pieza' ? 'mecanica' : D.uso, /* v30.3: jarrón hueco = impresión normal */ texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
   }
   // v30 · 🎁 las dos sorpresas: Escaparate e Impresión fantasma
   async function sorpresa(que, k) { const S = await import('../r8/sorpresas.js'), D = K.DISENOS[k]; let partes; try { partes = [{ vista: N.aVista(K.genera(k, C.v[k])), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]; } catch (e) { return toast(e.message || String(e), 'bad'); } finally { N.limpia(); } S[que](partes, { nombre: D.t }); }

@@ -15,21 +15,88 @@ const vivos = new Set();
 const apunta = r => { if (r && typeof r === 'object') { if (Array.isArray(r)) r.forEach(apunta); else if (typeof r.delete === 'function') vivos.add(r); } return r; };
 const envuelve = (o, nombres) => nombres.forEach(n => { const f = o[n]; if (typeof f === 'function') o[n] = function (...a) { return apunta(f.apply(this, a)); }; });
 
+// v30.4 · ÁMBITO. La librería da a cada pieza un «molde» (prototipo) que NO es Manifold.prototype, así que lo que devolvían
+// las operaciones de una pieza (add, subtract, translate, rotate…) nunca llegó a apuntarse en «vivos» y nadie lo borraba:
+// cada diseño dejaba ocupada la memoria de todos sus pasos intermedios (con las esculturas, ~120 MB cada una, hasta agotar el motor).
+// No se apuntan en «vivos» (hay código que cuenta con que esos resultados sobreviven a limpia()); se apuntan SOLO mientras hay un
+// ámbito abierto con enAmbito(fn): al acabar se borra todo lo que creó fn() menos lo que devuelve.
+let AMBITO = null;
+const alAmbito = r => { if (AMBITO && r && typeof r === 'object') { if (Array.isArray(r)) r.forEach(alAmbito); else if (typeof r.delete === 'function') AMBITO.add(r); } return r; };
+const moldeDe = (o, n) => { let q = o; while (q && !Object.prototype.hasOwnProperty.call(q, n)) q = Object.getPrototypeOf(q); return q; };
+const envuelveAmb = (o, nombres) => nombres.forEach(n => { const q = moldeDe(o, n), f = q && q[n]; if (typeof f === 'function' && !f.__amb) { const g = function (...a) { return alAmbito(f.apply(this, a)); }; g.__amb = 1; q[n] = g; } });
+export function enAmbito(fn) {
+  const fuera = AMBITO, S = AMBITO = new Set(); let r, bien = false;
+  try { r = fn(); bien = true; }
+  finally {
+    AMBITO = fuera; const queda = new Set(); if (bien) (Array.isArray(r) ? r : [r]).forEach(o => queda.add(o));
+    for (const o of S) { if (queda.has(o)) { if (fuera) fuera.add(o); } else { vivos.delete(o); try { o.delete(); } catch (e) { } } }
+  }
+  return r;
+}
+const envuelveTodo = w => {
+  envuelve(w.Manifold, ['cube', 'cylinder', 'sphere', 'tetrahedron', 'extrude', 'revolve', 'compose', 'union', 'difference', 'intersection', 'levelSet', 'smooth', 'ofMesh', 'hull']);
+  envuelveAmb(w.Manifold.prototype, ['add', 'subtract', 'intersect', 'decompose', 'warp', 'transform', 'translate', 'rotate', 'scale', 'mirror', 'calculateNormals', 'refine', 'refineToLength', 'setProperties', 'setTolerance', 'simplify', 'asOriginal', 'trimByPlane', 'split', 'splitByPlane', 'slice', 'project', 'hull', 'minkowskiSum', 'minkowskiDifference', 'smoothOut']);
+  envuelve(w.CrossSection, ['square', 'circle', 'union', 'difference', 'intersection', 'compose', 'ofPolygons', 'hull']);
+  envuelveAmb(w.CrossSection.prototype, ['add', 'subtract', 'intersect', 'rectClip', 'decompose', 'transform', 'translate', 'rotate', 'scale', 'mirror', 'simplify', 'offset', 'hull', 'extrude', 'revolve']);
+};
 export function cargar() {
   return prom || (prom = Module().then(w => {
-    w.setup();
-    envuelve(w.Manifold, ['cube', 'cylinder', 'sphere', 'tetrahedron', 'extrude', 'revolve', 'compose', 'union', 'difference', 'intersection', 'levelSet', 'smooth', 'ofMesh', 'hull']);
-    envuelve(w.Manifold.prototype, ['add', 'subtract', 'intersect', 'decompose', 'warp', 'transform', 'translate', 'rotate', 'scale', 'mirror', 'calculateNormals', 'refine', 'refineToLength', 'setProperties', 'setTolerance', 'simplify', 'asOriginal', 'trimByPlane', 'split', 'splitByPlane', 'slice', 'project', 'hull', 'minkowskiSum', 'minkowskiDifference', 'smoothOut']);
-    envuelve(w.CrossSection, ['square', 'circle', 'union', 'difference', 'intersection', 'compose', 'ofPolygons', 'hull']);
-    envuelve(w.CrossSection.prototype, ['add', 'subtract', 'intersect', 'rectClip', 'decompose', 'transform', 'translate', 'rotate', 'scale', 'mirror', 'simplify', 'offset', 'hull', 'extrude', 'revolve']);
-    W = w; return w;
+    w.setup(); envuelveTodo(w);
+    W = w; preparaAux(); return w;
   }));
 }
 export const listo = () => !!W;
+// v30.4 · MOTOR APARTE PARA ESCULPIR. El levelSet de Manifold, con rejillas grandes, deja memoria ocupada que no se recupera (medido:
+// ~120 MB por cada mano titiritera, hasta agotar los 2 GB y que TODO falle). Se esculpe en una segunda copia del motor, la malla se
+// trae a la principal y, cuando la copia ha trabajado mucho, se tira entera (su memoria se va con ella) y se prepara otra.
+let AUX = null, auxProm = null, auxPuntos = 0, RESERVA = null, resProm = null;
+const nuevoMotor = () => Module().then(w2 => { w2.setup(); envuelveTodo(w2); return w2; });
+// el motor aparte y, detrás, uno de RESERVA ya arrancado (al renovar, el cambio es al instante; arrancar uno tarda ~1 s)
+export function preparaAux() {
+  if (!AUX && !auxProm) auxProm = nuevoMotor().then(w2 => { AUX = w2; auxPuntos = 0; auxProm = null; return w2; }).catch(() => { auxProm = null; return null; });
+  if (!RESERVA && !resProm) resProm = nuevoMotor().then(w2 => { RESERVA = w2; resProm = null; return w2; }).catch(() => { resProm = null; return null; });
+  return auxProm;
+}
+// el viejo se suelta (su memoria se va con él); si el de reserva aún no ha arrancado, se sigue con el viejo y se cambia a la siguiente
+const renuevaAux = () => { if (!RESERVA) { preparaAux(); return false; } AUX = RESERVA; RESERVA = null; auxPuntos = 0; preparaAux(); return true; };
+// v30.4 · HACER UNA PIEZA PESADA ENTERA EN EL MOTOR APARTE. Con piezas enormes (esculturas de 100.000 triángulos) el motor no
+// aprovecha bien la memoria que suelta (se «fragmenta») y, pieza a pieza, se acaba llenando. Aquí todo lo que crea fn() vive en el
+// motor aparte (se borra al acabar), al principal solo pasa la pieza final y, cada 3 piezas pesadas, el aparte se tira y entra el
+// de reserva. Devuelve null si el aparte aún no está (quien llama lo hace en el principal).
+let auxUsos = 0;
+export function enAparte(fn) {
+  const A = AUX; if (!A || !W || W === A) { preparaAux(); return null; }
+  const W0 = W, antes = new Set(vivos); let M = null;
+  W = A;
+  let roto = false;
+  try { enAmbito(() => { const r = fn(); if (r && typeof r.getMesh === 'function') M = r.getMesh(); }); }
+  catch (e) { if (e && e.r8) throw e; roto = true; } // un aviso nuestro («con esas medidas no sale») sigue su camino; si es el motor aparte el que falla, se cambia y lo hace el principal
+  finally {
+    W = W0; for (const o of [...vivos]) if (!antes.has(o)) { vivos.delete(o); try { o.delete(); } catch (e) { } }
+    if (roto) { AUX = null; auxUsos = 0; renuevaAux(); } else if (++auxUsos >= 3 && renuevaAux()) auxUsos = 0;
+  }
+  if (!M || !M.triVerts.length) return null;
+  return apunta(new (W0.Manifold)(new W0.Mesh({ numProp: M.numProp, vertProperties: M.vertProperties, triVerts: M.triVerts })));
+}
+// v30.4 · un sólido a partir de vértices y triángulos ya cerrados (el esculpidor propio de sdf.js): null si no cierra bien
+export function deTriangulos(vert, tri) {
+  if (!tri.length) return null;
+  let m; try { m = apunta(new (w().Manifold)(new (w().Mesh)({ numProp: 3, vertProperties: vert, triVerts: tri }))); } catch (e) { return null; }
+  if (m.status() !== 'NoError' || m.isEmpty()) { suelta(m); return null; }
+  return m;
+}
+export function levelSetAparte(f, caja, paso, nivel = 0, tol = -1) {
+  const A = AUX; if (!A) { preparaAux(); return null; } // aún no está: quien llama usa el motor principal
+  const n = [0, 1, 2].reduce((a, k) => a * ((caja.max[k] - caja.min[k]) / paso + 1), 1);
+  const t = A.Manifold.levelSet(q => f(q), caja, paso, nivel, tol), M = t.getMesh(); vivos.delete(t); t.delete();
+  auxPuntos += n; if (auxPuntos > 1.2e7) renuevaAux();
+  if (!M.triVerts.length) return null;
+  return apunta(new (w().Manifold)(new (w().Mesh)({ numProp: M.numProp, vertProperties: M.vertProperties, triVerts: M.triVerts })));
+}
 export const MF = () => w().Manifold; // para los diseños del catálogo
 export const CSX = () => w().CrossSection;
 const w = () => { if (!W) throw new Error('El motor 3D todavía se está cargando.'); return W; };
-export const guarda = o => { vivos.delete(o); return o; };
+export const guarda = o => { vivos.delete(o); if (AMBITO) AMBITO.delete(o); return o; };
 export const protegidas = new WeakSet(); // piezas de la caché del proyecto: nadie las borra por su cuenta
 export const suelta = o => { if (o && typeof o.delete === 'function' && !protegidas.has(o)) { vivos.delete(o); try { o.delete(); } catch (e) { } } };
 export const sueltaCache = o => { if (o) { protegidas.delete(o); suelta(o); } };

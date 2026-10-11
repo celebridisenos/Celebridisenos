@@ -30,7 +30,9 @@ const r = (w, h, rad) => N.cs([N.ccw(rectR(w, h, rad))], 'Positive');
 // Nada de esto se da por bueno hasta que ella lo pruebe con el KIT (clips y esquinas, unos 4-5 g) y elija lo que encaja:
 // lo que elige se guarda para ESE móvil y ESE material («Medido por ti») y manda sobre todo lo demás.
 export const AJUSTE_FUNDA = { pla: { ajustada: 0.05, estandar: 0.10, holgada: 0.15 }, petg: { ajustada: 0.05, estandar: 0.10, holgada: 0.15 }, tpu: { ajustada: -0.20, estandar: -0.10, holgada: 0.00 } };
-export const LABIO = { pla: 0.6, petg: 0.7, tpu: 1.2 }, ALTO_EXTRA = { pla: 0.1, petg: 0.1, tpu: 0 };
+// v30.4 · la dueña: «las fundas las he probado y se rompen nada más ponerlas» → en rígido, labio algo más corto (y sin labio en las
+// esquinas, ver funda()), pared de 2 mm y huecos de botones que no cortan el raíl de arriba
+export const LABIO = { pla: 0.5, petg: 0.6, tpu: 1.2 }, ALTO_EXTRA = { pla: 0.1, petg: 0.1, tpu: 0 };
 export const OPS_AJUSTE = [['estandar', 'Estándar'], ['ajustada', 'Más ajustada'], ['holgada', 'Más holgada'], ['medido', '✓ Medido por ti']];
 const CLAVE = 'cd.r8.funda.ajuste';
 export function ajustesMedidos() { try { return JSON.parse(localStorage.getItem(CLAVE) || '{}') || {}; } catch (e) { return {}; } }
@@ -48,7 +50,7 @@ export function valoresFunda(p) {
     mat, A: num(p.alto, m0.alto || 147.6), W: num(p.ancho, m0.ancho || 71.6), T: num(p.grosor, m0.grosor || 7.8),
     holAncho: num(p.holAncho, med && isFinite(med.holAncho) ? med.holAncho : hol), holLargo: num(p.holLargo, med && isFinite(med.holLargo) ? med.holLargo : hol),
     radio: num(p.radio, med && isFinite(med.radio) ? med.radio : (m0.radio || 7)), prof: num(p.prof, med && isFinite(med.prof) ? med.prof : ALTO_EXTRA[mat]), labio: num(p.labio, med && isFinite(med.labio) ? med.labio : LABIO[mat]),
-    pared: num(p.pared, 1.6), fondo: num(p.fondo, 1.4)
+    pared: num(p.pared, mat === 'tpu' ? 1.6 : 2.0), fondo: num(p.fondo, 1.4)
   };
 }
 
@@ -67,6 +69,9 @@ export function funda(p) {
   const bL = Wi - 2 * labio, aL = Ai - 2 * labio, rL = Math.max(0.5, rad - labio), z1 = fondo + Ti - 0.01;
   const boca = mat === 'tpu' ? r(bL, aL, rL).extrude(He).translate([0, 0, z1]) : M().hull([r(bL, aL, rL).extrude(0.01).translate([0, 0, z1]), r(bL + 1.6, aL + 1.6, rL + 0.8).extrude(0.01).translate([0, 0, He + 0.01])]);
   m = m.subtract(boca);
+  // v30.4 · RÍGIDA (PLA/PETG): sin labio en las 4 esquinas. Ahí la pared no puede doblarse y era donde se partía al meter el móvil;
+  // así entra doblando solo los lados largos (que ceden sin romperse) y el labio de los lados lo sujeta igual.
+  if (mat !== 'tpu') { const sq = rad + 5, esq = []; [-1, 1].forEach(a => [-1, 1].forEach(b => esq.push(r(sq, sq, 0).translate([a * (Wi / 2 - sq / 2), b * (Ai / 2 - sq / 2)])))); m = m.subtract(N.csUnion(esq).intersect(r(Wi, Ai, rad)).extrude(He).translate([0, 0, z1])); }
   // ventana de la cámara (por detrás: «izquierda» vista desde atrás = +X vista desde la pantalla)
   if (camara !== 'sin') {
     const cw = camara === 'ancha' ? Wi - 6 : Wi * camAn / 100, ch = Ai * camAl / 100, cx = camara === 'izq' ? Wi / 2 - cw / 2 - 2.5 : 0, cy = Ai / 2 - ch / 2 - 2.5;
@@ -74,7 +79,10 @@ export function funda(p) {
   }
   // los lados: botones (en los dos lados, de «desde» a «hasta» contando desde arriba) y la abertura de abajo
   const desde = Number(p.desde ?? 14), hasta = Number(p.hasta ?? 62), abajo = Number(p.abajo ?? 62), zc = fondo + T / 2;
-  if (p.lados !== false && hasta > desde) { const L = Ai * (hasta - desde) / 100, y = Ai / 2 - Ai * desde / 100 - L / 2; [-1, 1].forEach(k => { m = m.subtract(N.forma3d('caja', { x: pared * 4, y: L, z: T * 0.62, radio: 0, redondeo: 0 }).translate([k * (Wi / 2 + pared), y, zc - T * 0.31])); }); }
+  // botones: en rígido, el hueco es más bajo (deja arriba un raíl de casi 4 mm) y con las esquinas REDONDEADAS (de una esquina en
+  // ángulo recto sale la grieta); en TPU, como antes
+  if (p.lados !== false && hasta > desde) { const L = Ai * (hasta - desde) / 100, y = Ai / 2 - Ai * desde / 100 - L / 2, hz = mat === 'tpu' ? T * 0.62 : T * 0.5, z0 = mat === 'tpu' ? zc - T * 0.31 : zc - T * 0.3;
+    const ven = r(L, hz, Math.min(2.5, hz / 2 - 0.05)).extrude(pared * 4).rotate([90, 0, 0]).rotate([0, 0, 90]); [-1, 1].forEach(k => { m = m.subtract(ven.translate([k * (Wi / 2 + pared) - pared * 2, y, z0 + hz / 2])); }); }
   if (abajo > 0) m = m.subtract(N.cs([N.ccw(N.ranura2(Wi * abajo / 100, T * 0.7))], 'Positive').extrude(pared * 4).rotate([90, 0, 0]).translate([0, -Ai / 2 + pared * 2, zc]));
   // la trasera: calado, grabado, nombre, figura, marco…
   const zonaW = Wi - 10, camH = camara === 'sin' ? 0 : Ai * camAl / 100 + 6, zonaH = Ai - 12 - camH, zonaY = -camH / 2;
