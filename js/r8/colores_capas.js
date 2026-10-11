@@ -64,13 +64,12 @@ export function bloque(est, o) {
       L.length && o.conBambu && o.modo !== 'normal' ? h('div.cc-como.cc-auto', h('b', '✅ La pausa la pone TU Bambu Studio solo:'),
         h('ol', h('li', 'Pulsa ', h('b', '«🖨️ Abrir en Bambu Studio con la pausa puesta»'), ' (abajo). Se abre como proyecto suyo, con la marca en la barra de capas (capa ' + L.map(c => capaDe(c.z, capa).capa).join(', ') + ').'),
           h('li', 'Dale a ', h('b', 'Laminar placa'), ' e ', h('b', 'Imprimir'), ' como siempre.'),
-          o.modo === 'ams' ? h('li', 'Cuando se pare: en la pantalla de la impresora, ', h('b', 'Filamento'), ' → elige la ranura del AMS con el color nuevo → ', h('b', 'Cargar'), ' → ', h('b', 'Reanudar'), '.')
-            : h('li', 'Cuando se pare: en la pantalla de la impresora, ', h('b', 'Filamento → Descargar'), ', pon la bobina nueva, ', h('b', 'Cargar'), ' (que purgue un poco) y ', h('b', 'Reanudar'), '.')),
+          h('li', 'Cuando se pare: en la pantalla de la impresora, ', h('b', 'Filamento → Descargar'), ', pon la bobina nueva, ', h('b', 'Cargar'), ' (que purgue un poco) y ', h('b', 'Reanudar'), '.')),
         h('small.muted', 'Comprobado con tu Bambu Studio: la parada va al empezar esa capa, antes de imprimir nada de ella.'))
       : L.length && o.modo !== 'normal' ? h('div.cc-como', h('b', '📋 Cómo se hace en Bambu Studio (10 segundos):'),
         h('ol', h('li', 'Ábrelo y dale a ', h('b', 'Laminar placa'), '.'),
           h('li', 'En la vista previa, sube la ', h('b', 'barra de capas'), ' de la derecha hasta la capa que pone arriba (' + L.map(c => capaDe(c.z, capa).capa).join(', ') + ').'),
-          h('li', 'Clic derecho en el circulito → ', h('b', '«Añadir pausa»'), ' (con AMS: «Cambiar el filamento»). Sale una marca en la barra.'),
+          h('li', 'Clic derecho en el circulito → ', h('b', '«Añadir pausa»'), '. Sale una marca en la barra.'),
           h('li', 'Imprime. Cuando se pare: cambia el filamento (descarga, carga el nuevo y que purgue un poco) y dale a ', h('b', 'continuar'), '.')),
         h('small.muted', 'Calculado con capas de ' + f2(capa) + ' mm (primera de 0,20), como el perfil de arriba. Si cambias la altura de capa en Bambu, el número de capa cambia: aquí se actualiza solo si cambias el acabado.')) : null);
     window.__r8cc = { cambios: L.map(c => Object.assign({ color: c.color }, capaDe(c.z, capa), { zPieza: c.z })), capa, base: est.base || colorBase, props: perf ? perf.prop : [] };

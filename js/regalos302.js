@@ -5,7 +5,9 @@
 // pruebas automáticas (navigator.webdriver) salvo que se pida (o.forzar).
 import { h, btn, toast } from './ui.js';
 
-const VISTO = 'cd.regalos302';
+// v30.2.3 · la dueña: «ni un mensaje de bienvenida… tampoco vi esas funcionalidades que me has regalado»: la ventana se gastó al
+// abrir yo el programa tras instalarlo (se marcaba como vista AL ABRIRSE). Ahora: clave nueva y se marca SOLO cuando ella la cierra.
+const VISTO = 'cd.regalos302.v2';
 const leer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 export const debeRegalar = () => !leer(VISTO) && !navigator.webdriver;
@@ -14,12 +16,11 @@ export const REGALOS = [
   { k: 'texto', e: '🔤', t: 'Texto en cualquier cara', d: 'En el Estudio: toca una cara (arriba, de lado, donde sea) y escribe. En relieve o grabado, bien derecho y del tamaño que digas. De otro color, sale como pieza aparte para cambiar de color.', pista: 'Estudio → toca una cara de tu pieza → «🔤 Texto en esta cara» (o clic derecho → «Texto aquí…»)', ir: 'estudio' },
   { k: 'llenar', e: '🧩', t: 'Llenar la cama', d: 'En Fundas, Catálogo, Precisión, Foto → 3D y CelebriCLON: un toque y pone todas las que caben en tu P1P o en tu A1 mini, con los gramos y el tiempo.', pista: 'Abajo a la izquierda de la vista 3D: botón 🧩 → elige la impresora', ir: 'catalogo' },
   { k: 'qr', e: '📱', t: 'Llavero, imán o placa con QR', d: 'Tu tienda, tu Instagram o el WiFi del bar: escribe la web y sale el QR en relieve, listo para escanear con el móvil. Para regalar con cada pedido.', pista: 'Catálogo → Regalos y llaveros → «Llavero o placa con QR»', ir: 'qr' },
-  { k: 'colores', e: '🌈', t: 'Colores por capas, sin AMS', d: 'Dos, tres o más colores con una sola bobina cada vez: eliges a qué altura cambia y te digo la CAPA EXACTA de tu Bambu Studio y cómo poner la pausa.', pista: 'Al preparar cualquier pieza para tu Bambu: «🌈 Colores por capas»', ir: 'qr' }
+  { k: 'colores', e: '🌈', t: 'Colores por capas, sin AMS', d: 'Dos, tres o más colores con tu bobina de siempre: eliges a qué altura cambia y TU Bambu Studio pone la pausa él solo. La impresora se para en esa capa y cambias la bobina.', pista: 'Al preparar cualquier pieza para tu Bambu: «🌈 Colores por capas» → «✋ Cambio a mano» → «🖨️ Abrir en Bambu Studio con la pausa puesta»', ir: 'qr' }
 ];
 
 export function regalos(o = {}) {
   if (document.querySelector('.rg302')) return;
-  guardar(VISTO, '1');
   const ir = o.ir || (() => { }), irR8 = o.irR8 || (k => { guardar('cd.r8.pest', k); if (window.__r8ir && document.querySelector('.r8v')) window.__r8ir(k); else ir('celebrir8'); });
   const lleva = R => {
     cerrar();
@@ -35,10 +36,10 @@ export function regalos(o = {}) {
     confeti,
     h('div.rg302-panel',
       caja,
-      h('div.rg302-tit', h('small', 'CelebriDiseños 30.2 · mientras dormías'), h('h2', '🎁 Tus 4 regalos premium'), h('p', 'Hechos esta noche, probados uno a uno. Toca cualquiera para estrenarlo.')),
+      h('div.rg302-tit', h('small', '✨ Inauguración de CelebriDiseños 30.2 · hecha mientras dormías'), h('h2', '🎁 ¡Bienvenida! Tus 4 regalos premium'), h('p', 'Hechos esta noche y probados uno a uno. Toca cualquiera y te llevo a estrenarlo. (Vuelven a estar en el Inicio de CelebriR8: «🎁 Tus 4 regalos».)')),
       tarjetas,
       h('div.rg302-pie', h('small', 'Y además: la barra de herramientas del Estudio ya cabe entera (en el PC y en la tablet), la tablet en vertical ya enseña bien la vista 3D, y más arreglos de la revisión de todas las pantallas.'), btn('¡Gracias! A trabajar', cerrar, { cls: 'primary rg302-ok' }))));
-  function cerrar() { capa.classList.add('fuera'); document.removeEventListener('keydown', tecla); setTimeout(() => capa.remove(), 380); o.alCerrar && o.alCerrar(); }
+  function cerrar() { guardar(VISTO, '1'); capa.classList.add('fuera'); document.removeEventListener('keydown', tecla); setTimeout(() => capa.remove(), 380); o.alCerrar && o.alCerrar(); }
   const tecla = e => { if (e.key === 'Escape') cerrar(); };
   document.addEventListener('keydown', tecla);
   document.body.appendChild(capa);

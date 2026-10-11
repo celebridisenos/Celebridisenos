@@ -33,6 +33,9 @@ export async function montarInicio(el, ext = {}) {
           h('button.r8i-gran', { type: 'button', 'data-ir': 'lab', onclick: () => ir('lab') }, h('span', '🧸'), h('b', 'Una figura desde una foto'), h('small', 'Para decorar o regalar: una persona, una mascota, un personaje. La IA imagina la forma; importa que se PAREZCA. La parte de atrás la inventa: siempre se revisa.'), h('i', 'Smart Lab · Foto → 3D')),
           h('button.r8i-gran.rep', { type: 'button', 'data-ir': 'precision', onclick: () => ir('precision') }, h('span', '⚙️'), h('b', 'Un repuesto con medidas'), h('small', 'Para que ENCAJE: un engranaje, un casquillo, un soporte. Se construye con tus medidas de calibre, no con IA. Lo que no sepas, el programa te lo pide; nunca se lo inventa.'), h('i', 'Precision Lab'))),
         calibreTarjeta(), // v30 · «te olvidaste lo de mi calibre»: aquí, a la vista
+        // v30.2.3 · «tampoco vi esas funcionalidades que me has regalado»: siempre a la vista, abre la ventana de los regalos
+        h('button.r8i-gran.r8i-regalos', { type: 'button', 'data-ir': 'regalos', onclick: () => import('../regalos302.js').then(m => m.regalos({ irR8: k => ir(k) })) },
+          h('span', '🎁'), h('b', 'Tus 4 regalos de la 30.2'), h('small', '🔤 Texto en cualquier cara · 🧩 Llenar la cama · 📱 Llavero con QR · 🌈 Colores por capas con la pausa puesta'), h('i', 'Verlos y estrenarlos')),
         h('h2.r8p-h', 'Herramientas'),
         h('div.r8i-tools',
           tarjeta('lab', '🧪', 'Smart Lab', 'Prueba los motores de IA instalados uno a uno y te dice cuál ha salido mejor y por qué.'),
