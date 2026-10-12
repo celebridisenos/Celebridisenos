@@ -2181,3 +2181,21 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .rg302-confeti i { position: absolute; top: -20px; width: 8px; height: 14px; border-radius: 2px; opacity: 0; animation: rg-cae linear both; }
 @keyframes rg-cae { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: .9; transform: translateY(105vh) rotate(720deg); } }
 @media (prefers-reduced-motion: reduce) { .rg302 *, .rg302 { animation: none !important; opacity: 1 !important; transform: none !important; } .rg302-confeti { display: none; } }
+
+/* ================= v30.6.1 · dónde se lleva el paquete, las dos opciones de imprimir, el 3D en la ficha del producto ================= */
+.etq-llevar, .scan-llevar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--line); background: color-mix(in srgb, var(--brand) 7%, var(--surface)); margin: 2px 0 6px; }
+.etq-llevar > span, .scan-llevar > span { font-size: 26px; }
+.etq-llevar b, .scan-llevar b { display: block; font-size: 18px; }
+.etq-llevar small, .scan-llevar small { display: block; opacity: .8; font-size: 13px; word-break: break-all; }
+.etq-llevar[data-dest="inpost"], .scan-llevar[data-dest="inpost"] { border-color: #f5c400; }
+.etq-llevar[data-dest="vintedgo"], .scan-llevar[data-dest="vintedgo"] { border-color: #1aa87a; }
+.etq-llevar[data-dest="seur"], .scan-llevar[data-dest="seur"] { border-color: #e03131; }
+.etq-dos .otra-op { padding: 16px 14px; } .etq-dos .otra-op i { font-size: 30px; } .etq-dos .otra-op b { font-size: 17px; }
+.etq-dos .etq-mas { justify-self: start; }
+.etq-dest .chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.prod-3d-visor { flex: 1 1 100%; min-width: 0; } .prod-3d-visor .prod-3d-cv { max-height: 46vh; cursor: grab; touch-action: none; } .prod-3d-visor .prod-3d-cv:active { cursor: grabbing; }
+.prod-3d-sop { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.prod-3d-v { padding: 8px 12px; border-radius: 10px; font-size: 14px; } .prod-3d-v.si { background: color-mix(in srgb, #f08c00 16%, transparent); } .prod-3d-v.no { background: color-mix(in srgb, #2f9e44 14%, transparent); }
+.aj-soporte { padding: 10px 12px; border-radius: 12px; margin: 6px 0 10px; font-size: 14px; line-height: 1.4; } .aj-soporte.si { background: color-mix(in srgb, #f08c00 18%, transparent); border: 1px solid color-mix(in srgb, #f08c00 55%, transparent); } .aj-soporte.no { background: color-mix(in srgb, #2f9e44 14%, transparent); border: 1px solid color-mix(in srgb, #2f9e44 45%, transparent); }
+.aj-perfiles { border: 1px solid color-mix(in srgb, var(--brand, #7c6cff) 45%, transparent); border-radius: 14px; padding: 10px; background: color-mix(in srgb, var(--brand, #7c6cff) 6%, transparent); }
+.prod-3d-t2 { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; font-size: 14px; }

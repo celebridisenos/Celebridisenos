@@ -73,6 +73,7 @@ export function render(el) {
     const d = c.r.desglose, x = v => eur(Math.round(v * c.n * 100) / 100);
     mount(resultados,
       c.sinTiempo ? h('div.cz-aviso', '⏱️ Falta el tiempo de impresión: sin él no se cuenta la luz y el precio sale más bajo de lo real. Ponlo arriba (lo dice el laminador).') : null,
+      !c.sinTiempo && E.A && E.A.horas && !E.A.horas.real && Math.abs(((Number(E.horas) || 0) + (Number(E.min) || 0) / 60) - (Math.floor(E.A.horas.v) + Math.round((E.A.horas.v % 1) * 60) / 60)) < 0.01 ? h('div.cz-nota.cz-hest', '⏱️ El tiempo (' + E.A.horas.texto + ') es ESTIMADO con los gramos y la altura de la pieza. Si ya la has laminado, pon arriba el de Bambu Studio y el precio será exacto.') : null,
       h('div.rt', h('div.rt-c.coste', h('span.rt-t', 'ME CUESTA' + (c.n > 1 ? ' · ' + c.n + ' UDS' : '')), h('span.rt-v', x(c.coste)), c.n > 1 ? h('span.rt-s', eur(c.coste) + ' cada una') : null,
           h('details.rt-d', h('summary', 'Ver desglose (por unidad)'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (sumado al precio)', d.embalaje], ['Envío', d.envio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))),
         h('div.rt-c.min', h('span.rt-t', 'NO BAJES DE'), h('span.rt-v', x(c.min)), h('span.rt-g.poco', 'ganas ' + x(c.min - c.coste))),
@@ -94,7 +95,7 @@ export function render(el) {
       h('div.a3d', h('div.a3d-t', '✅ Leído del archivo'), h('div.a3d-g',
         h('div.a3d-d', h('i', '📐'), h('span', h('small', 'Medidas'), h('b', textoMedidas({ dimX: A.medidas.x, dimY: A.medidas.y, dimZ: A.medidas.z })), A.medidas.estado === 'revisar' ? h('em.a3d-e', 'REVISA LA ESCALA') : null)),
         A.gramos ? h('div.a3d-d', h('i', '⚖️'), h('span', h('small', 'Filamento'), h('b', String(A.gramos.v).replace('.', ',') + ' g'), et(A.gramos.real))) : null,
-        A.horas ? h('div.a3d-d', h('i', '⏱️'), h('span', h('small', 'Tiempo'), h('b', A.horas.texto), et(true))) : null,
+        A.horas ? h('div.a3d-d', h('i', '⏱️'), h('span', h('small', 'Tiempo'), h('b', A.horas.texto), et(A.horas.real))) : null, // v30.6.1: con un STL el tiempo sale ESTIMADO (antes no salía)
         A.material ? h('div.a3d-d', h('i', '🧵'), h('span', h('small', 'Material'), h('b', A.material + (L && L.filamentos.length > 1 ? ' · ' + L.filamentos.length + ' colores' : '')))) : null,
         aj && aj.impresora ? h('div.a3d-d', h('i', '🖨️'), h('span', h('small', 'Preparado para'), h('b', aj.impresora))) : null),
         A.gramos && !A.gramos.real ? h('div.tiny.muted', 'Gramos ESTIMADOS con ' + A.gramos.de + '. Si el laminador te da otro número, cámbialo abajo.') : null,

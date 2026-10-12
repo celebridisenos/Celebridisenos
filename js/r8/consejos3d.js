@@ -5,7 +5,7 @@
 // pantalla (Bambu Studio en español: «Bucles de pared», «Densidad de relleno», «Habilitar el soporte», «Tipo de balsa»…).
 // Lo que se calcula de la pieza es MEDIDO (voladizos, apoyo, tamaño, orientación); el tiempo y el peso son ESTIMADOS.
 import { h, mount, btn, toast } from '../ui.js';
-import { estimarGramos } from '../datos3d.js';
+import { estimarGramos, estimarHoras } from '../datos3d.js';
 import * as CC from './colores_capas.js'; // v30.2 · 🎁 🌈 colores por capas (sin AMS)
 
 // Sus perfiles (leídos de su Bambu Studio el 9-10-2026). El programa del PC los vuelve a leer al abrir (por si cambian).
@@ -30,17 +30,17 @@ export async function cargaPerfiles() {
 // sopa: Float32Array de triángulos. Devuelve áreas en mm²: apoyo en la cama, voladizo que pide soporte, etc.
 export function mide(sopa, umbral = 30) {
   let zmin = Infinity, zmax = -Infinity; for (let i = 2; i < sopa.length; i += 3) { if (sopa[i] < zmin) zmin = sopa[i]; if (sopa[i] > zmax) zmax = sopa[i]; }
-  const lim = -Math.cos(umbral * Math.PI / 180); let apoyo = 0, voladizo = 0, techo = 0, arriba = 0, total = 0, volBajo = 0; const zs = [];
+  const lim = -Math.cos(umbral * Math.PI / 180); let apoyo = 0, voladizo = 0, techo = 0, arriba = 0, total = 0, volBajo = 0, zVol = -Infinity;
   for (let i = 0; i < sopa.length; i += 9) {
     const ax = sopa[i], ay = sopa[i + 1], az = sopa[i + 2], bx = sopa[i + 3] - ax, by = sopa[i + 4] - ay, bz = sopa[i + 5] - az, cx = sopa[i + 6] - ax, cy = sopa[i + 7] - ay, cz = sopa[i + 8] - az;
     const nx = by * cz - bz * cy, ny = bz * cx - bx * cz, nz = bx * cy - by * cx, l = Math.hypot(nx, ny, nz); if (l < 1e-12) continue;
     const A = l / 2, k = nz / l, zc = (az + sopa[i + 5] + sopa[i + 8]) / 3; total += A;
     if (k < -0.97 && zc < zmin + 0.06) apoyo += A;
-    else if (k < lim) { voladizo += A; zs.push(zc); if (k < -0.99) techo += A; }
+    else if (k < lim) { voladizo += A; if (zc > zVol) zVol = zc; if (k < -0.99) techo += A; }
     if (k > 0.97) arriba += A;
     void volBajo;
   }
-  return { zmin, zmax, alto: zmax - zmin, apoyo, voladizo, techo, arriba, total, alturaVoladizo: zs.length ? Math.max(...zs) - zmin : 0 };
+  return { zmin, zmax, alto: zmax - zmin, apoyo, voladizo, techo, arriba, total, alturaVoladizo: zVol > -Infinity ? zVol - zmin : 0 };
 }
 // prueba las 6 caras: ¿cuál necesita menos soportes y apoya mejor?
 const ORIENTACIONES = [['como está', [0, 0, 0]], ['boca abajo', [180, 0, 0]], ['tumbada hacia delante', [90, 0, 0]], ['tumbada hacia atrás', [-90, 0, 0]], ['de lado (derecha)', [0, 90, 0]], ['de lado (izquierda)', [0, -90, 0]]];
@@ -123,6 +123,17 @@ export function vista(r, o = {}) {
 // propios 3MF de MakerWorld: enable_support, brim_type, support_style…). Lo que contestas se recuerda para la próxima vez.
 const ACABADO = { rapido: { t: '⚡ Rápido', d: 'Capa de 0,20 mm', capa: 0.2 }, equilibrado: { t: '⚖️ Equilibrado', d: 'Capa de 0,16 mm', capa: 0.16 }, fino: { t: '✨ Fino', d: 'Capa de 0,12 mm: letras nítidas', capa: 0.12 } };
 const USOS = { mecanica: ['⚙️ Pieza mecánica que trabaja', 'Engranajes, ejes, RC: muy fuerte y a medida'], deco: ['🎀 Decoración', 'Bonita y ligera'], funcional: ['💪 Tiene que aguantar', 'Colgar, apretar, usar a diario'], encaje: ['🧩 Encaja con otra', 'Tapas, roscas, pasadores'], jarron: ['🏺 Jarrón en espiral', 'Una sola pared, sin costura'], flexible: ['🪢 Flexible (TPU)', 'Fundas, gomas'] };
+// v30.6.1 · PERFILES DE UN TOQUE (la dueña: «alta calidad, calidad robusta, calidad normal, recomendada para esto… como una pequeña
+// encuesta, y se aplica ese perfil automáticamente para que Bambu lo configure, que solo tenga que laminar e imprimir»). Cada uno pone
+// de golpe varias respuestas de abajo (acabado y uso); las demás (soportes, borde) las pone la propia pieza.
+export const PERFILES_RAPIDOS = {
+  alta: { e: '✨', t: 'Alta calidad', d: 'Figuras, regalos y letras pequeñas: capa fina de 0,12 mm', R: { acabado: 'fino', uso: 'deco' } },
+  normal: { e: '⚖️', t: 'Normal', d: 'Para casi todo: capa de 0,16 mm, 2 paredes y 12 % de relleno', R: { acabado: 'equilibrado', uso: 'deco' } },
+  robusta: { e: '💪', t: 'Robusta', d: 'Tiene que aguantar (colgar, apretar, uso diario): 4 paredes y 30 % de relleno', R: { acabado: 'rapido', uso: 'funcional' } },
+  mecanica: { e: '⚙️', t: 'Mecánica a medida', d: 'Engranajes, ejes y piezas que encajan: 6 paredes y 60 % de relleno', R: { acabado: 'equilibrado', uso: 'mecanica' } },
+  rapida: { e: '⚡', t: 'Rápida (de prueba)', d: 'Para ver si vale antes de la buena: capa de 0,20 mm y lo justo', R: { acabado: 'rapido', uso: 'deco' } },
+};
+export const perfilRapidoDe = R => (Object.entries(PERFILES_RAPIDOS).find(([, q]) => q.R.acabado === R.acabado && q.R.uso === R.uso) || [''])[0];
 const leeResp = k => { try { return JSON.parse(localStorage.getItem('cd.r8.imprimir.' + k) || 'null') || {}; } catch (e) { return {}; } };
 const guardaResp = (k, o) => { try { localStorage.setItem('cd.r8.imprimir.' + k, JSON.stringify(o)); } catch (e) { } };
 // Las respuestas → claves de Bambu Studio (las mismas que escribe él en sus 3MF)
@@ -179,7 +190,14 @@ export async function asistente(el, o) {
     ['acabado', 'soporte', 'balsa', 'planchar', 'modoColor'].forEach(k => { if (!R[k]) R[k] = rec[k]; });
     const preg = (k, titulo, ops, ayuda) => h('div.aj-preg', { 'data-preg': k }, h('b', titulo), ayuda ? h('small', ayuda) : null, h('div.aj-ops', ops.map(([v, t, d]) => h('button.aj-op' + (R[k] === v ? '.on' : ''), { type: 'button', 'data-v': v, onclick: () => { R[k] = v; guardaResp(clave, R); pinta(); } }, h('span', t), rec[k] === v ? h('i.aj-rec', '⭐ recomendado') : null, d ? h('small', d) : null))));
     const imp = (perfiles || PERFILES_DE_SERIE).impresoras, vol = r.mide.voladizo;
+    const usoPieza = o.uso || 'deco', recPerfil = usoPieza === 'mecanica' ? 'mecanica' : usoPieza === 'funcional' || usoPieza === 'encaje' ? 'robusta' : (o.texto || Math.min(info.dims[0], info.dims[1]) < 25 || info.dims[2] < 12) ? 'alta' : 'normal', perfilAhora = perfilRapidoDe(R);
     mount(el, h('div.r8e-prop-t', h('b', '🖨️ PREPARAR PARA TU BAMBU')), h('p.small.muted', 'Toca lo que quieras. Lo marcado con ⭐ es lo que haría yo con esta pieza. Al final, el archivo sale con todo puesto.'),
+      // v30.6.1 · lo primero que se ve: si necesita soportes, y los perfiles de un toque
+      R.uso === 'jarron' ? null : h('div.aj-soporte' + (vol > 30 ? '.si' : '.no'), { 'data-soporte': vol > 30 ? 'si' : 'no' }, vol > 30
+        ? [h('b', '🌳 Necesitará soportes'), h('span', ' Tiene ' + Math.round(vol / 100) + ' cm² en el aire. ' + (R.soporte === 'no' ? 'Ahora mismo va SIN ellos (cámbialo en la pregunta 5).' : 'Ya van puestos en el archivo (pregunta 5).') + (r.orient ? ' Tumbada ' + r.orient.t + ' necesitaría muchos menos.' : ''))]
+        : [h('b', '✅ No necesita soportes'), h('span', ' No tiene nada en el aire: va tal cual.')]),
+      R.uso === 'jarron' ? null : h('div.aj-preg.aj-perfiles', { 'data-preg': 'perfil' }, h('b', '⭐ Elige un perfil (lo pone todo de una vez)'), h('small', 'Capa, paredes y relleno de golpe. Debajo puedes cambiar cada cosa si quieres afinar.'),
+        h('div.aj-ops', Object.entries(PERFILES_RAPIDOS).map(([k, q]) => h('button.aj-op' + (perfilAhora === k ? '.on' : ''), { type: 'button', 'data-perfil': k, onclick: () => { Object.assign(R, q.R); guardaResp(clave, R); pinta(); } }, h('span', q.e + ' ' + q.t), recPerfil === k ? h('i.aj-rec', '⭐ recomendado para esta pieza') : null, h('small', q.d))))),
       preg('impresora', '1. ¿En qué impresora?', imp.map(i => [i.k, i.t, 'Cama de ' + i.cama + ' mm'])),
       preg('material', '2. ¿Con qué material?', [['PLA', 'PLA', 'El de siempre'], ['PETG', 'PETG', 'Agua, sol, golpes'], ['TPU', 'TPU', 'Flexible']]),
       preg('uso', '3. ¿Para qué es?', Object.entries(USOS).map(([k, [t, d]]) => [k, t, d])),
@@ -194,12 +212,12 @@ export async function asistente(el, o) {
         abrirTaller: sopa ? async () => { const T = await import('./colores_taller.js'); await T.abrirColores({ sopa, nombre: o.nombre || 'Pieza', est: R.cc, capa: capaArchivo(), colorBase: (L[0] && L[0].color) || '#f4f4f0', prop: perf ? perf.prop : [], impresora: (r && r.impresora && (r.impresora.t || r.impresora.nombre || '')) || '', alGuardar: () => { guardaResp(clave, R); o.alCambiarCC && o.alCambiarCC(); pinta(); } }); } : null }), // v30.2 · 🎁 🌈 · v30.6: el taller sobre la pieza
       // v30.2.1 · la dueña: «que al exportar me diga imprimir normal o manual, y que lo exporte él a Bambu directamente» (v30.2.2: «no tengo AMS»)
       (R.cc && R.cc.cambios || []).length ? preg('modoColor', '8. ¿Cómo lo vas a imprimir?', [['pausa', '✋ Cambio a mano', 'Se para sola en la capa y cambias tú la bobina'], ['normal', '🖨️ Normal', 'De un solo color, sin pausas']], o.desktopAbrir ? 'Al abrirlo en Bambu Studio, la pausa ya va PUESTA (lo hace tu propio Bambu Studio).' : 'En el móvil o la tablet: abajo te digo la capa para poner la pausa en Bambu Studio.') : null,
-      h('div.aj-resumen', h('b', '📋 Así va a ir'), h('div.aj-perfil', 'Perfil de arriba (Proceso): ', h('b', r.perfil)), enPantalla(R).map(([p, n, v]) => h('div.aj-fila', h('span', p + ' · ' + n), h('b', v))), r.avisos.map(a => h('p.cj-aviso', '⚠️ ' + a)), h('small', '⚖️ ≈ ' + (r.gramos ? Math.max(1, Math.round(r.gramos)) : '?') + ' g · ESTIMADO')),
+      h('div.aj-resumen', h('b', '📋 Así va a ir'), h('div.aj-perfil', 'Perfil de arriba (Proceso): ', h('b', r.perfil)), enPantalla(R).map(([p, n, v]) => h('div.aj-fila', h('span', p + ' · ' + n), h('b', v))), r.avisos.map(a => h('p.cj-aviso', '⚠️ ' + a)), h('small.aj-peso', (() => { const hE = r.gramos ? estimarHoras(r.gramos, info.dims[2], { material: R.material, capa: Number(claves(R).layer_height) }) : null; window.__r8ajHoras = hE ? hE.v : null; return '⚖️ ≈ ' + (r.gramos ? Math.max(1, Math.round(r.gramos)) : '?') + ' g' + (hE ? ' · ⏱️ ' + hE.texto : '') + ' · ESTIMADO (lo de verdad, al laminar en Bambu Studio)'; })())),
       calAviso, // v30: 🎯 si va corregida con su calibración, o el botón para calibrar
       h('div.r8e-btns.aj-bajar', o.desktopAbrir ? btn(conPausas() ? '🖨️ Abrir en Bambu Studio con la pausa puesta' : '🖨️ Abrir en Bambu Studio', () => sale('abrir'), { cls: 'primary aj-abrir' }) : null, btn('📦 3MF con los ajustes', () => sale('3mf'), { cls: (o.desktopAbrir ? '' : 'primary ') + 'aj-3mf' }), btn('⬇ Solo el STL', () => sale('stl'), { cls: 'aj-stl' })),
       h('p.tiny.muted', 'En Bambu Studio elige arriba el perfil «' + r.perfil + '». Los ajustes de esta pieza ya van DENTRO del archivo (en la lista de objetos, junto a la pieza, sale el icono de sus ajustes). Luego: Laminar placa → Imprimir.'),
       h('div.cj-ia', h('b', '🤖 ¿Alguna duda?'), pregunta, resp));
-    window.__r8aj = { R: Object.assign({}, R), claves: claves(R), perfil: r.perfil, voladizo: Math.round(vol), apoyo: Math.round(r.mide.apoyo), orient: r.orient && r.orient.t };
+    window.__r8aj = { perfilRapido: perfilAhora, recPerfil, soportes: vol > 30, R: Object.assign({}, R), claves: claves(R), perfil: r.perfil, voladizo: Math.round(vol), apoyo: Math.round(r.mide.apoyo), orient: r.orient && r.orient.t };
   };
   async function preguntar() {
     const q = pregunta.value.trim(); if (!q) return; mount(resp, h('small.muted', '🤖 Pensando…'));

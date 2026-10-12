@@ -115,7 +115,7 @@ export function packPanel(id) {
         can('pedidos.editar') && !packed ? btn('✅ Paquete hecho → ' + (CL.stateOfPhase(cfg().pedidos, 'listo') || 'Listo para envío'), async () => { if (await closePack(o)) { draw(); } }, { cls: 'primary' }) : null,
         packed && can('pedidos.editar') && ph(o) === 'listo' ? btn('🚚 Preparado para enviar', () => E.sendCheck(o, draw), { cls: 'primary' }) : null,
         packed && can('pedidos.editar') ? btn('Rehacer el embalaje', () => redoDialog(o, draw), { cls: 'ghost' }) : null,
-        btn('🏷️ Etiqueta de envío', () => E.etiquetaEnvio(o, draw), { cls: 'ghost' }),
+        btn('🏷️ Etiqueta o QR', () => E.etiquetaOQr(o, draw), { cls: 'ghost etq-oqr' }),
         h('span.grow'), btn('Abrir el pedido', () => { m && m.close(); go('pedidos/' + o.id); }, { cls: 'ghost' })));
   };
   draw();

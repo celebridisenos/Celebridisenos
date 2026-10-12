@@ -190,7 +190,7 @@ export function render(el) {
       edit ? btn('💶 Cobrado', () => import('./ingresos.js').then(m => m.cobrarPedido(o)), { cls: 'primary' }) : null],
       h('span.tiny.muted', CL.eur2(CL.orderTotal(o)) + ' · ' + o.estado))) : h('p.small.muted.hoy-empty', '✅ Todo cobrado.');
     const shipCol = [toShip.length > 1 ? btn('Imprimir todas las etiquetas (' + toShip.length + ')', () => import('../envio.js').then(E => E.etiquetasEnvio(toShip.map(x => x.o))), { cls: 'sm', icon: 'printer' }) : null,
-      toShip.length ? toShip.map(x => card(x, [btn('🏷️ Etiqueta', () => import('../envio.js').then(E => E.etiquetaEnvio(x.o))), edit ? btn('Enviado', () => P.shipDialog(x.o), { cls: 'primary', icon: 'truck' }) : null], x.o.envio ? h('span.tiny.muted', x.o.envio) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por enviar.')];
+      toShip.length ? toShip.map(x => card(x, [btn('🏷️ Etiqueta o QR', () => import('../envio.js').then(E => E.etiquetaOQr(x.o))), edit ? btn('Enviado', () => P.shipDialog(x.o), { cls: 'primary', icon: 'truck' }) : null], x.o.envio ? h('span.tiny.muted', x.o.envio) : null)) : h('p.small.muted.hoy-empty', '✅ Nada por enviar.')];
     const col = (ic, t, cnt, kids, k) => h('section.hoy-col', h('div.hoy-col-h', h('span.ic', ic), h('h2.grow', t), h('span.cnt', String(cnt)), btn('', () => go('pedidos/?f=' + k), { cls: 'ghost icon sm', icon: 'external', title: 'Ver en Pedidos' })), h('div.hoy-list', kids));
     // v16: lo que llega y hay que aceptar (solo aparece si hay alguno)
     const confK = CL.stateOfPhase(S.cfg.pedidos, 'confirmado');

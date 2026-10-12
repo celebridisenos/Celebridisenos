@@ -236,6 +236,7 @@ function showOrder(o, extra, el, fresh) {
   const lbl = E.hasLabelEnvio(o); // v13.8: en un envío conjunto vale la etiqueta de cualquier pedido del paquete
   const card = h('div.scan-card',
     h('div.scan-head', h('b', 'Nº ' + o.numero), o.codigo ? h('code', o.codigo) : null, h('span.grow'), pill(o.estado, '', st.c)),
+    (() => { const D = E.destinoDe(o); return D && D.t ? h('div.scan-llevar', { 'data-dest': D.k }, h('span', D.ic), h('div.grow', h('b', 'Se lleva a ' + D.t), D.seguimiento ? h('small', 'Seguimiento: ' + D.seguimiento) : h('small', 'Sin nº de seguimiento todavía'))) : null; })(), // v30.6.1
     row('👤', 'Cliente', o.cliente || '—'),
     row('📍', 'Dirección', hidden ? '🔒 sin permiso para verla' : dir || h('span.warn-t', 'no está guardada')),
     h('div.fp-scan', miniPedido(o, 150, 'grande')), // v13.10: la foto de lo que pidió, para comprobar que metes lo correcto

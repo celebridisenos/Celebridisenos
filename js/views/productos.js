@@ -6,7 +6,7 @@ import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf, fetch
 import { desktop } from '../desktop.js';
 import { parse3D, viewer, unzip } from '../stl.js';
 import { medir3D, esArchivo3D, escalar, textoMedidas, EJES, cm } from '../medidas3d.js'; // v16: medidas reales (Ancho · Largo · Alto)
-import { analizar3D } from '../datos3d.js'; // v16.2: gramos, tiempo y material que ya trae el archivo
+import { analizar3D, estimarGramos, estimarHoras } from '../datos3d.js'; // v16.2: gramos, tiempo y material que ya trae el archivo
 import { paletaProducto, descripcionConColores, coloresDeProducto, punto } from '../colores.js'; // v16.2: colores con círculos y en la descripción
 import { accionTxt, resumenDetalle } from './pedidos.js';
 import { generate, asText, docxBlob, docName, PLATAFORMAS } from '../docventa.js';
@@ -339,19 +339,57 @@ export async function abrirEnBambu(x) {
   } catch (e) { toast('No se pudo abrir en Bambu Studio: ' + (e.message || e), 'bad', 8000); }
 }
 async function archivoDe(x) { const datos = x.ruta ? await desktop.file(x.ruta) : await (await fetchFile(x.a)).arrayBuffer(); return new File([datos], x.nombre, { type: 'model/stl' }); }
+// v30.6.1 · la dueña: «cuando subas el STL a un producto y se vea su archivo, poder arrastrar, y abajo abrir en Bambu Studio…
+// varios perfiles de impresión… como una pequeña encuesta… y si hay soporte que mi programa me diga se necesitará soporte».
+// La pieza se ve EN la ficha (se arrastra para girarla), debajo dice si necesita soportes, y los botones: abrir tal cual en
+// Bambu Studio, o elegir un perfil (alta calidad, normal, robusta…) y abrirla ya configurada: solo queda laminar e imprimir.
+const leeDatos3D = async x => (x.ruta ? await desktop.file(x.ruta) : await (await fetchFile(x.a)).arrayBuffer());
+async function perfilEImprimir(x, p) {
+  const cuerpo = h('div.r8c-aj'); modal('🎯 Perfil de impresión · ' + x.nombre, cuerpo, null, { size: 'wide' }); mount(cuerpo, h('p.muted.small', 'Preparando la pieza…'));
+  try {
+    const N = await import('../r8/nucleo.js'); await N.cargar(); const pos = await parse3D(await leeDatos3D(x), x.nombre), A = await import('../r8/consejos3d.js');
+    const base = String(x.nombre).replace(/\.[a-z0-9]+$/i, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '_').slice(0, 50) || 'pieza';
+    try { N.suelta && N.suelta(N.deSopa(pos)); } catch (e) { N.limpia(); throw e; } // (si el archivo no es un sólido cerrado, se dice aquí y no a medias)
+    await A.asistente(cuerpo, { clave: 'producto_' + p.id, partes: () => [{ m: N.aLaCama(N.deSopa(pos)), color: '#7c6cff', nombre: base }], N, uso: 'deco', nombre: base, baja: (blob, nombre) => download(blob, nombre), cama: 256, desktopAbrir: !!desktop.on });
+    window.__prod3d = Object.assign(window.__prod3d || {}, { perfil: true });
+  } catch (e) { mount(cuerpo, h('p.bad-t', '⚠️ ' + (e.message || e)), h('p.small.muted', 'Puedes abrirla tal cual en Bambu Studio y elegir allí el perfil.'), desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu(x), { cls: 'primary' }) : null); }
+}
 function barra3D(p, closeAll) {
-  const caja = h('div.prod-3d');
+  const caja = h('div.prod-3d'), visor = h('div.prod-3d-visor'), sop = h('div.prod-3d-sop'); let cargado = '', turno = 0;
   const subidos = filesOf('productos', p.id).filter(a => a.tipo === 'stl' && ES_3D(a.nombre));
+  // el 3D en la ficha: se carga solo si el archivo está en este PC o pesa poco; si no, con un botón (no se baja un archivo enorme sin pedirlo)
+  async function ver(x, forzar) {
+    const clave = x.ruta || (x.a && x.a.id) || x.nombre; if (cargado === clave) return; const yo = ++turno, grande = !x.ruta && !(x.a && x.a.rutaLocal) && Number((x.a && (x.a.bytes || x.a.tam || x.a.size)) || 0) > 25 * 1048576;
+    mount(sop); if (grande && !forzar) return mount(visor, btn('🧊 Ver aquí el 3D (archivo grande)', () => ver(x, true), { cls: 'sm prod-3d-cargar' }));
+    mount(visor, h('p.tiny.muted', 'Cargando el 3D…'));
+    try { const pos = await parse3D(await leeDatos3D(x), x.nombre); if (yo !== turno) return; const c = h('canvas.stl-view.prod-3d-cv'); mount(visor, c, h('p.tiny.muted', 'Arrastra para girarla · rueda o pellizco para acercar')); const v = viewer(c, pos); cargado = clave;
+      const C3 = await import('../r8/consejos3d.js'), m = C3.mide(pos, 30), vol = Math.round(m.voladizo / 100); let mejor = null; try { mejor = C3.mejorOrientacion(pos, 30); } catch (e) { mejor = null; }
+      const mj = mejor && mejor.mejor, tumbada = mj && mj.t !== 'como está' && mj.m.voladizo < m.voladizo * 0.5 ? ' Puesta ' + mj.t + ' se quedaría en ' + Math.round(mj.m.voladizo / 100) + ' cm².' : '';
+      mount(sop, h('div.prod-3d-v' + (m.voladizo > 30 ? '.si' : '.no'), { 'data-soportes': m.voladizo > 30 ? 'si' : 'no' }, m.voladizo > 30 ? [h('b', '🌳 Necesitará soportes'), ' · tiene ' + vol + ' cm² en el aire tal como está guardada.' + tumbada] : [h('b', '✅ No necesita soportes'), ' · tal como está guardada no tiene nada en el aire.']),
+        h('span.tiny.muted', v.dims.map(d => d.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos'));
+      // v30.6.1 · «la hora no sale»: el tiempo y los gramos, a la vista. Si el producto ya tiene los de Bambu Studio, esos; si no, estimados con esta pieza
+      { let vol = 0, area = 0; for (let i = 0; i < pos.length; i += 9) { const ax = pos[i], ay = pos[i + 1], az = pos[i + 2], bx = pos[i + 3], by = pos[i + 4], bz = pos[i + 5], cx = pos[i + 6], cy = pos[i + 7], cz = pos[i + 8]; vol += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6; area += Math.hypot((by - ay) * (cz - az) - (bz - az) * (cy - ay), (bz - az) * (cx - ax) - (bx - ax) * (cz - az), (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)) / 2; }
+        const calc = S.t.calculadora.find(c => c.nombre === p.nombre), gReal = Number(p.bambuGramos) > 0 ? Number(p.bambuGramos) : 0, hGuardadas = Number(calc && calc.horas) || Number(p.horas) || 0, gE = estimarGramos(Math.abs(vol), area), hE = gE ? estimarHoras(gReal || gE, v.dims[2]) : null;
+        const hTxt = hGuardadas ? (Math.floor(hGuardadas) ? Math.floor(hGuardadas) + ' h ' : '') + Math.round((hGuardadas % 1) * 60) + ' min' : hE ? hE.texto : '';
+        if (hTxt || gReal || gE) sop.append(h('div.prod-3d-t2', { 'data-horas': hGuardadas ? 'guardadas' : 'estimadas' }, hTxt ? h('span', '⏱️ ', h('b', hTxt), hGuardadas ? ' (las del producto)' : ' ESTIMADO') : null, h('span', '⚖️ ', h('b', (gReal ? String(gReal).replace('.', ',') : '≈ ' + String(gE).replace('.', ',')) + ' g'), gReal ? ' (de Bambu Studio)' : ' ESTIMADO'), hGuardadas && gReal ? null : h('span.tiny.muted', 'El tiempo y los gramos de verdad los da Bambu Studio al laminar.')));
+        window.__prod3d = Object.assign(window.__prod3d || {}, { horasTxt: hTxt, horasEstimadas: hE ? hE.v : null, gramosEstimados: gE }); }
+      window.__prod3d = Object.assign(window.__prod3d || {}, { visto: x.nombre, soportes: m.voladizo > 30, voladizoCm2: vol, dims: v.dims.map(d => Math.round(d * 10) / 10) });
+    } catch (e) { if (yo === turno) mount(visor, h('p.tiny.warn-t', 'No se puede enseñar aquí: ' + (e.message || e))); }
+  }
   const pinta = () => {
     const locales = (LOCALES_3D.get(p.id) || []).filter(f => !subidos.some(a => a.rutaLocal === f.path));
     const todos = subidos.map(a => ({ nombre: a.nombre, a })).concat(locales.map(f => ({ nombre: f.name, ruta: f.path })));
-    window.__prod3d = { producto: p.id, archivos: todos.map(x => x.nombre) };
+    window.__prod3d = Object.assign(window.__prod3d && window.__prod3d.producto === p.id ? window.__prod3d : {}, { producto: p.id, archivos: todos.map(x => x.nombre) });
     if (!todos.length) return mount(caja);
     let i = 0; const x = () => todos[i];
-    mount(caja, h('div.prod-3d-t', h('span.prod-3d-ic', '🧊'), h('div.grow', h('b', 'Archivo 3D'), todos.length > 1 ? h('select.inp.sm.prod-3d-sel', { 'aria-label': 'Archivo 3D', onchange: e => { i = Number(e.target.value); } }, todos.map((t, k) => h('option', { value: k }, t.nombre))) : h('div.tiny.muted.ellipsis', todos[0].nombre))),
-      h('div.row.wrap.prod-3d-b', btn('🧊 Ver el 3D', () => x().a ? openFile(x().a) : view3DLocal(x().ruta, x().nombre), { cls: 'sm primary prod-3d-ver' }),
-        desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu(x()), { cls: 'sm prod-3d-bambu' }) : null,
+    mount(caja, h('div.prod-3d-t', h('span.prod-3d-ic', '🧊'), h('div.grow', h('b', 'Archivo 3D'), todos.length > 1 ? h('select.inp.sm.prod-3d-sel', { 'aria-label': 'Archivo 3D', onchange: e => { i = Number(e.target.value); cargado = ''; ver(x()); } }, todos.map((t, k) => h('option', { value: k }, t.nombre))) : h('div.tiny.muted.ellipsis', todos[0].nombre))),
+      visor, sop,
+      h('div.row.wrap.prod-3d-b',
+        desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu(x()), { cls: 'sm primary prod-3d-bambu', title: 'La abre tal cual: allí laminas e imprimes' }) : null,
+        btn('🎯 Elegir perfil e imprimir', () => perfilEImprimir(x(), p), { cls: 'sm prod-3d-perfil' + (desktop.on ? '' : ' primary'), title: 'Alta calidad, normal, robusta… Te dice si necesita soportes y la abre ya configurada: solo laminar e imprimir' }),
+        btn('🧊 Ver el 3D en grande', () => x().a ? openFile(x().a) : view3DLocal(x().ruta, x().nombre), { cls: 'sm prod-3d-ver' }),
         btn('🧰 Abrir en el Estudio', async () => { try { const f = await archivoDe(x()); const E = await import('../r8/estado.js'); E.paraEstudio(f); closeAll(); go('celebrir8'); } catch (e) { toast(e.message || String(e), 'bad'); } }, { cls: 'sm prod-3d-r8', title: 'Lo abre en el Estudio para cambiarlo (medidas, agujeros, partirlo…)' })));
+    ver(x());
   };
   pinta();
   if (desktop.on && p.ruta && !LOCALES_3D.has(p.id)) {
@@ -359,7 +397,7 @@ function barra3D(p, closeAll) {
     desktop.list(p.ruta).then(async r => {
       let L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name));
       for (const d of (r.entries || []).filter(e => e.type === 'dir')) { try { const sub = await desktop.list(d.path); L = L.concat((sub.entries || []).filter(e => e.type === 'file' && ES_3D(e.name))); } catch (e) { } }
-      LOCALES_3D.set(p.id, L.map(e => ({ name: e.name, path: e.path }))); pinta();
+      LOCALES_3D.set(p.id, L.map(e => ({ name: e.name, path: e.path }))); if (L.length) { cargado = ''; pinta(); }
     }).catch(() => { });
   }
   return caja;
@@ -598,7 +636,7 @@ export function productWizard(p, opc = {}) {
     if (!a3d) return null;
     const calc = p.id ? S.t.calculadora.find(c => c.nombre === p.nombre) : null, o = {};
     if (a3d.gramos && (a3d.gramos.real || !(calc && Number(calc.gramos) > 0))) o.gramos = a3d.gramos.v;
-    if (a3d.horas && a3d.horas.real) o.horas = a3d.horas.v;
+    if (a3d.horas && (a3d.horas.real || !(calc && Number(calc.horas) > 0))) o.horas = a3d.horas.v; // v30.6.1: también el tiempo ESTIMADO (si no había ninguno)
     return Object.keys(o).length ? o : null;
   };
   function pintarA3d() {
@@ -609,9 +647,10 @@ export function productWizard(p, opc = {}) {
       h('div.a3d-g',
         A.medidas ? dato('📐', 'Medidas', textoMedidas({ dimX: A.medidas.x, dimY: A.medidas.y, dimZ: A.medidas.z })) : null,
         A.gramos ? dato('⚖️', 'Filamento / peso', String(A.gramos.v).replace('.', ',') + ' g', et(A.gramos.real)) : null,
-        A.horas ? dato('⏱️', 'Tiempo de impresión', A.horas.texto, et(true)) : null,
+        A.horas ? dato('⏱️', 'Tiempo de impresión', A.horas.texto, et(A.horas.real)) : null,
         A.material ? dato('🧵', 'Material', A.material + (L && L.filamentos.length > 1 ? ' · ' + L.filamentos.length + ' colores' : ''), A.colores.length ? h('span.a3d-c', A.colores.slice(0, 6).map(c => h('u', { style: { background: c }, title: c }))) : null) : null,
         aj && (aj.impresora || aj.capa) ? dato('🖨️', 'Preparado para', [aj.impresora, aj.capa ? 'capa ' + String(aj.capa).replace('.', ',') + ' mm' : '', aj.relleno != null ? 'relleno ' + aj.relleno + ' %' : ''].filter(Boolean).join(' · ')) : null),
+      A.horas && !A.horas.real ? h('div.tiny.muted.a3d-hest', 'Tiempo ESTIMADO con ' + A.horas.de + '. El de verdad te lo da Bambu Studio al laminar (súbelo como 3MF laminado y lo leo solo).') : null,
       A.gramos ? h('div.tiny.muted', (A.gramos.real ? 'Gramos tomados de ' : 'Gramos ESTIMADOS con ') + A.gramos.de + '.' + (L && L.piezas > 1 ? ' OJO: la bandeja lleva ' + L.piezas + ' piezas; gramos y tiempo son de todas juntas.' : '')) : null,
       A.notas.map(n => h('div.tiny.muted', '💡 ' + n)));
   }

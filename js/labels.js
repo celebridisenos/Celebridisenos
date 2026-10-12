@@ -317,13 +317,15 @@ export function draw(tpl, d, dpi, size) {
   } else if (tpl === 'paquete') {
     // v17.3: también en la pequeña va el «¡Gracias!» (lo pidió la dueña: QR + gracias + identificación del paquete, siempre)
     const gr = d.gracias ? String(d.gracias).slice(0, 22) : '', alto = gr ? 5.2 : 0;
-    const cap = d.cuenta ? 15.5 : 12, qs = Math.min(W - 2 * m, H - cap - m - alto);
+    const dst = d.destino && d.destino.t ? ('→ ' + String(d.destino.t).toUpperCase() + (d.destino.seguimiento ? ' · …' + String(d.destino.seguimiento).slice(-6) : '')) : ''; // v30.6.1: dónde se lleva (y el final del seguimiento)
+    const cap = (d.cuenta ? 15.5 : 12) + (dst ? 4 : 0), qs = Math.min(W - 2 * m, H - cap - m - alto);
     g.textAlign = 'center';
     if (gr) { g.font = F(W < 45 ? 9 : 11, 800); g.fillText(fit(g, gr, (W - 2 * m) * k), (W / 2) * k, (m - 1.6) * k); }
     qr(g, d.qr, ((W - qs) / 2) * k, (m - 1.5 + alto) * k, qs * k);
     g.font = F(W < 45 ? 7.5 : 9, 800); g.fillText(d.codigo || '', (W / 2) * k, (H - cap + 0.5) * k);
     g.font = F(W < 45 ? 6 : 7, 500); g.fillText(fit(g, ['Nº ' + (d.numero || ''), d.cliente || ''].filter(Boolean).join(' · '), (W - 2 * m) * k), (W / 2) * k, (H - cap + 5) * k);
     if (d.cuenta) { g.font = F(W < 45 ? 6 : 7, 800); g.fillText(fit(g, d.cuenta, (W - 2 * m) * k), (W / 2) * k, (H - cap + 9) * k); } // v14.1: cuenta de venta
+    if (dst) { g.font = F(W < 45 ? 6.5 : 7.5, 800); g.fillText(fit(g, dst, (W - 2 * m) * k), (W / 2) * k, (H - cap + (d.cuenta ? 13 : 9)) * k); }
     g.textAlign = 'left';
   } else if (tpl === 'paquete150') {
     // ── mitad de arriba: GRACIAS (logo, título, texto y firma, ajustados al hueco) ──
@@ -339,14 +341,18 @@ export function draw(tpl, d, dpi, size) {
     g.fillRect(m * k, yb * k, (W - 2 * m) * k, 10 * k); g.fillStyle = '#fff';
     g.font = F(d.conjunto ? 13 : 16, 800); g.fillText(fit(g, (d.conjunto ? 'ENVÍO CONJUNTO Nº ' : 'PEDIDO Nº ') + (d.numero || ''), (W - 2 * m - 4) * k), (m + 2) * k, (yb + 2) * k);
     g.fillStyle = '#000'; yb += 12;
-    const qs = 42; qr(g, d.qr, m * k, yb * k, qs * k);
+    // v30.6.1 · DÓNDE SE LLEVA, bien grande (InPost, Vinted Go, SEUR…) y su nº de seguimiento
+    const D0 = d.destino && d.destino.t ? d.destino : null;
+    if (D0) { const hb = 9; g.lineWidth = 0.5 * k; g.strokeRect((m + 0.25) * k, (yb + 0.25) * k, (W - 2 * m - 0.5) * k, (hb - 0.5) * k); g.font = F(6.5, 700); g.fillText('LLEVAR A', (m + 2) * k, (yb + 1.2) * k);
+      g.font = F(15, 800); g.fillText(fit(g, String(D0.t).toUpperCase(), (W - 2 * m - 22) * k), (m + 20) * k, (yb + 1.6) * k); yb += hb + 1.5; }
+    const qs = D0 ? 37 : 42; qr(g, d.qr, m * k, yb * k, qs * k);
     const xr = m + qs + 3, wr = W - xr - m;
     let yr = yb + 1;
     const fila = (et, v, pt, wt) => { if (!v) return; g.font = F(6.5, 600); g.fillText(et.toUpperCase(), xr * k, yr * k); yr += 2.8; yr = T(v, xr, yr, wr, pt || 10, wt || 700, 2) + 1.6; };
     fila('Código', d.codigo, 10, 800);
     fila('Cliente', d.cliente);
     fila('Enviar antes de', d.limite, 11, 800);
-    fila('Transporte', [d.transportista, d.seguimiento].filter(Boolean).join(' · '), 8.5, 700);
+    if (D0) fila('Seguimiento', D0.seguimiento || d.seguimiento, 9, 800); else fila('Transporte', [d.transportista, d.seguimiento].filter(Boolean).join(' · '), 8.5, 700);
     if (d.cuenta) fila('Vendido en la cuenta', d.cuenta, 10, 800); else fila('Plataforma', d.canal, 9, 600); // v14.1: varias cuentas de Vinted/Wallapop
     yb += qs + 2;
     line(g, m * k, yb * k, (W - m) * k, yb * k, 0.3 * k); yb += 1.8;

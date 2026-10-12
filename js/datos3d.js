@@ -84,6 +84,18 @@ export function estimarGramos(volMm3, areaMm2, opc = {}) {
 
 export const horasTxt = seg => { const m = Math.round(seg / 60), hh = Math.floor(m / 60); return (hh ? hh + ' h ' : '') + (m % 60) + ' min'; };
 
+// v30.6.1 · HORAS ESTIMADAS de una pieza sin laminar (la dueña: «la hora no sale, tiene que cogerla del archivo 3MF o STL que adjunto
+// también»). Un STL, o un 3MF sin laminar, no trae el tiempo: se ESTIMA con el plástico que se va a echar y las capas que tiene, a la
+// marcha media de una Bambu: unos 10 mm³ por segundo (contando giros, paredes lentas y viajes), 4 s por capa (subir, retraer,
+// recolocarse) y 6 minutos de preparación (calentar, nivelar, purgar). Sirve para hacer cuentas; el tiempo DE VERDAD lo da Bambu Studio
+// al laminar, y en cuanto se sube un 3MF laminado manda ese.
+export function estimarHoras(gramos, altoMm, opc = {}) {
+  if (!(gramos > 0)) return null;
+  const dens = opc.densidad || DENSIDAD[opc.material] || DENSIDAD.PLA, capa = opc.capa > 0 ? opc.capa : 0.2, caudal = 10 * Math.min(1.25, Math.max(0.55, capa / 0.2)); // con capa fina sale menos plástico por segundo
+  const seg = Math.round(gramos / dens * 1000 / caudal + Math.max(1, (altoMm || 0) / capa) * 4 + 360);
+  return { seg, v: Math.round(seg / 36) / 100, texto: '≈ ' + horasTxt(Math.max(300, Math.round(seg / 300) * 300)) }; // (redondeado a 5 minutos: no es un dato exacto)
+}
+
 // Devuelve lo que se ha podido saber. Cada dato dice si es REAL (del archivo) o ESTIMADO.
 export async function analizar3D(buf, nombre) {
   const ext = String(nombre || '').split('.').pop().toLowerCase();
@@ -111,6 +123,10 @@ export async function analizar3D(buf, nombre) {
     if (g) out.gramos = { v: g, real: false, de: 'el volumen de la pieza (' + String(out.volumenCm3).replace('.', ',') + ' cm³), ' + (A && A.relleno != null ? 'con el relleno del archivo (' + A.relleno + ' %)' : 'con 2 paredes y 15 % de relleno') };
   }
   if (L && L.segundos > 0) out.horas = { v: Math.round(L.segundos / 36) / 100, real: true, texto: horasTxt(L.segundos) };
-  else out.notas.push(ext === '3mf' ? 'Este 3MF no está laminado: no trae el tiempo de impresión. Si lo guardas ya laminado desde Bambu Studio, lo leo solo.' : 'Un STL no guarda el tiempo de impresión ni el material: eso lo trae un 3MF laminado.');
+  else {
+    const hE = out.gramos && out.medidas && out.medidas.z > 0 ? estimarHoras(out.gramos.v, out.medidas.z, { material: out.material, densidad: A && A.densidad, capa: A && A.capa }) : null;
+    if (hE) out.horas = { v: hE.v, real: false, texto: hE.texto, de: 'los gramos y la altura de la pieza, con capa de ' + String((A && A.capa) || 0.2).replace('.', ',') + ' mm' };
+    out.notas.push(ext === '3mf' ? 'Este 3MF no está laminado: ' + (hE ? 'el tiempo que ves es ESTIMADO.' : 'no trae el tiempo de impresión.') + ' Si lo guardas ya laminado desde Bambu Studio, leo el de verdad.' : 'Un STL no guarda el tiempo de impresión ni el material: ' + (hE ? 'el tiempo que ves es ESTIMADO; ' : '') + 'el de verdad lo trae un 3MF laminado.');
+  }
   return out;
 }

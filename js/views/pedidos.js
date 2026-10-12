@@ -265,7 +265,7 @@ export function orderDrawer(id, onClose) {
           body,
           h('div.row.wrap', { style: { marginTop: '10px', borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             editable ? btn('Editar', () => orderForm(o), { icon: 'edit' }) : null,
-            !t.cancelado ? btn('🏷️ Etiqueta de envío', () => EV.etiquetaEnvio(o, draw), { title: 'La etiqueta que adjuntaste (Vinted, Wallapop, Correos…), tal cual' }) : null,
+            !t.cancelado ? btn('🏷️ Etiqueta o QR', () => EV.etiquetaOQr(o, draw), { title: 'Dos opciones: la etiqueta de envío (la que adjuntaste, tal cual) o el QR del paquete' }) : null,
             btn('Mensaje', () => messageDialog(o), { icon: 'msg' }),
             can('facturas.emitir') ? btn(o.factura ? 'Factura ' + o.factura : 'Factura', () => import('./facturas.js').then(m => m.invoiceForm(o)), { icon: 'file' }) : null,
             h('span.grow'),
