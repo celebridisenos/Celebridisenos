@@ -40,12 +40,16 @@ export async function montarCatalogo(el, ext = {}) {
   const tarjeta = (k, d) => h('button.r8c-tar' + (C.abierto === k ? '.on' : ''), { type: 'button', 'data-k': k, onclick: () => abre(k) }, h('div.r8c-img', MINIS.get(k) ? h('img', { src: MINIS.get(k), alt: d.t }) : h('span.r8c-emo', d.e)), h('b', d.t), h('small', d.d), h('span.r8c-uso', { funcional: '💪 Resistente', jarron: '🏺 Modo jarrón', encaje: '🧩 Encaja', flexible: '🪢 TPU', pieza: '🔩 Pieza', deco: '🎀 Decoración' }[d.uso] || ''));
   // las miniaturas se dibujan de una en una, sin bloquear la pantalla
   let cola = Promise.resolve();
+  // v30.6.2: con una ventana abierta encima (preparar para la Bambu, el taller de colores…) las miniaturas ESPERAN: dibujarlas a la vez
+  // hacía que esa ventana fuera a trompicones la primera vez que se entra al catálogo
+  const libre = () => new Promise(r => { const mira = () => (!vivo || !document.querySelector('.overlay, .ct-fondo, .aj-vent-f') ? r() : setTimeout(mira, 400)); mira(); });
   async function dibujaMinis() {
+    try { if (localStorage.getItem('cd.r8.sinMinis') === '1') return; } catch (e) { } // (las pruebas que no miran las miniaturas: en un PC sin tarjeta gráfica tardan minutos)
     const faltan = [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k) && K.DISENOS[b.dataset.k]).map(b => b.dataset.k);
     if (faltan.length) { const L = await leeMinis(faltan.map(k => huella(K, k, C.color[k] || K.DISENOS[k].color))); L.forEach(([hk, url], i) => { if (url && vivo) { const k = faltan[i]; MINIS.set(k, url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); } }); }
     if (!vivo) return;
     [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k)).forEach(b => {
-      const k = b.dataset.k; cola = cola.then(() => new Promise(res => setTimeout(() => { if (!vivo || MINIS.has(k)) return res();
+      const k = b.dataset.k; cola = cola.then(libre).then(() => new Promise(res => setTimeout(() => { if (!vivo || MINIS.has(k)) return res();
         try { if (SDF) SDF.ajustes.rapido = true; const m = K.genera(k, sinNombre(K, k)), url = miniatura(N.aVista(m), C.color[k] || K.DISENOS[k].color, K.DISENOS[k].acabado || 'mate', 300); MINIS.set(k, url); guardaMini(huella(K, k, C.color[k] || K.DISENOS[k].color), url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); }
         catch (e) { MINIS.set(k, ''); console.warn(k, e); } finally { if (SDF) SDF.ajustes.rapido = false; N.limpia(); } res(); }, 16)));
     });

@@ -97,3 +97,7 @@
 @media (max-width: 860px) { .ct-fondo { padding: 0 } .ct { border-radius: 0 } .ct-medio { flex-direction: column; overflow: auto } .ct-izq, .ct-der { width: auto; border: 0 } .ct-vista { min-height: 46vh; flex: none } }
 /* el bloque del asistente: botón grande para abrir el taller y la barra de colores (de la cama a la punta) */
 .cc-abrir { width: 100%; margin: 8px 0; padding: 12px !important; font-size: 15px !important }
+/* v30.6.2 · al guardar con SOLO caras pintadas: eso no cambia nada al imprimir */
+.ct-aviso-c { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); width: min(520px, calc(100% - 90px)); z-index: 6; padding: 14px 16px; border-radius: 14px; background: #2a1d05; color: #ffe8c2; border: 1px solid #f08c00; box-shadow: 0 18px 50px rgba(0, 0, 0, .55); font-size: 14px; line-height: 1.45 }
+.ct-aviso-c[hidden] { display: none } .ct-aviso-c b { font-size: 16px } .ct-aviso-c p { margin: 6px 0 10px }
+.ct-aviso-b { display: flex; gap: 8px; flex-wrap: wrap }

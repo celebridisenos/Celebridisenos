@@ -106,7 +106,12 @@ export function abrirColores(o) {
 
     // ---- la ventana ----
     const lienzo = h('canvas.ct-cv'), etiquetas = h('div.ct-etis'), izq = h('div.ct-izq'), der = h('div.ct-der'), abajo = h('div.ct-abajo'), cabeza = h('div.ct-cab'), regla = h('div.ct-regla'), cubo = h('div.ct-cubo'), caja = h('div.ct-caja');
-    const fondoV = h('div.ct-fondo', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Colores y pausas' }, h('div.ct', cabeza, h('div.ct-medio', izq, h('div.ct-vista', lienzo, etiquetas, caja, regla, cubo), der), abajo));
+    // v30.6.2 · si SOLO se han pintado caras (sin colores por capas), al guardar se dice claro: eso no cambia nada al imprimir
+    const avisoC = h('div.ct-aviso-c', { hidden: true, 'data-ct': 'aviso-caras' });
+    const soloCaras = () => triCol.some(v => v) && !eventos(E, capa, primera).some(e => e.activa);
+    const avisaCaras = () => { avisoC.hidden = false; mount(avisoC, h('b', '🖌️ Solo has pintado CARAS'), h('p', 'Se guarda para VERLO, pero al imprimir no cambia nada: con una bobina cada vez la impresora solo puede cambiar de color por CAPAS (de abajo arriba). Tal como está, sale de un color y NO se para.'),
+      h('div.ct-aviso-b', h('button.btn.primary', { type: 'button', 'data-ct': 'ir-capas', onclick: () => { avisoC.hidden = true; modo = 'capas'; todo(); } }, '🧱 Pintar por capas (lo que se imprime)'), h('button.btn', { type: 'button', 'data-ct': 'guardar-asi', onclick: () => cerrar(true) }, 'Guardar así, solo para verlo'))); };
+    const fondoV = h('div.ct-fondo', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Colores y pausas' }, h('div.ct', cabeza, h('div.ct-medio', izq, h('div.ct-vista', lienzo, etiquetas, caja, regla, cubo, avisoC), der), abajo));
     document.body.append(fondoV);
     const cerrar = guardar => { if (!vivo) return; vivo = false; document.removeEventListener('keydown', tecla, true); window.removeEventListener('pointerup', alSoltar); window.removeEventListener('resize', alCambiarTam);
       if (guardar) { o.est.base = E.base; o.est.cambios = E.cambios.map(c => { const x = { id: c.id, z: c.z, color: c.color }; if (c.tipo && c.tipo !== 'color') x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }); if (E.caras) o.est.caras = E.caras; else delete o.est.caras; o.alGuardar && o.alGuardar(o.est); }
@@ -235,7 +240,7 @@ export function abrirColores(o) {
     function pintaCab() { mount(cabeza, h('div.ct-titulo', h('b', '🎨 Colores y pausas'), h('span', (o.nombre || 'Pieza') + ' · ' + f2(ancho) + ' × ' + f2(fondo) + ' × ' + f2(alto) + ' mm · ' + n + ' capas de ' + f2(capa) + ' mm')),
       rota ? h('span.ct-rota', { title: rota }, '⚠️ Malla rota: se ve aproximado') : null,
       h('div.ct-botones', h('button.btn.sm.ghost', { type: 'button', 'data-ct': 'deshacer', disabled: hi <= 0, title: 'Deshacer (Ctrl+Z)', onclick: () => vuelve(-1) }, '↶ Deshacer'), h('button.btn.sm.ghost', { type: 'button', 'data-ct': 'rehacer', disabled: hi >= hist.length - 1, title: 'Rehacer (Ctrl+Y)', onclick: () => vuelve(1) }, '↷ Rehacer'),
-        h('button.btn.sm.ghost', { type: 'button', 'data-ct': 'cancelar', onclick: () => cerrar(false) }, 'Cancelar'), h('button.btn.sm.primary', { type: 'button', 'data-ct': 'guardar', onclick: () => { const V = valida(E, n, capa, primera); if (!V.ok) return toast('⛔ ' + V.errores[0], 'bad', 7000); cerrar(true); } }, '✔ Guardar'))); }
+        h('button.btn.sm.ghost', { type: 'button', 'data-ct': 'cancelar', onclick: () => cerrar(false) }, 'Cancelar'), h('button.btn.sm.primary', { type: 'button', 'data-ct': 'guardar', onclick: () => { const V = valida(E, n, capa, primera); if (!V.ok) return toast('⛔ ' + V.errores[0], 'bad', 7000); if (soloCaras()) return avisaCaras(); cerrar(true); } }, '✔ Guardar'))); }
     function todo(ligero) { if (!vivo) return; if (desl.value !== String(sel.b)) desl.value = sel.b; pintaCab(); pintaIzq(); pintaDer(); pintaAbajo(); pide3d();
       window.__r8ct = { n, capa, primera, alto, sel: Object.assign({}, sel), color, modo, herr, selId, base: E.base, eventos: eventos(E, capa, primera).map(e => ({ id: e.id, capa: e.capa, z: e.z, color: e.color, tipo: e.tipo, activa: e.activa })), colores: coloresPorCapa(E, n, capa, primera, baseDef), valida: valida(E, n, capa, primera), elegidos: triSel.reduce((a, v) => a + v, 0), pintados: triCol.reduce((a, v) => a + (v ? 1 : 0), 0), deshacer: hi, rota: !!rota, tris: nT, partes: 0 }; void ligero; }
 

@@ -2199,3 +2199,21 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .aj-soporte { padding: 10px 12px; border-radius: 12px; margin: 6px 0 10px; font-size: 14px; line-height: 1.4; } .aj-soporte.si { background: color-mix(in srgb, #f08c00 18%, transparent); border: 1px solid color-mix(in srgb, #f08c00 55%, transparent); } .aj-soporte.no { background: color-mix(in srgb, #2f9e44 14%, transparent); border: 1px solid color-mix(in srgb, #2f9e44 45%, transparent); }
 .aj-perfiles { border: 1px solid color-mix(in srgb, var(--brand, #7c6cff) 45%, transparent); border-radius: 14px; padding: 10px; background: color-mix(in srgb, var(--brand, #7c6cff) 6%, transparent); }
 .prod-3d-t2 { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; font-size: 14px; }
+/* v30.6.2 · el asistente de imprimir dice si lleva paradas (colores por capas), y la ventana de lo que ha pasado en Bambu Studio */
+.aj-pausas { padding: 10px 12px; border-radius: 12px; margin: 10px 0 6px; font-size: 14px; line-height: 1.45; border: 1px solid transparent; }
+.aj-pausas.si { background: color-mix(in srgb, #00ae42 14%, transparent); border-color: color-mix(in srgb, #00ae42 50%, transparent); }
+.aj-pausas.no, .aj-pausas.ojo { background: color-mix(in srgb, #f08c00 16%, transparent); border-color: color-mix(in srgb, #f08c00 55%, transparent); }
+.aj-pausas ul, .aj-vent-l { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.aj-pausas li, .aj-vent-l li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.aj-pausas li i, .aj-vent-l li i { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(128, 128, 128, .7); flex: none; }
+.aj-pausas small { display: block; margin-top: 6px; opacity: .85; }
+.aj-vent-f { position: fixed; inset: 0; z-index: 5000; background: rgba(6, 8, 16, .82); display: grid; place-items: center; padding: 16px; } /* (sin desenfoque: suele ir encima de otra ventana que ya lo lleva) */
+.aj-vent { width: min(640px, 100%); max-height: 92vh; overflow: auto; background: var(--card, #171a2b); color: var(--text, #eef1fb); border: 1px solid var(--line, #2a3358); border-radius: 18px; padding: 20px 22px; box-shadow: 0 30px 80px rgba(0, 0, 0, .5); font-size: 15px; line-height: 1.5; }
+.aj-vent h3 { margin: 0 0 8px; font-size: 20px; } .aj-vent ol { margin: 10px 0; padding-left: 22px; display: grid; gap: 6px; } .aj-vent p { margin: 6px 0; }
+.aj-vent.ok { border-color: color-mix(in srgb, #00ae42 60%, transparent); } .aj-vent.ojo { border-color: color-mix(in srgb, #f08c00 65%, transparent); } .aj-vent.mal { border-color: color-mix(in srgb, #e03131 65%, transparent); }
+.aj-vent-p { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--text, #fff) 7%, transparent); margin: 10px 0; }
+.aj-vent-si { color: #2fbf71; font-size: 13px; } .aj-vent-aviso { color: #ffa94d; font-weight: 700; }
+.aj-vent .r8e-btns { margin-top: 14px; justify-content: flex-end; display: flex; }
+.aj-vent-barra { height: 6px; border-radius: 6px; margin-top: 14px; background: linear-gradient(90deg, transparent, #7c6cff, transparent) 0 0 / 40% 100% no-repeat, color-mix(in srgb, var(--text, #fff) 12%, transparent); animation: aj-vent-va 1.4s linear infinite; }
+@keyframes aj-vent-va { from { background-position: -40% 0, 0 0; } to { background-position: 140% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .aj-vent-barra { animation: none; } }

@@ -214,8 +214,12 @@ export async function asistente(el, o) {
       (R.cc && R.cc.cambios || []).length ? preg('modoColor', '8. ¿Cómo lo vas a imprimir?', [['pausa', '✋ Cambio a mano', 'Se para sola en la capa y cambias tú la bobina'], ['normal', '🖨️ Normal', 'De un solo color, sin pausas']], o.desktopAbrir ? 'Al abrirlo en Bambu Studio, la pausa ya va PUESTA (lo hace tu propio Bambu Studio).' : 'En el móvil o la tablet: abajo te digo la capa para poner la pausa en Bambu Studio.') : null,
       h('div.aj-resumen', h('b', '📋 Así va a ir'), h('div.aj-perfil', 'Perfil de arriba (Proceso): ', h('b', r.perfil)), enPantalla(R).map(([p, n, v]) => h('div.aj-fila', h('span', p + ' · ' + n), h('b', v))), r.avisos.map(a => h('p.cj-aviso', '⚠️ ' + a)), h('small.aj-peso', (() => { const hE = r.gramos ? estimarHoras(r.gramos, info.dims[2], { material: R.material, capa: Number(claves(R).layer_height) }) : null; window.__r8ajHoras = hE ? hE.v : null; return '⚖️ ≈ ' + (r.gramos ? Math.max(1, Math.round(r.gramos)) : '?') + ' g' + (hE ? ' · ⏱️ ' + hE.texto : '') + ' · ESTIMADO (lo de verdad, al laminar en Bambu Studio)'; })())),
       calAviso, // v30: 🎯 si va corregida con su calibración, o el botón para calibrar
-      h('div.r8e-btns.aj-bajar', o.desktopAbrir ? btn(conPausas() ? '🖨️ Abrir en Bambu Studio con la pausa puesta' : '🖨️ Abrir en Bambu Studio', () => sale('abrir'), { cls: 'primary aj-abrir' }) : null, btn('📦 3MF con los ajustes', () => sale('3mf'), { cls: (o.desktopAbrir ? '' : 'primary ') + 'aj-3mf' }), btn('⬇ Solo el STL', () => sale('stl'), { cls: 'aj-stl' })),
-      h('p.tiny.muted', 'En Bambu Studio elige arriba el perfil «' + r.perfil + '». Los ajustes de esta pieza ya van DENTRO del archivo (en la lista de objetos, junto a la pieza, sale el icono de sus ajustes). Luego: Laminar placa → Imprimir.'),
+      estadoColor(), // v30.6.2: antes de salir, se ve si lleva paradas (y cuáles) o si sale de un color
+      h('div.r8e-btns.aj-bajar', o.desktopAbrir ? btn(conPausas() ? '🖨️ Abrir en Bambu YA LAMINADO, con la pausa dentro' : '🖨️ Abrir en Bambu YA LAMINADO (solo Imprimir)', () => sale('laminado'), { cls: 'primary aj-laminado', title: 'Lo lamina tu propio Bambu Studio con estos ajustes y se abre listo para imprimir: así no se pierde nada por el camino' }) : null,
+        o.desktopAbrir ? btn(conPausas() ? '🧩 Abrir el proyecto con la pausa puesta' : '🧩 Abrir el proyecto en Bambu Studio', () => sale('abrir'), { cls: 'aj-abrir', title: 'Sin laminar: para cambiar cosas en Bambu Studio antes de imprimir' }) : null,
+        btn('📦 3MF con los ajustes', () => sale('3mf'), { cls: (o.desktopAbrir ? '' : 'primary ') + 'aj-3mf' }), btn('⬇ Solo el STL', () => sale('stl'), { cls: 'aj-stl' })),
+      o.desktopAbrir ? h('p.tiny.muted.aj-como', h('b', '«Ya laminado»'), ': lo lamina tu Bambu Studio con tus perfiles y estos ajustes, y se abre en «Modo de vista previa»: solo queda pulsar ', h('b', 'Imprimir placa'), '. Es lo seguro: ahí no se puede perder ni la pausa ni ningún ajuste. ', h('b', '«El proyecto»'), ' es para cambiar cosas en Bambu antes de laminar; si Bambu pregunta «Seleccione una acción», elige ', h('b', '«Abrir como proyecto»'), ' (con «Importar geometría solo» se pierden la pausa y los ajustes).')
+        : h('p.tiny.muted', 'En Bambu Studio elige arriba el perfil «' + r.perfil + '». Los ajustes de esta pieza ya van DENTRO del archivo (en la lista de objetos, junto a la pieza, sale el icono de sus ajustes). Luego: Laminar placa → Imprimir.'),
       h('div.cj-ia', h('b', '🤖 ¿Alguna duda?'), pregunta, resp));
     window.__r8aj = { perfilRapido: perfilAhora, recPerfil, soportes: vol > 30, R: Object.assign({}, R), claves: claves(R), perfil: r.perfil, voladizo: Math.round(vol), apoyo: Math.round(r.mide.apoyo), orient: r.orient && r.orient.t };
   };
@@ -228,7 +232,46 @@ export async function asistente(el, o) {
   // hay cambios de color y no se ha elegido imprimirla «normal» (de un color)
   // la altura de capa que va DENTRO del archivo (la que usará Bambu para esta pieza): de ella sale el número de capa de la pausa
   const capaArchivo = () => Number(Object.assign(claves(R), o.forzar || {}).layer_height) || CC.capaPerfil(r && r.perfil);
-  const conPausas = () => !!(R.cc && (R.cc.cambios || []).length) && (R.modoColor || 'pausa') !== 'normal';
+  const conPausas = () => !!(R.cc && (R.cc.cambios || []).filter(c => c.activa !== false).length) && (R.modoColor || 'pausa') !== 'normal';
+  // v30.6.2 · la dueña (12-10-2026): «separar los colores por capa: en Bambu no se refleja, no pausa». Antes de salir se dice
+  // CLARO qué va a pasar: las paradas con su capa y su color, o que sale de un color (y por qué), o que solo hay caras pintadas.
+  const mm = z => String(Math.round(z * 100) / 100).replace('.', ',');
+  const paradasTxt = () => (R.cc.cambios || []).filter(c => c.activa !== false).slice().sort((a, b) => a.z - b.z).map(c => { const K = CC.capaDe(c.z, capaArchivo()), t = c.tipo || 'color'; return { capa: K.capa, z: K.z, tipo: t, color: c.color, que: t === 'color' ? 'pon el ' + CC.nombreColor(c.color).toLowerCase() : t === 'filamento' ? 'pon otra bobina del mismo color' : t === 'gcode' ? 'orden propia' : 'pausa (mete lo que toque y sigue)' }; });
+  const carasPintadas = () => { const q = R.cc && R.cc.caras && R.cc.caras.rle; if (!q) return false; for (let i = 0; i < q.length; i += 2) if (q[i]) return true; return false; };
+  function estadoColor() {
+    const todos = (R.cc && R.cc.cambios) || [];
+    if (conPausas()) { const L = paradasTxt(); return h('div.aj-pausas.si', { 'data-pausas': String(L.length) }, h('b', '🌈 Va con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' (colores por capas):'), h('ul', L.map(p => h('li', h('i', { style: { background: p.tipo === 'color' ? p.color : 'transparent' } }), '⏸ capa ' + p.capa + ' (' + mm(p.z) + ' mm) → ' + p.que))), carasPintadas() ? h('small', '🖌️ Las caras que pintaste son solo para verlo: no se imprimen.') : null); }
+    if (todos.length) return h('div.aj-pausas.no', { 'data-pausas': '0' }, h('b', '🖨️ Tal como está, sale de UN color y NO se para. '), R.modoColor === 'normal' ? 'Has elegido «Normal» en la pregunta 8: cámbiala a «✋ Cambio a mano» si quieres las paradas.' : 'Las paradas están desactivadas en «🌈 Colores por capas».');
+    if (carasPintadas()) return h('div.aj-pausas.ojo', { 'data-pausas': 'caras' }, h('b', '🖌️ Has pintado CARAS: eso es solo para verlo. '), 'Con una bobina cada vez la impresora solo puede cambiar de color por CAPAS (de abajo arriba). Tal como está, sale de un color y NO se para. Para que se pare: abre «🌈 Colores por capas», pulsa «🎨 Ponerlos sobre la pieza» y pinta «🧱 Por capas».');
+    return null;
+  }
+  // una ventana propia, encima de todo (el asistente ya suele estar dentro de otra ventana)
+  function ventana(clase, cosas, sePuedeCerrar) {
+    const fondo = h('div.aj-vent-f', { role: 'dialog', 'aria-modal': 'true' }), cerrar = () => { fondo.remove(); document.removeEventListener('keydown', esc, true); }, esc = e => { if (e.key === 'Escape' && sePuedeCerrar) { e.preventDefault(); e.stopPropagation(); cerrar(); } };
+    mount(fondo, h('div.aj-vent' + clase, cosas, sePuedeCerrar ? h('div.r8e-btns', btn('Entendido', cerrar, { cls: 'primary aj-vent-ok' })) : null)); document.body.appendChild(fondo); document.addEventListener('keydown', esc, true); return { cerrar, el: fondo };
+  }
+  const tiempoTxt = s => { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60 ? (m % 60) + ' min' : ''); };
+  const alCambiarBobina = () => h('p.small', 'Cuando la impresora se pare: en su pantalla, ', h('b', 'Filamento → Descargar'), ', pon la bobina nueva, ', h('b', 'Cargar'), ' (que purgue un poco) y ', h('b', 'Reanudar'), '.');
+  // lo que ha pasado al mandarlo a Bambu Studio: se queda en pantalla hasta que lo cierres (antes era un aviso de 12 segundos)
+  function resultado(res, como, L, conCal) {
+    res = res || {}; const pres = res.presets || {}, V = res.comprobadas || [], hay = L.length > 0;
+    const perfiles = pres.maquina ? h('p.small.muted', 'Con tus perfiles: ' + [pres.maquina, pres.proceso, pres.filamento, pres.placa].filter(Boolean).join(' · ') + '.' + (conCal || '')) : null;
+    const lista = conMarca => h('ul.aj-vent-l', L.map((p, i) => { const v = V[i]; return h('li', h('i', { style: { background: p.tipo === 'color' ? p.color : 'transparent' } }), h('span', '⏸ capa ' + (v && v.capa ? v.capa + ' de ' + v.total : p.capa) + ' (' + mm(p.z) + ' mm) → ' + p.que), conMarca && v && v.ok ? h('b.aj-vent-si', '✅ comprobada en el archivo') : null); }));
+    if (res.laminado === true) return ventana('.ok', [h('h3', '✅ Abierto en Bambu Studio, YA LAMINADO'),
+      h('p', 'Lo ha laminado tu propio Bambu Studio. ', res.segundos ? h('b', '⏱️ ' + tiempoTxt(res.segundos) + (res.gramos ? ' · ⚖️ ' + String(Math.round(res.gramos * 10) / 10).replace('.', ',') + ' g' : '')) : null, res.segundos ? ' (lo dice Bambu Studio).' : null), perfiles,
+      hay ? h('div.aj-vent-p', h('b', 'He leído el archivo laminado y la impresora se va a parar aquí:'), lista(true)) : null,
+      h('ol', h('li', 'Se ha abierto una ventana de Bambu Studio en ', h('b', '«Previsualización»'), ', con la pieza ya laminada', hay ? [' y la etiqueta naranja ', h('b', '«Pausa»'), ' en la barra de capas de la derecha'] : null, '.'), h('li', 'Pulsa ', h('b', '«Imprimir placa»'), ' (arriba a la derecha) y elige tu impresora.'), hay ? h('li', alCambiarBobina()) : null),
+      h('p.tiny.muted', 'Se abre en «Modo de vista previa»: ahí no se cambia nada, y por eso no se pierde nada. Si quieres cambiar algo en Bambu, usa «🧩 Abrir el proyecto». Guardado en ' + (res.path || '') + '.')], true);
+    const noLam = como === 'laminado' ? h('p.aj-vent-aviso', '⚠️ No he podido dejarlo laminado (' + (res.motivoLaminado || 'Bambu Studio no respondió') + ').') : null;
+    if (hay && res.pausa) return ventana('.ojo', [h('h3', '🧩 Abierto el PROYECTO con la pausa puesta'), noLam, perfiles, h('div.aj-vent-p', h('b', 'Paradas que lleva el proyecto:'), lista(false)),
+      h('ol', h('li', 'Si Bambu Studio pregunta ', h('b', '«Seleccione una acción»'), ', elige ', h('b', '«Abrir como proyecto»'), '. Con «Importar geometría solo» se pierden la pausa y todos los ajustes.', res.geometriaSolo ? h('b.aj-vent-aviso', ' ⚠️ Tu Bambu Studio tiene guardado «Importar geometría solo»: cámbialo en ese cuadro.') : null),
+        h('li', 'No lo metas con «Importar»: deja que lo abra el programa, o usa Archivo → Abrir proyecto.'), h('li', 'Pulsa ', h('b', 'Laminar placa'), ': en la barra de capas de la derecha tiene que salir la etiqueta naranja «Pausa» en esa capa. Si no sale, es que no se abrió como proyecto.'), h('li', alCambiarBobina())),
+      h('p.tiny.muted', 'Guardado en ' + (res.path || '') + '.')], true);
+    if (hay) return ventana('.mal', [h('h3', '⚠️ No he podido poner la pausa sola'), noLam, h('p', (res.motivo || 'Bambu Studio no respondió') + '. ' + (res.abierto ? 'Se ha abierto SIN ella.' : '')), h('div.aj-vent-p', h('b', 'Ponla a mano en Bambu Studio (10 segundos):'), lista(false)),
+      h('ol', h('li', 'Laminar placa.'), h('li', 'En la barra de capas de la derecha, sube hasta esa capa.'), h('li', 'Clic derecho en el circulito → ', h('b', '«Añadir pausa»'), '.'))], true);
+    if (como === 'laminado') return ventana('.ojo', [h('h3', '🧩 Abierto sin laminar'), noLam, h('p', res.abierto ? 'Se ha abierto la pieza con sus ajustes dentro: pulsa Laminar placa e Imprimir.' : 'Guardado en ' + (res.path || '') + '.')], true);
+    return null;
+  }
   async function sale(como) {
     try {
       if (R.soporte === 'tumbar' && r.orient && o.alGirar) { R.soporte = 'no'; guardaResp(clave, R); o.alGirar(r.orient.rot); return; }
@@ -239,12 +282,18 @@ export async function asistente(el, o) {
       const pausas = conPausas() ? CC.paraArchivo(R.cc.cambios, capaArchivo()) : [];
       const blob = N.tresMF(X.partes, base, X.ajustes, { cambios: pausas }); window.__r8calib = X.aplicada; // v20.3: lo que un diseño NECESITA sí o sí (el rodamiento impreso: sin soportes ni balsa)
       const conCal = X.aplicada ? ' · 🎯 con tu calibración «' + X.aplicada + '»' : '';
-      const extra = pausas.length ? { pausas: JSON.stringify(pausas.map(c => ({ z: c.z, color: c.color }))), imp: R.impresora, mat: R.material, proc: r.perfil } : null;
+      const extra = pausas.length ? { pausas: JSON.stringify(pausas.map(c => Object.assign({ z: c.z, color: c.color }, c.tipo ? { tipo: c.tipo } : {}, c.gcode ? { gcode: c.gcode } : {}))), imp: R.impresora, mat: R.material, proc: r.perfil } : null;
+      // v30.6.2 · YA LAMINADO por su Bambu Studio (con o sin paradas), cada parada comprobada en el G-code, y abierto listo para imprimir
+      if (como === 'laminado' && o.desktopAbrir) { const d = await import('../desktop.js'), L = pausas.length ? paradasTxt() : [];
+        const esp = ventana('.espera', [h('h3', '⏳ Tu Bambu Studio está laminando la pieza…'), h('p', 'Con tus perfiles y estos ajustes' + (L.length ? ', y con ' + (L.length === 1 ? 'la parada' : 'las ' + L.length + ' paradas') + ' dentro' : '') + '. Una pieza grande tarda uno o dos minutos: no cierres el programa.'), h('div.aj-vent-barra')], false);
+        let res; try { res = await d.desktop.bambuAbrir(blob, base, true, Object.assign({ laminar: '1', imp: R.impresora, mat: R.material, proc: r.perfil }, extra || {})); } finally { esp.cerrar(); }
+        window.__r8aj && (window.__r8aj.abierto = res); resultado(res, 'laminado', L, conCal); return; }
       const capasTxt = pausas.length ? R.cc.cambios.slice().sort((a, b) => a.z - b.z).map(c => { const K = CC.capaDe(c.z, capaArchivo()); return 'capa ' + K.capa + ' (' + String(K.z).replace('.', ',') + ' mm)'; }).join(', ') : '';
       // v30.2.1 · en el PC: Bambu Studio hace SU proyecto con la pausa puesta (y se abre, o se guarda en Documentos con «3MF»)
       if (extra && o.desktopAbrir) { const d = await import('../desktop.js'); toast('🌈 Tu Bambu Studio está poniendo la pausa…', 'info', 4000); const res = await d.desktop.bambuAbrir(blob, base, como === 'abrir', extra); window.__r8aj && (window.__r8aj.abierto = res);
-        if (res && res.pausa) toast((como === 'abrir' ? '🖨️ Abriendo en Bambu Studio CON LA PAUSA PUESTA' : '📦 Guardado con la pausa puesta en ' + res.path) + ' (' + capasTxt + '; verás la marca en la barra de capas). Lamina e imprime: se parará sola para que cambies la bobina.' + conCal, 'ok', 12000);
-        else toast('⚠️ No he podido poner la pausa sola (' + ((res && res.motivo) || 'Bambu Studio no respondió') + '). ' + (res && res.abierto ? 'Se abre sin ella: ' : 'Ponla a mano: ') + 'clic derecho en la barra de capas → «Añadir pausa» en la ' + capasTxt + '.', 'warn', 14000);
+        if (como === 'abrir') resultado(res, 'abrir', paradasTxt(), conCal); // (se queda en pantalla, con lo de «Abrir como proyecto»)
+        else if (res && res.pausa) toast('📦 Guardado con la pausa puesta en ' + res.path + ' (' + capasTxt + '). Ábrelo en Bambu Studio COMO PROYECTO, lamina e imprime.' + conCal, 'ok', 12000);
+        else toast('⚠️ No he podido poner la pausa sola (' + ((res && res.motivo) || 'Bambu Studio no respondió') + '). Ponla a mano: clic derecho en la barra de capas → «Añadir pausa» en la ' + capasTxt + '.', 'warn', 14000);
         return; }
       if (como === 'abrir') { const d = await import('../desktop.js'), res = await d.desktop.bambuAbrir(blob, base); toast((res && res.abierto ? '🖨️ Abriendo en Bambu Studio… (guardado en Documentos\\CelebriDiseños_R8)' : '📦 Guardado en ' + (res && res.path)) + conCal, 'ok', 8000); window.__r8aj && (window.__r8aj.abierto = res); return; }
       o.baja(blob, base + '.3mf'); toast('📦 3MF con los ajustes descargado' + conCal + '. Ábrelo con Bambu Studio.' + (pausas.length ? ' 🌈 Pon la pausa en la ' + capasTxt + ': clic derecho en la barra de capas → «Añadir pausa».' : ''), 'ok', pausas.length ? 12000 : 6000);

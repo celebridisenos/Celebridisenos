@@ -9,7 +9,7 @@
 import { h, mount } from '../ui.js';
 
 export const COLORES = [['#f4f4f0', 'Blanco'], ['#1b1b1f', 'Negro'], ['#e63946', 'Rojo'], ['#ffb703', 'Amarillo'], ['#2a9d8f', 'Verde'], ['#3a86ff', 'Azul'], ['#ff70a6', 'Rosa'], ['#9b5de5', 'Morado'], ['#c0c0c0', 'Plata'], ['#d4a017', 'Oro']];
-const nombreColor = c => (COLORES.find(x => x[0].toLowerCase() === String(c || '').toLowerCase()) || [0, 'otro color'])[1];
+export const nombreColor = c => (COLORES.find(x => x[0].toLowerCase() === String(c || '').toLowerCase()) || [0, 'otro color'])[1];
 const f2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const f1 = x => (Math.round(x * 10) / 10).toLocaleString('es-ES');
 
@@ -61,10 +61,10 @@ export function bloque(est, o) {
         h('button.btn.sm.cc-mas', { type: 'button', onclick: () => añade(Math.round(alto / 2 * 10) / 10) }, '＋ Cambio de color'))),
       // v30.2.1 · en el PC, la pausa la pone su propio Bambu Studio (bambu_pausas.go); en el móvil o la tablet, a mano
       L.length && o.conBambu && o.modo !== 'normal' ? h('div.cc-como.cc-auto', h('b', '✅ La pausa la pone TU Bambu Studio solo:'),
-        h('ol', h('li', 'Pulsa ', h('b', '«🖨️ Abrir en Bambu Studio con la pausa puesta»'), ' (abajo). Se abre como proyecto suyo, con la marca en la barra de capas (capa ' + L.map(c => capaDe(c.z, capa).capa).join(', ') + ').'),
-          h('li', 'Dale a ', h('b', 'Laminar placa'), ' e ', h('b', 'Imprimir'), ' como siempre.'),
+        h('ol', h('li', 'Pulsa ', h('b', '«🖨️ Abrir en Bambu YA LAMINADO, con la pausa dentro»'), ' (abajo). Tu Bambu Studio lo lamina y se abre en «Previsualización», con la etiqueta naranja «Pausa» en la barra de capas de la derecha (capa ' + L.map(c => capaDe(c.z, capa).capa).join(', ') + ').'),
+          h('li', 'Pulsa ', h('b', 'Imprimir placa'), '. No hay que laminar ni tocar nada más.'),
           h('li', 'Cuando se pare: en la pantalla de la impresora, ', h('b', 'Filamento → Descargar'), ', pon la bobina nueva, ', h('b', 'Cargar'), ' (que purgue un poco) y ', h('b', 'Reanudar'), '.')),
-        h('small.muted', 'Comprobado con tu Bambu Studio: la parada va al empezar esa capa, antes de imprimir nada de ella.'))
+        h('small.muted', 'El programa lee el archivo laminado y te confirma en qué capa se para: va al empezar esa capa, antes de imprimir nada de ella.'))
       : L.length && o.modo !== 'normal' ? h('div.cc-como', h('b', '📋 Cómo se hace en Bambu Studio (10 segundos):'),
         h('ol', h('li', 'Ábrelo y dale a ', h('b', 'Laminar placa'), '.'),
           h('li', 'En la vista previa, sube la ', h('b', 'barra de capas'), ' de la derecha hasta la capa que pone arriba (' + L.map(c => capaDe(c.z, capa).capa).join(', ') + ').'),
