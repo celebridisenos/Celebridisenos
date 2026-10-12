@@ -4,7 +4,7 @@ import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can
 import { aplicarColor, colorActual, dialogoColores, dialogoPlan } from './v17.js'; // v17: colores, plan de impresión y calendario
 import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
-import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30 } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
+import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30, selectorTema } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
 import { debeEstrenar20 } from './estreno20.js';
 import { debeRegalar } from './regalos302.js'; // v30.2 · 🎁 los 4 regalos (sale una vez, después del estreno)
 import { debeEstrenar30 } from './estreno30.js'; // v30: el estreno de la 30 (va antes que el de la 20) // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
@@ -261,7 +261,7 @@ function buildShell() {
     h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú', 'aria-label': 'Abrir menú' }, icon('menu')),
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
     quick,
-    h('div.right.row', syncEl, botonModo(), actB, botonRegalo(), chatB, bell, meBtn));
+    h('div.right.row', syncEl, selectorTema(), botonModo(), actB, botonRegalo(), chatB, bell, meBtn));
   const banner = h('div');
   const content = h('main.content', { id: 'main' });
   const tabbar = h('nav.tabbar', { 'aria-label': 'Secciones principales' });
@@ -468,6 +468,7 @@ export function accionesPaleta() {
     nav('Inteligencia: banco de metas y planeta de clientes', 'sparkles', 'inteligencia', '', 'metas objetivo ventas paises planeta clientes inteligencia numeros media'),
     fn('Plan de impresión: ¿qué imprimo ahora?', 'printer', () => dialogoPlan(), '', 'plan imprimir orden cola impresion que imprimo'),
     fn('Colores del programa', 'sparkles', () => dialogoColores(), '', 'colores paleta tema aspecto apariencia'),
+    fn('Llevar el programa a otro ordenador (mudanza)', 'download', () => import('./mudanza.js').then(M => M.dialogoMudanza()), '', 'mudanza copia de seguridad cambiar de ordenador pc nuevo usb migrar trasladar backup'), // (fuera del programa del PC explica que se hace allí)
     nav('Puente de mando: el taller de un vistazo', 'home', 'puente', '', 'inicio portada sala mando resumen directo'),
     nav('CelebriR8: diseñar una pieza (caja, engranaje, llavero con nombre, molde, cortador) o editar un STL', 'cube', 'celebrir8', 'productos.ver', 'celebrir8 r8 fusion diseñar dibujar 3d stl caja engranaje llavero nombre molde cortador galletas figura arandela editar cortar escalar'),
     nav('Taller vivo: los pedidos moviéndose por el taller', 'play', 'tallervivo', 'pedidos.ver', 'taller vivo directo cubos cinta impresoras camión'),
@@ -654,6 +655,8 @@ window.addEventListener('cd:interfaz', () => { try { applyTheme(); if (shell) { 
 // ---------- Arranque ----------
 let unsub = null;
 export async function start() {
+  // v30.7.1 · 📦 en un PC recién restaurado de una mudanza: primero, los ajustes que venían en la copia (temas, calibración…)
+  if (desktop.on && !start._mud) { start._mud = true; try { const M = await import('./mudanza.js'); if (await M.recogeAjustes()) { location.reload(); return; } setTimeout(() => M.bienvenidaMudanza(), 5000); } catch (e) { } }
   applyTheme(); aplicarUI(); instalarEfectos();
   await loadLocal();
   // v10.6: avisar al programa del PC de que la app arranca bien (confirma la actualización)
@@ -683,7 +686,7 @@ export async function start() {
   import('./hologramas.js').then(m => m.iniciar()).catch(() => { }); // v16
   pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }); });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
-  if (desktop.on) { desktopDaily(); setTimeout(warmUp, 6000); }
+  if (desktop.on) { desktopDaily(); } // v30.7.1: la IA ya no se carga en la tarjeta gráfica al arrancar (ver warmUp)
 }
 // En el PC: copia local diaria de todos los datos (por si Google fallara algún día)
 async function desktopDaily() {

@@ -130,3 +130,187 @@ html.ui30 .r8cj-chipvuela { background: var(--grad); color: #1b1406; }
 .est30 .est20-play { background: linear-gradient(115deg, #e8b04b, #ff7a59); color: #1b1406; }
 .est30 .est20-nov button { background: #17130f; border-color: #3a3024; color: #f7f2e9; } .est30 .est20-nov button:hover { border-color: #e8b04b; }
 .est30 .est20-tarjeta { background: #100d0a; border-color: #3a3024; }
+
+
+/* ---------- v30.7.1 · 📦 la ventana de la mudanza ---------- */
+.mud { display: grid; gap: 12px; } .mud p { margin: 0; } .mud-nota { padding: 10px 14px; border-radius: 12px; background: var(--info-soft); color: var(--text); font-size: 13.5px; }
+.mud-partes { display: grid; gap: 8px; } .mud-parte { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface-2); cursor: pointer; } .mud-parte.fijo { cursor: default; }
+.mud-parte input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--brand); } .mud-parte > div { flex: 1; min-width: 0; display: grid; gap: 2px; } .mud-parte small { color: var(--text-2); font-size: 12.5px; } .mud-opc { font-weight: 700; color: var(--warn) !important; }
+.mud-tam { flex: none; font-weight: 700; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.mud-dest { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .mud code, .mud-hecho code { background: var(--surface-3); color: var(--text); padding: 3px 8px; border-radius: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.mud-prog { display: grid; gap: 8px; padding: 16px; border-radius: 14px; background: var(--surface-2); } .mud-barra { height: 12px; border-radius: 99px; background: var(--surface-3); overflow: hidden; } .mud-barra span { display: block; height: 100%; border-radius: 99px; background: var(--brand); transition: width .4s; }
+.mud-hecho { display: grid; gap: 10px; } .mud-hecho h3 { margin: 0; } .mud-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; } .mud-tabla td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mud-ojo { padding: 10px 14px; border-radius: 12px; background: var(--warn-soft); color: var(--text); } .mud-ojo ul { margin: 6px 0 0; padding-left: 20px; }
+/* v30.7.1 · la calibración: «estimar otro material» y las etiquetas: los candidatos de seguimiento */
+.cpu-estima { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--line-2); background: var(--surface-2); } .cpu-estima > div { flex: 1; min-width: 240px; display: grid; gap: 4px; } .cpu-estima small { color: var(--text-2); font-size: 13px; }
+.etq-cands { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; } .etq-cand small { color: var(--text-2); font-weight: 500; } .etq-por, .etq-cambia { margin-top: 4px; }
+
+/* v40 · 📄 el manual de montaje y la calibración de una sola pieza */
+.man { display: grid; gap: 10px; } .man-marco { width: 100%; height: min(68vh, 760px); border: 1px solid var(--line-2); border-radius: 12px; background: #fff; }
+.cpu-tabla.una .cpu-fila { grid-template-columns: minmax(0, 1fr) 150px; } .cpu-tabla.dos .cpu-fila { grid-template-columns: minmax(0, 1fr) 120px 120px; }
+
+/* ================= v30.7.1 · LOS TEMAS (desplegable 🎨 de arriba) =================
+   La dueña (12-10-2026): «los cambios de colores de interfaz no te deja y no se leen bien los textos; los temas se tienen que adaptar,
+   tienen que ser bonitos y estar a la altura… pon más estilos de temas, pero desplegables, que puedas elegir».
+   Cada tema da TODOS los colores a la vez (fondo, tarjetas, líneas, letras, botones) y su contraste está comprobado al generarlo
+   (tools/temas30.py): letra normal ≥ 7:1, letra secundaria y apagada ≥ 4,5:1, letra de los botones ≥ 4,5:1. «Papel cálido» y
+   «Obsidiana y oro» son el Día y la Noche de siempre. html[data-tema30] + data-modo (dia / noche) para lo que depende del modo. */
+/* nombres antiguos de color que algunas pantallas usaban sin que ningún tema los definiera (salían con un color fijo) */
+html { --accent: var(--brand); --pri: var(--brand); --bg2: var(--surface-2); --good: var(--ok); --border: var(--line-2); --soft: var(--brand-soft); }
+html.ui30[data-tema30="papel"] { /* Papel cálido */
+  --u30-oro: #9c6218; --u30-coral: #e2553a; --u30-menta: #1f9e7a;
+  --bg: #f5f0e8; --surface: #fffdf9; --surface-2: #f6f1e8; --surface-3: #ece4d6;
+  --line: #e7dccb; --line-2: #d8c8ae; --text: #1e1a14; --text-2: #4b4337; --muted: #756a58;
+  --brand: #9c6218; --brand-2: #855212; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #9c6218 11%, #fffdf9);
+  --focus: 0 0 0 3px color-mix(in srgb, #9c6218 32%, transparent);
+  --u18-panel: #fffdf9; --u18-brillo: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 10px 26px rgba(20, 30, 50, .07); --shadow-l: 0 26px 70px rgba(20, 30, 50, .22); color-scheme: light;
+}
+html.ui30[data-tema30="papel"] .r8p-vista, html.ui30[data-tema30="papel"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #fffdf9 0%, #f6f1e8 62%, #ece4d6 100%); }
+html.ui30[data-tema30="papel"] .btn.primary { color: #ffffff; text-shadow: none; }
+html.ui30[data-tema30="nieve"] { /* Blanco nieve */
+  --u30-oro: #2563eb; --u30-coral: #7c3aed; --u30-menta: #0d9488;
+  --bg: #f3f5f9; --surface: #ffffff; --surface-2: #f1f4f9; --surface-3: #e4e9f2;
+  --line: #dde3ee; --line-2: #c5cede; --text: #0f172a; --text-2: #334155; --muted: #586579;
+  --brand: #2563eb; --brand-2: #1d4ed8; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #2563eb 11%, #ffffff);
+  --focus: 0 0 0 3px color-mix(in srgb, #2563eb 32%, transparent);
+  --u18-panel: #ffffff; --u18-brillo: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 10px 26px rgba(20, 30, 50, .07); --shadow-l: 0 26px 70px rgba(20, 30, 50, .22); color-scheme: light;
+}
+html.ui30[data-tema30="nieve"] .r8p-vista, html.ui30[data-tema30="nieve"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #ffffff 0%, #f1f4f9 62%, #e4e9f2 100%); }
+html.ui30[data-tema30="nieve"] .btn.primary { color: #ffffff; text-shadow: none; }
+html.ui30[data-tema30="cuarzo"] { /* Rosa cuarzo */
+  --u30-oro: #c2255c; --u30-coral: #d9480f; --u30-menta: #0c8599;
+  --bg: #fbf1f3; --surface: #fffafb; --surface-2: #f9eaee; --surface-3: #f2dbe1;
+  --line: #efd3da; --line-2: #e0b6c1; --text: #2a1219; --text-2: #5a3440; --muted: #82596a;
+  --brand: #c2255c; --brand-2: #a61e4d; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #c2255c 11%, #fffafb);
+  --focus: 0 0 0 3px color-mix(in srgb, #c2255c 32%, transparent);
+  --u18-panel: #fffafb; --u18-brillo: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 10px 26px rgba(20, 30, 50, .07); --shadow-l: 0 26px 70px rgba(20, 30, 50, .22); color-scheme: light;
+}
+html.ui30[data-tema30="cuarzo"] .r8p-vista, html.ui30[data-tema30="cuarzo"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #fffafb 0%, #f9eaee 62%, #f2dbe1 100%); }
+html.ui30[data-tema30="cuarzo"] .btn.primary { color: #ffffff; text-shadow: none; }
+html.ui30[data-tema30="menta"] { /* Menta fresca */
+  --u30-oro: #0b7a55; --u30-coral: #c2410c; --u30-menta: #0c8599;
+  --bg: #eef7f3; --surface: #fbfffd; --surface-2: #e9f5ef; --surface-3: #d8ebe2;
+  --line: #cfe5da; --line-2: #a9cfbc; --text: #0f241b; --text-2: #2f4a3d; --muted: #557263;
+  --brand: #0b7a55; --brand-2: #086244; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #0b7a55 11%, #fbfffd);
+  --focus: 0 0 0 3px color-mix(in srgb, #0b7a55 32%, transparent);
+  --u18-panel: #fbfffd; --u18-brillo: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 10px 26px rgba(20, 30, 50, .07); --shadow-l: 0 26px 70px rgba(20, 30, 50, .22); color-scheme: light;
+}
+html.ui30[data-tema30="menta"] .r8p-vista, html.ui30[data-tema30="menta"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #fbfffd 0%, #e9f5ef 62%, #d8ebe2 100%); }
+html.ui30[data-tema30="menta"] .btn.primary { color: #ffffff; text-shadow: none; }
+html.ui30[data-tema30="lavanda"] { /* Lavanda */
+  --u30-oro: #6d3fd6; --u30-coral: #c2255c; --u30-menta: #0c8599;
+  --bg: #f4f1fb; --surface: #fdfcff; --surface-2: #efeaf9; --surface-3: #e2daf3;
+  --line: #ddd3f0; --line-2: #c3b4e3; --text: #1c1433; --text-2: #44395f; --muted: #6b6086;
+  --brand: #6d3fd6; --brand-2: #5a30bd; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #6d3fd6 11%, #fdfcff);
+  --focus: 0 0 0 3px color-mix(in srgb, #6d3fd6 32%, transparent);
+  --u18-panel: #fdfcff; --u18-brillo: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 10px 26px rgba(20, 30, 50, .07); --shadow-l: 0 26px 70px rgba(20, 30, 50, .22); color-scheme: light;
+}
+html.ui30[data-tema30="lavanda"] .r8p-vista, html.ui30[data-tema30="lavanda"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #fdfcff 0%, #efeaf9 62%, #e2daf3 100%); }
+html.ui30[data-tema30="lavanda"] .btn.primary { color: #ffffff; text-shadow: none; }
+html.ui30[data-tema30="cielo"] { /* Cielo */
+  --u30-oro: #0b6fb8; --u30-coral: #c2410c; --u30-menta: #0d9488;
+  --bg: #eef5fb; --surface: #fbfdff; --surface-2: #e8f1f9; --surface-3: #d7e6f3;
+  --line: #cfe0ef; --line-2: #a9c6df; --text: #0d1f2f; --text-2: #2d4960; --muted: #557086;
+  --brand: #0b6fb8; --brand-2: #085a96; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #0b6fb8 11%, #fbfdff);
+  --focus: 0 0 0 3px color-mix(in srgb, #0b6fb8 32%, transparent);
+  --u18-panel: #fbfdff; --u18-brillo: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 10px 26px rgba(20, 30, 50, .07); --shadow-l: 0 26px 70px rgba(20, 30, 50, .22); color-scheme: light;
+}
+html.ui30[data-tema30="cielo"] .r8p-vista, html.ui30[data-tema30="cielo"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #fbfdff 0%, #e8f1f9 62%, #d7e6f3 100%); }
+html.ui30[data-tema30="cielo"] .btn.primary { color: #ffffff; text-shadow: none; }
+html.ui30[data-tema30="claro-fuerte"] { /* Alto contraste claro */
+  --u30-oro: #0037c1; --u30-coral: #a61e00; --u30-menta: #00664a;
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #f2f2f2; --surface-3: #e2e2e2;
+  --line: #6b6b6b; --line-2: #3d3d3d; --text: #000000; --text-2: #1a1a1a; --muted: #404040;
+  --brand: #0037c1; --brand-2: #002a94; --brand-text: #ffffff;
+  --brand-soft: color-mix(in srgb, #0037c1 11%, #ffffff);
+  --focus: 0 0 0 3px color-mix(in srgb, #0037c1 32%, transparent);
+  --u18-panel: #ffffff; --u18-brillo: rgba(255, 255, 255, .9);
+  --shadow: 0 1px 2px rgba(20, 30, 50, .06), 0 10px 26px rgba(20, 30, 50, .07); --shadow-l: 0 26px 70px rgba(20, 30, 50, .22); color-scheme: light;
+}
+html.ui30[data-tema30="claro-fuerte"] .r8p-vista, html.ui30[data-tema30="claro-fuerte"] .r8e-vista { background: radial-gradient(900px 560px at 50% 38%, #ffffff 0%, #f2f2f2 62%, #e2e2e2 100%); }
+html.ui30[data-tema30="claro-fuerte"] .btn.primary { color: #ffffff; text-shadow: none; }
+html.ui30[data-tema30="medianoche"] { /* Medianoche azul */
+  --u30-oro: #7aa2ff; --u30-coral: #c084fc; --u30-menta: #34d399;
+  --bg: #070b16; --surface: #0e1424; --surface-2: #141c31; --surface-3: #1c2743;
+  --line: #1f2a47; --line-2: #2f3d63; --text: #eef3ff; --text-2: #c3cde6; --muted: #8b97b8;
+  --brand: #7aa2ff; --brand-2: #5b86f0; --brand-text: #06122b;
+  --brand-soft: color-mix(in srgb, #7aa2ff 18%, #0e1424);
+  --focus: 0 0 0 3px color-mix(in srgb, #7aa2ff 45%, transparent);
+  --u18-panel: #070b16; --u18-brillo: rgba(255, 255, 255, .05);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 10px 28px rgba(0, 0, 0, .36); --shadow-l: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 28px 80px rgba(0, 0, 0, .72); color-scheme: dark;
+}
+html.ui30[data-tema30="medianoche"] .inp, html.ui30[data-tema30="medianoche"] select.inp, html.ui30[data-tema30="medianoche"] textarea.inp { background: #070b16; }
+html.ui30[data-tema30="medianoche"] .card, html.ui30[data-tema30="medianoche"] .kt, html.ui30[data-tema30="medianoche"] .kpi { background-image: linear-gradient(180deg, color-mix(in srgb, #7aa2ff 5%, transparent), transparent 42%); }
+html.ui30[data-tema30="bosque"] { /* Bosque de noche */
+  --u30-oro: #5fd39a; --u30-coral: #f7b955; --u30-menta: #5cc8e8;
+  --bg: #07100c; --surface: #0e1a14; --surface-2: #14231b; --surface-3: #1c3126;
+  --line: #1d3327; --line-2: #2d4a3a; --text: #eef8f1; --text-2: #c2d8c9; --muted: #86a493;
+  --brand: #5fd39a; --brand-2: #3fb97e; --brand-text: #05200f;
+  --brand-soft: color-mix(in srgb, #5fd39a 18%, #0e1a14);
+  --focus: 0 0 0 3px color-mix(in srgb, #5fd39a 45%, transparent);
+  --u18-panel: #07100c; --u18-brillo: rgba(255, 255, 255, .05);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 10px 28px rgba(0, 0, 0, .36); --shadow-l: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 28px 80px rgba(0, 0, 0, .72); color-scheme: dark;
+}
+html.ui30[data-tema30="bosque"] .inp, html.ui30[data-tema30="bosque"] select.inp, html.ui30[data-tema30="bosque"] textarea.inp { background: #07100c; }
+html.ui30[data-tema30="bosque"] .card, html.ui30[data-tema30="bosque"] .kt, html.ui30[data-tema30="bosque"] .kpi { background-image: linear-gradient(180deg, color-mix(in srgb, #5fd39a 5%, transparent), transparent 42%); }
+html.ui30[data-tema30="ciruela"] { /* Ciruela */
+  --u30-oro: #e58ad6; --u30-coral: #ff8f6b; --u30-menta: #6ee7c5;
+  --bg: #100813; --surface: #1a0f1f; --surface-2: #23152a; --surface-3: #301d39;
+  --line: #33203d; --line-2: #4b3058; --text: #f8eefb; --text-2: #dcc6e3; --muted: #a88db2;
+  --brand: #e58ad6; --brand-2: #cf6cc0; --brand-text: #2a0a26;
+  --brand-soft: color-mix(in srgb, #e58ad6 18%, #1a0f1f);
+  --focus: 0 0 0 3px color-mix(in srgb, #e58ad6 45%, transparent);
+  --u18-panel: #100813; --u18-brillo: rgba(255, 255, 255, .05);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 10px 28px rgba(0, 0, 0, .36); --shadow-l: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 28px 80px rgba(0, 0, 0, .72); color-scheme: dark;
+}
+html.ui30[data-tema30="ciruela"] .inp, html.ui30[data-tema30="ciruela"] select.inp, html.ui30[data-tema30="ciruela"] textarea.inp { background: #100813; }
+html.ui30[data-tema30="ciruela"] .card, html.ui30[data-tema30="ciruela"] .kt, html.ui30[data-tema30="ciruela"] .kpi { background-image: linear-gradient(180deg, color-mix(in srgb, #e58ad6 5%, transparent), transparent 42%); }
+html.ui30[data-tema30="grafito"] { /* Grafito */
+  --u30-oro: #5cc8e8; --u30-coral: #ff8a65; --u30-menta: #6ee7a8;
+  --bg: #0d0e10; --surface: #16181b; --surface-2: #1d2024; --surface-3: #272b30;
+  --line: #2a2e34; --line-2: #3c424a; --text: #f2f4f6; --text-2: #c9ced5; --muted: #8e959f;
+  --brand: #5cc8e8; --brand-2: #38b2d6; --brand-text: #04202a;
+  --brand-soft: color-mix(in srgb, #5cc8e8 18%, #16181b);
+  --focus: 0 0 0 3px color-mix(in srgb, #5cc8e8 45%, transparent);
+  --u18-panel: #0d0e10; --u18-brillo: rgba(255, 255, 255, .05);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 10px 28px rgba(0, 0, 0, .36); --shadow-l: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 28px 80px rgba(0, 0, 0, .72); color-scheme: dark;
+}
+html.ui30[data-tema30="grafito"] .inp, html.ui30[data-tema30="grafito"] select.inp, html.ui30[data-tema30="grafito"] textarea.inp { background: #0d0e10; }
+html.ui30[data-tema30="grafito"] .card, html.ui30[data-tema30="grafito"] .kt, html.ui30[data-tema30="grafito"] .kpi { background-image: linear-gradient(180deg, color-mix(in srgb, #5cc8e8 5%, transparent), transparent 42%); }
+html.ui30[data-tema30="oscuro-fuerte"] { /* Alto contraste oscuro */
+  --u30-oro: #ffd60a; --u30-coral: #ff9f1c; --u30-menta: #2ee6a6;
+  --bg: #000000; --surface: #0a0a0a; --surface-2: #141414; --surface-3: #1f1f1f;
+  --line: #5a5a5a; --line-2: #8a8a8a; --text: #ffffff; --text-2: #f0f0f0; --muted: #c8c8c8;
+  --brand: #ffd60a; --brand-2: #ffc300; --brand-text: #000000;
+  --brand-soft: color-mix(in srgb, #ffd60a 18%, #0a0a0a);
+  --focus: 0 0 0 3px color-mix(in srgb, #ffd60a 45%, transparent);
+  --u18-panel: #000000; --u18-brillo: rgba(255, 255, 255, .05);
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 10px 28px rgba(0, 0, 0, .36); --shadow-l: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 28px 80px rgba(0, 0, 0, .72); color-scheme: dark;
+}
+html.ui30[data-tema30="oscuro-fuerte"] .inp, html.ui30[data-tema30="oscuro-fuerte"] select.inp, html.ui30[data-tema30="oscuro-fuerte"] textarea.inp { background: #000000; }
+html.ui30[data-tema30="oscuro-fuerte"] .card, html.ui30[data-tema30="oscuro-fuerte"] .kt, html.ui30[data-tema30="oscuro-fuerte"] .kpi { background-image: linear-gradient(180deg, color-mix(in srgb, #ffd60a 5%, transparent), transparent 42%); }
+/* alto contraste: sin degradados en los botones ni letras con sombra, y los bordes, marcados */
+html.ui30[data-tema30$="-fuerte"] .btn.primary { background: var(--brand); color: var(--brand-text); text-shadow: none; box-shadow: none; } html.ui30[data-tema30$="-fuerte"] .card, html.ui30[data-tema30$="-fuerte"] .inp, html.ui30[data-tema30$="-fuerte"] .btn { border-color: var(--line-2); } html.ui30[data-tema30$="-fuerte"] body { background-image: none; } html.ui30[data-tema30$="-fuerte"] .muted, html.ui30[data-tema30$="-fuerte"] .tiny { color: var(--muted); }
+/* encontrado por la revisión automática de contraste (tools/contraste30.js): la pestaña ENCENDIDA de CelebriR8 tenía la letra blanca sobre un fondo casi blanco en los temas claros; dos botones de Inteligencia perdían su fondo; y el naranja de los avisos se quedaba corto sobre blanco */
+html.ui30 .r8v-tab.on { color: var(--text); } html.ui30 .r8v-tab.on small { color: var(--text-2); }
+html.ui30 .in-acc .btn.in-sala { background: #06101f !important; color: #a5f3fc !important; } html.ui30 .in-acc .btn.in-parte { background: linear-gradient(110deg, #fde68a, #fdba74) !important; color: #3b2a05 !important; }
+html.ui30[data-modo="dia"][data-tema30] { --warn: #9a5505; }
+/* el desplegable de temas (arriba, junto al sol / la luna; también en CelebriR8 y en Configuración) */
+.u30-tema { height: 40px; max-width: 190px; padding: 0 30px 0 12px; border-radius: 12px; border: 1px solid var(--line-2); background-color: var(--surface); color: var(--text); font: 650 13px/1 inherit; cursor: pointer; flex: none; appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--text-2) 50%), linear-gradient(135deg, var(--text-2) 50%, transparent 50%); background-position: calc(100% - 16px) 17px, calc(100% - 11px) 17px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+.u30-tema:hover, .u30-tema:focus-visible { border-color: var(--brand); outline: none; box-shadow: var(--focus); } .u30-tema option, .u30-tema optgroup { background: var(--surface); color: var(--text); }
+html:not(.ui30) .u30-tema { display: none; } @media (max-width: 1100px) { .topbar .u30-tema { display: none; } } .r8v-acc .u30-tema { height: 36px; max-width: 150px; font-size: 12px; }
+.u30-temas-conf { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; } .u30-temas-conf .u30-tema { display: block; max-width: 260px; }
+/* la letra de los botones principales y de lo «encendido», siempre la que se lee sobre el color del tema */
+html.ui30[data-tema30] .btn.primary, html.ui30[data-tema30] .btn.primary:hover { background: linear-gradient(115deg, var(--brand) 0%, var(--brand-2) 100%); color: var(--brand-text); text-shadow: none; }

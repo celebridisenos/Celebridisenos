@@ -6,7 +6,7 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '30.6.3';
+export const APP_VERSION = '40.0.0';
 export const SERVIDOR_NECESARIO = '18.0.0'; // v20: la versión MÍNIMA del Servidor.gs que necesita esta app (la 20 no cambia nada del servidor)
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
@@ -90,13 +90,18 @@ export async function api(a, d, opts = {}) {
     try {
       r = await fetch(S.server, { method: 'POST', body: JSON.stringify({ a, d: d || {}, t: opts.token === undefined ? S.token : opts.token, op: opts.op, dev: S.device, v: APP_VERSION, ws: ws0, k }), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, redirect: 'follow', signal: ctrl.signal });
     } catch (e) {
-      setOnline(false);
-      throw new ApiError('NET', ctrl.signal.aborted ? 'El servidor tarda demasiado en responder.' : 'Sin conexión con el servidor.');
+      // v30.7.1 · LENTO NO ES «SIN CONEXIÓN» (la dueña, 12-10-2026: «no puede estar reconectando, tiene que estar en directo»): con
+      // el servidor de Google tardando 5–18 s, una sola llamada que no llegaba a tiempo (las hay de 8 s) ponía TODO el programa en
+      // «Reconectando…», y al contestar la siguiente, «Conexión restablecida» + sincronizar + repintar. Ahora una llamada lenta solo
+      // falla ella; se da por perdida la conexión si de verdad no hay red, o tras 3 lentas seguidas sin ninguna respuesta en 45 s.
+      const lenta = ctrl.signal.aborted;
+      if (!lenta || navigator.onLine === false || (++lentas >= 3 && Date.now() - ultimaOk > 45000)) setOnline(false);
+      throw new ApiError('NET', lenta ? 'El servidor tarda demasiado en responder.' : 'Sin conexión con el servidor.');
     }
     if (!r.ok) { throw new ApiError('NET', 'El servidor no responde (' + r.status + ').'); }
     let j;
     try { j = await r.json(); } catch (e) { throw new ApiError('NET', 'Respuesta no válida del servidor. ¿Es correcta la dirección?'); }
-    setOnline(true);
+    lentas = 0; ultimaOk = Date.now(); setOnline(true);
     if (!j.ok) {
       if (j.err.code === 'AUTH' && a !== 'auth.login' && a !== 'auth.desbloquear') onAuthLost(j.err.msg);
       throw new ApiError(j.err.code, j.err.msg, j.err.extra);
@@ -107,7 +112,7 @@ export async function api(a, d, opts = {}) {
   } finally { clearTimeout(timer); if (!opts.quiet) { S.busy--; status(); } }
 }
 // ---------- v16.1 · Cambios que llegan en la misma respuesta ----------
-let frescoHasta = 0, frescoSeq = -1, seq = 0;
+let frescoHasta = 0, frescoSeq = -1, seq = 0, lentas = 0, ultimaOk = Date.now();
 // ¿La última respuesta ya trajo TODO lo que cambió y no se ha pedido nada más desde entonces? Entonces no hace falta
 // preguntar otra vez. (Una sincronización pedida a propósito con pull() SIEMPRE pregunta al servidor.)
 export const alDia = () => frescoSeq === seq && Date.now() < frescoHasta;
@@ -164,11 +169,11 @@ function scheduleReconnect() {
   S.reconnecting = navigator.onLine !== false;
   status();
   reconT = setTimeout(async () => {
-    try { await api('sys.ping', {}, { quiet: true, timeout: 8000 }); } catch (e) { }
+    try { await api('sys.ping', {}, { quiet: true, timeout: 25000 }); } catch (e) { }
     if (!S.online) { reconDelay = Math.min(reconDelay * 2, 8000); scheduleReconnect(); } // v13.10: como mucho cada 8 s (antes 30 s)
   }, reconDelay);
 }
-export function reconnectNow() { reconDelay = 1000; clearTimeout(reconT); if (!S.online) { reconT = setTimeout(scheduleReconnect, 0); api('sys.ping', {}, { quiet: true, timeout: 8000 }).catch(() => { }); } }
+export function reconnectNow() { reconDelay = 1000; clearTimeout(reconT); if (!S.online) { reconT = setTimeout(scheduleReconnect, 0); api('sys.ping', {}, { quiet: true, timeout: 25000 }).catch(() => { }); } }
 window.addEventListener('online', () => reconnectNow());
 // v13.10: al tocar la pantalla sin conexión se reintenta al momento (como mucho una vez cada 3 s)
 let ultimoToque = 0; document.addEventListener('pointerdown', () => { if (!S.online && Date.now() - ultimoToque > 3000) { ultimoToque = Date.now(); reconnectNow(); } }, true);
@@ -286,11 +291,13 @@ export async function unlock(pass) {
 
 // ---------- Sincronización ----------
 let pulling = null;
-export function pull(full) {
+// v30.7.1 · fondo = la sincronización de cada 15 s: no enciende «Sincronizando…» (con un servidor lento la pastilla de arriba pasaba
+// la mitad del tiempo cambiando de «Conectado» a «Sincronizando…» sin que nadie hubiera tocado nada)
+export function pull(full, fondo) {
   if (!S.token || !S.server) return Promise.resolve();
   if (pulling) return pulling;
   pulling = (async () => {
-    S.syncing = true; status();
+    if (!fondo) { S.syncing = true; status(); }
     let changed = !S.ready;
     try {
       if (S.queue.length) await flush();
@@ -299,7 +306,7 @@ export function pull(full) {
       if (!full) TABLES.forEach(k => { if (S.meta[k]) known[k] = S.meta[k]; });
       let ws0 = S.ws;
       let r;
-      try { r = await api('sync.pull', { tablas: known, completo: !!full }); }
+      try { r = await api('sync.pull', { tablas: known, completo: !!full }, fondo ? { quiet: true } : {}); }
       catch (e) {
         // v10.5: sin acceso a este espacio (p. ej. se lo han quitado): se pasa a uno permitido
         if (e.code === 'PERM' && e.extra && e.extra.espacio) {
@@ -315,7 +322,12 @@ export function pull(full) {
       const sig = x => JSON.stringify(x);
       // v20.2: embalajeReal lo calcula la app (no viene del servidor): no es un cambio, si no, cada sincronización redibujaría la pantalla
       if (r.config && r.config.precios && S.cfg && S.cfg.precios && 'embalajeReal' in S.cfg.precios) r.config.precios.embalajeReal = S.cfg.precios.embalajeReal;
-      if (sig(r.yo) !== sig(S.me) || sig(r.permisos) !== sig(S.perms) || sig(r.config) !== sig(S.cfg) || r.hoy !== S.hoy || sig(r.iaServidor || null) !== sig(S.iaServidor || null)) changed = true;
+      // v30.7.1 · ESTABILIDAD (la dueña, 12-10-2026: «se vuelve loco, parpadea… creas un producto y a los segundos desaparece la
+      // ventana»): «iaServidor.visto» es la HORA del último latido del PC que atiende la IA y cambia en cada sincronización. Eso se
+      // daba por «ha llegado algo nuevo» y cada 15 s se repintaba ENTERA la pantalla abierta (y la ficha del producto, con su 3D).
+      // La hora del latido no es un cambio: solo cuenta QUIÉN atiende y con qué modelo.
+      const sinLatido = x => x ? sig(Object.assign({}, x, { visto: undefined })) : 'null';
+      if (sig(r.yo) !== sig(S.me) || sig(r.permisos) !== sig(S.perms) || sig(r.config) !== sig(S.cfg) || r.hoy !== S.hoy || sinLatido(r.iaServidor) !== sinLatido(S.iaServidor)) changed = true;
       S.me = r.yo; S.perms = r.permisos; S.cfg = r.config; S.hoy = r.hoy; S.iaServidor = r.iaServidor || null;
       try { const lg = (r.config && r.config.empresa && r.config.empresa.logo) || ''; if (lg !== (localStorage.getItem('cd.logo') || '')) { if (lg) localStorage.setItem('cd.logo', lg); else localStorage.removeItem('cd.logo'); } } catch (e) { }
       if (Object.keys(S.errors || {}).length) changed = true;
@@ -351,7 +363,7 @@ let pullTimer = null;
 export function pausaSync(v) { const antes = !!S.pausaSync; S.pausaSync = !!v; if (antes && !v) pull(); }
 export function startAutoSync() {
   clearInterval(pullTimer);
-  pullTimer = setInterval(() => { if (S.pausaSync) return; if (document.visibilityState === 'visible' || Date.now() % 5 === 0) pull(); }, 15000); // v13.10: cada 15 s (la pantalla no se mueve)
+  pullTimer = setInterval(() => { if (S.pausaSync) return; if (document.visibilityState === 'visible' || Date.now() % 5 === 0) pull(false, true); }, 15000); // v13.10: cada 15 s (la pantalla no se mueve)
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !S.pausaSync) pull(); });
   const midnight = setInterval(() => { const d = CL.today(); if (d !== S.hoy) { S.hoy = d; emit(); } }, 60000);
 }

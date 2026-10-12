@@ -296,10 +296,49 @@ function seguimientosDe(txt) {
   [/\b[A-Z]{2}\d{9}[A-Z]{2}\b/g, /\bPQ[A-Z0-9]{10,22}\b/g, /\b\d{12,24}\b/g, /\b[A-Z]{2,4}\d{8,20}[A-Z]{0,2}\b/g].forEach(rx => (txt.replace(/\s(?=\d{4}\b)/g, ' ').match(rx) || []).forEach(x => found.add(x)));
   return [...found].filter(x => !/^(19|20)\d{6}$/.test(x)).slice(0, 5);
 }
+const enMiLista = n => { const lista = (S.cfg && S.cfg.pedidos && S.cfg.pedidos.envios) || []; return lista.find(x => CL.norm(x) === CL.norm(n) || (n === 'Vinted Go' && /vinted/i.test(x) && /go/i.test(x))) || n; };
 export function transportistaDe(txt) {
-  const t = String(txt || ''), lista = (S.cfg && S.cfg.pedidos && S.cfg.pedidos.envios) || [];
-  for (const [n, rx] of TRANSPORTISTAS) if (rx.test(t)) { const enLista = lista.find(x => CL.norm(x) === CL.norm(n) || (n === 'Vinted Go' && /vinted/i.test(x))); return enLista || n; }
+  const t = String(txt || '');
+  for (const [n, rx] of TRANSPORTISTAS) if (rx.test(t)) return enMiLista(n);
   return '';
+}
+// v30.7.1 · «no detecta si es InPost o Vinted Go o SEUR» (la dueña, 12-10-2026, con sus etiquetas reales). En muchas el NOMBRE solo
+// está dibujado (el logotipo): no hay letras que digan «SEUR» ni «InPost». Se reconoce por lo que SÍ lleva cada una:
+//  · SEUR: «Ref.Exp», «Bultos», «P.PAGADOS», «CLSC…» y un código de barras ITF de 14 cifras.
+//  · InPost (también el que da Vinted para el extranjero): «Receiver / Sender / Shipment Nº», «LOCKER 24/7» y un número de 24–26 cifras.
+//  · Vinted Go: «vintedgo.com», «Escanea para enviar», y el QR que repite el número (16 cifras).
+// → { nombre, clave, por } · por = 'nombre' (lo pone) | 'forma' (por cómo es la etiqueta) | 'numero' (solo por el formato del número: menos seguro)
+const PISTAS = [
+  ['Vinted Go', /vinted\s*go|vintedgo/i, t => /escanea para enviar/i.test(t) && /c[oó]digo de seguimiento/i.test(t)],
+  ['SEUR', /\bseur\b/i, t => (/ref\.?\s*exp/i.test(t) && /bultos/i.test(t)) || /p\.?\s*pagados/i.test(t) || /\bCLSC\b/.test(t)],
+  ['InPost', /in\s?post|paczkomat/i, t => (/receiver/i.test(t) && /sender/i.test(t) && /shipment/i.test(t)) || /locker\s*24\s*\/\s*7/i.test(t)]];
+export function pistaTransportista({ txt = '', barras = [], itf = [], qr = '' } = {}) {
+  const t = String(txt || '');
+  for (const [n, rx] of PISTAS) if (rx.test(t)) return { nombre: enMiLista(n), clave: n, por: 'nombre' };
+  const otro = transportistaDe(t); if (otro) return { nombre: otro, clave: otro, por: 'nombre' };
+  for (const [n, , forma] of PISTAS) if (forma(t)) return { nombre: enMiLista(n), clave: n, por: 'forma' };
+  const B = barras.map(x => String(x).replace(/\s+/g, '')), q = String(qr || '').trim();
+  if (q && /^\d{16}$/.test(q) && B.includes(q)) return { nombre: enMiLista('Vinted Go'), clave: 'Vinted Go', por: 'numero' };
+  if (B.some(x => /^\d{24}$/.test(x) || /^\d{26}$/.test(x))) return { nombre: enMiLista('InPost'), clave: 'InPost', por: 'numero' };
+  if (itf.some(x => /^\d{14}$/.test(x)) && !B.length) return { nombre: enMiLista('SEUR'), clave: 'SEUR', por: 'numero' };
+  return { nombre: '', clave: '', por: '' };
+}
+// lo que cada transportista usa de seguimiento, por orden de preferencia (cada candidato dice QUÉ es). Lo que tú elijas una vez
+// para un transportista se recuerda en este aparato y sale el primero la próxima vez.
+const PREF = 'cd.etq.pref.';
+export function prefSeguimiento(clave, que) { try { if (que) localStorage.setItem(PREF + CL.norm(clave), que); return localStorage.getItem(PREF + CL.norm(clave)) || ''; } catch (e) { return ''; } }
+// el lector de letras de Windows (solo en el programa del PC): la etiqueta del derecho y girada un cuarto de vuelta a cada lado
+async function ocrEtiqueta(canvas, hasta) {
+  const { desktop } = await import('./desktop.js'); if (!desktop.on || !desktop.ocr) return '';
+  let todo = '';
+  for (const giro of [0, 90, 270]) {
+    const k = Math.min(1, 2400 / Math.max(canvas.width, canvas.height)), w = Math.round(canvas.width * k), hh = Math.round(canvas.height * k), c = document.createElement('canvas');
+    c.width = giro ? hh : w; c.height = giro ? w : hh; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.translate(c.width / 2, c.height / 2); g.rotate(giro * Math.PI / 180); g.drawImage(canvas, -w / 2, -hh / 2, w, hh);
+    const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+    try { const r = await desktop.ocr(blob); todo += ' ' + ((r && r.lineas) || []).join(' \n '); } catch (e) { if (!todo) throw e; }
+    if (hasta && hasta(todo)) break;
+  }
+  return todo;
 }
 // { transportista, seguimientos: [...], leida, origen } · v30.6.1: además de las LETRAS del PDF se leen las BARRAS (CODE 128) y el QR de la
 // propia etiqueta, que es lo único que hay cuando llega como foto, captura o PDF sin texto. Orden de los candidatos: primero el que
@@ -307,17 +346,31 @@ export function transportistaDe(txt) {
 const valeSeg = t => /^[A-Z0-9]{8,34}$/i.test(t) && /\d{5}/.test(t) && !/^(19|20)\d{6}$/.test(t);
 export async function leerEtiqueta(blob, name, opts = {}) {
   let txt = ''; try { txt = await pdfTexto(blob, name); } catch (e) { txt = ''; }
-  const deTexto = seguimientosDe(txt); let transportista = transportistaDe(txt), deBarras = [], cod = null;
+  let deBarras = [], cod = null, pagina = null, itf = [], ocr = '', ocrFallo = '';
   if (opts.barras !== false) { try {
-    const pg = await paginaEtiqueta({ etiquetaEnvio: { archivoId: opts.id || ('local:' + name + ':' + blob.size), nombre: name, mime: blob.type } }, { blob, pagina: opts.pagina || 1 });
-    const B = await import('./barras.js'); cod = await B.leeCodigos(pg.src);
-    deBarras = cod.barras.map(t => t.replace(/\s+/g, '')).filter(valeSeg);
-    if (!transportista) transportista = transportistaDe(cod.qr + ' ' + cod.barras.join(' '));
-    if (cod.qr && !/^https?:/i.test(cod.qr) && valeSeg(cod.qr.trim())) deBarras.push(cod.qr.trim());
+    pagina = await paginaEtiqueta({ etiquetaEnvio: { archivoId: opts.id || ('local:' + name + ':' + blob.size), nombre: name, mime: blob.type } }, { blob, pagina: opts.pagina || 1 });
+    const B = await import('./barras.js'); cod = await B.leeCodigos(pagina.src);
+    deBarras = cod.barras.map(t => t.replace(/\s+/g, '')).filter(valeSeg); itf = (cod.itf || []).filter(valeSeg);
+    if (cod.qr && !/^https?:/i.test(cod.qr) && valeSeg(cod.qr.trim()) && !deBarras.includes(cod.qr.trim())) deBarras.push(cod.qr.trim());
   } catch (e) { cod = null; } }
-  const norm = t => String(t).replace(/\s+/g, '').toUpperCase(), enLasDos = deBarras.filter(b => deTexto.some(t => norm(t) === norm(b) || norm(b).includes(norm(t)) || norm(t).includes(norm(b))));
-  const seguimientos = [...new Set(enLasDos.concat(deTexto, deBarras))].slice(0, 6);
-  return { transportista, seguimientos, leida: !!txt.trim() || !!(cod && (cod.barras.length || cod.qr)), origen: enLasDos.length ? 'las dos' : deTexto.length ? 'texto' : deBarras.length ? 'barras' : '', barras: deBarras, qr: cod ? cod.qr : '' };
+  const datos = () => ({ txt: txt + ' ' + ocr + ' ' + (cod ? cod.qr : ''), barras: cod ? cod.barras : [], itf, qr: cod ? cod.qr : '' });
+  let P = pistaTransportista(datos());
+  // v30.7.1 · si con las letras del PDF y las barras no se sabe de quién es (o solo «por el número»), se LEEN las letras de la
+  // imagen con el lector de Windows (en el PC; gratis y sin internet). Sus números NO se usan de seguimiento (confunde un 0 con un 9).
+  if (opts.ocr !== false && pagina && (!P.nombre || P.por === 'numero')) { try { ocr = await ocrEtiqueta(pagina.src, t => !!pistaTransportista({ txt: t }).nombre); const P2 = pistaTransportista(datos()); if (P2.nombre) P = P2; } catch (e) { ocrFallo = e.message || String(e); } }
+  const norm = t => String(t).replace(/\s+/g, '').toUpperCase(), todoTxt = txt + ' ' + ocr;
+  // los candidatos, cada uno con lo que ES
+  const C = [], pon = (v, que, de) => { v = norm(v); if (v && valeSeg(v) && !C.some(c => c.v === v)) C.push({ v, que, de }); };
+  const escritos = seguimientosDe(txt), enOcr = b => norm(ocr).includes(norm(b));
+  if (P.clave === 'SEUR') { (txt.match(/\bREC\d{9,}\b/g) || []).forEach(v => pon(v, 'Código REC (el de arriba de la etiqueta)', 'escrito')); const m = /ref\.?\s*exp\.?\s*:?[\s|]*(\d{8,14})/i.exec(txt); if (m) pon(m[1], 'Ref. Exp. (referencia de la expedición)', 'escrito'); itf.forEach(v => pon(v, 'El de las barras (bulto)', 'barras')); }
+  deBarras.filter(b => escritos.some(t => norm(t) === norm(b) || norm(b).includes(norm(t)) || norm(t).includes(norm(b)))).forEach(v => pon(v, 'Escrito y en sus barras', 'las dos'));
+  deBarras.filter(enOcr).forEach(v => pon(v, 'En sus barras y en letra', 'las dos'));
+  if (P.clave === 'Vinted Go' && cod && cod.qr) pon(cod.qr, 'El del QR', 'barras');
+  escritos.forEach(v => pon(v, 'Escrito en la etiqueta', 'escrito')); deBarras.forEach(v => pon(v, 'El de las barras', 'barras')); itf.forEach(v => pon(v, 'El de las barras', 'barras'));
+  const pref = P.clave ? prefSeguimiento(P.clave) : ''; if (pref) { const i = C.findIndex(c => c.que === pref); if (i > 0) C.unshift(C.splice(i, 1)[0]); }
+  const candidatos = C.slice(0, 6), primero = candidatos[0];
+  return { transportista: P.nombre, clave: P.clave, por: P.por, seguimientos: candidatos.map(c => c.v), candidatos, leida: !!todoTxt.trim() || !!(cod && (cod.barras.length || cod.qr || itf.length)),
+    origen: !primero ? '' : primero.de === 'las dos' ? 'las dos' : primero.de === 'escrito' ? 'texto' : 'barras', barras: deBarras.concat(itf), qr: cod ? cod.qr : '', ocr: !!ocr.trim(), ocrFallo };
 }
 export async function trackingCandidates(blob, name) { return (await leerEtiqueta(blob, name)).seguimientos; }
 
@@ -651,7 +704,7 @@ export function attachDialog(o, after, opts = {}) {
   const ponTr = v => { if (![...tr.options].some(x => x.value === v)) tr.append(h('option', { value: v }, v)); tr.value = v; pintaDest(); };
   const dest = h('div.row.wrap.etq-dest', { style: { gap: '6px' } }), pintaDest = () => mount(dest, DESTINOS.map(d => h('button.chip.etq-d' + (d.rx.test(tr.value || o.envio || '') ? '.on' : ''), { type: 'button', 'data-dest': d.k, onclick: () => ponTr(d.t) }, d.ic + ' ' + d.t)));
   tr.addEventListener('change', () => pintaDest()); pintaDest();
-  let file = null, rec = null, recAuto = null; // v14.1: recorte (inteligente al elegir el archivo; se puede ajustar a mano)
+  let file = null, rec = null, recAuto = null, leido = null; // v14.1: recorte (inteligente al elegir el archivo; se puede ajustar a mano)
   const local = () => ({ etiquetaEnvio: { archivoId: 'local:' + file.name + ':' + file.size, nombre: file.name, mime: file.type } });
   const recBtns = h('div.row.wrap.rc-botones', { style: { gap: '6px' } });
   const showPrev = async (nuevo) => {
@@ -672,11 +725,15 @@ export function attachDialog(o, after, opts = {}) {
     file = fi.files[0] || null; mount(sug);
     if (!file) return;
     showPrev(true);
-    const L = await leerEtiqueta(file, file.name);
-    if (L.transportista && !o.envio) ponTr(L.transportista);
-    if (!o.seguimiento && L.seguimientos.length && !seg.value) seg.value = L.seguimientos[0];
+    mount(sug, h('span.tiny.muted.etq-leyendo', '🔎 Leyendo la etiqueta (letras, barras y QR)…'));
+    const L = await leerEtiqueta(file, file.name); leido = L;
+    // v30.7.1: la etiqueta manda (es quien se lo lleva de verdad), aunque el pedido dijera otro transportista
+    if (L.transportista) ponTr(L.transportista);
+    if (!o.seguimiento && L.seguimientos.length) seg.value = L.seguimientos[0];
     mount(sug, L.leida && (L.transportista || L.seguimientos.length) ? h('span.tiny.ok-t.etq-leido', { 'data-origen': L.origen || '' }, (L.origen === 'barras' ? '▮▯▮ Leído de las barras de la etiqueta: ' : L.origen === 'las dos' ? '📖 Leído de la etiqueta (escrito y en sus barras): ' : '📖 Leído de la etiqueta: ') + [L.transportista, L.seguimientos[0]].filter(Boolean).join(' · ')) : h('span.tiny.muted.etq-leido', { 'data-origen': '' }, L.leida ? 'No encuentro el nº de seguimiento en esta etiqueta: escríbelo si lo sabes y marca dónde se lleva.' : 'No se lee nada en esta imagen (ni letras ni barras): escribe el seguimiento y marca dónde se lleva.'),
-      !o.seguimiento && L.seguimientos.length ? [h('span.tiny.muted', L.seguimientos.length > 1 ? ' ¿Es otro número?' : ' Seguimiento:'), L.seguimientos.map(x => h('button.chip', { onclick: () => { seg.value = x; } }, x))] : null);
+      L.transportista && L.por !== 'nombre' ? h('div.tiny.muted.etq-por', { 'data-por': L.por }, L.por === 'forma' ? 'ℹ️ El nombre va en un dibujo (logotipo): lo he reconocido por cómo es la etiqueta' + (L.ocr ? ', leyendo sus letras con el lector de Windows.' : '.') : '⚠️ Lo deduzco solo por el formato del número: compruébalo en «¿Dónde se lleva?».') : null,
+      L.transportista && o.envio && CL.norm(o.envio) !== CL.norm(L.transportista) ? h('div.tiny.warn-t.etq-cambia', 'El pedido decía «' + o.envio + '»; la etiqueta es de ' + L.transportista + ': se cambia al adjuntarla.') : null,
+      !o.seguimiento && (L.candidatos || []).length ? h('div.etq-cands', h('span.tiny.muted', L.candidatos.length > 1 ? '¿Es otro número? Elige (se recuerda para ' + (L.transportista || 'la próxima vez') + '):' : 'Seguimiento:'), L.candidatos.map(c => h('button.chip.etq-cand', { type: 'button', title: c.que, 'data-que': c.que, onclick: () => { seg.value = c.v; } }, c.v, L.candidatos.length > 1 ? h('small', ' · ' + c.que) : null))) : null);
   };
   modal('Adjuntar la etiqueta oficial · nº ' + o.numero, h('div.col',
     h('p.small', 'La etiqueta que te da la plataforma o la empresa de envíos (Vinted, Wallapop, Correos, InPost…), en PDF o foto. Se imprime tal cual: el programa no la inventa ni cambia lo que pone.'),
@@ -686,6 +743,7 @@ export function attachDialog(o, after, opts = {}) {
     const bt = ev.target.closest('button'), t0 = bt.innerHTML; bt.disabled = true; bt.textContent = '⏳ Adjuntando…';
     try {
       await attachFile(o, file, { transportista: tr.value || o.envio || '', seguimiento: seg.value.trim(), paginas: pagSel.options.length, pagina: Number(pagSel.value) || 1, recorte: rec || undefined });
+      try { const c = leido && (leido.candidatos || []).find(c => c.v === seg.value.trim().replace(/\s+/g, '').toUpperCase()); if (c && leido.clave) prefSeguimiento(leido.clave, c.que); } catch (e) { } // v30.7.1: «para SEUR, el que elegí»
       close(); after && after();
       if (opts.imprimir) { toast('🏷️ Etiqueta oficial adjuntada: se imprime tal cual', 'ok'); printOne(byId('pedidos', o.id) || o, 'oficial').then(() => after && after()).catch(e => toast(e.message, 'bad')); }
       else toast('🏷️ Etiqueta oficial adjuntada', 'ok', 8000, can('pedidos.editar') ? { t: '🖨️ Imprimir ahora', on: () => printOne(byId('pedidos', o.id) || o, 'oficial').catch(e => toast(e.message, 'bad')) } : null);

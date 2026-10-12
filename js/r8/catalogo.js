@@ -27,6 +27,8 @@ import { DISENOS_ESCULTURAS } from './cat_esculturas.js';
 import { DISENOS_CHASIS, ponTrapecio } from './cat_chasis.js'; // v30.5 · 🏎️ chasis RC (bañera, doble placa, largueros)
 import { DISENOS_KITS } from './cat_kits.js'; // v30.5 · 🚲 kits de dos ruedas (bici y moto)
 import { DISENOS_TALADRO } from './cat_taladro.js'; // v30.5 · 🔩 mini taladro de columna y portarrollos 1:12
+import { DISENOS_PRO } from './cat_pro.js'; // v30.7.1 · ⭐ PRO: por piezas, que encajan (lava-pinceles, bote de rosca, escritorio modular, maceta con autorriego)
+import { DISENOS_PACK60 } from './cat_pack60.js'; // v30.7 · 🎁 el pack de 60: velas, lámparas, ratón, hogar, oficina, flores, hormigas, pinceles, papeleras, juegos y empresas
 import { DISENOS_MAS, PARTES_MAS } from './cat_mas.js'; // v30.6 · más cajas, bisagras, jarrones, vasos, decoración y accesorios
 import { PARTES_UTILES } from './cat_utiles.js';
 import { DISENOS_UTILES } from './cat_utiles.js'; // v30.4 · 🧰 herramientas y accesorios que funcionan
@@ -35,8 +37,8 @@ import { DISENOS_NAVIDAD } from './cat_navidad.js'; // v30.4 · 🎄 pueblo navi
 import { DISENOS_PREMIUM } from './catalogo_premium.js'; // v20.4: miniaturas, jarrones de lujo, esculturas de equilibrio, tornillos, autorriego // v20.2: spool, diferencial de rectos, accesorios y repuestos (con su prueba de encaje)
 import { asiento, plantilla, medidasRod, OPS_RODAMIENTOS, APRETES, n2 as n2r, ajusteParaDiseno, OPS_AJUSTE, textoAjuste } from './rodamientos.js'; // v20.2: rodamientos que funcionan en plástico
 
-export const CATEGORIAS = [['', '✨ Todo'], ['ninos', '🧸 Niños'], ['juguetes', '🚲 Juguetes para montar'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
-  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas y hormigas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas y casa de muñecas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
+export const CATEGORIAS = [['', '✨ Todo'], ['pro', '⭐ PRO: por piezas, que encajan'], ['pack60', '🎁 Pack de 60 (nuevo)'], ['ninos', '🧸 Niños'], ['juguetes', '🚲 Juguetes para montar'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
+  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['oficina', '🖥️ Oficina'], ['empresas', '💼 Empresas y hostelería'], ['flores', '🌷 Flores'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas y hormigas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas y casa de muñecas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
 const n = (k, t, v, min, max, paso = 0.5, u = 'mm') => ({ k, t, v, min, max, paso, u });
 const s = (k, t, v, ops) => ({ k, t, v, ops });
 const c = (k, t, v) => ({ k, t, v: !!v, chk: 1 });
@@ -1239,6 +1241,8 @@ Object.assign(DISENOS, DISENOS_CHASIS); ponTrapecio(trapecioPieza); // v30.5
 Object.assign(DISENOS, DISENOS_KITS); // v30.5
 Object.assign(DISENOS, DISENOS_TALADRO); // v30.5
 Object.assign(DISENOS, DISENOS_MAS); // v30.6
+Object.assign(DISENOS, DISENOS_PACK60); // v30.7
+Object.assign(DISENOS, DISENOS_PRO); // v30.7.1
 // v30.6 · «AL ESTUDIO POR PIEZAS»: los diseños de varias partes dan cada una suelta, montadas en su sitio y con cómo se mueven
 // (bisagra: { o, dir, ang } · desliza: { dir, d }), para editarlas una a una y abrirlas en 🎬 Animar
 export const PARTES = Object.assign({}, PARTES_UTILES, PARTES_MAS);

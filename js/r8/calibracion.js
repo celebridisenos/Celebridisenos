@@ -73,7 +73,12 @@ export function probeta() {
 // Con tres medidas se usa la del MEDIO (una mal tomada no estropea nada) y se sabe cuánto repite la impresora.
 export const sitios3 = (cama = 256) => { const [dx, dy] = cama <= 190 ? [50, 62] : [78, 80]; return [{ n: 1, x: -dx, y: -dy, giro: 0 }, { n: 2, x: 0, y: 0, giro: 90 }, { n: 3, x: dx, y: dy, giro: 0 }]; };
 export function probetaN(n) { return probeta().subtract(N.centraCS(N.texto2(String(n), 'gorda', 7)).extrude(0.61).translate([-20, 15, GEO.base[4] - 0.6])); }
-export function placa3(cama = 256) { return N.union(sitios3(cama).map(s => { let m = probetaN(s.n); if (s.giro) m = m.rotate([0, 0, s.giro]); return m.translate([s.x, s.y, 0]); })); }
+export function placa3(cama = 256) { return placaN(cama, 3); }
+// v30.7.1 · la dueña (12-10-2026): «lo he hecho con dos piezas… tres piezas son muchas». La placa puede llevar 1, 2 o 3 probetas:
+// 1 = una sola, en el centro (33 min) · 2 = dos en diagonal, la segunda girada (lo recomendado: 1 h 5 min) · 3 = las tres de siempre.
+export const sitiosN = (cama = 256, n = 3) => { const [dx, dy] = cama <= 190 ? [50, 62] : [78, 80]; return n <= 1 ? [{ n: 1, x: 0, y: 0, giro: 0 }] : n === 2 ? [{ n: 1, x: -dx * 0.6, y: -dy * 0.6, giro: 0 }, { n: 2, x: dx * 0.6, y: dy * 0.6, giro: 90 }] : sitios3(cama); };
+export function placaN(cama = 256, n = 3) { return N.union(sitiosN(cama, n).map(s => { let m = probetaN(s.n); if (s.giro) m = m.rotate([0, 0, s.giro]); return m.translate([s.x, s.y, 0]); })); }
+export const TIEMPO_PLACA = { 1: ['35 min', '12 g'], 2: ['1 h 5 min', '25 g'], 3: ['1 h 40 min', '37 g'] }; // (laminadas con su Bambu, perfil PRECISION; redondeado)
 // meds = [{ A: …, B: … }, { … }, { … }] (lo medido en la probeta 1, 2 y 3; una probeta entera en blanco no cuenta)
 export function calcula3(meds, off = 0) {
   const num = x => { const v = Number(String(x ?? '').replace(',', '.')); return v > 0 ? v : null; };
@@ -106,11 +111,28 @@ export function calcula(med, off = 0) {
   if (malD.length) avisos.push('Los agujeros no cuadran entre sí: ' + malD.map(x => x.k).join(', ') + '. Mide otra vez con las puntas de dentro, sin forzar.');
   if (Math.abs(v('C') - 12) > 0.1) avisos.push('El alto (C) sale ' + n2(v('C')) + ' en vez de 12: eso suele ser la PRIMERA CAPA (muy aplastada o despegada), no que encoja. No se corrige solo: revisa la nivelación / el «Z offset» y vuelve a imprimirla.');
   if (Math.abs(1 - s) > 0.02 || Math.abs(1 - sz) > 0.03) avisos.push('Sale mucho (' + n2((1 - s) * 100) + ' % en XY): ¿la probeta es la de esta pantalla y la has medido en mm?');
+  const { claves, escala } = clavesDe(s, c, h, f);
+  return { s, sz, c, h, f, claves, escala, avisos, res: resF.concat(resD) };
+}
+// de lo medido (s = lo que encoge, c = lo que engorda por lado, h = lo que se cierran los agujeros, f = pie de elefante) a lo que se le manda a Bambu
+export function clavesDe(s, c, h, f) {
   const r3 = x => Math.round(x * 1000) / 1000;
   const r2 = x => Math.round(x * 100) / 100 + 0; // (v20.4: en centésimas: es lo que ve un calibre)
-  const claves = { xy_hole_compensation: String(r2(Math.max(0, Math.min(0.5, h)))), xy_contour_compensation: String(r2(Math.max(-0.5, Math.min(0.5, -c)))), elefant_foot_compensation: String(r2(Math.min(0.6, f))) };
+  const claves = { xy_hole_compensation: String(r2(Math.max(0, Math.min(0.5, h)))), xy_contour_compensation: String(r2(Math.max(-0.5, Math.min(0.5, -c)))), elefant_foot_compensation: String(r2(Math.min(0.6, Math.max(0, f)))) };
   const sXY = Math.abs(1 - s) < 0.001 ? 1 : s, escala = [r3(1 / sXY), r3(1 / sXY), 1]; // (v20.4: menos de 0,1 % no se nota con calibre; la Z no se escala)
-  return { s, sz, c, h, f, claves, escala, avisos, res: resF.concat(resD) };
+  return { claves, escala };
+}
+// v30.7.1 · OTRO MATERIAL SIN IMPRIMIR OTRA PLACA (la dueña, 12-10-2026: «me faltaría en PETG… no sé qué puedes inventar para que
+// pueda quedar calibrada»). De lo MEDIDO con un material se ESTIMA otro: lo que es de la MÁQUINA (cuánto engorda el contorno, el pie
+// de elefante por la altura de la boquilla) se queda igual, y lo que es del PLÁSTICO se mueve lo que suele moverse entre uno y otro:
+//   PETG frente a PLA: encoge un 0,15 % más · los agujeros se cierran 0,02 mm más por lado (fluye más) · el pie de elefante crece
+//   0,05 mm (cama a 80 °C en vez de 60). TPU: no encoge más, agujeros +0,05. Son valores típicos, NO medidos: queda marcada como
+//   «estimada» y se afina cuando se quiera con UNA sola probeta (35 min, 12 g). Para piezas a presión, mejor medirla.
+const DELTA = { PLA: { s: 0, h: 0, f: 0 }, PETG: { s: -0.0015, h: 0.02, f: 0.05 }, TPU: { s: 0, h: 0.05, f: 0.03 } };
+export function estimaMaterial(base, deMat, aMat) {
+  const a = DELTA[deMat] || DELTA.PLA, b = DELTA[aMat]; if (!base || !b) return null;
+  const s = base.s + (b.s - a.s), c = base.c, h = base.h + (b.h - a.h), f = Math.max(0, base.f + (b.f - a.f)), K = clavesDe(s, c, h, f);
+  return { s, sz: base.sz, c, h, f, claves: K.claves, escala: K.escala };
 }
 // guardar el resultado de una impresora + material (y dejarlo como el que se usa)
 export function guarda(clave, R, extra = {}) { const g = guardado(); g.perfiles[clave] = Object.assign({ fecha: new Date().toISOString().slice(0, 10), claves: R.claves, escala: R.escala, s: R.s, sz: R.sz, c: R.c, h: R.h, f: R.f }, extra); g.activa = clave; return graba(g); }
@@ -118,10 +140,19 @@ export function activa() { const g = guardado(); return g.activa && g.perfiles[g
 export function ponActiva(clave) { const g = guardado(); g.activa = clave && g.perfiles[clave] ? clave : null; return graba(g); }
 export const texto = P => (P.escala && Math.abs(P.escala[0] - 1) > 1e-6 ? 'encoge ' + n2((1 - P.s) * 100) + ' % en XY (va escalada ×' + n3(P.escala[0]) + ')' : 'no encoge en XY (o menos de lo que nota un calibre)') + ' · agujeros +' + n3(Number(P.claves.xy_hole_compensation)) + ' · contorno ' + n3(Number(P.claves.xy_contour_compensation)) + ' · pie ' + n3(Number(P.claves.elefant_foot_compensation)) + ' mm';
 
+// v30.7.1 · la calibración QUE TOCA: la de la impresora y el material con los que se va a imprimir ESTA pieza (antes se aplicaba
+// siempre «la que está en uso», aunque fuera de la otra impresora o de otro plástico). Si ese material no está medido en esa
+// impresora pero otro sí, se estima a partir del medido. Si de esa impresora no hay nada, se usa la que esté en uso.
+export function perfilPara(imp, mat) {
+  if (!imp && !mat) return null; const g = guardado(), I = /a1/i.test(String(imp || '')) ? 'A1 mini' : 'P1P', M = String(mat || 'PLA').toUpperCase().replace(/[^A-Z]/g, '') || 'PLA', k = I + ' · ' + M;
+  if (g.perfiles[k]) return Object.assign({ clave: k }, g.perfiles[k]);
+  for (const m of ['PLA', 'PETG', 'TPU']) { const p = g.perfiles[I + ' · ' + m]; if (p && !p.estimada) { const e = estimaMaterial(p, m, M); if (e) return Object.assign({ clave: k + ' (estimada desde ' + m + ')', estimada: true }, e); } }
+  return null;
+}
 // ---------- 4) LO QUE HACE SOLO: al preparar un 3MF para imprimir ----------
 // partes = [{ m (Manifold) | malla (sopa Float32Array), color, nombre }] · ajustes = claves del 3MF → { partes, ajustes, aplicada }
 export function paraImprimir(partes, ajustes, o = {}) {
-  const A = o.sin ? null : activa(); if (!A) return { partes, ajustes, aplicada: null };
+  const A = o.sin ? null : (perfilPara(o.imp, o.mat) || activa()); if (!A) return { partes, ajustes, aplicada: null };
   const [sx, sy, sz] = A.escala || [1, 1, 1], esc = Math.abs(sx - 1) > 1e-4 || Math.abs(sz - 1) > 1e-4;
   const P2 = partes.map(p => {
     if (!esc) return p;

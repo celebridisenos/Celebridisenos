@@ -178,7 +178,7 @@ async function runModel(question, history, g, ctx, { onToken, onStatus, signal, 
     // v10: si ya tenemos los datos (plan), no se mandan las herramientas: menos texto = respuesta más rápida
     const useTools = round < 2 && (!g.calls.length || round > 0) && tools.length;
     const longAnswer = /(descripcion|redacta|escribe|mensaje|email|correo|texto para|post|anuncio|guion)/.test(norm(question));
-    await desktop.iaChat({ model, messages: msgs, tools: useTools ? tools : undefined, stream: true, think: false, keep_alive: '60m', options: { temperature: (S.cfg && S.cfg.ia && S.cfg.ia.temperatura) || 0.3, num_ctx: 6144, num_predict: longAnswer ? 700 : 320 } }, ch => {
+    await desktop.iaChat({ model, messages: msgs, tools: useTools ? tools : undefined, stream: true, think: false, keep_alive: '10m', options: { temperature: (S.cfg && S.cfg.ia && S.cfg.ia.temperatura) || 0.3, num_ctx: 6144, num_predict: longAnswer ? 700 : 320 } }, ch => {
       const m = ch.message || {};
       if (m.tool_calls && m.tool_calls.length) msg.tool_calls.push(...m.tool_calls);
       if (m.content) {
@@ -320,8 +320,19 @@ async function askTeam(question, history, cbs, modo) {
 // ---------- Trabajador: este PC atiende las preguntas del equipo ----------
 let workerOn = false;
 // v10: el modelo se carga en memoria al abrir el programa: la primera pregunta ya no espera
+// v30.7.1 · LA TARJETA GRÁFICA ES DEL TALLER 3D. Visto en su PC (12-10-2026): el modelo de la IA (3,2 GB) se cargaba al abrir el
+// programa y se quedaba 60 min en una tarjeta de 6 GB; con Bambu Studio y el navegador abiertos quedaban 0,9 GB libres, y CelebriR8
+// iba «con retraso» (y los motores de fotos, sin sitio). Ahora: no se carga al arrancar (solo al abrir el Asistente), se queda 10 min
+// tras la última pregunta, y al entrar en CelebriR8 se suelta (liberaIA). La primera pregunta tarda unos segundos más: es el precio.
+let sinCalentar = false;
 export async function warmUp() {
-  try { const st = await localStatus(); if (st.disponible) await desktop.iaChat({ model: st.modelo, messages: [], stream: true, keep_alive: '60m' }, () => { }); } catch (e) { }
+  if (sinCalentar) return;
+  try { const st = await localStatus(); if (st.disponible) await desktop.iaChat({ model: st.modelo, messages: [], stream: true, keep_alive: '10m' }, () => { }); } catch (e) { }
+}
+// soltar la memoria de la tarjeta (al entrar en CelebriR8); v = false al salir: se puede volver a cargar cuando haga falta
+export async function liberaIA(v = true) {
+  sinCalentar = !!v; if (!v || !desktop.on) return false;
+  try { const st = await localStatus(); if (!st.disponible) return false; await desktop.iaChat({ model: st.modelo, messages: [], stream: true, keep_alive: 0 }, () => { }); return true; } catch (e) { return false; }
 }
 export function startWorker() {
   if (workerOn || !desktop.on) return;
@@ -330,16 +341,16 @@ export function startWorker() {
   let idle = 0;
   const loop = async () => {
     try {
-      if (S.token && can('ia.servidor') && localStorage.getItem('cd.iaServidor') !== '0' && !(S.cfg && S.cfg.ia && S.cfg.ia.servidorEquipo === false)) {
+      if (!sinCalentar && S.token && can('ia.servidor') && localStorage.getItem('cd.iaServidor') !== '0' && !(S.cfg && S.cfg.ia && S.cfg.ia.servidorEquipo === false)) { // (v30.7.1: dentro de CelebriR8 no se atiende: la tarjeta es para el 3D)
         const st = await localStatus();
         if (st.disponible) {
-          const job = await api('ia.cola.siguiente', { dispositivo: S.device, modelo: st.modelo });
+          const job = await api('ia.cola.siguiente', { dispositivo: S.device, modelo: st.modelo }, { quiet: true }); // v30.7.1: en silencio (es un latido de fondo)
           if (job) { idle = 0; await serveJob(job); setTimeout(loop, 300); return; }
         }
       }
     } catch (e) { console.warn('IA equipo', e.message); }
     idle = Math.min(idle + 1, 3);
-    setTimeout(loop, (document.visibilityState === 'visible' ? 3000 : 5000) + idle * 1000);
+    setTimeout(loop, (document.visibilityState === 'visible' ? 6000 : 9000) + idle * 2000); // v30.7.1: con más calma (cada llamada a Google son 2–5 s y frenaba a las demás)
   };
   setTimeout(loop, 4000);
 }
@@ -371,7 +382,7 @@ async function serveJob(job) {
 // Solo con los datos que se le pasan en el propio encargo. En el móvil lo redacta el PC servidor.
 async function writeLocal(prompt, st, onToken, signal) {
   let text = '';
-  await desktop.iaChat({ model: st.modelo, stream: true, think: false, keep_alive: '30m', options: { temperature: 0.6, num_ctx: 8192 },
+  await desktop.iaChat({ model: st.modelo, stream: true, think: false, keep_alive: '10m', options: { temperature: 0.6, num_ctx: 8192 },
     messages: [{ role: 'system', content: 'Eres redactor/a de ' + ((S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'la empresa') + ', un pequeño negocio español de impresión 3D. Escribes en español de España, cercano y claro. Usa SOLO los datos que te den; no inventes cifras, precios ni características. Si describes un producto, céntrate en el producto (características, materiales, uso, detalles, acabado), no en quién lo hizo: nada de «he creado/fabricado/diseñado este producto». Devuelve solo el texto pedido.\n/no_think' }, { role: 'user', content: prompt }] },
     ch => { const c = ch.message && ch.message.content; if (c) { text += c; onToken && onToken(cleanThink(text)); } }, signal);
   return cleanThink(text, true);

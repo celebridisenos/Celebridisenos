@@ -76,13 +76,13 @@ export function aconseja(sopa, info, ctx = {}) {
   else if (uso === 'flexible') { ajuste('Fuerza', 'Bucles de pared', '3', ''); ajuste('Fuerza', 'Densidad de relleno', '15 %', 'Con TPU, más relleno la hace dura.'); }
   else { ajuste('Fuerza', 'Bucles de pared', '2–3' + tuyo('paredes', ''), 'Decorativa: no necesita más.'); ajuste('Fuerza', 'Densidad de relleno', '10–15 %' + tuyo('relleno', ' %'), 'Ligera y rápida.'); ajuste('Fuerza', 'Patrón de relleno disperso', 'Giroide', 'Se ve bonito si la pieza deja pasar la luz y no hace ruido al imprimir.'); }
   // soportes
-  const pideSoporte = m.voladizo > 30 && uso !== 'jarron';
+  const pideSoporte = m.voladizo > 30 && uso !== 'jarron' && !ctx.sinSoportes; // v30.7 · ctx.sinSoportes = el motivo por el que ese diseño no los necesita
   if (pideSoporte) {
     ajuste('Soporte', 'Habilitar el soporte', 'Sí', 'Hay ' + Math.round(m.voladizo / 100) + ' cm² de pieza «en el aire» (más inclinada de 30°).');
     ajuste('Soporte', 'Tipo · Estilo', 'árbol(auto) · Árbol orgánico', 'Se quitan fácil y casi no dejan marca (es el que usas en tus perfiles).');
     ajuste('Soporte', 'Ángulo de umbral', '30°', 'El mismo que tienes en tus perfiles.');
     if (m.alturaVoladizo < m.alto * 0.25) ajuste('Soporte', 'Sólo en la placa de impresión', 'Activado', 'Lo que está en el aire está abajo: los soportes solo desde la cama, sin ensuciar la pieza.');
-  } else if (uso !== 'jarron') ajuste('Soporte', 'Habilitar el soporte', 'No', m.voladizo > 1 ? 'Lo que vuela es muy poco: sale bien sin soportes.' : 'No tiene nada en el aire.');
+  } else if (uso !== 'jarron') ajuste('Soporte', 'Habilitar el soporte', 'No', ctx.sinSoportes && m.voladizo > 30 ? ctx.sinSoportes : m.voladizo > 1 ? 'Lo que vuela es muy poco: sale bien sin soportes.' : 'No tiene nada en el aire.');
   // apoyo y balsa (brim)
   const base = Math.min(X, Y), esbelta = Z / Math.max(1, base) > 2.6;
   if (m.apoyo < 120 || esbelta) ajuste('Otros', 'Tipo de balsa', 'Solo borde exterior · Ancho de la balsa 5 mm', esbelta ? 'Es alta y estrecha: el borde la sujeta para que no se mueva al subir.' : 'Apoya poco en la cama (' + Math.round(m.apoyo) + ' mm²): el borde ayuda a que no se despegue.');
@@ -184,18 +184,19 @@ export async function asistente(el, o) {
   let hayCC = false; // (si aparecen o desaparecen los cambios de color, se repinta para la pregunta 8 y el botón)
   const pinta = () => {
     hayCC = !!(R.cc && (R.cc.cambios || []).length);
-    r = aconseja(sopa, info, { uso: R.uso, texto: o.texto, material: R.material, impresora: R.impresora, colores: colores.length > 1 ? colores : [] });
-    const fino = /0\.12/.test(r.perfil), rec = { acabado: R.uso === 'jarron' || R.uso === 'funcional' || R.uso === 'encaje' ? 'rapido' : fino ? 'fino' : 'equilibrado', soporte: o.soportes ? 'arbol' : r.mide.voladizo > 30 && R.uso !== 'jarron' ? (r.mide.alturaVoladizo < r.mide.alto * 0.25 ? 'cama' : 'arbol') : 'no', balsa: r.ajustes.some(a => a.nombre === 'Tipo de balsa' && /borde/.test(a.valor)) ? 'si' : 'auto', planchar: r.ajustes.some(a => a.nombre === 'Tipo de planchado') ? 'si' : 'no', modoColor: 'pausa' };
+    r = aconseja(sopa, info, { sinSoportes: o.sinSoportes, uso: R.uso, texto: o.texto, material: R.material, impresora: R.impresora, colores: colores.length > 1 ? colores : [] });
+    const fino = /0\.12/.test(r.perfil), rec = { acabado: R.uso === 'jarron' || R.uso === 'funcional' || R.uso === 'encaje' ? 'rapido' : fino ? 'fino' : 'equilibrado', soporte: o.soportes ? 'arbol' : o.sinSoportes ? 'no' : r.mide.voladizo > 30 && R.uso !== 'jarron' ? (r.mide.alturaVoladizo < r.mide.alto * 0.25 ? 'cama' : 'arbol') : 'no', balsa: r.ajustes.some(a => a.nombre === 'Tipo de balsa' && /borde/.test(a.valor)) ? 'si' : 'auto', planchar: r.ajustes.some(a => a.nombre === 'Tipo de planchado') ? 'si' : 'no', modoColor: 'pausa' };
     if (R.modoColor !== 'normal') R.modoColor = 'pausa'; // (v30.2.2: ya no hay «AMS»: no tiene)
     ['acabado', 'soporte', 'balsa', 'planchar', 'modoColor'].forEach(k => { if (!R[k]) R[k] = rec[k]; });
+    if (o.sinSoportes) R.soporte = 'no'; // v30.7 · el diseño está pensado para salir sin soportes (y lo dice)
     const preg = (k, titulo, ops, ayuda) => h('div.aj-preg', { 'data-preg': k }, h('b', titulo), ayuda ? h('small', ayuda) : null, h('div.aj-ops', ops.map(([v, t, d]) => h('button.aj-op' + (R[k] === v ? '.on' : ''), { type: 'button', 'data-v': v, onclick: () => { R[k] = v; guardaResp(clave, R); pinta(); } }, h('span', t), rec[k] === v ? h('i.aj-rec', '⭐ recomendado') : null, d ? h('small', d) : null))));
-    const imp = (perfiles || PERFILES_DE_SERIE).impresoras, vol = r.mide.voladizo;
+    const imp = (perfiles || PERFILES_DE_SERIE).impresoras, enAire = r.mide.voladizo, vol = o.sinSoportes ? 0 : enAire;
     const usoPieza = o.uso || 'deco', recPerfil = usoPieza === 'mecanica' ? 'mecanica' : usoPieza === 'funcional' || usoPieza === 'encaje' ? 'robusta' : (o.texto || Math.min(info.dims[0], info.dims[1]) < 25 || info.dims[2] < 12) ? 'alta' : 'normal', perfilAhora = perfilRapidoDe(R);
     mount(el, h('div.r8e-prop-t', h('b', '🖨️ PREPARAR PARA TU BAMBU')), h('p.small.muted', 'Toca lo que quieras. Lo marcado con ⭐ es lo que haría yo con esta pieza. Al final, el archivo sale con todo puesto.'),
       // v30.6.1 · lo primero que se ve: si necesita soportes, y los perfiles de un toque
       R.uso === 'jarron' ? null : h('div.aj-soporte' + (vol > 30 ? '.si' : '.no'), { 'data-soporte': vol > 30 ? 'si' : 'no' }, vol > 30
         ? [h('b', '🌳 Necesitará soportes'), h('span', ' Tiene ' + Math.round(vol / 100) + ' cm² en el aire. ' + (R.soporte === 'no' ? 'Ahora mismo va SIN ellos (cámbialo en la pregunta 5).' : 'Ya van puestos en el archivo (pregunta 5).') + (r.orient ? ' Tumbada ' + r.orient.t + ' necesitaría muchos menos.' : ''))]
-        : [h('b', '✅ No necesita soportes'), h('span', ' No tiene nada en el aire: va tal cual.')]),
+        : [h('b', '✅ No necesita soportes'), h('span', o.sinSoportes && enAire > 30 ? ' ' + o.sinSoportes : ' No tiene nada en el aire: va tal cual.')]),
       R.uso === 'jarron' ? null : h('div.aj-preg.aj-perfiles', { 'data-preg': 'perfil' }, h('b', '⭐ Elige un perfil (lo pone todo de una vez)'), h('small', 'Capa, paredes y relleno de golpe. Debajo puedes cambiar cada cosa si quieres afinar.'),
         h('div.aj-ops', Object.entries(PERFILES_RAPIDOS).map(([k, q]) => h('button.aj-op' + (perfilAhora === k ? '.on' : ''), { type: 'button', 'data-perfil': k, onclick: () => { Object.assign(R, q.R); guardaResp(clave, R); pinta(); } }, h('span', q.e + ' ' + q.t), recPerfil === k ? h('i.aj-rec', '⭐ recomendado para esta pieza') : null, h('small', q.d))))),
       preg('impresora', '1. ¿En qué impresora?', imp.map(i => [i.k, i.t, 'Cama de ' + i.cama + ' mm'])),
@@ -203,7 +204,7 @@ export async function asistente(el, o) {
       preg('uso', '3. ¿Para qué es?', Object.entries(USOS).map(([k, [t, d]]) => [k, t, d])),
       preg('acabado', '4. ¿Qué acabado quieres?', Object.entries(ACABADO).map(([k, a]) => [k, a.t, a.d])),
       R.uso === 'jarron' ? null : vol > 30 ? preg('soporte', '5. Tiene ' + Math.round(vol / 100) + ' cm² en el aire. ¿Cómo lo hacemos?', [['arbol', '🌲 Soportes de árbol', 'Se quitan fácil'], ['cama', '🛏️ Solo desde la cama', 'No ensucian la pieza por arriba'], ['no', '🚫 Sin soportes', 'Lo que vuela puede salir feo']].concat(r.orient && o.alGirar ? [['tumbar', '↻ Tumbarla ' + r.orient.t, 'Casi no hace falta soporte']] : []), r.orient ? 'Si la tumbas ' + r.orient.t + ', se queda en ' + Math.round(r.orient.despues / 100) + ' cm² en el aire.' : null)
-        : h('div.aj-ok', '✅ No tiene nada en el aire: va sin soportes.'),
+        : h('div.aj-ok', o.sinSoportes && enAire > 30 ? '✅ Va sin soportes. ' + o.sinSoportes : '✅ No tiene nada en el aire: va sin soportes.'),
       preg('balsa', '6. ¿Le pongo un borde para que no se despegue?', [['si', 'Sí, borde exterior', 'Si apoya poco o es alta'], ['auto', 'Que decida Bambu', 'Automático'], ['no', 'Sin borde', 'Más limpio']], 'Apoya ' + Math.round(r.mide.apoyo / 100) + ' cm² en la cama.'),
       r.mide.arriba > 1500 && R.uso !== 'jarron' ? preg('planchar', '7. ¿Plancho la cara de arriba?', [['si', 'Sí, lisa como un espejo', 'Tarda un poco más'], ['no', 'No', '']]) : null,
       colores.length > 1 ? h('div.aj-ok', '🎨 Lleva ' + colores.length + ' colores (abajo, en «🌈 Colores por capas», la capa exacta de cada cambio).') : null,
@@ -278,7 +279,7 @@ export async function asistente(el, o) {
       const P2 = o.partes(), base = o.nombre || 'pieza';
       if (como === 'stl') { o.baja(new Blob([N.stl(N.union(P2.map(x => x.m)), base)], { type: 'model/stl' }), base + '.stl'); toast('⬇ STL descargado', 'ok'); return; }
       // v20.4 · 🎯 tu CALIBRACIÓN (impresora + material): compensaciones de Bambu dentro de la pieza y, si encoge, escalada (no en las probetas de calibrar)
-      const CPR = await import('./calibracion.js'), X = CPR.paraImprimir(P2.map(x => ({ m: x.m, color: x.color, nombre: x.nombre })), Object.assign(claves(R), o.forzar || {}), { sin: !!o.sinCalibrar });
+      const CPR = await import('./calibracion.js'), X = CPR.paraImprimir(P2.map(x => ({ m: x.m, color: x.color, nombre: x.nombre })), Object.assign(claves(R), o.forzar || {}), { sin: !!o.sinCalibrar, imp: R.impresora, mat: R.material }); // v30.7.1: la de ESTA impresora y ESTE material
       const pausas = conPausas() ? CC.paraArchivo(R.cc.cambios, capaArchivo()) : [];
       const blob = N.tresMF(X.partes, base, X.ajustes, { cambios: pausas }); window.__r8calib = X.aplicada; // v20.3: lo que un diseño NECESITA sí o sí (el rodamiento impreso: sin soportes ni balsa)
       const conCal = X.aplicada ? ' · 🎯 con tu calibración «' + X.aplicada + '»' : '';

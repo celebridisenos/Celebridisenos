@@ -29,7 +29,7 @@ export async function montarCatalogo(el, ext = {}) {
   const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   function pinta() {
     mount(barra, h('div.r8c-cats', K.CATEGORIAS.map(([k, t]) => h('button.r8c-cat' + (C.cat === k ? '.on' : ''), { type: 'button', 'data-cat': k, onclick: () => { C.cat = k; pinta(); } }, t, h('small', String(k ? K.porCategoria(k).length : Object.keys(K.DISENOS).length))))), buscar);
-    let L = K.porCategoria(C.cat); const q = norm(C.buscar).trim(); if (q) L = L.filter(([k, d]) => norm(d.t + ' ' + d.d + ' ' + d.cat + ' ' + k).includes(q));
+    let L = K.porCategoria(C.cat); const q = norm(C.buscar).trim(); if (q) L = L.filter(([k, d]) => norm(d.t + ' ' + d.d + ' ' + d.cat + ' ' + k + ' ' + (d.busca || '')).includes(q));
     if (C.cat === 'movil') { mount(rejilla, h('div.r8c-fundas-top', h('b', '📱 Las fundas tienen su propio taller'), h('small', 'Con el ajuste fino, la prueba de 5 g y las líneas azules.'), btn('Abrir el taller de fundas', () => ext.irA && ext.irA('fundas'), { cls: 'primary' }))); return; }
     // v20: piezas de máquina y de RC: se hacen con MEDIDAS (no con la IA de fotos) y son diseños propios
     const aviso = C.cat === 'rc' ? h('div.r8c-aviso', h('b', '🏎️ Repuestos de RC a tu medida'), h('small', 'Diseños propios: mide tu pieza con el calibre y cambia las medidas (las de serie son las habituales del RC). Puedes venderlos y decir «compatible con Tamiya / Traxxas…» si lo has comprobado, pero sin sus logotipos ni nombres en la pieza y sin que parezca un recambio original.'))
@@ -37,7 +37,7 @@ export async function montarCatalogo(el, ext = {}) {
     mount(rejilla, aviso, L.length ? L.map(([k, d]) => tarjeta(k, d)) : h('p.muted', 'No hay nada con esa palabra.'));
     dibujaMinis();
   }
-  const tarjeta = (k, d) => h('button.r8c-tar' + (C.abierto === k ? '.on' : ''), { type: 'button', 'data-k': k, onclick: () => abre(k) }, h('div.r8c-img', MINIS.get(k) ? h('img', { src: MINIS.get(k), alt: d.t }) : h('span.r8c-emo', d.e)), h('b', d.t), h('small', d.d), h('span.r8c-uso', { funcional: '💪 Resistente', jarron: '🏺 Modo jarrón', encaje: '🧩 Encaja', flexible: '🪢 TPU', pieza: '🔩 Pieza', deco: '🎀 Decoración' }[d.uso] || ''));
+  const tarjeta = (k, d) => h('button.r8c-tar' + (C.abierto === k ? '.on' : ''), { type: 'button', 'data-k': k, onclick: () => abre(k) }, (d.tambien || []).includes('pack60') ? h('i.r8c-regalo', { title: 'Del pack de 60' }, '🎁') : null, h('div.r8c-img', MINIS.get(k) ? h('img', { src: MINIS.get(k), alt: d.t }) : h('span.r8c-emo', d.e)), h('b', d.t), h('small', d.d), h('span.r8c-uso', { funcional: '💪 Resistente', jarron: '🏺 Modo jarrón', encaje: '🧩 Encaja', flexible: '🪢 TPU', pieza: '🔩 Pieza', deco: '🎀 Decoración' }[d.uso] || ''));
   // las miniaturas se dibujan de una en una, sin bloquear la pantalla
   let cola = Promise.resolve();
   // v30.6.2: con una ventana abierta encima (preparar para la Bambu, el taller de colores…) las miniaturas ESPERAN: dibujarlas a la vez
@@ -68,8 +68,10 @@ export async function montarCatalogo(el, ext = {}) {
         h('select.inp', { 'aria-label': 'Acabado', onchange: e => { C.acabado[k] = e.target.value; genera(); } }, Object.entries(ACABADOS).map(([a, x]) => h('option', { value: a, selected: a === acab }, x.t))),
         campos, h('div.r8c-nota'),
         h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio', title: 'La pieza entera, con sus medidas para seguir cambiándolas' }), K.PARTES && K.PARTES[k] && ext.alEstudioPiezas ? btn('🧩 Al Estudio por piezas (editar y abrir)', () => alEstudioPiezas(k), { cls: 'r8c-estudio-p', title: 'Cada parte suelta (base, tapa, cajón…): se editan una a una y en 🎬 Animar se abre y se cierra' }) : null),
+        h('div.r8e-btns.r8c-manual-f', { hidden: true }, btn('📄 Manual de montaje (para el paquete)', () => manual(k), { cls: 'r8c-manual', title: 'Una hoja A4 con la foto, las piezas y los pasos: se imprime o se guarda en PDF' })),
         h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })))));
     mount(campos, camposDe(K, k, v, () => genera()));
+    import('../r8/manual.js').then(MAN => { const f = detalle.querySelector('.r8c-manual-f'); if (f && C.abierto === k) f.hidden = !MAN.tieneManual(D, v); }).catch(() => { });
     detalle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try { escena = crearEscena(lienzo, { cama: 256, dia: document.documentElement.getAttribute('data-modo') === 'dia' }); MESA = mesa(escena, lienzo, { cama: 256 }); } catch (e) { mount(info, '⚠️ ' + e.message); }
     genera(true);
@@ -91,8 +93,10 @@ export async function montarCatalogo(el, ext = {}) {
     const { modal } = await import('../ui.js'), A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null), cuerpo = h('div.r8c-aj'); const D = K.DISENOS[k];
     modal('🖨️ ' + D.t + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const nombre = (D.t + '_' + Object.values(C.v[k] || {}).filter(x => typeof x === 'string' && x.length < 14 && /[a-z]/i.test(x)).slice(0, 1).join('')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
-    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.usoDe ? D.usoDe(C.v[k]) : D.uso === 'pieza' ? 'mecanica' : D.uso, /* v30.3: jarrón hueco = impresión normal */ texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.usoDe ? D.usoDe(C.v[k]) : D.uso === 'pieza' ? 'mecanica' : D.uso, /* v30.3: jarrón hueco = impresión normal */ texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, sinSoportes: D.sinSoportes || '', /* v30.7 */ desktopAbrir: !!(d && d.desktop && d.desktop.on) });
   }
+  // v40 · 📄 el manual de montaje de los diseños que se montan (r8/manual.js)
+  async function manual(k) { const MAN = await import('../r8/manual.js'); await MAN.abrirManual({ K, N, k, v: C.v[k], escena, color: C.color[k] || (K.DISENOS[k] || {}).color, acabado: C.acabado[k] || 'mate', alAcabar: () => genera(true) }); }
   // v30 · 🎁 las dos sorpresas: Escaparate e Impresión fantasma
   async function sorpresa(que, k) { const S = await import('../r8/sorpresas.js'), D = K.DISENOS[k]; let partes; try { partes = [{ vista: N.aVista(K.genera(k, C.v[k])), color: C.color[k] || D.color || '#7c6cff', acabado: C.acabado[k] || D.acabado || 'mate' }]; } catch (e) { return toast(e.message || String(e), 'bad'); } finally { N.limpia(); } S[que](partes, { nombre: D.t }); }
   function alEstudioPiezas(k) { try { const L = K.partesDe(k, Object.assign({}, C.v[k])); if (!L) return alEstudio(k); const col = C.color[k] || (K.DISENOS[k] || {}).color; ext.alEstudioPiezas(L.map((x, i) => Object.assign(x, { color: i ? aclara(col) : col })), (K.DISENOS[k] || {}).t); } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); } }

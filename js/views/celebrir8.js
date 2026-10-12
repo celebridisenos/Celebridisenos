@@ -210,6 +210,7 @@ export function render(el) {
 function renderMarco(el) {
   try { ponAutoria(ST.cfg && ST.cfg.empresa && ST.cfg.empresa.nombre); } catch (e) { }
   import('../store.js').then(st => st.pausaSync && st.pausaSync(true)).catch(() => { }); // v20.2: sin sincronizar mientras diseñas
+  import('../ai/engine.js').then(m => m.liberaIA && m.liberaIA(true)).catch(() => { }); // v30.7.1: la tarjeta gráfica, para el 3D
   PEST = guardado('cd.r8.pest', PEST); if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio'; // v20.1: el estreno puede pedir una pestaña
   const tabs = h('div.r8v-tabs', { role: 'tablist', 'aria-label': 'Partes de CelebriR8' }), cuerpo = h('div.r8v-cuerpo');
   const ancho = () => window.innerWidth >= 900;
@@ -218,10 +219,11 @@ function renderMarco(el) {
   const bFoco = h('button.r8v-bt', { type: 'button', onclick: () => ponFoco(!foco) }), bAyuda = h('button.r8v-bt.r8v-ayuda', { type: 'button', title: 'Aprender a utilizar CelebriR8 (visita guiada)', onclick: () => visita() }, '❓ ', h('span', 'Aprender'));
   // Noche / Día también dentro de CelebriR8 (en modo taller la barra del negocio no se ve)
   const bModo = h('button.r8v-bt.r8v-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: async () => { const U = await import('../ui18.js'); const m = U.cambiaModo(); bModo.textContent = m === 'noche' ? '🌙' : '☀️'; const b = document.querySelector('.topbar .u18-modo'); if (b) b.textContent = bModo.textContent; } }, document.documentElement.getAttribute('data-modo') === 'dia' ? '☀️' : '🌙');
+  const bTema = h('span.r8v-tema'); import('../ui18.js').then(U => { if (U.selectorTema) bTema.replaceWith(U.selectorTema()); }).catch(() => { }); // v30.7.1: el desplegable de temas, también aquí
   const bNegocio = h('button.r8v-bt.r8v-negocio', { type: 'button', title: 'Volver al programa del negocio (pedidos, clientes…)', onclick: () => go('puente') }, '← ', h('span', 'Negocio'));
   const barra = h('div.r8v-estado', { role: 'status', 'aria-live': 'polite' });
   let actual = null, turno = 0, estudioVivo = null; // v20.2: el Estudio no se apaga al cambiar de pestaña (volver es al momento)
-  const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO 30'))), tabs, h('div.r8v-acc', bAyuda, bModo, bFoco)), cuerpo, barra);
+  const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO 30'))), tabs, h('div.r8v-acc', bAyuda, bTema, bModo, bFoco)), cuerpo, barra);
   el.appendChild(raiz);
   // v30.6.3 · si se ha entrado con la placa de calibración todavía imprimiéndose, arriba queda el botón para terminarla
   import('../r8/calibracion_puerta.js').then(PU => { if (PU.sinPuerta() || PU.calibrada()) return; const b = h('button.r8v-bt.r8v-calpend', { type: 'button', title: 'La placa de calibración se está imprimiendo: cuando acabe, mide las 3 probetas y termina aquí', onclick: () => PU.abrirPlaca3({ alCerrar: () => { if (PU.calibrada()) b.remove(); } }) }, '🎯 ', h('span', 'Terminar la calibración')); const acc = raiz.querySelector('.r8v-acc'); if (acc) acc.prepend(b); }).catch(() => { });
@@ -274,7 +276,7 @@ function renderMarco(el) {
         chip(!!(S.nube.trellis2 && S.nube.trellis2.sesion), (S.nube.trellis2 && S.nube.trellis2.sesion) ? '☁️ Nube gratis lista' : '☁️ Nube gratis: falta entrar', 'TRELLIS.2 en la nube gratuita de Hugging Face')]));
   };
   let reloj = null;
-  import('../r8/estado.js').then(m => { E = m; quita = [m.escucha('tareas', pintaBarra), m.escucha('sistema', pintaBarra)]; m.sistema().catch(() => { }); pintaBarra(); reloj = setInterval(() => { if (m.enMarcha().length) pintaBarra(); }, 1000); });
+  import('../r8/estado.js').then(m => { E = m; quita = [m.escucha('tareas', pintaBarra), m.escucha('sistema', pintaBarra), m.escucha('sistema-fino', pintaBarra)]; m.sistema().catch(() => { }); pintaBarra(); reloj = setInterval(() => { if (m.enMarcha().length) pintaBarra(); }, 1000); });
   const vigia = setInterval(() => { if (E && !E.enMarcha().length) E.sistema(true).catch(() => { }); }, 30000);
   // ---------- la visita guiada ----------
   async function visita(desde) { const V = await import('../r8/visita.js'); V.empezar({ ir, desde, alSalir: () => { } }); }
@@ -283,5 +285,5 @@ function renderMarco(el) {
   ponFoco(foco); pinta(); ir(PEST);
   if (guardado('cd.r8.visita', '') === '') setTimeout(() => { if (document.body.contains(raiz)) visita(); }, 900);
   window.__r8ir = ir;
-  return { destroy: () => { turno++; delete window.__r8soltar; import('../store.js').then(st => st.pausaSync && st.pausaSync(false)).catch(() => { }); if (estudioVivo && estudioVivo.r !== actual) { try { estudioVivo.r.destroy(); } catch (e) { } } estudioVivo = null; clearInterval(reloj); clearInterval(vigia); quita.forEach(f => f()); window.removeEventListener('resize', alCambiarTam); document.documentElement.classList.remove('r8-foco'); try { actual && actual.destroy && actual.destroy(); } catch (e) { } import('../r8/visita.js').then(V => V.cerrar()).catch(() => { }); } };
+  return { destroy: () => { turno++; delete window.__r8soltar; import('../store.js').then(st => st.pausaSync && st.pausaSync(false)).catch(() => { }); import('../ai/engine.js').then(m => m.liberaIA && m.liberaIA(false)).catch(() => { }); if (estudioVivo && estudioVivo.r !== actual) { try { estudioVivo.r.destroy(); } catch (e) { } } estudioVivo = null; clearInterval(reloj); clearInterval(vigia); quita.forEach(f => f()); window.removeEventListener('resize', alCambiarTam); document.documentElement.classList.remove('r8-foco'); try { actual && actual.destroy && actual.destroy(); } catch (e) { } import('../r8/visita.js').then(V => V.cerrar()).catch(() => { }); } };
 }

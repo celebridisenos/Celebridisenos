@@ -22,12 +22,21 @@ export const PALETAS = [
   { k: 'medianoche', n: 'Medianoche', d: 'Índigo profundo', c: ['#4f46e5', '#4338ca', '#e0e7ff', '#8b5cf6', '#0ea5e9'] },
   { k: 'menta', n: 'Menta', d: 'Fresco y limpio', c: ['#0d9488', '#0f766e', '#ccfbf1', '#34d399', '#38bdf8'] }
 ];
+// (v30.7.1) contraste entre dos colores #rrggbb (WCAG) y mezcla de dos colores
+const _rgb = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), _lum = c => { const [r, g, b] = _rgb(c).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+export const contraste = (a, b) => { const x = _lum(a), y = _lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+export const mezcla = (a, b, t) => '#' + _rgb(a).map((v, i) => Math.round(v + (_rgb(b)[i] - v) * t).toString(16).padStart(2, '0')).join('');
 export const colorActual = () => { const k = LS.get('cd.color'); return PALETAS.some(p => p.k === k) ? k : ''; };
 export function aplicarColor(k) {
-  const p = PALETAS.find(x => x.k === k) || PALETAS[0], st = document.documentElement.style, oscuro = /oscuro|bio/.test(document.documentElement.dataset.theme || '');
+  const p = PALETAS.find(x => x.k === k) || PALETAS[0], st = document.documentElement.style, oscuro = /oscuro|bio/.test(document.documentElement.dataset.theme || '') || document.documentElement.dataset.modo === 'noche';
   const V = ['--brand', '--brand-2', '--brand-soft', '--u-b', '--u-c'];
-  if (!p.k) { V.concat('--focus').forEach(v => st.removeProperty(v)); document.documentElement.removeAttribute('data-color'); }
-  else { V.forEach((v, i) => { if (v === '--brand-soft' && oscuro) st.removeProperty(v); else st.setProperty(v, p.c[i]); }); st.setProperty('--focus', '0 0 0 3px ' + p.c[0] + '55'); document.documentElement.setAttribute('data-color', p.k); }
+  if (!p.k) { V.concat('--focus', '--brand-text').forEach(v => st.removeProperty(v)); document.documentElement.removeAttribute('data-color'); }
+  else { V.forEach((v, i) => { if (v === '--brand-soft' && oscuro) st.removeProperty(v); else st.setProperty(v, p.c[i]); }); st.setProperty('--focus', '0 0 0 3px ' + p.c[0] + '55'); document.documentElement.setAttribute('data-color', p.k);
+    // v30.7.1 · «no se leen bien los textos»: en los temas oscuros el color se aclara (un rojo o un índigo puros no se leen sobre negro)
+    // y la letra que va ENCIMA del color (botones) es blanca o negra según cuál se lea mejor
+    const b1 = oscuro ? mezcla(p.c[0], '#ffffff', 0.38) : p.c[0], b2 = oscuro ? mezcla(p.c[0], '#ffffff', 0.22) : p.c[1];
+    if (oscuro) { st.setProperty('--brand', b1); st.setProperty('--brand-2', b2); }
+    st.setProperty('--brand-text', Math.min(contraste('#ffffff', b1), contraste('#ffffff', b2)) >= 4.5 ? '#ffffff' : Math.min(contraste('#14110d', b1), contraste('#14110d', b2)) >= Math.min(contraste('#ffffff', b1), contraste('#ffffff', b2)) ? '#14110d' : '#ffffff'); }
   LS.set('cd.color', p.k);
   const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute('content', p.c[0]);
 }

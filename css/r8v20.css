@@ -144,6 +144,7 @@ html[data-modo="dia"] .r8c-img { background: radial-gradient(220px 200px at 50% 
 .r8c-emo { font-size: 46px; opacity: .55; animation: r8c-late 1.4s ease-in-out infinite; } @keyframes r8c-late { 50% { opacity: .9; transform: scale(1.06); } }
 .r8c-tar b { font-family: var(--font-d); font-size: 14px; line-height: 1.2; } .r8c-tar small { color: var(--muted); font-size: 11.5px; line-height: 1.25; }
 .r8c-uso { font-size: 11px; font-weight: 700; color: var(--text-2); }
+.r8c-tar { position: relative; } .r8c-regalo { position: absolute; top: 6px; right: 8px; font-style: normal; font-size: 15px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); pointer-events: none; } /* v30.7 · del pack de 60 */
 .r8c-det:empty { display: none; }
 .r8c-panel { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(300px, .7fr); gap: 0; border-radius: 22px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 24px 70px rgba(0, 0, 0, .22); animation: r8e-sube .3s ease both; }
 .r8c-vista { position: relative; min-height: 460px; background: radial-gradient(800px 500px at 50% 38%, #1d2550 0%, #0b0f1f 65%, #05070e 100%); }

@@ -39,6 +39,33 @@ function enTira(T, out) {
     const t = aTexto(C).trim(); if (t.length >= 4) { out.set(t, (out.get(t) || 0) + 1); i = j + 6; }
   }
 }
+// ---------- v30.7.1 · ITF («2 de 5 entrelazado»): el código de barras de las etiquetas de SEUR ----------
+// Solo dos anchos (fino y gordo). Empieza con cuatro finos (barra, hueco, barra, hueco), cada PAR de cifras son 5 barras y 5 huecos
+// entrelazados (cada cifra, dos gordos de cinco) y acaba en barra gorda, hueco fino, barra fina. No lleva suma de control: por eso
+// solo se da por bueno si sale IGUAL en varias tiras (lo decide quien llama, con «veces»).
+const ITF = { nnWWn: 0, WnnnW: 1, nWnnW: 2, WWnnn: 3, nnWnW: 4, WnWnn: 5, nWWnn: 6, nnnWW: 7, WnnWn: 8, nWnWn: 9 };
+function itfEnTira(T, out) {
+  for (let i = 0; i + 17 <= T.length; i++) {
+    if (T[i] <= 0) continue; const a = [T[i], -T[i + 1], T[i + 2], -T[i + 3]]; if (a.some(v => !(v > 0))) continue;
+    const n = (a[0] + a[1] + a[2] + a[3]) / 4; if (n < 1.5 || Math.max(...a) > n * 1.6 || Math.min(...a) < n * 0.5) continue;
+    if (i > 0 && -T[i - 1] < n * 6) continue; // zona blanca delante
+    let j = i + 4, cifras = '', fin = false;
+    for (let vueltas = 0; vueltas < 40; vueltas++) {
+      if (j + 2 < T.length && T[j] > n * 1.7 && -T[j + 1] < n * 1.7 && T[j + 2] < n * 1.7 && (j + 3 >= T.length || -T[j + 3] > n * 6)) { fin = true; break; }
+      if (j + 10 > T.length) break; let b = '', e = '', mal = false;
+      for (let k = 0; k < 5; k++) { const vb = T[j + 2 * k], ve = -T[j + 2 * k + 1]; if (!(vb > 0) || !(ve > 0) || vb > n * 5 || ve > n * 5) { mal = true; break; } b += vb > n * 1.7 ? 'W' : 'n'; e += ve > n * 1.7 ? 'W' : 'n'; }
+      if (mal || !(b in ITF) || !(e in ITF)) break; cifras += ITF[b] + '' + ITF[e]; j += 10;
+    }
+    if (fin && cifras.length >= 8) { out.set(cifras, (out.get(cifras) || 0) + 1); i = j + 2; }
+  }
+}
+export function leeITF(D, o = {}) {
+  const W = D.width, H = D.height, S = D.data, out = new Map(), lineas = o.lineas || 90;
+  const gris = (x, y) => { const i = (y * W + x) * 4; return S[i + 3] < 128 ? 255 : (S[i] * 3 + S[i + 1] * 6 + S[i + 2]) / 10; };
+  const pasa = (largo, lee) => { const g = new Float32Array(largo); for (let k = 0; k < lineas; k++) { const pos = (k + 0.5) / lineas; let min = 255, max = 0; for (let x = 0; x < largo; x++) { const v = lee(x, pos); g[x] = v; if (v < min) min = v; if (v > max) max = v; } if (max - min < 60) continue; const T = tramos(g, largo, (min + max) / 2); if (T.length < 20) continue; itfEnTira(T, out); itfEnTira(T.slice().reverse(), out); } };
+  pasa(W, (x, pos) => gris(x, Math.min(H - 1, Math.floor(pos * H)))); pasa(H, (y, pos) => gris(Math.min(W - 1, Math.floor(pos * W)), y));
+  return [...out.entries()].filter(x => x[1] >= (o.minVeces || 3)).sort((a, b) => b[1] - a[1]).map(([texto, veces]) => ({ texto, veces }));
+}
 // imagen (ImageData) → los CODE 128 que se leen, del más visto al menos: [{ texto, veces }]. Mira en horizontal y en vertical, y del derecho y del revés.
 export function leeCode128(D, o = {}) {
   const W = D.width, H = D.height, S = D.data, out = new Map(), lineas = o.lineas || 90;
@@ -65,6 +92,6 @@ export async function leeQR(canvas) {
 // todo lo que se lee de una etiqueta ya pintada en un lienzo: { barras: [textos], qr: texto, ms }
 export async function leeCodigos(canvas) {
   const t0 = performance.now(), D = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height);
-  const barras = leeCode128(D).map(x => x.texto), qr = await leeQR(canvas);
-  return { barras, qr, ms: Math.round(performance.now() - t0) };
+  const barras = leeCode128(D).map(x => x.texto), qr = await leeQR(canvas); let itf = []; try { itf = leeITF(D).map(x => x.texto); } catch (e) { itf = []; }
+  return { barras, itf, qr, ms: Math.round(performance.now() - t0) };
 }

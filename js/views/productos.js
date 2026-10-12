@@ -69,7 +69,7 @@ function productDrawer(id, onClose) {
   const res = { update: () => { }, close: () => ctl && ctl.close() };
   ctl = drawer((d, close) => {
     const closeAll = () => { close(); onClose(); };
-    const draw = () => {
+    let draw = () => {
       const p = byId('productos', id);
       if (!p) return mount(d, h('div.drawer-h', h('h2.grow', 'Producto'), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })), h('div.drawer-b', empty('alert', 'Este producto ya no existe')));
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
@@ -91,7 +91,12 @@ function productDrawer(id, onClose) {
             can('productos.borrar') ? btn('Borrar', () => delProduct(p, closeAll), { cls: 'danger sm', icon: 'trash' }) : null)));
       PTABS[tab](body, p, orders);
     };
-    res.update = () => { if (tab !== 'web') draw(); }; draw(); // v12: la ficha web tiene un formulario: no se rehace al sincronizar
+    // v30.7.1 · la ficha solo se rehace si ESTE producto ha cambiado de verdad (sus datos, sus archivos, sus pedidos o sus costes):
+    // antes se rehacía entera con cualquier cambio de cualquier tabla (el 3D se recargaba y lo que estabas mirando se iba).
+    const firma = () => { const p = byId('productos', id); if (!p) return 'no'; try { return JSON.stringify([p, filesOf('productos', p.id).map(a => [a.id, a.nombre, a.estado, a.url, a.rutaLocal]), S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre)).map(o => [o.id, o.estado, o.precio, o.rev]), (S.t.calculadora || []).filter(c => c.nombre === p.nombre), ['stock', 'fabricacion', 'trabajos', 'embalajes', 'materiales', 'historial'].map(k => (S.meta[k] || {}).hash || (S.t[k] || []).length), can('productos.costes'), can('productos.editar')]); } catch (e) { return String(Math.random()); } };
+    let vista = '';
+    const draw0 = draw; draw = () => { vista = firma(); draw0(); };
+    res.update = () => { if (tab !== 'web' && firma() !== vista) draw(); }; draw(); // v12: la ficha web tiene un formulario: no se rehace al sincronizar
   });
   return res;
 }

@@ -111,10 +111,16 @@ export async function montarInicio(el, ext = {}) {
   function sigue(cuerpo) {
     const barra = h('span'), fase = h('b'), txt = h('small.muted'), pasos = h('ol.r8i-pasos'), log = h('pre.r8i-log'), fin = h('div');
     mount(cuerpo, h('div.r8i-prog', fase, h('div.r8v-pbar.r8i-bar', barra), txt), pasos, h('details', h('summary', 'Ver el registro'), log), fin, h('div.r8p-btns', btn('Cancelar', () => D.motor3dInstalarCancelar().catch(() => { }), { cls: 'sm ghost r8i-cancelar' })));
-    const T = E.tarea('Instalando el motor 3D');
+    const T = E.tarea('Instalando el motor 3D'); let vistoPasos = '', vistoPct = null, vistoFase = null;
     const tic = setInterval(async () => {
       let r; try { r = await D.motor3dInstalarEstado(); } catch (e) { return; }
-      mount(fase, r.fase || '…'); barra.style.width = (r.pct || 0) + '%'; mount(txt, r.txt || ''); mount(pasos, (r.pasos || []).map(p => h('li', p))); mount(log, (r.log || []).join('\n')); T.avance(r.pct, r.fase);
+      // v30.7.1 · sin parpadeos: cada 1,5 s se rehacía TODO (la lista de pasos y el registro entero); ahora solo lo que ha cambiado,
+      // y el registro se queda donde lo estabas leyendo (si estabas abajo del todo, sigue abajo)
+      const pon = (el, t) => { if (el.textContent !== t) el.textContent = t; };
+      pon(fase, r.fase || '…'); const an = (r.pct || 0) + '%'; if (barra.style.width !== an) barra.style.width = an; pon(txt, r.txt || '');
+      const fp = JSON.stringify(r.pasos || []); if (fp !== vistoPasos) { vistoPasos = fp; mount(pasos, (r.pasos || []).map(p => h('li', p))); }
+      const tl = (r.log || []).join('\n'); if (tl !== log.textContent) { const abajo = log.scrollHeight - log.scrollTop - log.clientHeight < 30; log.textContent = tl; if (abajo) log.scrollTop = log.scrollHeight; }
+      if (r.pct !== vistoPct || r.fase !== vistoFase) { vistoPct = r.pct; vistoFase = r.fase; T.avance(r.pct, r.fase); }
       if (r.hecho) { clearInterval(tic); window.__r8inst = r;
         if (r.ok) { T.bien('motor 3D listo'); mount(fin, h('p.r8p-nota.bien', '✅ Instalado y probado. ', r.prueba ? 'Figura de prueba hecha en ' + r.prueba.total_s + ' s con ' + (r.prueba.dispositivo === 'cuda' ? 'la tarjeta gráfica' : 'el procesador') + '.' : '')); }
         else { T.mal(r.error); mount(fin, h('p.r8p-nota.mal', '⚠️ ' + r.error + ' (el registro completo queda en la carpeta del motor: instalacion.log)')); }

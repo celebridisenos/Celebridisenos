@@ -112,6 +112,8 @@ export const desktop = {
   r8Guardar: (blob, carpeta, nombre) => call('r8/guardar?' + q({ carpeta, nombre }), { method: 'POST', body: blob }), // v20: Documentos\CelebriDiseños_R8\<carpeta>
   r8Carpeta: (carpeta = '') => call('r8/carpeta?' + q({ carpeta }), { method: 'POST' }),
   r8Archivos: () => call('r8/archivos'),
+  mudanza: (que, cuerpo) => call('mudanza/' + que, cuerpo ? { method: 'POST', body: JSON.stringify(cuerpo) } : undefined), // v30.7.1: la copia para llevar el programa a otro ordenador
+  ocr: blob => call('ocr', { method: 'POST', body: blob }), // v30.7.1: leer las letras de una etiqueta con el lector de Windows (gratis, sin internet)
   r8Abrir: (ruta, con) => call('r8/abrir?' + q({ ruta, con: con || '' }), { method: 'POST' }),
   mallaBlender: (stl, ops) => call('motor3d/blender?' + q({ ops: JSON.stringify(ops || {}) }), { method: 'POST', body: stl }), // v20: taller de Blender
   mallaInspeccionar: (stl, pared) => call('motor3d/inspeccionar?' + q({ pared: pared || 0.8 }), { method: 'POST', body: stl }), // v20: comprobar cualquier malla

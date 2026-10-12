@@ -26,7 +26,7 @@ export const enMarcha = () => [...TAREAS.values()].filter(t => t.estado === 'va'
 
 // ---------- SISTEMA ----------
 export const SIS = { listo: false, pc: false, python: false, blender: false, tarjeta: null, motores: [], nube: {}, hora: 0 };
-let pidiendo = null;
+let pidiendo = null, firmaSis = '';
 export async function sistema(forzar) {
   if (!forzar && SIS.listo && Date.now() - SIS.hora < 20000) return SIS;
   if (pidiendo) return pidiendo;
@@ -38,7 +38,13 @@ export async function sistema(forzar) {
       if (a && !a.error) Object.assign(SIS, { python: !!a.python, blender: !!a.blender, blenderVer: a.blender_version || '', bambu: !!a.bambu, tarjeta: a.tarjeta || null, motores: a.motores || [] });
       SIS.error = a && a.error; SIS.nube = b || {};
     }
-    SIS.listo = true; SIS.hora = Date.now(); avisa('sistema', SIS); return SIS;
+    SIS.listo = true; SIS.hora = Date.now();
+    // v30.7.1 · SIN PARPADEOS: cada 30 s se vuelve a mirar el PC, y antes se avisaba SIEMPRE (Inicio, Smart Lab y Foto → 3D se
+    // repintaban enteros aunque nada hubiera cambiado: lo único que se mueve es la memoria libre de la tarjeta). Ahora «sistema»
+    // solo se avisa si cambia algo de verdad (la memoria, de medio en medio GB); la barra de abajo escucha «sistema-fino».
+    const f = JSON.stringify([SIS.pc, SIS.python, SIS.blender, SIS.blenderVer, SIS.bambu, SIS.error, SIS.tarjeta && [SIS.tarjeta.nombre, SIS.tarjeta.total_mb, Math.round((SIS.tarjeta.libre_mb || 0) / 512)], (SIS.motores || []).map(m => [m.id, m.listo]), SIS.nube]);
+    avisa('sistema-fino', SIS); if (f !== firmaSis) { firmaSis = f; avisa('sistema', SIS); }
+    return SIS;
   })().finally(() => { pidiendo = null; });
   return pidiendo;
 }
