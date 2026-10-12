@@ -79,15 +79,17 @@ export function kit(D, p) {
   // (pest = [x, y de ARRIBA de la pestaña, largo]; el manillar va atravesado: su largo es el grosor de la bici)
   if (D.manillar) { const Mn = D.manillar(ranura(D.pestM[2]).rotate([0, 0, 90])); piezas.push(['Manillar', Mn]); montaje.push(dePie(Mn.rotate([-90, -90, 0]).translate([D.pestM[0], D.pestM[1] - 4.2 + 0.05, tp + tc / 2]))); }
   if (D.sillin) { const Sn = D.sillin(ranura(D.pestS[2]).translate([-3, 0, 0])); piezas.push(['Sillín', Sn]); montaje.push(dePie(Sn.rotate([-90, 0, 0]).translate([D.pestS[0] + 3, D.pestS[1] - 4.2 + 0.05, tp + tc / 2]))); }
-  // peana: las dos ruedas en su cuna, la trasera entre dos mejillas; con nombre
-  const lp = D.F[0] - D.A[0] + 2 * D.R * 0.62, wp = Math.max(30, total + 18), hueco = D.gr + 0.7, xc = (D.A[0] + D.F[0]) / 2, alto = Math.min(D.R * 0.4, 12);
-  let peana = conBisel(rr(lp, wp, 8), 3.4, 0.8);
-  const mej = k => M().hull([caja(D.R * 0.95, 2.8, 0.02), caja(D.R * 0.5, 2.8, 0.02).translate([0, 0, alto])]).translate([D.A[0] - xc, k * (hueco / 2 + 1.4), 3.39]);
-  peana = peana.add(mej(-1)).add(mej(1));
-  [D.A, D.F].forEach(q => { peana = peana.subtract(M().cylinder(wp, D.R + 0.15, D.R + 0.15, 96).rotate([90, 0, 0]).translate([q[0] - xc, wp / 2, D.R + 0.15 + 3.4 - 0.9]).intersect(caja(D.R * 2, hueco, 20).translate([q[0] - xc, 0, 0]))); });
-  if (p.txt && String(p.txt).trim()) { let T = N.centraCS(N.texto2(String(p.txt).trim(), p.fuente || 'gorda', Math.min(7, (wp - hueco) / 2 - 5))); const bt = N.cajaCS(T), k = Math.min(1, (lp * 0.5) / bt.w); peana = peana.subtract(T.scale([k, k]).translate([lp * 0.08, -(hueco / 2 + (wp - hueco) / 4 + 0.6)]).extrude(1).translate([0, 0, 3.4 - 0.6])); }
+  // peana · v40.1: «así sola no se mantiene» (la dueña, 12-10-2026). La de antes tenía una cuna de 0,9 mm y dos mejillas de 12 mm solo
+  // en la rueda trasera, con 0,35 de aire por lado: la bici se ladeaba y rodaba. Ahora las DOS ruedas entran 2,4 mm en su cuna y cada
+  // una va entre dos mejillas altas (media rueda como mucho, sin llegar al cuadro) con 0,15 de aire por lado, y la base es más ancha.
+  const hund = 2.4, basG = 4.4, aire = 0.3, lp = D.F[0] - D.A[0] + 2 * D.R * 0.7, wp = Math.max(46, total + 30), hueco = D.gr + aire, xc = (D.A[0] + D.F[0]) / 2;
+  let peana = conBisel(rr(lp, wp, 9), basG, 0.8);
+  const mej = (q, R, k) => { const alto = Math.max(6, Math.min(R * 0.5, R - 14)); /* con ruedas pequeñas, más bajas: no llegan a las placas del cuadro */ return M().hull([caja(R * 1.15, 3.4, 0.02), caja(R * 0.62, 3.4, 0.02).translate([0, 0, alto])]).translate([q[0] - xc, k * (hueco / 2 + 1.7), basG - 0.01]); };
+  [[D.A, D.R], [D.F, D.Rd || D.R]].forEach(([q, R]) => { peana = peana.add(mej(q, R, -1)).add(mej(q, R, 1)); });
+  [[D.A, D.R], [D.F, D.Rd || D.R]].forEach(([q, R]) => { peana = peana.subtract(M().cylinder(wp, R + 0.15, R + 0.15, 96).rotate([90, 0, 0]).translate([q[0] - xc, wp / 2, R + 0.15 + basG - hund]).intersect(caja(R * 2, hueco, 40).translate([q[0] - xc, 0, 0]))); });
+  if (p.txt && String(p.txt).trim()) { let T = N.centraCS(N.texto2(String(p.txt).trim(), p.fuente || 'gorda', Math.min(7, (wp - hueco) / 2 - 9))); const bt = N.cajaCS(T), k = Math.min(1, (lp * 0.5) / bt.w); peana = peana.subtract(T.scale([k, k]).translate([0, -(hueco / 2 + 3.4 + (wp / 2 - hueco / 2 - 3.4) / 2)]).extrude(1).translate([0, 0, basG - 0.6])); }
   piezas.push(['Peana', peana]);
-  const zSuelo = 3.4 - 0.9 + 0.1, enPeana = montaje.map(m => m.translate([-xc, tp + tc / 2, zSuelo])).concat([peana]);
+  const zSuelo = basG - hund + 0.1, enPeana = montaje.map(m => m.translate([-xc, tp + tc / 2, zSuelo])).concat([peana]);
   return { piezas, montaje: enPeana, bielas: bielas ? ang => bielas(ang).map(m => m.translate([-xc, tp + tc / 2, zSuelo])) : null, idxGira, total, tc, tp };
 }
 
@@ -153,6 +155,10 @@ export function compruebaKit(cual, p) {
     return { pisa, par, giro, piezas: K.piezas.length, grande, total: K.total }; });
   if (_ck.size > 20) _ck.clear(); _ck.set(k, r); return r;
 }
+// v40.1 · ¿la peana SUJETA? Montada no pisa nada; movida 0,4 mm de lado ya choca con las mejillas (o sea: no se ladea); y las ruedas
+// entran en su cuna (subida 1 mm sigue dentro de las mejillas). Para la prueba automática.
+export function peanaSujeta(cual, p) { return N.enAmbito(() => { const K = kit(cual === 'moto' ? datosMoto(p) : datosBici(p), p), peana = K.montaje[K.montaje.length - 1], resto = N.union(K.montaje.slice(0, -1)), b = N.caja(peana);
+  return { libre: resto.intersect(peana).volume(), lado: resto.translate([0, 0.4, 0]).intersect(peana).volume(), otroLado: resto.translate([0, -0.4, 0]).intersect(peana).volume(), hundida: resto.translate([0, 0, -1]).intersect(peana).volume(), altoPeana: b.dims[2], ancho: b.dims[1], largo: b.dims[0] }; }); }
 function genKit(cual, p) { const K = kit(cual === 'moto' ? datosMoto(p) : datosBici(p), p); if (p.que === 'montado') return N.union(K.montaje);
   const grandes = /Placa|Núcleo|Rueda|Peana/; if (p.que === 'cama1') return enRejilla(K.piezas.filter(x => grandes.test(x[0])).map(x => x[1]), 250, 5); if (p.que === 'cama2') return enRejilla(K.piezas.filter(x => !grandes.test(x[0])).map(x => x[1]), 200, 5);
   return enRejilla(K.piezas.map(x => x[1]), 250, 5); }
@@ -170,7 +176,7 @@ export const DISENOS_KITS = {
       'Pon la otra PLACA LATERAL encima, encajando los pasadores y los ejes, y cierra cada eje con sus TAPAS a presión (4 en total: una por cada lado de cada rueda). Las ruedas tienen que girar libres.',
       'Por el lado derecho, mete la pieza de PLATO, CADENA Y PIÑÓN; pasa el EJE DEL PEDALIER por el agujero del centro del plato y pon las dos BIELAS, una hacia arriba y otra hacia abajo.',
       'Encaja a presión el SILLÍN y el MANILLAR en las pestañas de arriba del cuadro.',
-      'Coloca la bicicleta en la ranura de la PEANA: se queda de pie sola.'], ['Si una rueda roza, afloja un poco sus tapas: tienen que quedar pegadas a la placa, sin apretarla.', 'Las bielas giran con sus pedales; la cadena es de adorno.', 'Queda muy bonita con las ruedas y la cadena en negro y el cuadro en un color vivo.']),
+      'Mete las dos ruedas en las ranuras de la PEANA, entre sus mejillas, y empuja hasta el fondo: se queda de pie sola y no rueda. Para jugar, sácala tirando hacia arriba.'], ['Si una rueda roza, afloja un poco sus tapas: tienen que quedar pegadas a la placa, sin apretarla.', 'Las bielas giran con sus pedales; la cadena es de adorno.', 'Queda muy bonita con las ruedas y la cadena en negro y el cuadro en un color vivo.']),
     nota: p => { let R = null; try { R = compruebaKit('bici', p); } catch (e) { return '⚠️ ' + e.message; }
       if (p.que === 'montado') return '👀 Esto es solo para VERLA montada. Para imprimir elige «Cama 1» y luego «Cama 2»: todo sale plano, sin soportes.';
       return (R.pisa < 0.01 && R.giro < 0.01 ? 'COMPROBADA (en el ordenador): montada, ninguna pieza pisa a otra y las bielas dan la vuelta entera sin tocar nada' : '⚠️ Algo se pisa (' + n2(Math.max(R.pisa, R.giro)) + ' mm³): vuelve al tamaño de serie') + '. ' + R.piezas + ' piezas en DOS CAMAS, todas planas. CÓMO SE MONTA: (1) núcleo sobre una placa, con los 2 pasadores; (2) las ruedas en su hueco y sus ejes (la cara plana es solo para imprimirlos); (3) la otra placa encima y las 4 tapas a presión; (4) plato-cadena-piñón por el lado derecho, eje del pedalier y las dos bielas, una hacia arriba y otra hacia abajo; (5) sillín y manillar a presión en sus pestañas; (6) a la peana. Las RUEDAS giran sobre su eje (0,2 mm de holgura) y las BIELAS giran con sus pedales; la cadena es de adorno, con sus eslabones en relieve. Si algo entra flojo, una gota de pegamento. Queda de ' + n2(R.total) + ' mm de gruesa. Bonita a dos colores: cuadro en un color y ruedas, sillín y puños en negro.'; } },
@@ -181,7 +187,7 @@ export const DISENOS_KITS = {
       'Coloca las dos RUEDAS en sus huecos y mete un EJE por el centro de cada una.',
       'Pon la otra PLACA LATERAL encima (la horquilla, el basculante y el escape quedan a los dos lados) y cierra cada eje con sus TAPAS a presión (4 en total). Las ruedas tienen que girar libres.',
       'Encaja a presión el MANILLAR con sus espejos en la pestaña de arriba.',
-      'Coloca la moto en la ranura de la PEANA: se queda de pie sola.'], ['Si una rueda roza, afloja un poco sus tapas.', 'Queda muy bonita a dos colores: el núcleo en un color vivo y las placas y las ruedas en negro.']),
+      'Mete las dos ruedas en las ranuras de la PEANA, entre sus mejillas, y empuja hasta el fondo: se queda de pie sola y no rueda. Para jugar, sácala tirando hacia arriba.'], ['Si una rueda roza, afloja un poco sus tapas.', 'Queda muy bonita a dos colores: el núcleo en un color vivo y las placas y las ruedas en negro.']),
     nota: p => { let R = null; try { R = compruebaKit('moto', p); } catch (e) { return '⚠️ ' + e.message; }
       if (p.que === 'montado') return '👀 Esto es solo para VERLA montada. Para imprimir elige «Cama 1» y luego «Cama 2»: todo sale plano, sin soportes.';
       return (R.pisa < 0.01 ? 'COMPROBADA (en el ordenador): montada, ninguna pieza pisa a otra' : '⚠️ Algo se pisa (' + n2(R.pisa) + ' mm³): vuelve al tamaño de serie') + '. ' + R.piezas + ' piezas en DOS CAMAS, todas planas. CÓMO SE MONTA: (1) el núcleo (motor, depósito y asiento) sobre una placa, con los 3 pasadores; (2) las ruedas en su hueco y sus ejes; (3) la otra placa encima (horquilla, basculante y escape quedan a los dos lados) y las 4 tapas a presión; (4) el manillar con sus espejos, a presión en la pestaña; (5) a la peana. Las RUEDAS giran sobre su eje (0,2 mm de holgura). Queda de ' + n2(R.total) + ' mm de gruesa: una moto con cuerpo. Bonita a dos colores: núcleo en un color vivo y placas y ruedas en negro.'; } },
