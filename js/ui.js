@@ -30,7 +30,18 @@ function add(el, kids) {
   });
 }
 export function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
-export function mount(el, ...kids) { clear(el); add(el, kids); return el; }
+// v30.6.3 · «bajo en una barra lateral, elijo algo y vuelve arriba» (la dueña, 12-10-2026). Pasa al repintar un panel que lleva
+// DENTRO lo que se acaba de tocar (el botón con el foco): al quitarlo, el navegador recoloca la barra con el panel a medio vaciar y
+// la lista «se va arriba». Con el dedo y con el ratón de verdad pasaba en el menú, el navegador del Estudio, Cajas, Precisión…
+// Aquí se apunta dónde estaba cada barra (la del panel y las de quien lo contiene) y se devuelve a su sitio al terminar. Solo se
+// mira cuando lo tocado está dentro: lo demás se repinta igual de rápido que antes.
+function barrasDe(el) { const L = []; for (let e = el, i = 0; e && e.nodeType === 1 && i < 10; e = e.parentElement, i++) if (e.scrollTop || e.scrollLeft) L.push([e, e.scrollTop, e.scrollLeft]); return L; }
+export function mount(el, ...kids) {
+  const a = document.activeElement, B = a && a !== document.body && el !== a && el.contains(a) ? barrasDe(el) : null;
+  clear(el); add(el, kids);
+  if (B) for (const [e, y, x] of B) { if (e.scrollTop !== y) e.scrollTop = y; if (e.scrollLeft !== x) e.scrollLeft = x; }
+  return el;
+}
 export const $ = (s, r = document) => r.querySelector(s);
 
 // ---------- Iconos (trazos propios, 24x24) ----------

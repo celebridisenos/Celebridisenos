@@ -174,7 +174,7 @@ export async function asistente(el, o) {
   const calAviso = h('div.aj-cal');
   import('./calibracion.js').then(CPR => { const A = o.sinCalibrar ? null : CPR.activa();
     mount(calAviso, A ? h('div.aj-ok', '🎯 Va corregida con tu calibración «' + A.clave + '» (' + A.fecha + ').')
-      : o.sinCalibrar ? null : h('div.aj-cal-no', h('span', '🎯 Tu impresora aún no está calibrada: con una probeta de 33 min tus piezas salen a medida solas.'), h('button.btn.sm.aj-calibrar', { type: 'button', onclick: () => import('./calibracion_ui.js').then(m => m.abrir()) }, 'Calibrar ahora'))); }).catch(() => { });
+      : o.sinCalibrar ? null : h('div.aj-cal-no', h('span', '🎯 Tu impresora aún no está calibrada: con la placa de 3 probetas tus piezas salen a medida solas.'), h('button.btn.sm.aj-calibrar', { type: 'button', onclick: () => import('./calibracion_puerta.js').then(m => m.abrirPlaca3({})) }, 'Calibrar ahora'))); }).catch(() => { });
   const clave = o.clave || 'estudio', R = Object.assign({ impresora: (o.cama || 256) <= 180 ? 'a1m' : 'p1p', material: o.uso === 'flexible' ? 'TPU' : 'PLA', uso: o.uso || 'deco' }, leeResp(clave));
   // v30.2 · 🌈 los cambios de color: los que ya trae el diseño (el QR: negro al acabar la base) o los de sus piezas de colores
   if (!R.cc) R.cc = { cambios: (o.cambios || []).filter(Boolean).map(c => ({ z: Math.round(c.z * 100) / 100, color: c.color })).concat(!o.cambios && colores.length > 1 ? colores.slice(1).map(c => ({ z: Math.round(c.z0 * 100) / 100, color: c.color })) : []), base: colores.length > 1 ? colores[0].color : (o.colorBase || null) };

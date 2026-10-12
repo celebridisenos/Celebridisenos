@@ -1,6 +1,6 @@
 /* ================= v30.6 · 🎨 TALLER DE COLORES Y PAUSAS (js/r8/colores_taller.js) ================= */
-.ct-fondo { position: fixed; inset: 0; z-index: 4000; background: rgba(6, 8, 16, .72); backdrop-filter: blur(3px); display: flex; padding: 14px }
-.ct { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: 16px; overflow: hidden; background: var(--card, #121627); color: var(--text, #eef0f8); border: 1px solid color-mix(in srgb, var(--text, #fff) 14%, transparent); box-shadow: 0 30px 80px rgba(0, 0, 0, .55) }
+.ct-fondo { position: fixed; inset: 0; z-index: 4000; background: rgba(6, 8, 16, .8); display: flex; padding: 14px } /* (v30.6.3: sin desenfoque: va encima de otra ventana que ya lo lleva y, sin tarjeta gráfica o en la tablet, iba a trompicones) */
+.ct { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: 16px; overflow: hidden; background: var(--surface, #121627); color: var(--text, #eef0f8); border: 1px solid color-mix(in srgb, var(--text, #fff) 14%, transparent); box-shadow: 0 30px 80px rgba(0, 0, 0, .55) }
 .ct-cab { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent) }
 .ct-titulo { display: flex; flex-direction: column; min-width: 0; flex: 1 }
 .ct-titulo b { font-size: 17px }
@@ -101,3 +101,4 @@
 .ct-aviso-c { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); width: min(520px, calc(100% - 90px)); z-index: 6; padding: 14px 16px; border-radius: 14px; background: #2a1d05; color: #ffe8c2; border: 1px solid #f08c00; box-shadow: 0 18px 50px rgba(0, 0, 0, .55); font-size: 14px; line-height: 1.45 }
 .ct-aviso-c[hidden] { display: none } .ct-aviso-c b { font-size: 16px } .ct-aviso-c p { margin: 6px 0 10px }
 .ct-aviso-b { display: flex; gap: 8px; flex-wrap: wrap }
+.ct-convertir { width: 100%; margin-top: 10px; border-color: #f08c00 !important }

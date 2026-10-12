@@ -65,6 +65,38 @@ export function valida(est, n, capa, primera = 0.2) {
 // resumen: cuántas capas y cuántos mm de cada color
 export function resumen(est, n, capa, primera = 0.2, baseDef) { const C = coloresPorCapa(est, n, capa, primera, baseDef), M = new Map(); for (let k = 1; k <= n; k++) { const o = M.get(C[k]) || { color: C[k], capas: 0, mm: 0 }; o.capas++; o.mm += k === 1 ? primera : capa; M.set(C[k], o); } return [...M.values()]; }
 
+// ---------- v30.6.3 · 🪄 DE LO PINTADO (caras) A COLORES POR CAPAS, cuando se puede ----------
+// La dueña pinta lo natural: los cuadraditos del QR en negro, las letras de un color… y esperaba que se imprimiera así (12-10-2026).
+// Con una bobina cada vez solo se puede cambiar de color por capas; pero en una pieza «de relieve» lo pintado y las capas son lo
+// mismo: cada MESETA (cara plana que mira hacia arriba, a una altura) es el techo de una franja de capas. El color de cada franja es
+// el más pintado en la meseta de su techo; la meseta sin pintar se queda del color de la pieza. Si a una misma altura hay dos colores
+// pintados, no se puede (uno al lado del otro necesita un AMS): se elige el que más hay y SE DICE.
+// s = sopa (9 números por triángulo, Z arriba) · triCol[t] = 0 sin pintar | i+1 → cols[i] · devuelve { ok, C, base, cambios, mezcla, … }
+export function capasDeCaras(s, triCol, cols, n, capa, primera = 0.2, propio = '#f4f4f0') {
+  const nT = s.length / 9; let z0 = Infinity; for (let i = 2; i < s.length; i += 3) if (s[i] < z0) z0 = s[i];
+  const mes = new Map(); let aPint = 0, aPlano = 0, total = 0;
+  for (let t = 0; t < nT; t++) {
+    const p = t * 9, ux = s[p + 3] - s[p], uy = s[p + 4] - s[p + 1], uz = s[p + 5] - s[p + 2], vx = s[p + 6] - s[p], vy = s[p + 7] - s[p + 1], vz = s[p + 8] - s[p + 2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, L = Math.hypot(nx, ny, nz), a = L / 2; if (!(a > 1e-9)) continue;
+    const c = triCol[t]; if (c) aPint += a;
+    if (nz / L < 0.985) continue; // solo las caras que miran arriba (hasta unos 10° de inclinación)
+    const z = Math.round(((s[p + 2] + s[p + 5] + s[p + 8]) / 3 - z0) * 100) / 100; if (z < primera * 0.5) continue;
+    let m = mes.get(z); if (!m) { m = { z, a: 0, por: new Map() }; mes.set(z, m); } m.a += a; total += a; if (c) { m.por.set(c, (m.por.get(c) || 0) + a); aPlano += a; }
+  }
+  if (!(aPint > 0)) return { ok: false, motivo: 'Todavía no hay ninguna cara pintada.' };
+  // mesetas a menos de media capa = la misma; las muy pequeñas sin pintar no cuentan
+  const J = []; [...mes.values()].sort((x, y) => x.z - y.z).forEach(m => { const u = J[J.length - 1]; if (u && m.z - u.z < capa * 0.5) { u.a += m.a; u.z = m.z; m.por.forEach((v, k) => u.por.set(k, (u.por.get(k) || 0) + v)); } else J.push({ z: m.z, a: m.a, por: new Map(m.por) }); });
+  const mezcla = [], P = J.filter(m => m.por.size || m.a > total * 0.003).map(m => { const L = [...m.por.entries()].sort((x, y) => y[1] - x[1]), pint = L.reduce((x, q) => x + q[1], 0); let color = null;
+    if (L.length && pint >= m.a * 0.35) { color = cols[L[0][0] - 1] || null; if (L[1] && L[1][1] >= pint * 0.25) mezcla.push({ z: m.z, capa: capaEnAltura(m.z - 1e-6, capa, primera), colores: L.slice(0, 3).map(q => cols[q[0] - 1]) }); }
+    return { z: m.z, color, a: m.a }; });
+  if (!P.some(m => m.color)) return { ok: false, motivo: aPlano < aPint * 0.4 ? 'Lo pintado está en paredes o caras inclinadas, no en caras planas que miren hacia arriba: eso no se puede copiar por capas (haría falta un AMS).' : 'Lo pintado ocupa muy poco de cada cara: pinta la cara entera (con «▱ Una cara plana» o «◔ Una zona lisa») y prueba otra vez.', mezcla };
+  // de abajo arriba: cada capa toma el color de la meseta que le hace de techo
+  const C = new Array(n + 1); let i = 0;
+  for (let k = 1; k <= n; k++) { const zt = zTecho(k, capa, primera); while (i < P.length - 1 && P[i].z < zt - capa * 0.5) i++; C[k] = P[i].z >= zt - capa * 0.5 ? (P[i].color || propio) : (C[k - 1] || propio); }
+  const cambios = []; for (let k = 2; k <= n; k++) if (String(C[k]).toLowerCase() !== String(C[k - 1]).toLowerCase()) cambios.push({ capa: k, z: zSuelo(k, capa, primera), color: C[k] });
+  return { ok: true, C, base: C[1], cambios, mezcla, mesetas: P, enPlano: aPlano / aPint };
+}
+
 // ---------- CARAS PINTADAS (solo para verlo): un número de color por triángulo, guardado comprimido ----------
 const aRle = A => { const o = []; let i = 0; while (i < A.length) { let j = i; while (j < A.length && A[j] === A[i]) j++; o.push(A[i], j - i); i = j; } return o; };
 const deRle = (R, n) => { const A = new Uint8Array(n); let i = 0; for (let q = 0; q + 1 < R.length && i < n; q += 2) { A.fill(R[q], i, Math.min(n, i + R[q + 1])); i += R[q + 1]; } return A; };
@@ -94,7 +126,7 @@ export function abrirColores(o) {
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2; for (let i = 0; i < s.length; i += 3) { s[i] -= cx; s[i + 1] -= cy; s[i + 2] -= z0; }
     const alto = z1 - z0, ancho = x1 - x0, fondo = y1 - y0, n = totalCapas(alto, capa, primera), nT = s.length / 9;
     let M = null, rota = ''; try { M = N.guarda(N.deSopa(s)); } catch (e) { rota = e.message || String(e); } N.limpia();
-    const E = JSON.parse(JSON.stringify({ base: o.est.base || baseDef, cambios: (o.est.cambios || []).map(c => Object.assign({ id: nuevoId(), tipo: 'color', activa: true }, c)), caras: o.est.caras || null }));
+    const E = JSON.parse(JSON.stringify({ base: o.est.base || baseDef, cambios: (o.est.cambios || []).map(c => Object.assign({ id: nuevoId(), tipo: 'color', activa: true }, c)), caras: o.est.caras || null, propio: o.est.propio || o.est.base || baseDef })); // (propio = el color de la pieza antes de pasar lo pintado a capas)
     let pal = (() => { try { return JSON.parse(localStorage.getItem('cd.r8.paleta') || '[]'); } catch (e) { return []; } })();
     let sel = { a: Math.min(n, Math.max(2, Math.round(n / 2))), b: Math.min(n, Math.max(2, Math.round(n / 2))) }, color = '#1b1b1f', modo = 'capas', herr = 'cara', grados = 25, radio = 4, selId = null, escena = null, vivo = true;
     const hist = [JSON.stringify(E)]; let hi = 0;
@@ -110,11 +142,11 @@ export function abrirColores(o) {
     const avisoC = h('div.ct-aviso-c', { hidden: true, 'data-ct': 'aviso-caras' });
     const soloCaras = () => triCol.some(v => v) && !eventos(E, capa, primera).some(e => e.activa);
     const avisaCaras = () => { avisoC.hidden = false; mount(avisoC, h('b', '🖌️ Solo has pintado CARAS'), h('p', 'Se guarda para VERLO, pero al imprimir no cambia nada: con una bobina cada vez la impresora solo puede cambiar de color por CAPAS (de abajo arriba). Tal como está, sale de un color y NO se para.'),
-      h('div.ct-aviso-b', h('button.btn.primary', { type: 'button', 'data-ct': 'ir-capas', onclick: () => { avisoC.hidden = true; modo = 'capas'; todo(); } }, '🧱 Pintar por capas (lo que se imprime)'), h('button.btn', { type: 'button', 'data-ct': 'guardar-asi', onclick: () => cerrar(true) }, 'Guardar así, solo para verlo'))); };
+      h('div.ct-aviso-b', h('button.btn.primary', { type: 'button', 'data-ct': 'convertir-aviso', onclick: () => convierte() }, '🪄 Pasarlo a colores por capas'), h('button.btn', { type: 'button', 'data-ct': 'ir-capas', onclick: () => { avisoC.hidden = true; modo = 'capas'; todo(); } }, '🧱 Pintar las capas yo'), h('button.btn', { type: 'button', 'data-ct': 'guardar-asi', onclick: () => cerrar(true) }, 'Guardar así, solo para verlo'))); };
     const fondoV = h('div.ct-fondo', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Colores y pausas' }, h('div.ct', cabeza, h('div.ct-medio', izq, h('div.ct-vista', lienzo, etiquetas, caja, regla, cubo, avisoC), der), abajo));
     document.body.append(fondoV);
     const cerrar = guardar => { if (!vivo) return; vivo = false; document.removeEventListener('keydown', tecla, true); window.removeEventListener('pointerup', alSoltar); window.removeEventListener('resize', alCambiarTam);
-      if (guardar) { o.est.base = E.base; o.est.cambios = E.cambios.map(c => { const x = { id: c.id, z: c.z, color: c.color }; if (c.tipo && c.tipo !== 'color') x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }); if (E.caras) o.est.caras = E.caras; else delete o.est.caras; o.alGuardar && o.alGuardar(o.est); }
+      if (guardar) { o.est.base = E.base; o.est.cambios = E.cambios.map(c => { const x = { id: c.id, z: c.z, color: c.color }; if (c.tipo && c.tipo !== 'color') x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }); if (E.caras) o.est.caras = E.caras; else delete o.est.caras; if (E.propio) o.est.propio = E.propio; o.alGuardar && o.alGuardar(o.est); }
       try { escena && escena.destruir(); } catch (e) { } if (M) N.suelta(M); fondoV.remove(); window.__r8ct = null; resolve(guardar ? o.est : null); };
     try { escena = crearEscena(lienzo, { cama: Math.max(120, Math.ceil(Math.max(ancho, fondo) * 1.5 / 10) * 10), dia: document.documentElement.getAttribute('data-modo') === 'dia' }); try { escena.cuboVistas(cubo, 84); } catch (e) { } } catch (e) { toast('Este aparato no deja ver en 3D: ' + (e.message || e), 'bad'); cerrar(false); return; }
 
@@ -188,6 +220,16 @@ export function abrirColores(o) {
       if (modo === 'capas') { pintaCapas(E, sel.a, sel.b, color, n, capa, primera, baseDef); apunta(); toast('🎨 Capas ' + sel.a + (sel.a === sel.b ? '' : '–' + sel.b) + ' en ' + nombreColor(color).toLowerCase(), 'ok', 1800); }
       else { if (!triSel.some(v => v)) return toast('Toca antes la pieza para elegir qué pintas.', 'warn'); let i = colCaras.findIndex(c => c.toLowerCase() === color.toLowerCase()); if (i < 0) { if (colCaras.length >= 250) return toast('Demasiados colores distintos.', 'warn'); colCaras.push(color); i = colCaras.length - 1; } for (let t = 0; t < nT; t++) if (triSel[t]) triCol[t] = i + 1; triSel.fill(0); apunta(); }
     }
+    // 🪄 lo pintado → colores por capas (v30.6.3): se rehacen los cambios de COLOR; las pausas sin color se respetan
+    function convierte() {
+      const R = capasDeCaras(s, triCol, colCaras, n, capa, primera, E.propio || E.base || baseDef); if (!R.ok) return toast('🪄 ' + R.motivo, 'warn', 10000);
+      const viejos = eventos(E, capa, primera), otros = viejos.filter(e => e.tipo !== 'color').map(e => e.ref);
+      E.base = R.base; E.cambios = R.cambios.map(c => { const v = viejos.find(e => e.tipo === 'color' && e.capa === c.capa); return { id: v ? v.id : nuevoId(), z: c.z, color: c.color, tipo: 'color', activa: true }; }).concat(otros).sort((x, y) => x.z - y.z);
+      avisoC.hidden = true; modo = 'capas'; if (R.cambios.length) { sel = { a: R.cambios[0].capa, b: R.cambios[0].capa }; selId = E.cambios.find(c => (c.tipo || 'color') === 'color').id; } apunta();
+      const txt = R.cambios.length ? R.cambios.length + (R.cambios.length === 1 ? ' parada: ' : ' paradas: ') + R.cambios.map(c => 'capa ' + c.capa + ' → ' + nombreColor(c.color).toLowerCase()).join(', ') + '.' : 'Sale todo de un color (' + nombreColor(R.base).toLowerCase() + '): no hace falta ninguna parada.';
+      toast('🪄 Pasado a colores por capas. ' + txt + (R.mezcla.length ? ' ⚠️ En la capa ' + R.mezcla.map(m => m.capa).join(', ') + ' habías pintado dos colores a la misma altura: con una bobina solo puede salir uno, he dejado el que más había.' : '') + ' Míralo en la pieza: así es como saldrá.', R.mezcla.length ? 'warn' : 'ok', 12000);
+      window.__r8ct && (window.__r8ct.convertido = { cambios: R.cambios, mezcla: R.mezcla, base: R.base });
+    }
     function quitaPintura() { if (!triSel.some(v => v)) return toast('Toca antes la pieza para elegir de dónde la quitas.', 'warn'); for (let t = 0; t < nT; t++) if (triSel[t]) triCol[t] = 0; triSel.fill(0); apunta(); }
     function nuevaPausa(tipo) { const k = Math.max(2, sel.a); if (E.cambios.some(c => capaDeZ(c.z, capa, primera) === k && (c.tipo || 'color') === tipo)) return toast('Ya hay una parada de ese tipo en la capa ' + k + '.', 'warn'); const c = { id: nuevoId(), z: zSuelo(k, capa, primera), color: tipo === 'color' ? color : coloresPorCapa(E, n, capa, primera, baseDef)[k], tipo, activa: true }; E.cambios.push(c); E.cambios.sort((x, y) => x.z - y.z); selId = c.id; apunta(); }
     function pintaDer() {
@@ -198,7 +240,8 @@ export function abrirColores(o) {
         h('div.ct-actual', h('i', { style: { background: color } }), h('b', nombreColor(color)), h('code', color.toUpperCase())),
         modo === 'capas' ? [h('button.btn.primary.ct-pintar', { type: 'button', 'data-ct': 'pintar', onclick: pinta }, '🎨 Pintar ' + (sel.a === sel.b ? 'la capa ' + sel.a : 'las capas ' + sel.a + '–' + sel.b)),
           h('div.ct-mas', h('small', 'PARAR EN LA CAPA ' + Math.max(2, sel.a) + ' SIN CAMBIAR DE COLOR'), h('div.ct-rango-b', ['pausa', 'filamento', 'gcode'].map(t => h('button', { type: 'button', 'data-nueva': t, title: TIPOS[t][2], onclick: () => nuevaPausa(t) }, TIPOS[t][0] + ' ' + TIPOS[t][1]))))]
-          : [h('button.btn.primary.ct-pintar', { type: 'button', 'data-ct': 'pintar', onclick: pinta }, '🖌️ Pintar lo elegido'), h('div.ct-rango-b', h('button', { type: 'button', 'data-ct': 'quita', onclick: quitaPintura }, 'Quitar la pintura de lo elegido'))],
+          : [h('button.btn.primary.ct-pintar', { type: 'button', 'data-ct': 'pintar', onclick: pinta }, '🖌️ Pintar lo elegido'), h('div.ct-rango-b', h('button', { type: 'button', 'data-ct': 'quita', onclick: quitaPintura }, 'Quitar la pintura de lo elegido')),
+            triCol.some(v => v) ? h('button.btn.ct-convertir', { type: 'button', 'data-ct': 'convertir', title: 'La impresora cambia de color por capas (de abajo arriba). Esto mira lo que has pintado en las caras planas y lo convierte en esas paradas.', onclick: convierte }, '🪄 Pasarlo a colores POR CAPAS (lo que se imprime)') : null],
         modo === 'caras' ? h('div.ct-lista', h('small.ct-tit', 'CARAS PINTADAS'), colCaras.map((c, i) => nCaras.get(i + 1) ? h('div.ct-res', { 'data-cara': c }, h('i', { style: { background: c } }), h('span', nombreColor(c)), h('b', nCaras.get(i + 1) + ' triángulos'), h('button', { type: 'button', title: 'Elegir todo lo de este color (para cambiarlo o quitarlo)', onclick: () => { for (let t = 0; t < nT; t++) triSel[t] = triCol[t] === i + 1 ? 1 : 0; todo(true); } }, '☝')) : null), nCaras.size ? null : h('p.ct-ayuda', 'Todavía no hay ninguna cara pintada.'))
         : h('div.ct-lista', h('small.ct-tit', 'PARADAS · ' + L.length), L.length ? L.map((e, i) => h('div.ct-pausa' + (e.id === selId ? '.on' : '') + (e.activa ? '' : '.off'), { 'data-pausa': e.id, onclick: ev => { if (ev.target.closest('button,input,select,textarea,label')) return; selId = e.id; sel = { a: e.capa, b: e.capa }; todo(true); } },
           h('div.ct-p1', h('b.ct-pn', String(i + 1)), h('i', { style: { background: e.tipo === 'color' ? e.color : 'transparent' } }, e.tipo === 'color' ? '' : TIPOS[e.tipo][0]), h('span', TIPOS[e.tipo][1] + (e.tipo === 'color' ? ' → ' + nombreColor(e.color).toLowerCase() : '')),
@@ -269,6 +312,6 @@ export function abrirColores(o) {
     document.addEventListener('keydown', tecla, true);
     escena.alDibujar = colocaEtiquetas;
     calculaPerfil(); todo(); setTimeout(() => { try { escena.encuadrar('iso'); } catch (e) { } pintaAbajo(); }, 120);
-    window.__r8ctApi = { cerrar, ponSel, pinta, nuevaPausa, mueveA, ponColor, vuelve, get E() { return E; }, escena, get triSel() { return triSel; }, ponModo: m => { modo = m; if (m === 'caras' && !TOPO) TOPO = topologia(s); todo(); }, ponHerr: q => { herr = q; pintaIzq(); } };
+    window.__r8ctApi = { cerrar, ponSel, pinta, nuevaPausa, mueveA, ponColor, vuelve, convierte, get sopa() { return s; }, get E() { return E; }, escena, get triSel() { return triSel; }, ponModo: m => { modo = m; if (m === 'caras' && !TOPO) TOPO = topologia(s); todo(); }, ponHerr: q => { herr = q; pintaIzq(); } };
   });
 }

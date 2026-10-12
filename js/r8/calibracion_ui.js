@@ -8,7 +8,7 @@ import * as CPR from './calibracion.js';
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES');
 const IMPRESORAS = [['P1P', 'Bambu P1P'], ['A1 mini', 'Bambu A1 mini'], ['otra', 'Otra']], MATERIALES = ['PETG', 'PLA', 'TPU', 'ABS', 'ASA', 'Otro'];
 // el dibujo de la probeta, vista de ARRIBA y de LADO, con sus letras (sale de las mismas medidas que la probeta)
-function dibujo() {
+export function dibujo() {
   const G = CPR.GEO, E = 5, X = x => (x + 38) * E, Y = y => (22 - y) * E, W = 76 * E, H = 44 * E, ns = 'http://www.w3.org/2000/svg';
   const el = (t, a, txt) => { const e = document.createElementNS(ns, t); Object.entries(a).forEach(([k, v]) => e.setAttribute(k, v)); if (txt) e.textContent = txt; return e; };
   const svg = el('svg', { viewBox: '0 0 ' + W + ' ' + (H + 110), class: 'cpr-dib', role: 'img', 'aria-label': 'Dónde se mide cada letra' });
@@ -34,7 +34,8 @@ export function abrir(o = {}) {
   function contenido() {
     const C = estado.calibre, act = CPR.activa(), g = CPR.guardado();
     return [
-      h('p.small', 'Una vez: compruebas el calibre, imprimes la probeta y la mides. Desde ese momento, cada pieza que mandes a Bambu con esa impresora y ese material sale corregida SOLA (tus perfiles no se tocan).'),
+      h('div.cpr-placa3', h('div', h('b', '🎯 Lo mejor: la placa de 3 probetas'), h('small', 'Tres probetas numeradas en una sola placa: de cada medida se usa la del medio de las tres y se ve cuánto repite tu impresora.')), btn('Calibrar con la placa de 3', () => { cerrar(); import('./calibracion_puerta.js').then(m => m.abrirPlaca3({ alCerrar: o.alCerrar })); }, { cls: 'primary sm cpr-abre3' })),
+      h('p.small', 'O con UNA probeta, como hasta ahora: compruebas el calibre, la imprimes y la mides. Cada pieza que mandes a Bambu con esa impresora y ese material sale corregida SOLA (tus perfiles no se tocan).'),
       act ? h('p.cpr-ok', '🎯 Ahora se usa: «' + act.clave + '» (' + act.fecha + ') · ' + CPR.texto(act)) : h('p.small.muted', 'Todavía no hay ninguna calibración en uso.'),
       // 1 · el calibre
       h('details.cpr-sec', { open: !C }, h('summary', h('b', '1 · Tu calibre'), C ? h('small', C.ok ? ' ✅ comprobado (' + C.fecha + ')' : ' ⚠️ se desvía ' + n2(C.off) + ' mm (' + C.fecha + ')') : h('small', ' sin comprobar')),

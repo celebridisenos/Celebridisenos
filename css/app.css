@@ -2145,7 +2145,7 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 
 /* v20.2 · Productos: el archivo 3D arriba de la ficha (ver, abrir en Bambu Studio, editar en CelebriR8) */
 .prod-3d:empty { display: none; }
-.prod-3d { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card, transparent); }
+.prod-3d { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, transparent); }
 .prod-3d-t { display: flex; align-items: center; gap: 10px; flex: 1 1 220px; min-width: 0; }
 .prod-3d-ic { font-size: 1.6em; line-height: 1; }
 .prod-3d-t .grow { min-width: 0; }
@@ -2208,7 +2208,7 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .aj-pausas li i, .aj-vent-l li i { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(128, 128, 128, .7); flex: none; }
 .aj-pausas small { display: block; margin-top: 6px; opacity: .85; }
 .aj-vent-f { position: fixed; inset: 0; z-index: 5000; background: rgba(6, 8, 16, .82); display: grid; place-items: center; padding: 16px; } /* (sin desenfoque: suele ir encima de otra ventana que ya lo lleva) */
-.aj-vent { width: min(640px, 100%); max-height: 92vh; overflow: auto; background: var(--card, #171a2b); color: var(--text, #eef1fb); border: 1px solid var(--line, #2a3358); border-radius: 18px; padding: 20px 22px; box-shadow: 0 30px 80px rgba(0, 0, 0, .5); font-size: 15px; line-height: 1.5; }
+.aj-vent { width: min(640px, 100%); max-height: 92vh; overflow: auto; background: var(--surface, #171a2b); color: var(--text, #eef1fb); border: 1px solid var(--line, #2a3358); border-radius: 18px; padding: 20px 22px; box-shadow: 0 30px 80px rgba(0, 0, 0, .5); font-size: 15px; line-height: 1.5; }
 .aj-vent h3 { margin: 0 0 8px; font-size: 20px; } .aj-vent ol { margin: 10px 0; padding-left: 22px; display: grid; gap: 6px; } .aj-vent p { margin: 6px 0; }
 .aj-vent.ok { border-color: color-mix(in srgb, #00ae42 60%, transparent); } .aj-vent.ojo { border-color: color-mix(in srgb, #f08c00 65%, transparent); } .aj-vent.mal { border-color: color-mix(in srgb, #e03131 65%, transparent); }
 .aj-vent-p { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--text, #fff) 7%, transparent); margin: 10px 0; }

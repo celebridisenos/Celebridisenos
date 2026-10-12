@@ -633,7 +633,7 @@ export function applyTheme(t) {
 {
   const conArchivos = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
   let fuera = 0;
-  const velo = si => { clearTimeout(fuera); if (si && S.me && shell) document.body.classList.add('suelta-3d'); else fuera = setTimeout(() => document.body.classList.remove('suelta-3d'), 120); };
+  const velo = si => { clearTimeout(fuera); if (si && S.me && shell) { document.body.classList.add('suelta-3d'); document.body.classList.toggle('suelta-r8', current.name === 'celebrir8'); } else fuera = setTimeout(() => document.body.classList.remove('suelta-3d'), 120); };
   window.addEventListener('dragover', e => { if (!conArchivos(e)) return; if (!e.defaultPrevented) { e.preventDefault(); try { e.dataTransfer.dropEffect = S.me && shell ? 'copy' : 'none'; } catch (x) { } velo(true); } else velo(false); });
   window.addEventListener('dragleave', e => { if (!e.relatedTarget) velo(false); });
   window.addEventListener('drop', e => {
@@ -643,6 +643,9 @@ export function applyTheme(t) {
     if (!S.me || !shell) return;
     const f = [...(e.dataTransfer.files || [])].find(x => /\.(stl|3mf|obj)$/i.test(x.name));
     if (!f) return toast('Para saber el precio de una pieza, suelta su archivo STL, 3MF u OBJ.', 'warn', 5000);
+    // v30.6.3 · dentro de CelebriR8 el archivo se queda en la herramienta abierta (la dueña, 12-10-2026: «el reparador STL manda al
+    // cotizador y obliga a volver atrás para encontrar la herramienta»)
+    if (current.name === 'celebrir8' && typeof window.__r8soltar === 'function') { try { window.__r8soltar(f); } catch (x) { handleError(x); } return; }
     import('./views/cotizador.js').then(m => { m.cotizarArchivo(f); if (current.name !== 'cotizador') go('cotizador'); toast('⚡ ' + f.name + ' → Cotizador', 'ok', 3000); }).catch(handleError);
   });
 }

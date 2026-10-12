@@ -177,12 +177,12 @@ export async function montarTaller(el, ext = {}) {
       M.historial.length ? h('div.r8p-sec', h('b', 'Pasos'), h('ol.r8t-hist', M.historial.map(x => h('li', x.que)))) : null,
       S.blender && S.blender.grosor ? h('p.small.muted', 'Grosor medido por Blender con ' + S.blender.grosor.muestras + ' rayos: ' + C.n2(S.blender.grosor.pct_fino) + ' % por debajo de ' + C.mm(S.blender.grosor.minimo_mm, 1) + '.') : null,
       h('div.r8p-btns', btn('↩ Deshacer', () => { const q = E.deshazMesa(); if (q) { toast('Deshecho: ' + q, 'ok'); despuesDeCambio(); } }, { cls: 'sm r8t-deshacer', disabled: !M.historial.length || S.trabajando }), btn('⟲ Volver al original', () => { E.originalMesa(); toast('Vuelve a estar como el original', 'ok'); despuesDeCambio(); }, { cls: 'sm r8t-original', disabled: !cambiado || S.trabajando })),
-      h('div.r8p-btns', btn('💾 Guardar', () => C.guardaEnPC(M.stl, 'Reparados', C.limpioNombre(M.nombre) + (cambiado ? '_reparado' : '') + '.stl', 'model/stl').catch(e => toast(e.message, 'bad')), { cls: 'sm r8t-guardar', title: 'Documentos › CelebriDiseños_R8 › Reparados (o descarga, fuera del PC)' }), btn('🩺 Revisar para imprimir', () => ext.irA && ext.irA('doctor'), { cls: 'sm primary r8t-imprimir' })));
+      h('div.r8p-btns', btn('💾 Guardar', () => C.guardaEnPC(M.stl, 'Reparados', C.limpioNombre(M.nombre) + (cambiado ? '_reparado' : '') + '.stl', 'model/stl').catch(e => toast(e.message, 'bad')), { cls: 'sm r8t-guardar', title: 'Documentos › CelebriDiseños_R8 › Reparados (o descarga, fuera del PC)' }), btn('🩺 Revisar para imprimir', () => ext.irA && ext.irA('doctor'), { cls: 'sm primary r8t-imprimir' }), ext.alEstudioMalla ? btn('🧰 Al Estudio', async () => { try { const { parse3D } = await import('../stl.js'), b = M.stl instanceof ArrayBuffer ? M.stl : M.stl.buffer.slice(M.stl.byteOffset, M.stl.byteOffset + M.stl.byteLength); ext.alEstudioMalla(await parse3D(b, 'modelo.stl'), M.nombre + (cambiado ? ' (reparado)' : '')); } catch (e) { toast(e.message || String(e), 'bad'); } }, { cls: 'sm r8t-estudio', title: 'Seguir editándola en el Estudio (cortar, añadir, medir…)' }) : null));
   }
   async function despuesDeCambio() { S.insp = null; await compara(); await analiza(); pintaVista(); }
 
   const quita = E.escucha('sistema', () => pinta());
   E.sistema().catch(() => { });
   if (E.mesa()) { await analiza(true); if (E.mesa().stl !== E.mesa().original) { await compara(); pinta(); pintaVista(); } } else { pinta(); pintaVista(); }
-  return { destroy() { vivo = false; quita(); if (esc) esc.destruir(); } };
+  return { destroy() { vivo = false; quita(); if (esc) esc.destruir(); }, abreArchivo };
 }

@@ -177,8 +177,37 @@ const VISTAS = { cajas: ['./r8_cajas.js', 'montarCajas'], clon: ['./r8_clon.js',
 const guardado = (k, def) => { try { return localStorage.getItem(k) ?? def; } catch (e) { return def; } };
 const apunta = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 let PEST = guardado('cd.r8.pest', 'inicio');
+// v30.6.3 · «recordar la última ubicación, no obligar a buscar otra vez» (la dueña, 12-10-2026): al salir de una pestaña se apunta
+// dónde estaba cada barra (por la clase del panel) y al volver se deja igual, esperando un poco a que su contenido esté pintado.
+const SITIO = {};
+function recuerdaSitio(k, caja) {
+  if (!k || !caja || caja.hidden) return; const L = [];
+  [caja, ...caja.querySelectorAll('*')].forEach(e => { if (e.scrollTop > 4 || e.scrollLeft > 4) { const sel = e === caja ? '' : e.classList.length ? '.' + [...e.classList].map(c => CSS.escape(c)).join('.') : e.tagName.toLowerCase(); L.push({ sel, i: sel ? [...caja.querySelectorAll(sel)].indexOf(e) : 0, y: e.scrollTop, x: e.scrollLeft }); } });
+  SITIO[k] = L;
+}
+function vuelveSitio(k, caja) {
+  const L = (SITIO[k] || []).map(q => Object.assign({}, q)); if (!L.length) return; let n = 0;
+  const pon = () => { if (!caja.isConnected) return; let faltan = 0;
+    L.forEach(q => { if (q.hecho) return; const e = q.sel ? caja.querySelectorAll(q.sel)[q.i] : caja; if (e && e.scrollHeight - e.clientHeight >= q.y - 8 && e.scrollWidth - e.clientWidth >= q.x - 8) { e.scrollTop = q.y; e.scrollLeft = q.x; q.hecho = true; } else faltan++; });
+    if (faltan && n++ < 24) setTimeout(pon, 150); };
+  pon();
+}
 if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio';
+// v30.6.3 · 🎯 PRIMERO, CALIBRAR (la dueña, 12-10-2026: «que no deje iniciar sin antes calibrar»): si no hay ninguna calibración en uso
+// (ni en este aparato ni guardada en el taller), en vez de CelebriR8 sale la puerta (r8/calibracion_puerta.js). Con la placa ya
+// mandada a imprimir se puede entrar a diseñar mientras tanto (se recuerda durante esa sesión).
 export function render(el) {
+  let dentro = null, puertaR = null, vivo = true;
+  const entra = r => { if (!vivo) return; if (r && r.espera) { try { sessionStorage.setItem('cd.r8.puertaEspera', '1'); } catch (e) { } } if (puertaR) { puertaR.destroy(); puertaR = null; } document.documentElement.classList.remove('r8-puerta'); dentro = renderMarco(el); };
+  import('../r8/calibracion_puerta.js').then(async PU => {
+    if (!vivo) return; if (PU.sinPuerta()) return entra(); await PU.traeDeLaNube(); if (!vivo) return;
+    let espera = false; try { espera = sessionStorage.getItem('cd.r8.puertaEspera') === '1' && PU.imprimiendo(); } catch (e) { }
+    if (PU.calibrada() || espera) return entra();
+    document.documentElement.classList.add('r8-puerta'); puertaR = PU.puerta(el, entra, { volver: () => go('puente') });
+  }).catch(e => { console.error(e); entra(); });
+  return { destroy: () => { vivo = false; document.documentElement.classList.remove('r8-puerta'); if (puertaR) puertaR.destroy(); if (dentro && dentro.destroy) dentro.destroy(); } };
+}
+function renderMarco(el) {
   try { ponAutoria(ST.cfg && ST.cfg.empresa && ST.cfg.empresa.nombre); } catch (e) { }
   import('../store.js').then(st => st.pausaSync && st.pausaSync(true)).catch(() => { }); // v20.2: sin sincronizar mientras diseñas
   PEST = guardado('cd.r8.pest', PEST); if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio'; // v20.1: el estreno puede pedir una pestaña
@@ -194,12 +223,21 @@ export function render(el) {
   let actual = null, turno = 0, estudioVivo = null; // v20.2: el Estudio no se apaga al cambiar de pestaña (volver es al momento)
   const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO 30'))), tabs, h('div.r8v-acc', bAyuda, bModo, bFoco)), cuerpo, barra);
   el.appendChild(raiz);
+  // v30.6.3 · si se ha entrado con la placa de calibración todavía imprimiéndose, arriba queda el botón para terminarla
+  import('../r8/calibracion_puerta.js').then(PU => { if (PU.sinPuerta() || PU.calibrada()) return; const b = h('button.r8v-bt.r8v-calpend', { type: 'button', title: 'La placa de calibración se está imprimiendo: cuando acabe, mide las 3 probetas y termina aquí', onclick: () => PU.abrirPlaca3({ alCerrar: () => { if (PU.calibrada()) b.remove(); } }) }, '🎯 ', h('span', 'Terminar la calibración')); const acc = raiz.querySelector('.r8v-acc'); if (acc) acc.prepend(b); }).catch(() => { });
   function pintaCab() { bFoco.title = foco ? 'Ver también el menú del negocio' : 'Modo taller: CelebriR8 a pantalla completa'; mount(bFoco, foco ? '⤡' : '⤢'); bFoco.setAttribute('aria-label', bFoco.title); bNegocio.hidden = !(foco && ancho()); }
   const pinta = () => {
     const grupos = []; PESTANAS.forEach(p => { const g = p[4]; if (!grupos.length || grupos[grupos.length - 1].g !== g) grupos.push({ g, L: [] }); grupos[grupos.length - 1].L.push(p); });
     mount(tabs, grupos.map(({ g, L }) => h('div.r8v-g', { 'data-g': g || 'inicio' }, g ? h('small.r8v-grupo', g) : null, h('div.r8v-gb', L.map(([k, ic, t, d]) => h('button.r8v-tab' + (PEST === k ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': String(PEST === k), 'data-pest': k, title: t + ' · ' + d, onclick: () => ir(k) }, h('span', ic), h('b', t), h('small', d)))))));
   };
+  // v30.6.3 · un STL / OBJ / 3MF soltado en cualquier sitio de CelebriR8: en Reparar y en Imprimir se abre AHÍ; en las demás
+  // pestañas, en el Estudio (para editarlo). Nunca se va al Cotizador.
+  window.__r8soltar = f => {
+    if ((PEST === 'taller' || PEST === 'doctor') && actual && actual.abreArchivo) { actual.abreArchivo(f); toast('📂 ' + f.name + ' → ' + (PEST === 'taller' ? 'Reparar' : 'Imprimir'), 'ok', 3000); return; }
+    ir('estudio', est => { if (est && est.importar) est.importar(f); }); toast('📂 ' + f.name + ' → se abre en el Estudio para editarlo', 'ok', 3500);
+  };
   async function ir(k, despues) {
+    try { recuerdaSitio(window.__r8pest, cuerpo.querySelector('.r8v-pest:not([hidden])')); } catch (e) { }
     const yo = ++turno; PEST = k; apunta('cd.r8.pest', k); pinta();
     if (!(estudioVivo && actual === estudioVivo.r)) { try { actual && actual.destroy && actual.destroy(); } catch (e) { } }
     if (estudioVivo && actual === estudioVivo.r && k !== 'estudio') { try { estudioVivo.r.pausa && estudioVivo.r.pausa(); } catch (e) { } }
@@ -212,7 +250,7 @@ export function render(el) {
       if (VISTAS[k]) { const [mod, fn] = VISTAS[k]; const m = await import(mod); if (yo !== turno) return; r = await m[fn](caja, ext); }
       else r = renderPlantillas(caja);
       if (yo !== turno) { try { r && r.destroy && r.destroy(); } catch (e) { } return; }
-      actual = r; if (k === 'estudio' && r) estudioVivo = { caja, r }; if (despues && r) despues(r);
+      actual = r; if (k === 'estudio' && r) estudioVivo = { caja, r }; if (despues && r) despues(r); else if (k !== 'estudio') vuelveSitio(k, caja);
     } catch (e) { console.error(e); mount(caja, h('div.card', h('p.r8e-mal', '⚠️ No se ha podido abrir: ' + (e.message || e)))); }
     window.__r8pest = k;
   }
@@ -245,5 +283,5 @@ export function render(el) {
   ponFoco(foco); pinta(); ir(PEST);
   if (guardado('cd.r8.visita', '') === '') setTimeout(() => { if (document.body.contains(raiz)) visita(); }, 900);
   window.__r8ir = ir;
-  return { destroy: () => { turno++; import('../store.js').then(st => st.pausaSync && st.pausaSync(false)).catch(() => { }); if (estudioVivo && estudioVivo.r !== actual) { try { estudioVivo.r.destroy(); } catch (e) { } } estudioVivo = null; clearInterval(reloj); clearInterval(vigia); quita.forEach(f => f()); window.removeEventListener('resize', alCambiarTam); document.documentElement.classList.remove('r8-foco'); try { actual && actual.destroy && actual.destroy(); } catch (e) { } import('../r8/visita.js').then(V => V.cerrar()).catch(() => { }); } };
+  return { destroy: () => { turno++; delete window.__r8soltar; import('../store.js').then(st => st.pausaSync && st.pausaSync(false)).catch(() => { }); if (estudioVivo && estudioVivo.r !== actual) { try { estudioVivo.r.destroy(); } catch (e) { } } estudioVivo = null; clearInterval(reloj); clearInterval(vigia); quita.forEach(f => f()); window.removeEventListener('resize', alCambiarTam); document.documentElement.classList.remove('r8-foco'); try { actual && actual.destroy && actual.destroy(); } catch (e) { } import('../r8/visita.js').then(V => V.cerrar()).catch(() => { }); } };
 }

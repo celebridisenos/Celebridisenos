@@ -138,6 +138,7 @@ body[data-view="tallervivo"] .content, body[data-view="puente"] .content { max-w
 .pm-prev > span { font-size: 22px; } .pm-prev b { font-family: var(--font-d); font-size: 15.5px; }
 .pm-planeta .in-planeta-g { grid-template-columns: minmax(0, 300px) minmax(170px, 1fr); }
 @media (max-width: 1280px) { .pm-planeta .in-planeta-g { grid-template-columns: minmax(0, 1fr); justify-items: center; } }
+body.suelta-3d.suelta-r8::after { content: "📂  Suelta aquí tu STL: se abre en esta herramienta de CelebriR8" !important; }
 body.suelta-3d::after { content: "⚡  Suelta aquí tu STL: te digo lo que mide, lo que gasta y a cuánto venderlo"; position: fixed; inset: 14px; z-index: 950; display: grid; place-items: center; text-align: center; padding: 30px; border-radius: 26px; border: 3px dashed var(--a2, #22d3ee); background: color-mix(in srgb, var(--bg) 82%, transparent); color: var(--text); font: 700 clamp(20px, 2.6vw, 34px) var(--font-d, inherit); pointer-events: none; animation: fade .15s; }
 
 /* ---------- 🧊 CelebriR8 ---------- */

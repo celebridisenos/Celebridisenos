@@ -11,7 +11,7 @@ import * as FM from './foto_medida.js';
 import * as SV from './svg.js'; // v20.4: importar un SVG (contornos → formas; los de dentro, agujeros) // v20.4: foto para calcar: calibrar, enderezar, contorno, medir, leer engranajes y acoplamientos
 
 const HERR = [
-  ['sel', '👆', 'Elegir y mover', 'V'], ['lapiz', '✏️', 'Lápiz / mano alzada', 'B'], ['linea', '📏', 'Líneas (clic a clic)', 'L'], ['rect', '▭', 'Rectángulo', 'R'], ['circulo', '◯', 'Círculo', 'C'],
+  ['sel', '👆', 'Elegir y mover', 'V'], ['mano', '✋', 'Mover la vista', 'M'], ['lapiz', '✏️', 'Lápiz / mano alzada', 'B'], ['linea', '📏', 'Líneas (clic a clic)', 'L'], ['rect', '▭', 'Rectángulo', 'R'], ['circulo', '◯', 'Círculo', 'C'],
   ['poligono', '⬡', 'Polígono', 'P'], ['estrella', '☆', 'Estrella', 'S'], ['corazon', '♡', 'Corazón', 'H'], ['elipse', '⬭', 'Elipse', 'E'], ['ranura', '⊂⊃', 'Ranura', 'O'], ['texto', 'T', 'Texto', 'T']
 ];
 const r2 = x => Math.round(x * 100) / 100;
@@ -51,7 +51,7 @@ export function editarBoceto(caja, p0 = {}) {
     let modoF = null, ptsF = [], calPend = null, comparar = false, lectura = null, arrastreImg = null;
     const cargaCalco = () => { if (!calco) { calcoIm = null; return; } FM.imagenDe(calco.img).then(im => { calcoIm = im; pinta(); }).catch(e => { toast(e.message, 'warn'); }); };
     cargaCalco();
-    let vista = { s: 4, ox: 0, oy: 0 }, entrada = '', penVisto = false, enCurso = null, linea = null, raton = [0, 0], atras = [];
+    let vista = { s: 4, ox: 0, oy: 0 }, entrada = '', penVisto = false, enCurso = null, linea = null, raton = [0, 0], atras = [], fija = false, avisosDedo = 0;
     const lienzo = h('canvas.r8b-cv', { 'aria-label': 'Hoja del boceto' }), g = lienzo.getContext('2d');
     const panel = h('div.r8b-panel'), pista = h('div.r8b-pista'), quien = h('span.r8b-quien', '🖱️ Ratón');
     const fiCalco = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp', style: { display: 'none' }, onchange: async e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -69,7 +69,10 @@ export function editarBoceto(caja, p0 = {}) {
     function cajaSvg() { let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; delSvg().forEach(f => f.pts.forEach(q => { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); })); return { x0, x1, y0, y1, w: x1 - x0, h: y1 - y0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 }; }
     function transSvg(fn) { const B = cajaSvg(); delSvg().forEach(f => { f.pts = f.pts.map(q => { const r = fn(q[0], q[1], B); return [r2(r[0]), r2(r[1])].concat(q.length > 2 ? [q[2]] : []); }); }); pinta(); }
     window.__r8bSvg = { metSvg, cajaSvg }; // (para las pruebas)
-    const herrs = h('div.r8b-herr', HERR.map(([k, ic, t, tecla]) => h('button.r8b-h' + (k === herr ? '.on' : ''), { type: 'button', 'data-h': k, title: t + ' (' + tecla + ')', 'aria-label': t, onclick: () => ponHerr(k) }, h('span', ic), h('small', t.split(' ')[0]))),
+    // (v30.6.3) con el dedo, el botón responde AL LEVANTARLO: justo después de mover la vista de un golpe, el navegador se «come» el
+    // primer toque (cree que es para frenar el deslizamiento) y la herramienta no cambiaba hasta el segundo
+    const alToque = fn => { let t0 = 0; return { onpointerup: e => { if (e.pointerType === 'touch') { t0 = Date.now(); fn(); } }, onclick: () => { if (Date.now() - t0 > 700) fn(); } }; };
+    const herrs = h('div.r8b-herr', HERR.map(([k, ic, t, tecla]) => h('button.r8b-h' + (k === herr ? '.on' : ''), { type: 'button', 'data-h': k, title: t + ' (' + tecla + ')', 'aria-label': t, ...alToque(() => alTocarHerr(k)) }, h('span', ic), h('small', t.split(' ')[0]))),
       h('div.r8b-sep'),
       h('button.r8b-h.r8b-modo', { type: 'button', title: 'Lo que dibujes: suma material o es un agujero', onclick: e => { modo = modo === 'suma' ? 'agujero' : 'suma'; if (sel >= 0) { guardaAtras(); F[sel].modo = modo; } e.currentTarget.classList.toggle('agujero', modo === 'agujero'); e.currentTarget.querySelector('small').textContent = modo === 'suma' ? 'Sólido' : 'Agujero'; pinta(); pintaPanel(); } }, h('span', '◐'), h('small', 'Sólido')),
       h('button.r8b-h', { type: 'button', title: 'Poner una imagen debajo para calcarla', onclick: () => fiCalco.click() }, h('span', '🖼️'), h('small', 'Calcar')),
@@ -198,7 +201,15 @@ export function editarBoceto(caja, p0 = {}) {
     const guardaAtras = () => { atras.push(JSON.stringify(F)); if (atras.length > 80) atras.shift(); };
     function deshacer() { if (linea) { linea.pop(); if (!linea.length) linea = null; pinta(); return; } const s = atras.pop(); if (!s) return; F.splice(0, F.length, ...JSON.parse(s)); sel = Math.min(sel, F.length - 1); pinta(); pintaPanel(); }
     function borraSel() { if (sel < 0) return; guardaAtras(); F.splice(sel, 1); sel = -1; pinta(); pintaPanel(); }
-    function ponHerr(k) { herr = k; linea = null; enCurso = null; herrs.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('on', b.dataset.h === k)); pista.textContent = { sel: 'Toca una forma para elegirla; arrástrala para moverla.', lapiz: penVisto ? 'Dibuja con el lápiz. Mueve la vista con dos dedos.' : 'Dibuja a mano alzada. Si lo cierras, sale una forma; si no, una línea con grosor.', linea: 'Clic en cada esquina. Vuelve al primer punto (o Intro) para cerrar. Esc: cancelar.', texto: 'Toca donde quieres el texto y escríbelo a la derecha.' }[k] || 'Arrastra para dibujarlo y escribe la medida ahí mismo (Tab pasa a la otra, Intro acepta).'; pinta(); }
+    // v30.6.3 · CON EL DEDO NO SE CREA NADA SIN QUERER (la dueña, 12-10-2026: «dibujo un cuadrado y al mover la pantalla con el dedo
+    // crea otro»). Con el dedo: las formas son DE UNA VEZ (al soltar se vuelve a «Elegir»), un toque suelto no crea nada, y en «Elegir»
+    // un dedo en un sitio vacío MUEVE LA VISTA (dos dedos acercan). ✋ mueve la vista siempre. Para dibujar varias seguidas: tocar
+    // otra vez la herramienta ya puesta la deja FIJA (🔒). Con el ratón y con el lápiz todo sigue como estaba.
+    const DE_UNA = new Set(['rect', 'circulo', 'poligono', 'estrella', 'corazon', 'elipse', 'ranura', 'texto', 'linea']);
+    function alTocarHerr(k) { if (k === herr && DE_UNA.has(k)) { fija = !fija; marcaFija(); toast(fija ? '🔒 Fija: puedes dibujar varias seguidas. Toca otra herramienta para soltarla.' : '🔓 Suelta: al acabar una, vuelve a «Elegir».', '', 2600); return; } fija = false; ponHerr(k); }
+    const marcaFija = () => herrs.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('fija', fija && b.dataset.h === herr));
+    function trasDibujar(dedo) { if (!dedo || fija || !DE_UNA.has(herr)) return; ponHerr('sel'); if (avisosDedo++ < 2) toast('👆 Hecho. Con un dedo en un sitio vacío mueves la vista; para otra forma, toca su botón (dos veces = se queda fija).', '', 4200); }
+    function ponHerr(k) { herr = k; linea = null; enCurso = null; lienzo.style.cursor = k === 'mano' ? 'grab' : ''; herrs.querySelectorAll('[data-h]').forEach(b => { b.classList.toggle('on', b.dataset.h === k); b.classList.toggle('fija', fija && b.dataset.h === k); }); pista.textContent = { sel: 'Toca una forma para elegirla; arrástrala para moverla. Con el dedo en un sitio vacío mueves la vista.', mano: 'Arrastra para mover la vista. Con dos dedos (o la rueda) acercas y alejas.', lapiz: penVisto ? 'Dibuja con el lápiz. Mueve la vista con dos dedos.' : 'Dibuja a mano alzada. Si lo cierras, sale una forma; si no, una línea con grosor.', linea: 'Clic en cada esquina. Vuelve al primer punto (o Intro) para cerrar. Esc: cancelar.', texto: 'Toca donde quieres el texto y escríbelo a la derecha.' }[k] || 'Arrastra para dibujarlo y escribe la medida ahí mismo (Tab pasa a la otra, Intro acepta).'; pinta(); }
     const nueva = (t, q, q2) => {
       const dx = q2[0] - q[0], dy = q2[1] - q[1], R = Math.hypot(dx, dy), cx = (q[0] + q2[0]) / 2, cy = (q[1] + q2[1]) / 2, m = { modo };
       if (t === 'rect') return Object.assign(m, { t, x: r2(cx), y: r2(cy), w: r2(Math.abs(dx)) || 20, h: r2(Math.abs(dy)) || 20, r: 0 });
@@ -218,6 +229,7 @@ export function editarBoceto(caja, p0 = {}) {
       const dedos = [...ptrs.values()].filter(p => p.tipo === 'touch');
       if (dedos.length >= 2 || e.button === 1 || e.button === 2 || (e.pointerType === 'touch' && penVisto)) { enCurso = null; gesto = { ini: [...ptrs.values()].map(p => [p.x, p.y]), vista: Object.assign({}, vista) }; if (dedos.length === 2) toque2 = { t0: Date.now(), ini: dedos.map(p => [p.x, p.y]) }; return; }
       if (ptrs.size > 1) return;
+      if (herr === 'mano') { enCurso = null; gesto = { ini: [[e.clientX, e.clientY]], vista: Object.assign({}, vista) }; lienzo.style.cursor = 'grabbing'; return; } // ✋
       const q0 = aMm(e.clientX, e.clientY), q = herr === 'lapiz' ? q0 : iman(q0);
       if (modoF && calco) { // v20.4: marcar puntos en la foto
         if (modoF === 'medir' && ptsF.length >= 3) ptsF = [];
@@ -225,11 +237,11 @@ export function editarBoceto(caja, p0 = {}) {
         ptsF.push(q0);
         if (modoF === 'calibra' && ptsF.length === 2) calPend = { a: mmAImg(ptsF[0]), b: mmAImg(ptsF[1]), mm: Math.round(Math.hypot(ptsF[1][0] - ptsF[0][0], ptsF[1][1] - ptsF[0][1]) * 10) / 10 };
         pinta(); pintaPanel(); if (modoF === 'calibra' && ptsF.length === 2) setTimeout(() => { const i = panel.querySelector('[data-k="calmm"]'); if (i) { i.focus(); i.select(); } }, 30); return; }
-      if (herr === 'sel') { sel = cual(q0); pintaPanel(); cotasVivas(sel); if (sel >= 0) { guardaAtras(); arrastre = { q: q, f: JSON.parse(JSON.stringify(F[sel])) }; } else if (calco && !calco.bloq && enFoto(q0)) arrastreImg = { q: q0, x: calco.x, y: calco.y }; pinta(); return; }
+      if (herr === 'sel') { sel = cual(q0); pintaPanel(); cotasVivas(sel); if (sel >= 0) { guardaAtras(); arrastre = { q: q, f: JSON.parse(JSON.stringify(F[sel])) }; } else if (calco && !calco.bloq && enFoto(q0)) arrastreImg = { q: q0, x: calco.x, y: calco.y }; else if (e.pointerType === 'touch') gesto = { ini: [[e.clientX, e.clientY]], vista: Object.assign({}, vista) }; /* un dedo en vacío mueve la vista */ pinta(); return; }
       if (herr === 'lapiz') { const pr = e.pressure > 0 && e.pointerType === 'pen' ? e.pressure : 0.5; enCurso = { t: 'mano', pts: [[q[0], q[1], r2(0.8 + pr * 3.2)]] }; return; }
-      if (herr === 'texto') { guardaAtras(); F.push({ t: 'texto', x: q[0], y: q[1], txt: 'Texto', fuente: 'gorda', alto: 10, ang: 0, modo }); sel = F.length - 1; pinta(); pintaPanel(); setTimeout(() => { const i = panel.querySelector('[data-k="txt"]'); if (i) { i.focus(); i.select(); } }, 30); return; }
-      if (herr === 'linea') { if (!linea) linea = [q]; else { const p0 = linea[0]; if (linea.length > 2 && Math.hypot(q[0] - p0[0], q[1] - p0[1]) * vista.s < 12) return cierraLinea(); linea.push(q); } pinta(); return; }
-      enCurso = { herr, q0: q, ...nueva(herr, q, q) };
+      if (herr === 'texto') { guardaAtras(); F.push({ t: 'texto', x: q[0], y: q[1], txt: 'Texto', fuente: 'gorda', alto: 10, ang: 0, modo }); sel = F.length - 1; pinta(); pintaPanel(); trasDibujar(e.pointerType === 'touch'); setTimeout(() => { const i = panel.querySelector('[data-k="txt"]'); if (i) { i.focus(); i.select(); } }, 30); return; }
+      if (herr === 'linea') { if (!linea) linea = [q]; else { const p0 = linea[0]; if (linea.length > 2 && Math.hypot(q[0] - p0[0], q[1] - p0[1]) * vista.s < 12) return cierraLinea(e.pointerType === 'touch'); linea.push(q); } pinta(); return; }
+      enCurso = { herr, q0: q, px: [e.clientX, e.clientY], dedo: e.pointerType === 'touch', ...nueva(herr, q, q) };
     });
     lienzo.addEventListener('pointermove', e => {
       const prev = ptrs.get(e.pointerId); if (prev) { prev.x = e.clientX; prev.y = e.clientY; }
@@ -247,7 +259,7 @@ export function editarBoceto(caja, p0 = {}) {
     const suelta = e => {
       const yo = ptrs.get(e.pointerId); ptrs.delete(e.pointerId);
       if (toque2 && yo) { const movio = toque2.ini.every(q => Math.hypot(q[0] - yo.x, q[1] - yo.y) > 12); if (movio || Date.now() - toque2.t0 > 400) toque2 = null; }
-      if (gesto) { if (!ptrs.size) { gesto = null; if (toque2) { toque2 = null; deshacer(); toast('↶ Deshecho (toque con dos dedos)', '', 1400); } } else gesto = { ini: [...ptrs.values()].map(p => [p.x, p.y]), vista: Object.assign({}, vista) }; return; }
+      if (gesto) { if (!ptrs.size) { gesto = null; if (herr === 'mano') lienzo.style.cursor = 'grab'; if (toque2) { toque2 = null; deshacer(); toast('↶ Deshecho (toque con dos dedos)', '', 1400); } } else gesto = { ini: [...ptrs.values()].map(p => [p.x, p.y]), vista: Object.assign({}, vista) }; return; }
       if (arrastreImg) { arrastreImg = null; pintaPanel(); return; }
       if (arrastre) { arrastre = null; pintaPanel(); return; }
       if (enCurso && enCurso.t === 'mano') {
@@ -258,13 +270,15 @@ export function editarBoceto(caja, p0 = {}) {
         else F.push({ t: 'linea', pts: chaikin(rdp(L, 0.3), 1).map(q => [r2(q[0]), r2(q[1])]), suave: true, modo });
         sel = F.length - 1; const f = F[sel]; toast(f.t === 'circulo' ? '◯ Lo he dejado redondo: Ø ' + n1(f.d) + ' mm' : f.t === 'rect' ? '▭ Lo he dejado recto: ' + n1(f.w) + ' × ' + n1(f.h) + ' mm' : f.t === 'trazo' ? '✏️ Trazo con grosor (más gordo donde aprietas)' : f.suave ? '✨ Curva suavizada' : '📐 Lo he dejado con lados rectos', 'ok', 2600);
         pinta(); pintaPanel(); return; }
-      if (enCurso) { const f = enCurso; enCurso = null; delete f.herr; delete f.q0; guardaAtras(); F.push(f); sel = F.length - 1; pinta(); pintaPanel(); cotasVivas(sel, e.pointerType === 'mouse'); }
+      if (enCurso) { const f = enCurso, dedo = !!f.dedo, corto = dedo && (!yo || Math.hypot(yo.x - f.px[0], yo.y - f.px[1]) < 10); enCurso = null; delete f.herr; delete f.q0; delete f.px; delete f.dedo;
+        if (corto) { pinta(); toast('👆 Para dibujarlo, ARRASTRA el dedo: un toque suelto no crea nada.', '', 2600); return; } // (con el ratón, un clic sigue poniendo la forma de serie)
+        guardaAtras(); F.push(f); sel = F.length - 1; pinta(); pintaPanel(); cotasVivas(sel, e.pointerType === 'mouse'); trasDibujar(dedo); }
     };
     lienzo.addEventListener('pointerup', suelta); lienzo.addEventListener('pointercancel', suelta);
     lienzo.addEventListener('dblclick', () => { if (linea) cierraLinea(); });
     lienzo.addEventListener('contextmenu', e => e.preventDefault());
     lienzo.addEventListener('wheel', e => { e.preventDefault(); const r = lienzo.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, k = e.deltaY > 0 ? 0.88 : 1.14, s = Math.max(0.3, Math.min(60, vista.s * k)), f = s / vista.s; vista = { s, ox: mx - (mx - vista.ox) * f, oy: my - (my - vista.oy) * f }; pinta(); }, { passive: false });
-    function cierraLinea() { if (!linea || linea.length < 3) { linea = null; pinta(); return; } guardaAtras(); F.push({ t: 'linea', pts: linea.map(q => [r2(q[0]), r2(q[1])]), modo }); linea = null; sel = F.length - 1; pinta(); pintaPanel(); }
+    function cierraLinea(dedo) { if (!linea || linea.length < 3) { linea = null; pinta(); return; } guardaAtras(); F.push({ t: 'linea', pts: linea.map(q => [r2(q[0]), r2(q[1])]), modo }); linea = null; sel = F.length - 1; pinta(); pintaPanel(); trasDibujar(dedo === true); }
     raiz.addEventListener('keydown', e => {
       const enNum = e.target.tagName === 'INPUT' && /^(number|range|checkbox)$/.test(e.target.type || '');
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && (enNum || !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))) { e.preventDefault(); if (enNum) e.target.blur(); cotasVivas(-1); deshacer(); return; }
@@ -397,7 +411,7 @@ export function editarBoceto(caja, p0 = {}) {
       cerrar(P);
     }
     function cerrar(r) { if (ro) ro.disconnect(); raiz.remove(); if (window.__r8b && window.__r8b.raiz === raiz) delete window.__r8b; resolver(r); }
-    window.__r8b = { raiz, aPx: q => aPx(q), imgAMm: (u, v) => imgAMm(u, v), get calco() { return calco; }, F, P, get lectura() { return lectura; } }; // (para las pruebas automáticas)
+    window.__r8b = { raiz, aPx: q => aPx(q), imgAMm: (u, v) => imgAMm(u, v), get calco() { return calco; }, F, P, get lectura() { return lectura; }, get herr() { return herr; }, get fija() { return fija; }, get vista() { return Object.assign({}, vista); }, get sel() { return sel; } }; // (para las pruebas automáticas)
     ponHerr(herr); pintaPanel();
   });
 }

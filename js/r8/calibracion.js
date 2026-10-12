@@ -20,7 +20,9 @@ export function medidasDe(cal) { const m = { cero: cal.cero, otras: [] }; (cal.r
 const LS = 'cd.r8.precision';
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES'), n3 = x => (Math.round(x * 1000) / 1000).toLocaleString('es-ES');
 export function guardado() { try { return Object.assign({ perfiles: {}, activa: null, calibre: null }, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) { return { perfiles: {}, activa: null, calibre: null }; } }
-const graba = g => { try { localStorage.setItem(LS, JSON.stringify(g)); } catch (e) { } return g; };
+const graba = g => { g.actualizado = Date.now(); try { localStorage.setItem(LS, JSON.stringify(g)); } catch (e) { } return g; };
+// (v30.6.3) poner lo que viene de otro aparato tal cual, con su hora
+export function pon(g) { try { localStorage.setItem(LS, JSON.stringify(Object.assign({ perfiles: {}, activa: null, calibre: null }, g))); } catch (e) { } return guardado(); }
 
 // ---------- 1) EL CALIBRE ----------
 // m = { cero (lo que marca cerrado), e1, c50, e2 (lo que marca cada moneda; las que no tengas, vacías) }
@@ -63,6 +65,29 @@ export function probeta() {
   const L = GEO.agujeros.map(([k, x]) => letra(k, x, -7.4, kz)).concat([letra('I', 31.5, -8, bz), letra('J', 31.5, 8, bz), letra('K', -8, -16, bz), letra('A', -27, 7.4, kz), letra('B', 7.2, 6.8, kz), letra('D', -32, -16, bz)]);
   m = m.subtract(N.union(L));
   return m;
+}
+
+// ---------- 2 bis) v30.6.3 · LA PLACA DE 3 PROBETAS (la dueña, 12-10-2026: «3 pruebas en una sola placa, así mejor precisión») ----------
+// Tres probetas iguales, cada una con su NÚMERO grabado, en diagonal por la cama (delante-izquierda, centro y detrás-derecha) y la
+// del centro girada un cuarto de vuelta: así cada cota se mide tres veces, en tres sitios y en los dos sentidos de la cama.
+// Con tres medidas se usa la del MEDIO (una mal tomada no estropea nada) y se sabe cuánto repite la impresora.
+export const sitios3 = (cama = 256) => { const [dx, dy] = cama <= 190 ? [50, 62] : [78, 80]; return [{ n: 1, x: -dx, y: -dy, giro: 0 }, { n: 2, x: 0, y: 0, giro: 90 }, { n: 3, x: dx, y: dy, giro: 0 }]; };
+export function probetaN(n) { return probeta().subtract(N.centraCS(N.texto2(String(n), 'gorda', 7)).extrude(0.61).translate([-20, 15, GEO.base[4] - 0.6])); }
+export function placa3(cama = 256) { return N.union(sitios3(cama).map(s => { let m = probetaN(s.n); if (s.giro) m = m.rotate([0, 0, s.giro]); return m.translate([s.x, s.y, 0]); })); }
+// meds = [{ A: …, B: … }, { … }, { … }] (lo medido en la probeta 1, 2 y 3; una probeta entera en blanco no cuenta)
+export function calcula3(meds, off = 0) {
+  const num = x => { const v = Number(String(x ?? '').replace(',', '.')); return v > 0 ? v : null; };
+  const L = [0, 1, 2].map(i => { const m = (meds || [])[i] || {}; return { n: i + 1, m, tiene: COTAS.filter(c => num(m[c.k]) != null).map(c => c.k) }; });
+  const enteras = L.filter(p => p.tiene.length === COTAS.length), amedias = L.filter(p => p.tiene.length && p.tiene.length < COTAS.length);
+  if (amedias.length) N.mal('A la probeta ' + amedias[0].n + ' le faltan medidas: ' + COTAS.filter(c => !amedias[0].tiene.includes(c.k)).map(c => c.k).join(', ') + '. Complétala (o déjala entera en blanco si no la tienes).');
+  if (!enteras.length) N.mal('Escribe las medidas de al menos una probeta entera (lo bueno son las tres).');
+  const med = {}, dudosas = [], reparto = [];
+  COTAS.forEach(c => { const V = enteras.map(p => ({ n: p.n, v: num(p.m[c.k]) })).sort((a, b) => a.v - b.v), medio = V.length % 2 ? V[(V.length - 1) / 2].v : (V[V.length / 2 - 1].v + V[V.length / 2].v) / 2; med[c.k] = medio;
+    if (V.length > 1) { const sp = V[V.length - 1].v - V[0].v; reparto.push(sp); if (sp > 0.1) { const peor = V.slice().sort((a, b) => Math.abs(b.v - medio) - Math.abs(a.v - medio))[0]; dudosas.push({ k: c.k, n: peor.n, v: peor.v, medio, sp }); } } });
+  const R = calcula(med, off); reparto.sort((a, b) => a - b);
+  R.probetas = enteras.map(p => p.n); R.repite = reparto.length ? reparto[Math.floor(reparto.length / 2)] : null; R.dudosas = dudosas; R.med = med;
+  if (dudosas.length) R.avisos.push('No cuadran entre probetas: ' + dudosas.map(d => d.k + ' de la probeta ' + d.n + ' (' + n2(d.v) + ' frente a ' + n2(d.medio) + ')').join('; ') + '. Mídelas otra vez; de momento se usa el valor del medio.');
+  return R;
 }
 
 // ---------- 3) LAS CUENTAS ----------

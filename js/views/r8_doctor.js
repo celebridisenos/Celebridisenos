@@ -176,5 +176,5 @@ export async function montarDoctor(el, ext = {}) {
 
   const quita = E.escucha('sistema', () => pinta());
   window.__r8doc = {}; pinta(); pintaVista(); await carga();
-  return { destroy() { vivo = false; quita(); if (esc) esc.destruir(); } };
+  return { destroy() { vivo = false; quita(); if (esc) esc.destruir(); }, abreArchivo };
 }
