@@ -9,18 +9,21 @@
 //    ofrece la «prueba rápida» (una funda bajita, 15 minutos) para comprobarlo con el móvil delante antes de imprimir la buena.
 //  · El REDONDEO de las esquinas también es ESTIMADO y se pone pequeño a propósito: una esquina de funda menos redonda que
 //    la del móvil siempre entra; al revés, no.
+//    (v40.2: en los iPhone pasa de 7 a 9,5: con 7 la funda entraba bien pero las esquinas quedaban «muy puntiagudas»; la del móvil es mayor)
+//  · Xiaomi Mi Note 10 / Pro (157,8 × 74,2 × 9,67, medidas oficiales): cámaras en columna a la IZQUIERDA (franja estrecha y larga, ESTIMADA).
 // Para añadir un modelo: una línea con sus medidas oficiales. Si no sabes la cámara, pon 'ancha' (una franja de lado a lado).
 //            marca      modelo                 alto    ancho  grosor  cámara: tipo, ancho %, alto %    esquina
 export const MOVILES = [
-  ['iPhone', 'iPhone 17 Pro Max', 163.4, 78.0, 8.75, 'ancha', 100, 26, 7], ['iPhone', 'iPhone 17 Pro', 150.0, 71.9, 8.75, 'ancha', 100, 27, 7], ['iPhone', 'iPhone 17', 149.6, 71.5, 7.95, 'izq', 56, 29, 7], ['iPhone', 'iPhone Air', 156.2, 74.7, 5.64, 'ancha', 100, 17, 7],
-  ['iPhone', 'iPhone 16 Pro Max', 163.03, 77.58, 8.25, 'izq', 60, 30, 7], ['iPhone', 'iPhone 16 Pro', 149.61, 71.45, 8.25, 'izq', 62, 31, 7], ['iPhone', 'iPhone 16 Plus', 160.88, 77.75, 7.8, 'izq', 48, 30, 7], ['iPhone', 'iPhone 16', 147.63, 71.62, 7.8, 'izq', 50, 31, 7],
-  ['iPhone', 'iPhone 15 Pro Max', 159.9, 76.7, 8.25, 'izq', 60, 30, 7], ['iPhone', 'iPhone 15 Pro', 146.6, 70.6, 8.25, 'izq', 62, 31, 7], ['iPhone', 'iPhone 15 Plus', 160.9, 77.8, 7.8, 'izq', 54, 28, 7], ['iPhone', 'iPhone 15', 147.6, 71.6, 7.8, 'izq', 56, 29, 7],
-  ['iPhone', 'iPhone 14 Pro Max', 160.7, 77.6, 7.85, 'izq', 60, 30, 7], ['iPhone', 'iPhone 14 Pro', 147.5, 71.5, 7.85, 'izq', 62, 31, 7], ['iPhone', 'iPhone 14 Plus', 160.8, 78.1, 7.8, 'izq', 54, 28, 7], ['iPhone', 'iPhone 14', 146.7, 71.5, 7.8, 'izq', 56, 29, 7],
-  ['iPhone', 'iPhone 13 Pro Max', 160.8, 78.1, 7.65, 'izq', 58, 29, 7], ['iPhone', 'iPhone 13 Pro', 146.7, 71.5, 7.65, 'izq', 60, 30, 7], ['iPhone', 'iPhone 13', 146.7, 71.5, 7.65, 'izq', 54, 28, 7], ['iPhone', 'iPhone 13 mini', 131.5, 64.2, 7.65, 'izq', 58, 30, 7],
+  ['iPhone', 'iPhone 17 Pro Max', 163.4, 78.0, 8.75, 'ancha', 100, 26, 9.5], ['iPhone', 'iPhone 17 Pro', 150.0, 71.9, 8.75, 'ancha', 100, 27, 9.5], ['iPhone', 'iPhone 17', 149.6, 71.5, 7.95, 'izq', 56, 29, 9.5], ['iPhone', 'iPhone Air', 156.2, 74.7, 5.64, 'ancha', 100, 17, 9.5],
+  ['iPhone', 'iPhone 16 Pro Max', 163.03, 77.58, 8.25, 'izq', 60, 30, 9.5], ['iPhone', 'iPhone 16 Pro', 149.61, 71.45, 8.25, 'izq', 62, 31, 9.5], ['iPhone', 'iPhone 16 Plus', 160.88, 77.75, 7.8, 'izq', 48, 30, 9.5], ['iPhone', 'iPhone 16', 147.63, 71.62, 7.8, 'izq', 50, 31, 9.5],
+  ['iPhone', 'iPhone 15 Pro Max', 159.9, 76.7, 8.25, 'izq', 60, 30, 9.5], ['iPhone', 'iPhone 15 Pro', 146.6, 70.6, 8.25, 'izq', 62, 31, 9.5], ['iPhone', 'iPhone 15 Plus', 160.9, 77.8, 7.8, 'izq', 54, 28, 9.5], ['iPhone', 'iPhone 15', 147.6, 71.6, 7.8, 'izq', 56, 29, 9.5],
+  ['iPhone', 'iPhone 14 Pro Max', 160.7, 77.6, 7.85, 'izq', 60, 30, 9.5], ['iPhone', 'iPhone 14 Pro', 147.5, 71.5, 7.85, 'izq', 62, 31, 9.5], ['iPhone', 'iPhone 14 Plus', 160.8, 78.1, 7.8, 'izq', 54, 28, 9.5], ['iPhone', 'iPhone 14', 146.7, 71.5, 7.8, 'izq', 56, 29, 9.5],
+  ['iPhone', 'iPhone 13 Pro Max', 160.8, 78.1, 7.65, 'izq', 58, 29, 9.5], ['iPhone', 'iPhone 13 Pro', 146.7, 71.5, 7.65, 'izq', 60, 30, 9.5], ['iPhone', 'iPhone 13', 146.7, 71.5, 7.65, 'izq', 54, 28, 9.5], ['iPhone', 'iPhone 13 mini', 131.5, 64.2, 7.65, 'izq', 58, 30, 9.5],
   ['Samsung', 'Galaxy S25 Ultra', 162.82, 77.65, 8.25, 'izq', 56, 38, 4], ['Samsung', 'Galaxy S25+', 158.44, 75.79, 7.35, 'izq', 44, 35, 6], ['Samsung', 'Galaxy S25', 146.94, 70.46, 7.25, 'izq', 46, 36, 6],
   ['Samsung', 'Galaxy S24 Ultra', 162.3, 79.0, 8.6, 'izq', 56, 38, 2], ['Samsung', 'Galaxy S24+', 158.5, 75.9, 7.7, 'izq', 44, 35, 6], ['Samsung', 'Galaxy S24', 147.0, 70.6, 7.6, 'izq', 46, 36, 6],
   ['Samsung', 'Galaxy S23 Ultra', 163.4, 78.1, 8.9, 'izq', 56, 38, 2], ['Samsung', 'Galaxy S23+', 157.8, 76.2, 7.6, 'izq', 44, 35, 6], ['Samsung', 'Galaxy S23', 146.3, 70.9, 7.6, 'izq', 46, 36, 6],
   ['Samsung', 'Galaxy S22 Ultra', 163.3, 77.9, 8.9, 'izq', 56, 38, 2], ['Samsung', 'Galaxy S22+', 157.4, 75.8, 7.6, 'izq', 50, 35, 6], ['Samsung', 'Galaxy S22', 146.0, 70.6, 7.6, 'izq', 52, 36, 6],
+  ['Xiaomi', 'Mi Note 10', 157.8, 74.2, 9.67, 'izq', 34, 46, 6], ['Xiaomi', 'Mi Note 10 Pro', 157.8, 74.2, 9.67, 'izq', 34, 46, 6], ['Xiaomi', 'Mi Note 10 Lite', 157.8, 74.2, 9.67, 'izq', 46, 30, 6], ['Xiaomi', 'Redmi Note 10', 160.46, 74.5, 8.29, 'izq', 46, 30, 5], ['Xiaomi', 'Redmi Note 10 Pro', 164.0, 76.5, 8.1, 'izq', 50, 30, 5],
   ['Xiaomi', 'Redmi Note 14', 162.4, 75.7, 8.0, 'ancha', 100, 30, 5], ['Xiaomi', 'Redmi Note 13', 162.24, 75.55, 7.97, 'ancha', 100, 30, 5], ['Xiaomi', 'Redmi Note 13 Pro 5G', 161.15, 74.24, 7.98, 'ancha', 100, 30, 5],
   ['Xiaomi', 'Xiaomi 14', 152.8, 71.5, 8.2, 'ancha', 100, 32, 5], ['Xiaomi', 'Xiaomi 14T', 160.5, 75.1, 7.8, 'ancha', 100, 30, 5], ['Xiaomi', 'Xiaomi 14T Pro', 160.4, 75.1, 8.4, 'ancha', 100, 30, 5], ['Xiaomi', 'POCO X6 Pro', 160.45, 74.34, 8.25, 'ancha', 100, 30, 5]
 ];

@@ -209,7 +209,7 @@ export function editarBoceto(caja, p0 = {}) {
     function alTocarHerr(k) { if (k === herr && DE_UNA.has(k)) { fija = !fija; marcaFija(); toast(fija ? '🔒 Fija: puedes dibujar varias seguidas. Toca otra herramienta para soltarla.' : '🔓 Suelta: al acabar una, vuelve a «Elegir».', '', 2600); return; } fija = false; ponHerr(k); }
     const marcaFija = () => herrs.querySelectorAll('[data-h]').forEach(b => b.classList.toggle('fija', fija && b.dataset.h === herr));
     function trasDibujar(dedo) { if (!dedo || fija || !DE_UNA.has(herr)) return; ponHerr('sel'); if (avisosDedo++ < 2) toast('👆 Hecho. Con un dedo en un sitio vacío mueves la vista; para otra forma, toca su botón (dos veces = se queda fija).', '', 4200); }
-    function ponHerr(k) { herr = k; linea = null; enCurso = null; lienzo.style.cursor = k === 'mano' ? 'grab' : ''; herrs.querySelectorAll('[data-h]').forEach(b => { b.classList.toggle('on', b.dataset.h === k); b.classList.toggle('fija', fija && b.dataset.h === k); }); pista.textContent = { sel: 'Toca una forma para elegirla; arrástrala para moverla. Con el dedo en un sitio vacío mueves la vista.', mano: 'Arrastra para mover la vista. Con dos dedos (o la rueda) acercas y alejas.', lapiz: penVisto ? 'Dibuja con el lápiz. Mueve la vista con dos dedos.' : 'Dibuja a mano alzada. Si lo cierras, sale una forma; si no, una línea con grosor.', linea: 'Clic en cada esquina. Vuelve al primer punto (o Intro) para cerrar. Esc: cancelar.', texto: 'Toca donde quieres el texto y escríbelo a la derecha.' }[k] || 'Arrastra para dibujarlo y escribe la medida ahí mismo (Tab pasa a la otra, Intro acepta).'; pinta(); }
+    function ponHerr(k) { herr = k; linea = null; enCurso = null; lienzo.style.cursor = k === 'mano' ? 'grab' : ''; herrs.querySelectorAll('[data-h]').forEach(b => { b.classList.toggle('on', b.dataset.h === k); b.classList.toggle('fija', fija && b.dataset.h === k); }); pista.textContent = { sel: 'Toca una forma para elegirla; arrástrala para moverla. Con el dedo en un sitio vacío mueves la vista.', mano: 'Arrastra para mover la vista. Con dos dedos (o la rueda) acercas y alejas.', lapiz: penVisto ? 'Dibuja con el lápiz. Mueve la vista con dos dedos.' : 'Dibuja a mano alzada. Si lo cierras, sale una forma; si no, una línea con grosor.', linea: 'Clic en cada esquina. Para terminar: vuelve al primer punto, DOBLE CLIC, clic derecho o Intro. Esc la cancela.', texto: 'Toca donde quieres el texto y escríbelo a la derecha.' }[k] || 'Arrastra para dibujarlo y escribe la medida ahí mismo (Tab pasa a la otra, Intro acepta).'; pinta(); }
     const nueva = (t, q, q2) => {
       const dx = q2[0] - q[0], dy = q2[1] - q[1], R = Math.hypot(dx, dy), cx = (q[0] + q2[0]) / 2, cy = (q[1] + q2[1]) / 2, m = { modo };
       if (t === 'rect') return Object.assign(m, { t, x: r2(cx), y: r2(cy), w: r2(Math.abs(dx)) || 20, h: r2(Math.abs(dy)) || 20, r: 0 });
@@ -270,21 +270,33 @@ export function editarBoceto(caja, p0 = {}) {
         else F.push({ t: 'linea', pts: chaikin(rdp(L, 0.3), 1).map(q => [r2(q[0]), r2(q[1])]), suave: true, modo });
         sel = F.length - 1; const f = F[sel]; toast(f.t === 'circulo' ? '◯ Lo he dejado redondo: Ø ' + n1(f.d) + ' mm' : f.t === 'rect' ? '▭ Lo he dejado recto: ' + n1(f.w) + ' × ' + n1(f.h) + ' mm' : f.t === 'trazo' ? '✏️ Trazo con grosor (más gordo donde aprietas)' : f.suave ? '✨ Curva suavizada' : '📐 Lo he dejado con lados rectos', 'ok', 2600);
         pinta(); pintaPanel(); return; }
-      if (enCurso) { const f = enCurso, dedo = !!f.dedo, corto = dedo && (!yo || Math.hypot(yo.x - f.px[0], yo.y - f.px[1]) < 10); enCurso = null; delete f.herr; delete f.q0; delete f.px; delete f.dedo;
+      if (enCurso) { const f = enCurso, dedo = !!f.dedo, f0px = f.px, corto = dedo && (!yo || Math.hypot(yo.x - f.px[0], yo.y - f.px[1]) < 10); enCurso = null; delete f.herr; delete f.q0; delete f.px; delete f.dedo;
         if (corto) { pinta(); toast('👆 Para dibujarlo, ARRASTRA el dedo: un toque suelto no crea nada.', '', 2600); return; } // (con el ratón, un clic sigue poniendo la forma de serie)
-        guardaAtras(); F.push(f); sel = F.length - 1; pinta(); pintaPanel(); cotasVivas(sel, e.pointerType === 'mouse'); trasDibujar(dedo); }
+        const deClic = !dedo && (!yo || Math.hypot(yo.x - f0px[0], yo.y - f0px[1]) < 5); guardaAtras(); F.push(f); if (deClic) clics.push({ f, t: Date.now() }); sel = F.length - 1; pinta(); pintaPanel(); cotasVivas(sel, e.pointerType === 'mouse'); trasDibujar(dedo); }
     };
     lienzo.addEventListener('pointerup', suelta); lienzo.addEventListener('pointercancel', suelta);
-    lienzo.addEventListener('dblclick', () => { if (linea) cierraLinea(); });
-    lienzo.addEventListener('contextmenu', e => e.preventDefault());
+    // v40.2 · TERMINAR COMO EN FUSION (ella, 13-10-2026: «haces una línea o alguna figura, terminas y no quieres hacer más, y no
+    // desaparece; en Fusion, doble clic en el mismo sitio y desaparece»). DOBLE CLIC o CLIC DERECHO: se acaba lo que se estaba
+    // dibujando y se SUELTA la herramienta (vuelve a «Elegir»). Esc hace lo mismo. Lo que hubieran creado los dos clics del doble
+    // clic (dos formas «de serie» una encima de otra, o dos puntos repetidos en la línea) se quita.
+    const clics = [];
+    function soltarHerr(aviso) {
+      const ahora = Date.now(); let quitadas = 0; while (clics.length && ahora - clics[clics.length - 1].t < 650) { const c = clics.pop(), i = F.indexOf(c.f); if (i >= 0) { F.splice(i, 1); quitadas++; } } clics.length = 0;
+      if (linea) { while (linea.length > 1 && Math.hypot(linea[linea.length - 1][0] - linea[linea.length - 2][0], linea[linea.length - 1][1] - linea[linea.length - 2][1]) * vista.s < 4) linea.pop(); if (linea.length >= 3) cierraLinea(); else { linea = null; } }
+      enCurso = null; if (quitadas) sel = F.length - 1;
+      const habia = herr !== 'sel' && herr !== 'mano'; fija = false; ponHerr('sel'); pinta(); pintaPanel();
+      if (habia && aviso !== false) toast('✔ Terminado: herramienta soltada. (Doble clic, clic derecho o Esc)', '', 2200);
+    }
+    lienzo.addEventListener('dblclick', e => { if (e.pointerType === 'touch') { if (linea) cierraLinea(true); return; } if (herr === 'sel' || herr === 'mano' || modoF) return; soltarHerr(); });
+    lienzo.addEventListener('contextmenu', e => { e.preventDefault(); if (herr !== 'sel' && herr !== 'mano' && !modoF) soltarHerr(); });
     lienzo.addEventListener('wheel', e => { e.preventDefault(); const r = lienzo.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, k = e.deltaY > 0 ? 0.88 : 1.14, s = Math.max(0.3, Math.min(60, vista.s * k)), f = s / vista.s; vista = { s, ox: mx - (mx - vista.ox) * f, oy: my - (my - vista.oy) * f }; pinta(); }, { passive: false });
-    function cierraLinea(dedo) { if (!linea || linea.length < 3) { linea = null; pinta(); return; } guardaAtras(); F.push({ t: 'linea', pts: linea.map(q => [r2(q[0]), r2(q[1])]), modo }); linea = null; sel = F.length - 1; pinta(); pintaPanel(); trasDibujar(dedo === true); }
+    function cierraLinea(dedo) { if (!linea || linea.length < 3) { linea = null; pinta(); return; } guardaAtras(); F.push({ t: 'linea', pts: linea.map(q => [r2(q[0]), r2(q[1])]), modo }); linea = null; sel = F.length - 1; pinta(); pintaPanel(); trasDibujar(true); /* v40.2: con el ratón también vuelve a «Elegir» (si no está fija) */ }
     raiz.addEventListener('keydown', e => {
       const enNum = e.target.tagName === 'INPUT' && /^(number|range|checkbox)$/.test(e.target.type || '');
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && (enNum || !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))) { e.preventDefault(); if (enNum) e.target.blur(); cotasVivas(-1); deshacer(); return; }
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === 'Escape' && modoF) { modoF = null; ptsF = []; calPend = null; pinta(); pintaPanel(); return; }
-      if (e.key === 'Escape') { if (linea || enCurso) { linea = null; enCurso = null; pinta(); } else if (sel >= 0) { sel = -1; pinta(); pintaPanel(); } return; }
+      if (e.key === 'Escape') { if (linea || enCurso) { linea = null; enCurso = null; pinta(); } else if (herr !== 'sel' && herr !== 'mano') { soltarHerr(); } else if (sel >= 0) { sel = -1; pinta(); pintaPanel(); } return; } // (v40.2: Esc sin nada a medias suelta la herramienta)
       if (e.key === 'Enter' && linea) { cierraLinea(); return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { if (linea) { linea.pop(); if (!linea.length) linea = null; pinta(); } else borraSel(); e.preventDefault(); return; }
       const H = HERR.find(x => x[3].toLowerCase() === e.key.toLowerCase()); if (H && !e.ctrlKey && !e.metaKey) ponHerr(H[0]);

@@ -149,6 +149,22 @@ html.ui30 .r8cj-chipvuela { background: var(--grad); color: #1b1406; }
 .man { display: grid; gap: 10px; } .man-marco { width: 100%; height: min(68vh, 760px); border: 1px solid var(--line-2); border-radius: 12px; background: #fff; }
 .cpu-tabla.una .cpu-fila { grid-template-columns: minmax(0, 1fr) 150px; } .cpu-tabla.dos .cpu-fila { grid-template-columns: minmax(0, 1fr) 120px 120px; }
 
+/* v40.2 · ✨ tres descripciones que venden, dentro de la ventana del producto */
+.dia-envuelve { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--line-2); background: var(--surface-2); } .dia-envuelve > input { width: 100%; }
+.dia { display: grid; gap: 8px; } .dia-cab { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .dia-pide { font-weight: 700; border-color: var(--brand); }
+.dia-estado { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-2); min-height: 18px; } .dia-giro { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--brand); animation: dia-gira .8s linear infinite; } @keyframes dia-gira { to { transform: rotate(360deg); } }
+.dia-lista { display: grid; gap: 8px; } .dia-op { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); display: grid; gap: 8px; } .dia-op.on { border-color: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 30%, transparent); }
+.dia-op p { margin: 0; white-space: pre-wrap; font-size: 14px; line-height: 1.5; color: var(--text); }
+
+/* v40.2 · 🗻 CelebriCLON: los relieves de la foto */
+.clon-rel { display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--line-2); margin: 6px 0; } .clon-rel.on { border-style: solid; border-color: var(--brand); background: var(--surface-2); }
+.clon-rel-t { display: flex; gap: 8px; align-items: center; cursor: pointer; flex-wrap: wrap; } .clon-rel-t input { width: 18px; height: 18px; accent-color: var(--brand); } .clon-rel-t small { color: var(--text-2); }
+.clon-rel-o { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; } .clon-rel-o label { display: grid; gap: 3px; font-size: 12px; color: var(--text-2); } .clon-rel-o .inp { min-width: 110px; } .clon-rel-n { margin: 0; }
+
+/* v40.2 · CelebriCLON: la IA mira la pieza */
+.clon-ia { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 2px; }
+.clon-ia-t { flex: 1 1 180px; opacity: .85; line-height: 1.35; }
+
 /* ================= v30.7.1 · LOS TEMAS (desplegable 🎨 de arriba) =================
    La dueña (12-10-2026): «los cambios de colores de interfaz no te deja y no se leen bien los textos; los temas se tienen que adaptar,
    tienen que ser bonitos y estar a la altura… pon más estilos de temas, pero desplegables, que puedas elegir».

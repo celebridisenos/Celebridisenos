@@ -8,7 +8,7 @@ import { h, mount, btn, toast, confirmDlg } from '../ui.js';
 import * as N from '../r8/nucleo.js';
 import { crearEscena, miniatura } from '../r8/escena3d.js';
 import { MOVILES } from '../r8/moviles.js';
-import { funda, kitFunda, valoresFunda, anclasFunda, AJUSTE_FUNDA, LABIO, ALTO_EXTRA, ESTILOS_FUNDA, ajusteMedido, guardaAjusteMedido } from '../r8/fundas.js';
+import { funda, kitFunda, valoresFunda, anclasFunda, AJUSTE_FUNDA, LABIO, ALTO_EXTRA, ESTILOS_FUNDA, ajusteMedido, guardaAjusteMedido, fundaFormato, FORMATOS_FUNDA } from '../r8/fundas.js';
 import { estimarGramos } from '../datos3d.js';
 import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar la funda en la cama
 
@@ -24,7 +24,7 @@ const AJ = {
   prof: { t: 'Profundidad interior', u: 'mm de más', min: 0, max: 0.6, paso: 0.05, d: 'Lo que el hueco es más alto que el móvil. Si se mueve arriba y abajo, menos.' },
   labio: { t: 'Labio que sujeta', u: 'mm', min: 0.2, max: 1.6, paso: 0.1, d: 'Lo que la funda monta sobre la pantalla para que no se salga.' }
 };
-const F = { modelo: 'iPhone 14', material: 'pla', ajuste: 'estandar', estilo: 'liso', txt: '', cordon: false, v: null, deshacer: [], marcados: null, rec: null };
+const F = { modelo: 'iPhone 14', material: 'pla', ajuste: 'estandar', estilo: 'liso', formato: 'una', txt: '', cordon: false, v: null, deshacer: [], marcados: null, rec: null };
 
 export async function montarFundas(el, ext = {}) {
   await N.cargar();
@@ -36,7 +36,9 @@ export async function montarFundas(el, ext = {}) {
   const MESA = escena ? mesa(escena, lienzo, { cama: 256 }) : null; // v30
   let vivo = true, tic = 0, actual = null, antes = null, comparar = false;
   const ponAntes = x => { if (antes && antes !== actual && antes !== x) N.suelta(antes); antes = x; };
-  const p = () => Object.assign({ modelo: F.modelo, material: F.material, ajuste: F.ajuste, estilo: F.estilo, txt: F.txt, cordon: F.cordon }, F.v || {});
+  const p = () => Object.assign({ modelo: F.modelo, material: F.material, ajuste: F.ajuste, estilo: F.estilo, txt: F.txt, cordon: F.cordon || F.formato === 'cuatro', formato: /^dos/.test(F.formato) && F.material === 'tpu' ? 'una' : F.formato }, F.v || {});
+  // (v40.2) en pantalla, la de dos piezas se ve MONTADA; al imprimir salen las piezas una al lado de otra
+  const pVista = () => Object.assign({}, p(), { formato: p().formato === 'dos' ? 'dosMontada' : p().formato === 'dosPrueba' ? 'dosPrueba' : 'una' });
   const valores = () => valoresFunda(p());
   // al cambiar de móvil o de material se parte de lo recomendado (o de lo medido por ti, si ya lo guardaste)
   function partida() { const med = ajusteMedido(F.modelo, F.material); F.ajuste = med ? 'medido' : (F.ajuste === 'medido' ? 'estandar' : F.ajuste); const V = valoresFunda({ modelo: F.modelo, material: F.material, ajuste: F.ajuste }); F.v = { holAncho: V.holAncho, holLargo: V.holLargo, radio: V.radio, prof: V.prof, labio: V.labio }; F.deshacer = []; F.rec = null; }
@@ -50,6 +52,10 @@ export async function montarFundas(el, ext = {}) {
       h('div.r8e-c.col', h('span', 'Material'), h('div.r8e-seg', Object.entries(MAT).map(([k, t]) => h('button' + (F.material === k ? '.on' : ''), { type: 'button', 'data-mat': k, onclick: () => { F.material = k; partida(); todo(); } }, t)))),
       med ? h('p.fu-medido', '✓ Tienes un ajuste MEDIDO para el ' + F.modelo + ' en ' + MAT[F.material] + ' (' + med.fecha + '). Es el que se usa.') : h('p.small.muted', 'Aún no has guardado un ajuste comprobado para este móvil en ' + MAT[F.material] + '. Prueba antes el kit (5 g).'),
       h('label.r8e-c.col', h('span', 'Estilo de la trasera'), h('select.inp', { 'data-k': 'estilo', onchange: e => { F.estilo = e.target.value; regenera(); pintaIzq(); } }, Object.entries(ESTILOS_FUNDA).map(([k, x]) => h('option', { value: k, selected: F.estilo === k }, x.t)))),
+      h('label.r8e-c.col', h('span', 'Formato'), h('select.inp', { 'data-k': 'formato', onchange: e => { F.formato = e.target.value; regenera(); pintaIzq(); } }, FORMATOS_FUNDA.map(([k, t]) => h('option', { value: k, selected: F.formato === k }, t)))),
+      F.formato === 'dos' ? h('p.small.fu-fmt', F.material === 'tpu' ? '⚠️ La de dos piezas es para PLA o PETG (rígidas). En TPU no hace falta: se estira. Sale de una pieza.' : '🧩 CUERPO + CAPUCHÓN de abajo. El móvil entra deslizando por abajo y el capuchón cierra con un clic: no hay que doblar la funda. Pared de 2,4 mm. Aquí la ves montada; al imprimir salen las dos piezas.') : null,
+      F.formato === 'dosPrueba' ? h('p.small.fu-fmt', F.material === 'tpu' ? '⚠️ En TPU no hay funda de dos piezas: sale la de una.' : '🧪 Dos aros de 2 cm con la unión de verdad (lengüetas, manga y «clic»). Imprímelos primero: tienen que entrar a mano, sin holgura de lado, y hacer clic. Si van duros o bailan, dímelo antes de imprimir la funda entera.') : null,
+      F.formato === 'cuatro' ? h('p.small.fu-fmt', '🎒 Se imprimen DOS cosas: la funda con anillas para colgarla y un SOPORTE de mesa a su medida (de pie o tumbado) con ranura para una tarjeta, bandejita y paso para el cable.') : null,
       (ESTILOS_FUNDA[F.estilo] || {}).texto || (ESTILOS_FUNDA[F.estilo] || {}).figura ? h('label.r8e-c.col', h('span', 'Nombre o figura'), h('input.inp', { value: F.txt, maxlength: 20, oninput: e => { F.txt = e.target.value; regenera(); } })) : null,
       h('label.check.r8e-c', h('input', { type: 'checkbox', checked: F.cordon, onchange: e => { F.cordon = e.target.checked; regenera(); } }), 'Anillas para colgante'),
       h('div.fu-acc', btn('🧪 Preparar prueba de ajuste', () => preparaKit(), { cls: 'primary fu-kit' }), btn('🖨️ Funda completa → Bambu', () => imprimir(false), { cls: 'fu-imprimir' }), ext.alEstudioMalla ? btn('🧰 Al Estudio', () => { try { ext.alEstudioMalla(N.aSopa(funda(p())), 'Funda ' + F.modelo); } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); } }, { cls: 'fu-estudio', title: 'Pasarla al Estudio para añadirle o quitarle cosas' }) : null),
@@ -116,7 +122,7 @@ export async function montarFundas(el, ext = {}) {
       h('div.fu-acc', btn('✓ Aplicar cambio', () => { const previo = Object.assign({}, F.v); F.rec.cambios.forEach(x => { F.v[x.k] = x.r; }); F.deshacer.push({ v: previo, motivo: 'corrección' }); F.ajuste = 'manual'; F.rec = null; comparar = true; regenera(true); pintaDer(); toast('✓ Cambio aplicado. Puedes deshacerlo cuando quieras.', 'ok'); }, { cls: 'primary fu-aplicar' }), btn('Descartar', () => { F.rec = null; mostrar(actual, null); pintaDer(); }, { cls: 'ghost' })));
   }
   // ---------- generar y enseñar ----------
-  function generar() { return N.guarda(funda(p())); }
+  function generar() { return N.guarda(fundaFormato(pVista())); }
   function regenera(ya) { clearTimeout(tic); tic = setTimeout(() => { try { const n = generar(); if (actual && actual !== antes) N.suelta(actual); actual = n; mostrar(actual, comparar ? antes : null); } catch (e) { mount(info, h('span.r8e-mal', '⚠️ ' + (e.message || e))); } finally { N.limpia(); } }, ya ? 0 : 160); }
   function mostrar(nuevo, viejo, esPrevia) {
     if (!escena || !nuevo) return;
@@ -177,10 +183,10 @@ export async function montarFundas(el, ext = {}) {
     window.__r8fu = Object.assign(window.__r8fu || {}, { kit: { g, mins, piezas: partes.length } });
   }
   async function imprimir() {
-    let m; try { m = funda(p()); } catch (e) { N.limpia(); return toast(e.message, 'bad'); }
+    let m; try { m = fundaFormato(p()); } catch (e) { N.limpia(); return toast(e.message, 'bad'); }
     const { modal } = await import('../ui.js'), cuerpo = h('div.r8c-aj'); modal('🖨️ Funda ' + F.modelo + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null);
-    A.asistente(cuerpo, { clave: 'funda_' + F.material, partes: () => (MESA ? MESA.expande : x => x)([{ m: funda(p()), color: '#1b1b1d', nombre: 'funda ' + F.modelo }]), /* v30: con sus copias */ N, uso: F.material === 'tpu' ? 'flexible' : 'encaje', texto: !!F.txt, nombre: 'funda_' + F.modelo.replace(/\W+/g, '_') + '_' + F.material, baja, cama: 256, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'funda_' + F.material, partes: () => (MESA ? MESA.expande : x => x)([{ m: fundaFormato(p()), color: '#1b1b1d', nombre: 'funda ' + F.modelo }]), /* v30: con sus copias */ N, uso: F.material === 'tpu' ? 'flexible' : 'encaje', texto: !!F.txt, nombre: 'funda_' + F.modelo.replace(/\W+/g, '_') + '_' + F.material, baja, cama: 256, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
     void m; N.limpia();
   }
   function baja(blob, nombre) { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nombre }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); window.__r8fu = Object.assign(window.__r8fu || {}, { bajado: { nombre, bytes: blob.size } }); }

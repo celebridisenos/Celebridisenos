@@ -127,11 +127,25 @@ export function coloresDeBobinas(bobinas) {
 }
 // «Blanco, Negro y Rosa»
 export const fraseColores = l => l.length < 2 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1];
-const LINEA_COL = /\n*^[^\S\n]*(?:🎨\s*)?Colores disponibles:.*$/im;
+const LINEA_COL = /\n*^[^\S\n]*(?:🎨\s*)?Colores(?: disponibles)?:.*$/im;
 // Pone (o cambia, o quita) la línea «Colores disponibles: …» al final de la descripción, sin tocar el resto del texto
+// v40.2 · «los colores ponlos con emojis de color en redondo, más fácil de ver para el cliente» (ella, 13-10-2026): la línea pasa a ser
+// «🎨 Colores: 🔴 Rojo  ·  ⚫ Negro». (No existe un círculo rosa ni uno gris: el rosa va con el morado 🟣 y el gris con el blanco ⚪.)
+const CIRCULOS = [['🔴', [220, 38, 38]], ['🟠', [249, 115, 22]], ['🟡', [250, 204, 21]], ['🟢', [22, 163, 74]], ['🔵', [37, 99, 235]], ['🟣', [147, 51, 234]], ['🟤', [139, 90, 43]], ['⚫', [17, 17, 17]], ['⚪', [255, 255, 255]]];
+export function circuloDe(nombre) {
+  const n = CL.norm(String(nombre || ''));
+  if (/multi|arco ?iris|colores/.test(n)) return '🌈'; if (/transparen|cristal|marmol|blanc|platead|plata|perla|crema|marfil/.test(n)) return '⚪';
+  if (/negr|carbon|grafito|antracita/.test(n)) return '⚫'; if (/gris/.test(n)) return /oscur/.test(n) ? '⚫' : '⚪';
+  if (/rosa|fucsia|magenta|lila|morad|violeta|malva|purpura/.test(n)) return '🟣'; if (/dorad|oro|amarill|mostaza|beige|arena/.test(n)) return '🟡';
+  if (/madera|marron|chocolate|cafe|bronce|cobre|terracota/.test(n)) return '🟤'; if (/naranja|coral|salmon|melocoton/.test(n)) return '🟠';
+  if (/turquesa|celeste|cielo|marino|azul/.test(n)) return '🔵'; if (/menta|oliva|verde|lima/.test(n)) return '🟢'; if (/roj|granate|burdeos|vino/.test(n)) return '🔴';
+  const hx = hexDe(nombre), m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hx || ''); if (!m) return '🔘';
+  const c = [1, 2, 3].map(i => parseInt(m[i], 16)); let mejor = '🔘', d = 1e9; CIRCULOS.forEach(([e, r]) => { const x = Math.hypot(c[0] - r[0], c[1] - r[1], c[2] - r[2]); if (x < d) { d = x; mejor = e; } }); return mejor;
+}
+export const coloresConCirculo = t => unico(partir(Array.isArray(t) ? t.join(',') : t)).map(c => circuloDe(c) + ' ' + c.charAt(0).toUpperCase() + c.slice(1)).join('  ·  ');
 export function descripcionConColores(descripcion, colores) {
   const base = String(descripcion || '').replace(LINEA_COL, '').replace(/\s+$/, ''), l = unico(partir(Array.isArray(colores) ? colores.join(',') : colores));
-  return l.length ? (base ? base + '\n\n' : '') + 'Colores disponibles: ' + fraseColores(l) + '.' : base;
+  return l.length ? (base ? base + '\n\n' : '') + '🎨 Colores: ' + coloresConCirculo(l) : base;
 }
 // opts: { campo (el <input> de Color), bobinas, onChange(lista) } → elemento con los círculos
 export function paletaProducto(opts) {

@@ -6,6 +6,7 @@ import { h, mount, btn, toast } from '../ui.js';
 import * as N from '../r8/nucleo.js';
 import * as FM from '../r8/foto_medida.js';
 import * as CL from '../r8/clon.js';
+import * as CIA from '../r8/clon_ia.js';
 import { crearEscena } from '../r8/escena3d.js';
 import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar en la cama
 
@@ -34,7 +35,11 @@ export async function montarClon(el, ext = {}) {
 
   // ---------- el trabajo ----------
   async function arranca() { let L = []; try { L = await listaClones(); } catch (e) { } if (L.length) { try { C = await abreClon(L[0].id); } catch (e) { C = nuevo(); } } else C = nuevo(); await analizaTodo(); todo(); }
-  const fotosA = () => C.fotos.map((f, i) => Object.assign({}, f, { i, analisis: ANAL.get(f.mascara || f.img) || null }));
+  // v40.2 · 🗻 relieves: se calculan una vez por foto y número de niveles (tarda un segundo) y se guardan aquí
+  let iaMirando = false; const REL = new Map(), relOps = () => (C.relieve = Object.assign({ on: false, niveles: 2, alto: 1.2, modo: 'sale' }, C.relieve || {}));
+  const relClave = f => (f.mascara || f.img) + '|' + relOps().niveles + '|' + (f.espejo ? 1 : 0);
+  async function preparaRelieve() { const f = C.fotos.find((x, i) => plan && i === plan.principal); if (!f || !relOps().on) return null; const k = relClave(f); if (REL.has(k)) return REL.get(k); const A = await analiza(f); if (!A || A.error) return null; const im = await FM.imagenDe(f.img); const r = CL.relieveDeFoto(FM.pixeles(im), A, { niveles: relOps().niveles, espejo: !!f.espejo }); REL.set(k, r); return r; }
+  const fotosA = () => C.fotos.map((f, i) => Object.assign({}, f, { i, analisis: ANAL.get(f.mascara || f.img) || null, relieve: relOps().on ? REL.get(relClave(f)) || null : null }));
   async function analiza(f) { const k = f.mascara || f.img; if (ANAL.has(k)) return ANAL.get(k); const im = await FM.imagenDe(k); const A = CL.analizaFoto(FM.pixeles(im), { espejo: !!f.espejo }); ANAL.set(k, A); return A; }
   async function analizaTodo() { for (const f of C.fotos) { try { await analiza(f); } catch (e) { ANAL.set(f.mascara || f.img, { error: e.message }); } } replan(); }
   function replan() { plan = CL.planMedidas(fotosA(), C.medidas); C.medidas = plan.medidas; }
@@ -229,9 +234,9 @@ export async function montarClon(el, ext = {}) {
 
   // ---------- la pieza (abajo) ----------
   function construye() {
-    clearTimeout(tic); tic = setTimeout(() => {
-      if (!vivo) return; const F = fotosA();
-      try { const r = CL.construye(F, plan); pieza = { vista: N.aVista(r.m), dims: r.dims, vol: r.vol, avisos: r.avisos, inciertas: r.inciertas, marcas: r.marcas, sopa: N.aSopa(r.m) };
+    clearTimeout(tic); tic = setTimeout(async () => {
+      if (!vivo) return; if (relOps().on) { try { await preparaRelieve(); } catch (e) { console.warn('relieve', e); } } if (!vivo) return; const F = fotosA();
+      try { plan.relieve = relOps(); const r = CL.construye(F, plan); pieza = { vista: N.aVista(r.m), dims: r.dims, vol: r.vol, avisos: r.avisos, inciertas: r.inciertas, marcas: r.marcas, sopa: N.aSopa(r.m), relieves: r.relieves, sx: r.sx, sy: r.sy };
         if (escena) { escena.ponPartes([{ id: 'clon', vista: pieza.vista, color: '#7c6cff', acabado: 'mate' }]); escena.encuadrar('iso'); } }
       catch (e) { pieza = { error: e.message || String(e) }; if (escena) escena.ponPartes([]); }
       finally { N.limpia(); }
@@ -256,10 +261,21 @@ export async function montarClon(el, ext = {}) {
       h('p.small', '≈ ' + n2(pieza.vol / 1000 * 1.24) + ' g en PLA macizo (ESTIMADO) · ' + n2(pieza.vol / 1000) + ' cm³'),
       pieza.avisos.map(t => h('p.r8e-nota.r8e-mal', '⚠️ ' + t)),
       h('details.clon-inc', h('summary', '❔ Lo que no se puede saber por las fotos (' + pieza.inciertas.length + ')'), pieza.inciertas.map(t => h('p.small', t))),
+      (() => { const O = relOps(), pide = () => { guarda(); construye(); }, f0 = C.fotos.find((x, i) => i === plan.principal), R0 = f0 ? REL.get(relClave(f0)) : null;
+        return h('div.clon-rel' + (O.on ? '.on' : ''), h('label.clon-rel-t', h('input', { type: 'checkbox', checked: O.on, 'data-k': 'rel-on', onchange: e => { O.on = e.target.checked; pintaInfo(); pide(); } }), h('b', '🗻 Sacar los relieves de la foto'), h('small', 'letras, dibujos y zonas de otro tono')),
+          h('div.clon-ia', btn(iaMirando ? '👀 Mirando…' : '🤖 Que la IA mire la pieza', async () => { if (iaMirando || !f0) return; iaMirando = true; pintaInfo();
+            try { const r = await CIA.miraPieza(f0.img); C.iaVe = CIA.fraseDe(r); if (r.modo) { O.on = true; O.modo = r.modo; O.niveles = r.niveles; } toast(C.iaVe + (r.modo ? ' Lo he puesto así; si no acierta, cámbialo abajo.' : ''), 'ok', 9000); }
+            catch (e) { toast(e.message || String(e), 'warn', 9000); } finally { iaMirando = false; } if (!vivo) return; pintaInfo(); pide(); }, { cls: 'sm clon-ia-b', disabled: iaMirando, title: 'El modelo que ve imágenes de tu PC mira la foto y dice si el dibujo sale o va grabado y cuántas alturas tiene. Los relieves en sí salen de los tonos de la foto.' }),
+            C.iaVe ? h('small.clon-ia-t', C.iaVe) : null),
+          O.on ? h('div.clon-rel-o', h('label', h('span', 'Alturas'), h('select.inp', { 'data-k': 'rel-n', onchange: e => { O.niveles = Number(e.target.value); pide(); } }, [[2, '1 (plano + relieve)'], [3, '2 alturas'], [4, '3 alturas']].map(([v, t]) => h('option', { value: v, selected: O.niveles === v }, t)))),
+            h('label', h('span', 'Cuánto sale (mm)'), h('input.inp', { type: 'number', min: 0.4, max: 8, step: 0.2, value: O.alto, 'data-k': 'rel-alto', onchange: e => { O.alto = Math.max(0.4, Math.min(8, Number(e.target.value) || 1.2)); pide(); } })),
+            h('label', h('span', 'Hacia'), h('select.inp', { 'data-k': 'rel-modo', onchange: e => { O.modo = e.target.value; pide(); } }, [['sale', 'fuera (en relieve)'], ['hundido', 'dentro (grabado)']].map(([v, t]) => h('option', { value: v, selected: O.modo === v }, t)))),
+            btn('⬇️ SVG por capas', () => { try { const A = ANAL.get(f0.mascara || f0.img); descarga(new Blob([CL.svgDeRelieve(A, R0, pieza.sx || 1, pieza.sy || 1, { nombre: C.nombre })], { type: 'image/svg+xml' }), nombreArchivo() + '_relieves.svg'); toast('⬇️ SVG en milímetros: el contorno, los agujeros y cada nivel en su capa. Ábrelo en el Boceto (botón «SVG») para retocarlo.', 'ok', 8000); } catch (e) { toast(e.message || String(e), 'bad'); } }, { cls: 'sm clon-svg', title: 'El contorno y cada nivel de relieve, en milímetros, para retocarlo en el Boceto o en Inkscape' })) : null,
+          O.on && R0 ? h('p.small.clon-rel-n', R0.plano || !pieza.relieves ? '⚠️ No veo relieves: dentro de la pieza todo tiene casi el mismo tono. Con la luz de lado (que haga sombra) o repasándolo con un lápiz, sale.' : '✅ ' + pieza.relieves + ' nivel' + (pieza.relieves === 1 ? '' : 'es') + ' de relieve (ocupan el ' + Math.round((1 - R0.ocupa[0]) * 100) + ' % de la cara). Sale de los TONOS de la foto; la altura la pones tú.') : null); })(),
       h('div.clon-acc', btn('🧰 Al Estudio', alEstudio, { cls: 'primary clon-estudio' }), btn('🧪 Probeta (2 mm)', probeta, { cls: 'clon-probeta', title: 'Una lámina fina con el contorno y los agujeros: se imprime en minutos y la pones encima de la pieza de verdad' }), btn('⬇️ STL', () => baja('stl'), { cls: 'ghost' }), btn('⬇️ 3MF', () => baja('3mf'), { cls: 'ghost' })));
   }
   const nombreArchivo = () => 'CelebriCLON_' + C.nombre.replace(/[^\w-]+/g, '_');
-  function mallaFinal() { const r = CL.construye(fotosA(), plan); return r.m; }
+  function mallaFinal() { plan.relieve = relOps(); const r = CL.construye(fotosA(), plan); return r.m; }
   function alEstudio() { try { const s = N.aSopa(N.aLaCama(mallaFinal())); N.limpia(); if (ext.alEstudioMalla) ext.alEstudioMalla(s, C.nombre); toast('🧰 En el Estudio como pieza. Si cambias una medida aquí, vuelve a mandarla (la de aquí es la que manda).', 'ok', 7000); } catch (e) { N.limpia(); toast(e.message, 'bad'); } }
   async function baja(tipo) {
     try { const m = N.aLaCama(mallaFinal()), CPR = await import('../r8/calibracion.js'), L0 = [{ m, color: '#7c6cff', nombre: C.nombre }], L = MESA ? MESA.expande(L0) : L0, X = tipo === '3mf' ? CPR.paraImprimir(L, null) : null, blob = tipo === 'stl' ? N.stl(L.length > 1 ? N.union(L.map(p => p.m)) : m, C.nombre) : N.tresMF(X.partes, C.nombre, X.ajustes); /* v30: con sus copias */ N.limpia(); descarga(blob, nombreArchivo() + '.' + tipo); if (X && X.aplicada) toast('🎯 3MF con tu calibración «' + X.aplicada + '»', 'ok', 4000); }

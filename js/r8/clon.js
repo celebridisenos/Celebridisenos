@@ -81,6 +81,67 @@ export function analizaFoto(D, o = {}) {
   return { R, fuera, agujeros, niveles: niveles.sort((a, b) => a.y - b.y), avisos, areaFrac, toca, umbral: C.umbral };
 }
 
+// ---------- v40.2 · 🗻 LOS RELIEVES DE LA FOTO (y su SVG por capas) ----------
+// Ella (13-10-2026): «he intentado copiar una pieza y no sale tan pulida, no me hace los relieves ni nada… de alguna forma que me lo
+// pase a SVG y luego amolde, que sea inteligente». Antes CelebriCLON solo miraba el CONTORNO y los agujeros. Ahora, dentro del
+// contorno, mira los TONOS de la foto de frente: quita la luz desigual (un lado más iluminado que otro), agrupa los tonos en 2, 3 o 4
+// niveles, toma como BASE el que más ocupa y deja los demás como zonas en relieve (más alto cuanto más distinto de la base). Limpia las
+// motas, traza el borde de cada zona y lo devuelve en el mismo marco que el contorno: de ahí salen la pieza con relieve y un SVG por
+// capas para retocarlo en el Boceto.
+// Lo que NO puede hacer (se dice en pantalla): un relieve del MISMO color que la pieza solo se ve en la foto por su sombra; sale
+// si la luz le da de lado, y aun así sale la sombra, no la forma exacta. La altura de cada nivel la pones tú: una foto no la dice.
+// D = ImageData de la foto de frente · A = su análisis · o = { niveles (2–4), espejo } → { K, capas: [anillos del nivel 1, del 2…], ocupa: [fracción de cada nivel] }
+export function relieveDeFoto(D, A, o = {}) {
+  const K = Math.max(2, Math.min(4, Math.round(o.niveles || 2))), W = D.width, H = D.height, s = Math.min(1, 380 / Math.max(W, H)), w = Math.max(8, Math.round(W * s)), h = Math.max(8, Math.round(H * s)), S = D.data, R = A.R, esp = o.espejo ? -1 : 1;
+  const fuera = FM.simplifica(A.fuera, Math.max(1, 0.004 * R.L)), lum = new Float32Array(w * h), dentro = new Uint8Array(w * h);
+  // ¿AGUJERO O DIBUJO? Al mirar el contorno, todo lo de dentro que no tiene el tono de la pieza se apuntaba como agujero (por eso un
+  // relieve o una letra de otro color salía TALADRADO o no salía). Un agujero de verdad deja ver el FONDO: tiene su mismo tono. Lo que
+  // tiene OTRO tono (ni el de la pieza ni el del fondo) es un dibujo o un relieve: no se taladra y entra en el análisis de tonos.
+  const lumPx = (px, py) => { const x = Math.max(0, Math.min(W - 1, Math.round(px))), y = Math.max(0, Math.min(H - 1, Math.round(py))), i = (y * W + x) * 4; return 0.299 * S[i] + 0.587 * S[i + 1] + 0.114 * S[i + 2]; };
+  const borde = []; for (let k = 0; k < 60; k++) { borde.push(lumPx(k / 59 * (W - 1), 2), lumPx(k / 59 * (W - 1), H - 3), lumPx(2, k / 59 * (H - 1)), lumPx(W - 3, k / 59 * (H - 1))); } borde.sort((a, b) => a - b); const tonoFondo = borde[borde.length >> 1];
+  const tonoDe = a => { const rr = (a.tipo === 'redondo' ? a.d / 2 : Math.min(a.L, a.W) / 2) * 0.45, L = []; for (let k = 0; k < 9; k++) { const an = k * Math.PI / 4, q = k === 8 ? a.c : [a.c[0] + rr * Math.cos(an), a.c[1] + rr * Math.sin(an)], p = deMarco(R, esp * q[0], q[1]); L.push(lumPx(p[0], p[1])); } L.sort((x, y) => x - y); return L[4]; };
+  const noAgujeros = [], reales = []; (A.agujeros || []).forEach((a, i) => { if (Math.abs(tonoDe(a) - tonoFondo) > 26) noAgujeros.push(i); else reales.push(a); });
+  const enAgujero = q => reales.some(a => { if (a.tipo === 'redondo') return Math.hypot(q[0] - a.c[0], q[1] - a.c[1]) < a.d / 2 + 1.5; const an = -a.ang * Math.PI / 180, dx = q[0] - a.c[0], dy = q[1] - a.c[1], u = dx * Math.cos(an) - dy * Math.sin(an), v = dx * Math.sin(an) + dy * Math.cos(an); return Math.abs(u) < a.L / 2 + 1.5 && Math.abs(v) < a.W / 2 + 1.5; });
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const px = Math.min(W - 1, Math.floor((x + 0.5) / s)), py = Math.min(H - 1, Math.floor((y + 0.5) / s)), i = (py * W + px) * 4; lum[y * w + x] = 0.299 * S[i] + 0.587 * S[i + 1] + 0.114 * S[i + 2]; const q0 = aMarco(R, [(x + 0.5) / s, (y + 0.5) / s]), q = [esp * q0[0], q0[1]]; dentro[y * w + x] = FM.dentroDe(q, fuera) && !enAgujero(q) ? 1 : 0; }
+  // el borde no cuenta (ahí están la sombra y el canto de la pieza): se come 2 celdas, o el 1,5 % del tamaño
+  const come = Math.max(2, Math.round(0.015 * Math.max(w, h))); let m = dentro; for (let k = 0; k < come; k++) { const n = new Uint8Array(w * h); for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; n[i] = m[i] && m[i - 1] && m[i + 1] && m[i - w] && m[i + w] ? 1 : 0; } m = n; }
+  let nd = 0; for (let i = 0; i < w * h; i++) nd += m[i]; if (nd < 60) return { K, capas: [], ocupa: [1], pocas: true, noAgujeros: [] };
+  // suavizar (dos pasadas de 3 × 3, solo con vecinos de dentro) y quitar la luz desigual (menos la media de un entorno grande)
+  const caja = (src, r) => { const out = new Float32Array(w * h), I = new Float64Array((w + 1) * (h + 1)), Nn = new Float64Array((w + 1) * (h + 1)); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x, j = (y + 1) * (w + 1) + x + 1; I[j] = (m[i] ? src[i] : 0) + I[j - 1] + I[j - w - 1] - I[j - w - 2]; Nn[j] = m[i] + Nn[j - 1] + Nn[j - w - 1] - Nn[j - w - 2]; }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r), y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r), a = (y1 + 1) * (w + 1) + x1 + 1, b = y0 * (w + 1) + x1 + 1, c = (y1 + 1) * (w + 1) + x0, d = y0 * (w + 1) + x0, n = Nn[a] - Nn[b] - Nn[c] + Nn[d]; out[y * w + x] = n > 0 ? (I[a] - I[b] - I[c] + I[d]) / n : src[y * w + x]; } return out; };
+  let g = caja(caja(lum, 1), 1); const luz = caja(g, Math.max(6, Math.round(0.16 * Math.max(w, h)))); for (let i = 0; i < w * h; i++) g[i] = g[i] - luz[i];
+  // K grupos de tono (k-medias en una dimensión, empezando por los cuantiles)
+  const vals = []; for (let i = 0; i < w * h; i++) if (m[i]) vals.push(g[i]); vals.sort((a, b) => a - b); let cen = Array.from({ length: K }, (_, k) => vals[Math.floor((k + 0.5) / K * (vals.length - 1))]);
+  for (let it = 0; it < 14; it++) { const su = new Float64Array(K), nu = new Float64Array(K); for (const v of vals) { let b = 0; for (let k = 1; k < K; k++) if (Math.abs(v - cen[k]) < Math.abs(v - cen[b])) b = k; su[b] += v; nu[b]++; } cen = cen.map((c, k) => nu[k] ? su[k] / nu[k] : c); }
+  const grupoDe = v => { let b = 0; for (let k = 1; k < K; k++) if (Math.abs(v - cen[k]) < Math.abs(v - cen[b])) b = k; return b; };
+  const cuenta = new Array(K).fill(0); let et = new Int8Array(w * h).fill(-1); for (let i = 0; i < w * h; i++) if (m[i]) { et[i] = grupoDe(g[i]); cuenta[et[i]]++; }
+  // la BASE es el tono que más ocupa; los demás suben de nivel según lo que se apartan de ella. Si dos tonos son casi iguales (menos de
+  // 9 de 255), no hay relieve que sacar: se dice.
+  const base = cuenta.indexOf(Math.max(...cuenta)), orden = cen.map((c, k) => k).filter(k => k !== base).sort((a, b) => Math.abs(cen[a] - cen[base]) - Math.abs(cen[b] - cen[base])), nivel = new Array(K).fill(0); orden.forEach((k, j) => { nivel[k] = j + 1; });
+  const contraste = Math.max(...cen.map(c => Math.abs(c - cen[base])));
+  for (let i = 0; i < w * h; i++) if (et[i] >= 0) et[i] = nivel[et[i]];
+  // limpiar: el nivel que más se repite entre los 9 vecinos (dos pasadas) y fuera las motas de menos del 0,15 % de la pieza
+  for (let p = 0; p < 2; p++) { const n = et.slice(); for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; if (et[i] < 0) continue; const c = new Array(K).fill(0); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const v = et[i + dy * w + dx]; if (v >= 0) c[v]++; } let b = et[i]; for (let k = 0; k < K; k++) if (c[k] > c[b]) b = k; n[i] = b; } et = n; }
+  const minA = Math.max(6, Math.round(nd * 0.0015)), vis = new Uint8Array(w * h);
+  for (let i0 = 0; i0 < w * h; i0++) { if (vis[i0] || et[i0] <= 0) continue; const L = [i0], pila = [i0]; vis[i0] = 1; const v0 = et[i0]; while (pila.length) { const i = pila.pop(), x = i % w; for (const j of [i - 1, i + 1, i - w, i + w]) { if (j < 0 || j >= w * h || vis[j] || et[j] !== v0 || (j === i - 1 && x === 0) || (j === i + 1 && x === w - 1)) continue; vis[j] = 1; L.push(j); pila.push(j); } } if (L.length < minA) L.forEach(i => { et[i] = 0; }); }
+  // el borde de cada nivel (lo que está en ese nivel O MÁS ALTO), en el marco del contorno
+  const capas = [], ocupa = new Array(K).fill(0); for (let i = 0; i < w * h; i++) if (et[i] >= 0) ocupa[et[i]]++;
+  for (let l = 1; l < K; l++) { const im = { width: w + 2, height: h + 2, data: new Uint8ClampedArray((w + 2) * (h + 2) * 4).fill(255) }; let hay = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (et[y * w + x] >= l) { const j = ((y + 1) * (w + 2) + x + 1) * 4; im.data[j] = im.data[j + 1] = im.data[j + 2] = 0; hay++; }
+    if (!hay) { capas.push([]); continue; }
+    capas.push(FM.contornos(im, { umbral: 128, oscura: true, tol: 0.55 }).anillos.map(r => r.map(q => { const a = aMarco(R, [(q[0] - 1) / s, (q[1] - 1) / s]); return [esp * a[0], a[1]]; })).filter(r => r.length >= 4)); }
+  return { K, capas, ocupa: ocupa.map(n => n / nd), contraste, plano: contraste < 9, noAgujeros, tonoFondo };
+}
+// el SVG por capas (en milímetros, a TUS medidas): el contorno, los agujeros y cada nivel de relieve en su grupo. Se abre en el Boceto
+// (o en Inkscape / Illustrator) para retocarlo «y luego amoldar».
+export function svgDeRelieve(A, rel, sx, sy, o = {}) {
+  const P = r => 'M' + r.map(q => (Math.round(q[0] * sx * 100) / 100) + ' ' + (Math.round(-q[1] * sy * 100) / 100)).join(' L') + ' Z', L = A.R.L * sx, Wd = A.R.W * sy, m = 2, gris = ['#d9d4cb', '#a9a296', '#7b7468', '#4e483f'];
+  const aro = a => { if (a.tipo === 'redondo') { const r = a.d / 2 * (sx + sy) / 2, c = [a.c[0] * sx, -a.c[1] * sy]; return `<circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="${r.toFixed(2)}"/>`; } return ''; };
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${(L + 2 * m).toFixed(2)}mm" height="${(Wd + 2 * m).toFixed(2)}mm" viewBox="${(-L / 2 - m).toFixed(2)} ${(-Wd / 2 - m).toFixed(2)} ${(L + 2 * m).toFixed(2)} ${(Wd + 2 * m).toFixed(2)}">\n<title>${String(o.nombre || 'CelebriCLON').replace(/[<&>]/g, '')} · contorno y relieves (mm)</title>\n`
+    + `<g id="contorno" fill="${gris[0]}" stroke="#222" stroke-width="0.2"><path d="${P(A.fuera)}"/></g>\n<g id="agujeros" fill="#ffffff" stroke="#222" stroke-width="0.2">${(A.agujeros || []).map(aro).join('')}</g>\n`
+    + (rel ? rel.capas.map((c, i) => c.length ? `<g id="relieve_${i + 1}" fill="${gris[Math.min(3, i + 1)]}" fill-rule="evenodd" stroke="none"><path d="${c.map(P).join(' ')}"/></g>\n` : '').join('') : '') + '</svg>\n';
+}
+
 // ---------- la escala de cada foto: calibrada (referencias) o deducida de una medida ya escrita ----------
 export function escalaDe(F, medidas, fotos) {
   const C = F.refs && F.refs.length ? FM.calibra(F.refs) : null; if (C) return { mmPorPx: C.mmPorPx, de: 'calibrada', C };
@@ -222,7 +283,15 @@ export function construye(fotos, plan) {
     m = m.intersect(lado);
     if (esc.length) inciertas.push('Dónde empieza cada escalón (a lo largo) sale de la foto de lado, salvo lo que hayas medido.');
   } else inciertas.push('Sin foto de lado: la pieza sale del MISMO grosor en todas partes. Si tiene escalones o salientes, haz la foto de lado.');
+  // v40.2 · 🗻 los RELIEVES sacados de la foto de frente (si se han pedido): cada nivel, un escalón encima (o hundido) de la cara de arriba
+  const RL = plan.relieve && plan.relieve.on && P.relieve && !P.relieve.plano ? P.relieve : null; let nRel = 0;
+  if (RL) { const hT = Math.max(0.4, Math.min(8, Number(plan.relieve.alto) || 1.2)), paso = hT / (RL.K - 1), hundido = plan.relieve.modo === 'hundido', dentroC = N.cs([N.ccw(perfil)], 'Positive').offset(-0.6, 'Round', 2, 16);
+    RL.capas.forEach((anillos, i) => { if (!anillos.length) return; let c = N.cs(anillos.map(r => r.map(q => [q[0] * sx, q[1] * sy])), 'EvenOdd'); c = c.offset(-0.2, 'Round', 2, 12).offset(0.4, 'Round', 2, 12).offset(-0.2, 'Round', 2, 12).intersect(dentroC); if (c.isEmpty() || c.area() < 1) return; nRel++;
+      m = hundido ? m.subtract(c.extrude(paso + 0.02).translate([0, 0, alto - paso * (i + 1)])) : m.add(c.extrude(paso + 0.01).translate([0, 0, alto + paso * i - 0.01])); });
+    inciertas.push('Los RELIEVES salen de los TONOS de la foto de frente (' + nRel + ' nivel' + (nRel === 1 ? '' : 'es') + ', ' + n2(hT) + ' mm ' + (hundido ? 'hacia dentro' : 'hacia fuera') + '): la forma es la que se ve; la ALTURA la has puesto tú, una foto no la dice.'); }
+  else if (plan.relieve && plan.relieve.on && P.relieve && P.relieve.plano) avisos.push('No veo relieves en la foto: dentro de la pieza todo tiene casi el mismo tono. Si el relieve es del mismo color que la pieza, haz la foto con la luz de lado (que haga sombra) o píntalo con un lápiz.');
   // agujeros y ranuras EXACTOS
+  const noAg = new Set(RL ? (RL.noAgujeros || []).map(i => A.agujeros[i]) : []); if (noAg.size) inciertas.push(noAg.size + ' zona' + (noAg.size === 1 ? '' : 's') + ' de OTRO TONO dentro de la pieza se ha' + (noAg.size === 1 ? '' : 'n') + ' tomado como dibujo o relieve, no como agujero (por un agujero de verdad se ve el fondo). Si alguna SÍ es un agujero, quita «Sacar los relieves» o taládralo en el Estudio.');
   const red = A.agujeros.filter(a => a.tipo === 'redondo'), ran = A.agujeros.filter(a => a.tipo === 'ranura'), huecos = [], marcas = { largo, ancho, agujeros: [] };
   const posDe = (g, cl) => { // centro (mm) de cada miembro del grupo, con lo medido mandando
     const filas = agrupa(g, (a, b) => Math.abs(a.c[1] - b.c[1]) < Math.max(2, 0.03 * R.W)).map(f => f.sort((a, b) => a.c[0] - b.c[0])), out = new Map();
@@ -236,9 +305,9 @@ export function construye(fotos, plan) {
         const t = xsP.map(x => (x - xsP[0]) / (xsP[xsP.length - 1] - xsP[0])); xs = t.map(u => xm - e / 2 + u * e); }
       f.forEach((h, j) => out.set(h, [xs[j], y])); });
     return out; };
-  agrupa(red, (a, b) => igualD(a.d, b.d)).forEach((g, gi) => { const d = V('agD' + gi) || g[0].d * (sx + sy) / 2, pos = posDe(g, 'ag' + gi); g.forEach(h => { const [x, y] = pos.get(h); marcas.agujeros.push({ x, y, d }); huecos.push(N.MF().cylinder(alto + 4, d / 2, d / 2, Math.max(32, Math.round(d * 6))).translate([x, y, -2])); }); });
+  agrupa(red, (a, b) => igualD(a.d, b.d)).forEach((g, gi) => { const d = V('agD' + gi) || g[0].d * (sx + sy) / 2, pos = posDe(g, 'ag' + gi); g.forEach(h => { if (noAg.has(h)) return; const [x, y] = pos.get(h); marcas.agujeros.push({ x, y, d }); huecos.push(N.MF().cylinder(alto + 4, d / 2, d / 2, Math.max(32, Math.round(d * 6))).translate([x, y, -2])); }); });
   agrupa(ran, (a, b) => igualD(a.L, b.L) && igualD(a.W, b.W)).forEach((g, gi) => { const Lr = V('raL' + gi) || g[0].L * sx, Wr = V('raW' + gi) || g[0].W * sy, pos = posDe(g, 'ra' + gi);
-    g.forEach(s => { const [x, y] = pos.get(s), r = Wr / 2, l = Math.max(0, Lr - Wr), pts = []; for (let i = 0; i <= 24; i++) { const a = -Math.PI / 2 + Math.PI * i / 24; pts.push([l / 2 + r * Math.cos(a), r * Math.sin(a)]); } for (let i = 0; i <= 24; i++) { const a = Math.PI / 2 + Math.PI * i / 24; pts.push([-l / 2 + r * Math.cos(a), r * Math.sin(a)]); }
+    g.forEach(s => { if (noAg.has(s)) return; const [x, y] = pos.get(s), r = Wr / 2, l = Math.max(0, Lr - Wr), pts = []; for (let i = 0; i <= 24; i++) { const a = -Math.PI / 2 + Math.PI * i / 24; pts.push([l / 2 + r * Math.cos(a), r * Math.sin(a)]); } for (let i = 0; i <= 24; i++) { const a = Math.PI / 2 + Math.PI * i / 24; pts.push([-l / 2 + r * Math.cos(a), r * Math.sin(a)]); }
       huecos.push(N.cs([N.ccw(pts)], 'Positive').extrude(alto + 4).rotate([0, 0, s.ang]).translate([x, y, -2])); }); });
   if (huecos.length) m = m.subtract(N.union(huecos));
   // comprobaciones de fabricación
@@ -249,7 +318,7 @@ export function construye(fotos, plan) {
   const lim = N.cs([N.ccw(perfil)], 'Positive').offset(-1, 'Round', 2, 16);
   huecos.forEach((h, i) => { const b = N.caja(h), c = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2], r = (b.dims[0] + b.dims[1]) / 4, circ = N.cs([N.ccw(Array.from({ length: 48 }, (_, k) => [c[0] + r * Math.cos(k * Math.PI / 24), c[1] + r * Math.sin(k * Math.PI / 24)]))], 'Positive'); if (circ.subtract(lim).area() > 0.05) avisos.push('Un agujero queda a menos de 1 mm del borde (pared muy fina): revisa su posición o su diámetro.'); void i; });
   inciertas.push('Lo que no se ve en ninguna foto (huecos por dentro, roscas, agujeros ciegos) NO sale: añádelo en el Estudio.');
-  return { m, avisos, inciertas, dims: N.caja(m).dims, vol: m.volume(), marcas };
+  return { m, avisos, inciertas, dims: N.caja(m).dims, vol: m.volume(), marcas, relieves: nRel, sx, sy };
 }
 
 // ---------- 5) PETICIONES por foto (lo que hay que repetir) ----------
