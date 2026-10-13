@@ -165,6 +165,9 @@ html.ui30 .r8cj-chipvuela { background: var(--grad); color: #1b1406; }
 .clon-ia { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 2px; }
 .clon-ia-t { flex: 1 1 180px; opacity: .85; line-height: 1.35; }
 
+/* la casilla de una medida SIN escribir se ve vacía de verdad (borde a rayas), no con un número gris que parece puesto */
+.cpu-m:placeholder-shown { border-style: dashed; }
+
 /* ================= v30.7.1 · LOS TEMAS (desplegable 🎨 de arriba) =================
    La dueña (12-10-2026): «los cambios de colores de interfaz no te deja y no se leen bien los textos; los temas se tienen que adaptar,
    tienen que ser bonitos y estar a la altura… pon más estilos de temas, pero desplegables, que puedas elegir».

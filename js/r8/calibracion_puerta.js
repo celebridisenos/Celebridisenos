@@ -86,7 +86,7 @@ export function puerta(el, alPasar, o = {}) {
     alPasar({});
   }
   // una casilla de medida; Intro pasa a la de debajo (y de la última de una probeta, a la primera de la siguiente)
-  const casilla = (c, i) => h('input.inp.cpu-m', { type: 'number', step: 0.01, min: 0, inputmode: 'decimal', 'data-cota': c.k, 'data-prob': String(i + 1), 'aria-label': c.nombre + ', probeta ' + (i + 1), placeholder: n2(c.d), value: E.med[i][c.k] ?? '',
+  const casilla = (c, i) => h('input.inp.cpu-m', { type: 'number', step: 0.01, min: 0, inputmode: 'decimal', 'data-cota': c.k, 'data-prob': String(i + 1), 'aria-label': c.nombre + ', probeta ' + (i + 1), placeholder: '—' /* (13-10-2026: enseñaba la medida teórica en gris y ella creyó que el «20» ya estaba puesto) */, value: E.med[i][c.k] ?? '',
     oninput: e => { E.med[i][c.k] = e.target.value; guarda(); R = null; marca(c.k); cuenta(); solo(); },
     onkeydown: e => { if (e.key !== 'Enter') return; e.preventDefault(); const L = [...raiz.querySelectorAll('.cpu-m[data-prob="' + (i + 1) + '"]')], j = L.indexOf(e.target), sig = L[j + 1] || raiz.querySelector('.cpu-m[data-prob="' + (i + 2) + '"]') || raiz.querySelector('.cpu-calcula'); if (sig) { sig.focus(); if (sig.select) sig.select(); } } });
   // la fila se marca si sus tres medidas no cuadran (más de 0,10 mm entre la mayor y la menor)
@@ -136,7 +136,7 @@ export function puerta(el, alPasar, o = {}) {
       paso(5, !!R, 'Las cuentas (salen solas al escribir la última medida)', [
         h('div.cpu-btns', btn(R ? '🧮 Volver a calcular' : '🧮 Calcular ahora', calcular, { cls: 'cpu-calcula', disabled: !llenas() })),
         R ? h('div.cpu-res', { 'data-probetas': R.probetas.join(',') }, h('b', 'Tu ' + E.imp + ' con ' + E.mat + ' (con ' + R.probetas.length + (R.probetas.length === 1 ? ' probeta' : ' probetas') + '):'), h('p', CPR.texto({ s: R.s, sz: R.sz, escala: R.escala, claves: R.claves })),
-          h('ul', h('li', R.escala[0] !== 1 ? 'Encoge ' + n2((1 - R.s) * 100) + ' % a lo largo y a lo ancho: la pieza saldrá un poco más grande para compensarlo (×' + R.escala[0].toLocaleString('es-ES') + ').' : 'A lo largo y a lo ancho no encoge (o menos de lo que nota un calibre).'),
+          h('ul', h('li', R.escala[0] !== 1 ? (R.s < 1 ? 'Encoge ' + n2((1 - R.s) * 100) + ' % a lo largo y a lo ancho: la pieza saldrá un poco más grande para compensarlo' : 'Sale un ' + n2((R.s - 1) * 100) + ' % más grande a lo largo y a lo ancho: la pieza saldrá un poco más pequeña para compensarlo') + ' (×' + R.escala[0].toLocaleString('es-ES') + ').' : 'A lo largo y a lo ancho no encoge (o menos de lo que nota un calibre).'),
             h('li', 'Por fuera, las piezas salen ' + n2(Math.abs(R.c)) + ' mm por lado más ' + (R.c >= 0 ? 'gordas' : 'finas') + '; los agujeros, ' + n2(Math.abs(R.h)) + ' mm por lado más ' + (R.h >= 0 ? 'pequeños' : 'grandes') + '; el pie de elefante, ' + n2(R.f) + ' mm. Todo eso se corrige solo.'),
             R.probetas.length === 2 ? h('li', 'Con dos probetas se usa la MEDIA de las dos en cada medida.') : null, R.repite != null ? h('li', 'Tu impresora repite a ' + n2(R.repite) + ' mm entre una probeta y otra' + (R.repite <= 0.05 ? ': muy bien.' : R.repite <= 0.1 ? ': bien.' : ': es mucho; mira que la cama esté limpia y nivelada.')) : h('li', 'Con una sola probeta no se sabe cuánto repite tu impresora: si puedes, mide otra.')),
           R.avisos.length ? h('p.cpu-ojo', '⚠️ ' + R.avisos.join(' ')) : h('p.cpu-ok', '✅ Las medidas cuadran entre sí.'),

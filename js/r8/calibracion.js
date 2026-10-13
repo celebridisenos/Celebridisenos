@@ -138,7 +138,7 @@ export function estimaMaterial(base, deMat, aMat) {
 export function guarda(clave, R, extra = {}) { const g = guardado(); g.perfiles[clave] = Object.assign({ fecha: new Date().toISOString().slice(0, 10), claves: R.claves, escala: R.escala, s: R.s, sz: R.sz, c: R.c, h: R.h, f: R.f }, extra); g.activa = clave; return graba(g); }
 export function activa() { const g = guardado(); return g.activa && g.perfiles[g.activa] ? Object.assign({ clave: g.activa }, g.perfiles[g.activa]) : null; }
 export function ponActiva(clave) { const g = guardado(); g.activa = clave && g.perfiles[clave] ? clave : null; return graba(g); }
-export const texto = P => (P.escala && Math.abs(P.escala[0] - 1) > 1e-6 ? 'encoge ' + n2((1 - P.s) * 100) + ' % en XY (va escalada ×' + n3(P.escala[0]) + ')' : 'no encoge en XY (o menos de lo que nota un calibre)') + ' · agujeros +' + n3(Number(P.claves.xy_hole_compensation)) + ' · contorno ' + n3(Number(P.claves.xy_contour_compensation)) + ' · pie ' + n3(Number(P.claves.elefant_foot_compensation)) + ' mm';
+export const texto = P => (P.escala && Math.abs(P.escala[0] - 1) > 1e-6 ? (P.s <= 1 ? 'encoge ' + n2((1 - P.s) * 100) + ' % en XY' : 'sale ' + n2((P.s - 1) * 100) + ' % más grande en XY') + ' (va escalada ×' + n3(P.escala[0]) + ')' : 'no encoge en XY (o menos de lo que nota un calibre)') + ' · agujeros +' + n3(Number(P.claves.xy_hole_compensation)) + ' · contorno ' + n3(Number(P.claves.xy_contour_compensation)) + ' · pie ' + n3(Number(P.claves.elefant_foot_compensation)) + ' mm';
 
 // v30.7.1 · la calibración QUE TOCA: la de la impresora y el material con los que se va a imprimir ESTA pieza (antes se aplicaba
 // siempre «la que está en uso», aunque fuera de la otra impresora o de otro plástico). Si ese material no está medido en esa

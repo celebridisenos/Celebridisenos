@@ -46,7 +46,7 @@ export function cerrar() { if (capa) { capa.remove(); capa = null; } if (teclas)
 let reubica = () => { };
 
 // motor común de la visita y del primer proyecto
-function recorrido(pasos, o) {
+export function recorrido(pasos, o) { // (13-10-2026: también lo usan las lecciones, r8/lecciones.js)
   cerrar();
   let i = Math.max(0, Math.min(pasos.length - 1, o.desde || 0)), otra = false;
   const hueco = h('div.r8vis-hueco'), tarjeta = h('div.r8vis-tar', { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'r8vis-t' });
@@ -57,6 +57,7 @@ function recorrido(pasos, o) {
     if (P.ir && o.ir && window.__r8pest !== P.ir) { await o.ir(P.ir); } // si ya está en esa pestaña, no se vuelve a montar (se perdería lo hecho)
     if (P.antes) { try { await P.antes(); } catch (e) { } }
     const obj = await espera(P.sel);
+    if (obj) { try { obj.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) { } await new Promise(r => setTimeout(r, 60)); } // (13-10-2026: si lo que se señala está fuera de la vista, se lleva a la vista)
     if (!capa) return;
     capa.classList.toggle('sin', !obj);
     const coloca = () => {

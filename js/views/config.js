@@ -205,6 +205,7 @@ const SEC = {
       UI18.es18() ? null : card('Apariencia', tema, h('p.small.muted', 'Cada persona elige su tema; se aplica en todos sus dispositivos.')), // (v30.7.1: en la Sala de mando / Atelier 30 este tema no se aplicaba —«no te deja»—: ahí manda el desplegable de temas de abajo)
       card('Interfaz (este aparato)', uiElegir()),
       desktop.on ? card('📦 Llevar el programa a otro ordenador', h('p.small.muted', { style: { margin: 0 } }, 'Prepara en un USB una carpeta con el programa, tus ajustes, tus diseños y tus perfiles de Bambu Studio, con una guía paso a paso y un «restaurar» de doble clic para el ordenador nuevo. Aquí no se borra nada.'), btn('📦 Preparar la copia de mudanza', () => import('../mudanza.js').then(M => M.dialogoMudanza()), { cls: 'primary cfg-mudanza' })) : null,
+      UI18.es50() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Cuatro temas (Perla y Champán y rosa, claros; Aurora y Eclipse, oscuros) y «Como Windows». En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : null,
       UI18.es30() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Trece temas (siete claros y seis oscuros) y «Como Windows», que cambia solo de claro a oscuro. En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : null,
       card(null, foto.el),
       card('Cambiar contraseña', h('div.form', field('Contraseña actual', p1), h('div'), field('Nueva contraseña', p2, 'Mínimo 6 caracteres'), field('Repite la nueva', p3)),
@@ -815,15 +816,17 @@ function uiElegir() {
   const caja = h('div');
   const pinta = () => {
     const k = UI18.interfaz(), m = UI18.modo();
-    const op = (clave, modo, mini, t, d) => h('button.ui-op' + (k === clave && (!modo || m === modo) ? '.on' : ''), { type: 'button', 'data-ui': clave === 'v18' || clave === 'v30' ? clave + modo : clave, onclick: () => { UI18.ponInterfaz(clave, modo); pinta(); } }, h('span.ui-mini.' + mini), h('b', t), h('span.tiny.muted', d));
+    const op = (clave, modo, mini, t, d) => h('button.ui-op' + (k === clave && (!modo || m === modo) ? '.on' : ''), { type: 'button', 'data-ui': clave === 'v18' || clave === 'v30' || clave === 'v50' ? clave + modo : clave, onclick: () => { UI18.ponInterfaz(clave, modo); pinta(); } }, h('span.ui-mini.' + mini), h('b', t), h('span.tiny.muted', d));
     mount(caja, h('div.ui-elegir',
+      op('v50', 'noche', 'v50n', '🌌 CelebriDiseños · Noche', 'La nueva: barra lateral, todas las secciones en una pantalla (Ctrl + espacio) y auroras de color. Temas Aurora y Eclipse.'),
+      op('v50', 'dia', 'v50d', '🤍 CelebriDiseños · Día', 'La nueva en claro. Temas Perla y Champán y rosa.'),
       op('v30', 'noche', 'v30n', '🌙 Atelier 30 · Noche', 'La 30: obsidiana, oro y coral, con títulos de estudio de diseño. Igual de rápida que la 18.'),
       op('v30', 'dia', 'v30d', '☀️ Atelier 30 · Día', 'La 30 en claro: papel cálido y tinta, para trabajar con mucha luz.'),
       op('v18', 'noche', 'v18n', '🌙 Sala de mando · Noche', 'La 18: oscura, de sala de control. La más rápida (sin cristales ni fondos que se mueven).'),
       op('v18', 'dia', 'v18d', '☀️ Sala de mando · Día', 'La 18 en claro: limpia y luminosa, para trabajar con mucha luz.'),
       op('nueva', '', 'nueva', '✨ La de antes (14.0)', 'Colores vivos, cristal, animaciones suaves. Usa un poco más la tarjeta gráfica.'),
       op('clasica', '', 'clasica', '🗂️ Clásica', 'La de siempre: más sencilla y ligera (va mejor en ordenadores o móviles antiguos).')),
-      h('div.row.wrap', { style: { gap: '8px', marginTop: '10px' } }, btn('🎬 Volver a ver el estreno de la 18', () => UI18.estreno({ ir: r => { location.hash = '#/' + r; }, alCerrar: pinta }), { cls: 'sm ghost' })),
+      h('div.row.wrap', { style: { gap: '8px', marginTop: '10px' } }, btn('🎬 Ver el estreno de CelebriDiseños', () => import('../app.js').then(m => m.estrenoCD()), { cls: 'sm ghost' }), btn('🎬 Volver a ver el estreno de la 18', () => UI18.estreno({ ir: r => { location.hash = '#/' + r; }, alCerrar: pinta }), { cls: 'sm ghost' })),
       h('p.tiny.muted', 'Solo cambia el aspecto; todo sigue en el mismo sitio. Se guarda en este aparato (móvil y PC pueden tener una distinta). En la «Sala de mando» el color de arriba (tema) lo decide el modo Noche o Día; tu color de acento se respeta.'));
   };
   pinta();

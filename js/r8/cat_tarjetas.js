@@ -47,6 +47,33 @@ function cruzadas(medio, alto, h, nombres) { const sw = T + 2 * h, mid = Math.ro
   return [{ t: nombres[0], cs: a, m: dePieXZ(a) }, { t: nombres[1], cs: b, m: dePieYZ(b) }]; }
 const kitCohete = h => cruzadas([[0, 7], [8, 7], [11, 0], [18, 0], [18, 12], [9, 26], [8, 60], [4.5, 70], [0, 76]], 76, h, ['Cohete (ranura arriba)', 'Cohete (ranura abajo)']);
 const kitArbol = h => cruzadas([[0, 0], [8, 0], [3.5, 7], [22, 7], [10, 23], [18, 23], [7, 40], [13, 40], [4, 56], [8, 56], [0, 70]], 70, h, ['Árbol (ranura arriba)', 'Árbol (ranura abajo)']);
+// 13-10-2026 · cuatro kits más (la dueña: «juegos, canicas y kits niños»)
+// VELERO: el casco con sus dos velas en una pieza (de pie) y dos soportes cruzados abajo (se tiene de pie, no rueda)
+function kitVelero(h) { const sw = T + 2 * h, X = [-20, 18], corte = 4.5;
+  let c = suave(poli([[-36, 7], [-31, 0], [28, 0], [38, 9], [38, 10.5], [2, 10.5], [2, 15], [27, 15], [2, 57], [1.2, 64], [-1.2, 64], [-1.2, 61], [-27, 13], [-1.2, 13], [-1.2, 10.5], [-37, 10.5]]), 0.9);
+  c = c.subtract(circ(3).translate([-6, 5])).subtract(circ(3).translate([4, 5]));                                                          // portillos
+  X.forEach(x => { c = c.subtract(rect(x - sw / 2, x + sw / 2, -1, corte)); });                                                          // media ranura por abajo
+  const sop = () => suave(poli([[-18, 0], [18, 0], [13, 10], [-13, 10]]), 1).subtract(rect(-sw / 2, sw / 2, corte, 11));                // media ranura por arriba
+  return [{ t: 'Casco con las velas', cs: c, m: dePieXZ(c) }, { t: 'Soporte de proa', cs: sop(), m: dePieYZ(sop(), X[1]) }, { t: 'Soporte de popa', cs: sop(), m: dePieYZ(sop(), X[0]) }]; }
+// HELICÓPTERO: el fuselaje (con su mástil), el ROTOR que atraviesa el mástil por una ranura cerrada (como el ala del avión) y dos soportes
+function kitHeli(h) { const sw = T + 2 * h, X = [-6, 12], zR = 33, cuerda = 10, corte = 6.5;
+  let f = suave(poli([[-46, 13], [-46, 26], [-42, 26], [-36, 17], [-14, 16], [-10, 22], [-2, 26], [-2, 30], [-7, 30], [-7, 41], [7, 41], [7, 30], [2, 30], [10, 29], [18, 25], [22, 17], [20, 9], [14, 4], [-12, 4], [-16, 12]]), 1.1);
+  f = f.subtract(suave(poli([[4, 15], [12, 22], [17, 22], [19, 16]]), 0.6));                                                              // la cristalera
+  f = f.subtract(rect(-cuerda / 2 - h, cuerda / 2 + h, zR, zR + sw));                                                                     // la ranura del rotor (cerrada)
+  X.forEach(x => { f = f.subtract(rect(x - sw / 2, x + sw / 2, 3, corte)); });                                                           // medias ranuras por abajo
+  const rotor = suave(poli([[-cuerda / 2, -6], [-3, -44], [3, -44], [cuerda / 2, -6], [cuerda / 2, 6], [3, 44], [-3, 44], [-cuerda / 2, 6]]), 1);
+  const sop = () => suave(poli([[-17, 0], [17, 0], [17, 2.6], [5, 2.6], [5, 10], [-5, 10], [-5, 2.6], [-17, 2.6]]), 0.6).subtract(rect(-sw / 2, sw / 2, corte, 11)); // patín con su media ranura arriba
+  return [{ t: 'Fuselaje', cs: f, m: dePieXZ(f) }, { t: 'Rotor', cs: rotor, m: tumbada(rotor, zR + h) }, { t: 'Soporte de delante', cs: sop(), m: dePieYZ(sop(), X[1]) }, { t: 'Soporte de atrás', cs: sop(), m: dePieYZ(sop(), X[0]) }]; }
+// TORTUGA: el caparazón con la cabeza (de pie) y dos piezas de patas cruzadas, como el dinosaurio
+function kitTortuga(h) { const sw = T + 2 * h, X = [-14, 14], corte = 10.5;
+  let cu = suave(poli([[-36, 10], [-32, 12], [-29, 18], [-22, 25], [-12, 30], [0, 32], [12, 30], [21, 24], [25, 17], [28, 15], [32, 17], [36, 20], [41, 20], [44, 17], [43, 13], [37, 11], [30, 10], [26, 8], [-27, 8], [-31, 9]]), 1.5); // (cúpula alta y cabeza corta: que parezca una tortuga)
+  [[-15, 20], [0, 24], [15, 20], [-7.5, 14.5], [7.5, 14.5], [-8, 26.5], [8, 26.5]].forEach(([x, z]) => { cu = cu.subtract(N.cs([N.poligono2(6, 5.6, 0)], 'Positive').translate([x, z])); }); // el dibujo del caparazón (hexágonos)
+  cu = cu.subtract(circ(2).translate([39.5, 17]));                                                                                           // el ojo
+  X.forEach(x => { cu = cu.subtract(rect(x - sw / 2, x + sw / 2, 7, corte)); });
+  const pata = () => suave(poli([[-16, 0], [-10, 0], [-8.5, 7], [8.5, 7], [10, 0], [16, 0], [13, 13], [-13, 13]]), 1.1).subtract(rect(-sw / 2, sw / 2, corte, 14));
+  return [{ t: 'Caparazón', cs: cu, m: dePieXZ(cu) }, { t: 'Patas de delante', cs: pata(), m: dePieYZ(pata(), X[1]) }, { t: 'Patas de atrás', cs: pata(), m: dePieYZ(pata(), X[0]) }]; }
+// ESTRELLA 3D: dos estrellas de cinco puntas cruzadas (se tiene de pie sobre sus cuatro puntas de abajo)
+const kitEstrella = h => cruzadas([[0, 13.5], [19.98, 0], [13.31, 23.17], [32.34, 38], [8.23, 38.83], [0, 61.5]], 61.5, h, ['Estrella (ranura arriba)', 'Estrella (ranura abajo)']);
 function kitCoche(h) { const sw = T + 2 * h, X = [-22, 20], zE = 5;
   // dos laterales con la silueta del coche y, entre ellos, dos puentes (delante y detrás) a media madera: queda una caja que rueda de adorno
   const lat = () => { let c = suave(poli([[-38, 3], [-38, 12], [-30, 14], [-20, 24], [6, 24], [16, 15], [34, 13], [38, 10], [38, 3], [30, 3], [27, 0], [14, 0], [11, 3], [-12, 3], [-15, 0], [-28, 0], [-31, 3]]), 1.3);
@@ -62,6 +89,10 @@ const KITS = {
   peonza: { t: 'Peonza', gen: kitPeonza, pasos: ['Saca el disco y las dos hojas del eje.', 'Cruza las dos HOJAS: la que tiene la ranura por arriba entra en la que la tiene por abajo, hasta que las dos puntas queden juntas.', 'Mete el DISCO por arriba (por el mango) y bájalo hasta que se apoye en los hombros del eje.', 'Coge el mango con dos dedos, gira fuerte y suéltala sobre una mesa lisa.'], extra: ['Si el disco baila, sube un poco la holgura a 0,05 en la siguiente tarjeta; si no entra, a 0,15.'] },
   cohete: { t: 'Cohete', gen: kitCohete, pasos: ['Saca las dos piezas de la tarjeta.', 'Coge la que tiene la ranura por ARRIBA y ponla de pie.', 'Baja la otra (ranura por ABAJO) cruzada sobre ella, hasta que las dos puntas queden a la misma altura.', 'Se queda de pie sobre sus cuatro aletas.'] },
   arbol: { t: 'Árbol', gen: kitArbol, pasos: ['Saca las dos piezas de la tarjeta.', 'Coge la que tiene la ranura por ARRIBA y ponla de pie.', 'Baja la otra (ranura por ABAJO) cruzada sobre ella, hasta que las dos puntas queden a la misma altura.', 'Se queda de pie solo. En verde, con una estrella pintada arriba, es un adorno de Navidad.'] },
+  velero: { t: 'Velero', gen: kitVelero, pasos: ['Saca las tres piezas: el casco con las velas y los dos soportes.', 'Pon el CASCO de pie, con las dos ranuras de abajo hacia la mesa.', 'Encaja un SOPORTE en cada ranura, cruzado, hasta abajo del todo: la ranura del soporte entra en la del casco.', '¡Listo! El velero se tiene de pie solo.'] },
+  heli: { t: 'Helicóptero', gen: kitHeli, pasos: ['Saca las cuatro piezas: el fuselaje, el rotor y los dos soportes.', 'Mete el ROTOR por la ranura del mástil (la de arriba), empezando por una punta, hasta que quede centrado: en el centro entra justo.', 'Pon el fuselaje de pie y encaja los dos SOPORTES en sus ranuras de abajo, cruzados.', '¡A volar! (de mentira).'] },
+  tortuga: { t: 'Tortuga', gen: kitTortuga, pasos: ['Saca las tres piezas: el caparazón y dos piezas de patas.', 'Pon el CAPARAZÓN de pie, con las ranuras de la barriga hacia abajo.', 'Encaja unas PATAS en cada ranura, cruzadas, hasta el fondo.', '¡Ya camina! (despacio).'] },
+  estrella: { t: 'Estrella', gen: kitEstrella, pasos: ['Saca las dos estrellas.', 'Coge la que tiene la ranura por ARRIBA y ponla de pie sobre sus dos puntas.', 'Baja la otra (ranura por ABAJO) cruzada sobre ella hasta que las dos queden a ras.', 'Queda una estrella 3D que se tiene de pie: adorno de Navidad o de mesa.'] },
   coche: { t: 'Coche', gen: kitCoche, pasos: ['Saca las cuatro piezas de la tarjeta: dos laterales (con ventanillas) y dos puentes.', 'Pon de pie los dos LATERALES, uno al lado del otro, con las ruedas en la mesa: sus ranuras miran hacia arriba.', 'Coge un PUENTE con sus dos ranuras hacia ABAJO y bájalo sobre las ranuras de delante de los dos laterales, hasta el fondo.', 'Haz lo mismo con el otro puente en las ranuras de atrás. El coche queda como una cajita, de pie sobre sus ruedas.'] },
 };
 
@@ -119,6 +150,10 @@ export const DISENOS_TARJETAS = {
   tarjetaPeonza: ficha('peonza', '🌀', 'Una peonza que GIRA de verdad: disco y eje de dos hojas cruzadas', '#ff8a00', 'peonza trompo girar juego'),
   tarjetaCohete: ficha('cohete', '🚀', 'Dos siluetas cruzadas: se tiene de pie sobre sus aletas', '#e2231a', 'cohete nave espacio'),
   tarjetaCoche: ficha('coche', '🚗', 'Dos laterales con ventanillas y dos puentes: un coche con cuerpo', '#f4c20d', 'coche carro auto'),
+  tarjetaVelero: ficha('velero', '⛵', 'El casco con sus velas y dos soportes: se tiene de pie', '#0077b6', 'barco velero mar'),
+  tarjetaHeli: ficha('heli', '🚁', 'Fuselaje, rotor que atraviesa el mástil y dos soportes', '#e76f51', 'helicoptero vuelo'),
+  tarjetaTortuga: ficha('tortuga', '🐢', 'Una tortuga con su caparazón dibujado, de pie sobre sus patas', '#2a9d8f', 'tortuga animal'),
+  tarjetaEstrella: ficha('estrella', '⭐', 'Dos estrellas cruzadas: estrella 3D de pie (Navidad o mesa)', '#f4c20d', 'estrella navidad adorno'),
   tarjetaArbol: ficha('arbol', '🎄', 'Un árbol en 3D que se tiene de pie: adorno de mesa o de Navidad', '#1f8a4c', 'arbol navidad abeto pino adorno'),
 };
 export const _TAR = { KITS, tarjeta, prueba, T };

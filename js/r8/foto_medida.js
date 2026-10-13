@@ -103,7 +103,7 @@ export function contornos(D, o = {}) {
   // umbral de Otsu
   const hist = new Array(256).fill(0); for (let i = 0; i < g.length; i++) hist[Math.max(0, Math.min(255, g[i] | 0))]++;
   let tot = g.length, suma = 0; for (let t = 0; t < 256; t++) suma += t * hist[t];
-  let sB = 0, wB = 0, mejor = 0, umbral = o.umbral ?? 128; if (o.umbral == null) for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = tot - wB; if (!wF) break; sB += t * hist[t]; const mB = sB / wB, mF = (suma - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > mejor) { mejor = v; umbral = t + 0.5; } }
+  let sB = 0, wB = 0, mejor = 0, umbral = o.umbral ?? 128; if (o.umbral == null) for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = tot - wB; if (!wF) break; sB += t * hist[t]; const mB = sB / wB, mF = (suma - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF); if (v > mejor) { mejor = v; umbral = t + 0.999; } /* (13-10-2026: el grupo oscuro de Otsu es «parte entera ≤ t»; con t + 0.5 una pieza de color liso que caía justo en ese medio punto se quedaba fuera) */ }
   // ¿la pieza es oscura sobre fondo claro? (lo que toca el borde de la foto es el fondo)
   let claros = 0, n = 0; for (let x = 0; x < W; x++) { claros += g[x] > umbral; claros += g[(H - 1) * W + x] > umbral; n += 2; } for (let y = 0; y < H; y++) { claros += g[y * W] > umbral; claros += g[y * W + W - 1] > umbral; n += 2; }
   const oscura = o.oscura ?? claros > n / 2, dentro = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (oscura ? g[y * W + x] < umbral : g[y * W + x] > umbral);

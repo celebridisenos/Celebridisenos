@@ -7,6 +7,13 @@ import * as N from './nucleo.js';
 import * as G from './engranajes.js';
 import { ENCAJES } from './motor.js';
 import { diferencial, RODAMIENTOS, TORNILLOS } from './diferencial.js';
+import * as EC from './engranaje_copia.js'; // (y abajo)
+import { planetaria, pruebaPlanetaria } from './planetaria.js';
+import * as CP from './copia_pieza.js';
+import { cortador } from './copia_pieza.js';
+import { trinquete, acople, hueco2, cerrajeria, corte } from './mecanismos.js'; // 13-10-2026 · 🔒 trinquetes y 🔗 acoplamientos // 13-10-2026 · 🧩 copiar cualquier pieza (contorno, agujeros, dientes en línea) // 13-10-2026 · 🪐 reductora planetaria con carcasa // 13-10-2026 · 🔁 copiar un engranaje que ya tienes, idéntico (y calibrar los engranajes)
+// el STL o escaneo subido para «cambiar solo los dientes» (no va en las medidas: pesa mucho y no se guarda en «Mis repuestos»)
+export const MALLAS = { copia: null, pieza: null, cortador: null };
 
 const n = (k, t, o = {}) => Object.assign({ k, t, tipo: 'num', u: 'mm', paso: 0.01, min: 0 }, o);
 const s = (k, t, ops, o = {}) => Object.assign({ k, t, tipo: 'sel', ops }, o);
@@ -40,6 +47,64 @@ const DATOS = [tx('pieza', 'Qué pieza es', { ayuda: 'Por ejemplo: «engranaje d
 
 // ---------- los repuestos ----------
 export const TIPOS = {
+  // 13-10-2026 · 🔁 COPIAR UNO QUE YA TIENES: el proceso de taller para que salga IDÉNTICO (ver r8/engranaje_copia.js)
+  copia: { e: '🔁', t: 'Copiar uno que ya tengo', d: 'Engranaje idéntico al tuyo: cuenta, mide 3 cosas y lo deduzco',
+    campos: [n('z', 'Número de dientes', { req: 1, u: '', min: 6, max: 400, paso: 1, ayuda: 'Márcale uno con rotulador y cuenta la vuelta entera. Con muchos dientes, usa «📷 Contar los dientes con una foto» (de frente) y compruébalo.' }),
+      n('da', 'Ø exterior (de punta a punta)', { req: 1, min: 2, max: 1000, ayuda: 'Con las bocas de fuera del calibre, apoyadas en las PUNTAS de dos dientes enfrentados. Mídelo en 3 sitios y pon la mayor. (Con un número impar de dientes no hay dos enfrentados: vale lo que mida; la medida sobre k dientes manda.)' }),
+      n('W', 'Medida sobre k dientes (cota W)', { min: 0, max: 1000, ayuda: 'LA MEDIDA DE PRECISIÓN. Abraza con las bocas de fuera del calibre tantos dientes seguidos como te digo en «🧮 Calculadas» (k), con las bocas planas apoyadas en los FLANCOS (los costados) del primero y del último, sin tocar puntas ni fondos. No depende de la punta gastada. Con ella el diente sale idéntico.' }),
+      n('W1', 'Medida sobre k + 1 dientes', { min: 0, max: 1000, si: v => v.W > 0, ayuda: 'Lo mismo abrazando UN diente más. La diferencia entre las dos es el «paso de base» y con ella calculo el ángulo de presión (que en una foto no se ve).' }),
+      n('k', 'k (dientes que abarcas)', { u: '', min: 0, max: 60, paso: 1, si: v => v.W > 0, ayuda: 'Cuántos dientes abarcaste en la medida sobre k dientes. Vacío = los que te recomiendo.' }),
+      n('df', 'Ø del fondo (si puedes medirlo)', { min: 0, max: 1000, ayuda: 'Opcional. Con las puntas finas del calibre en el FONDO de dos huecos enfrentados. Ayuda a confirmar.' }),
+      s('sistema', '¿Métrico o en pulgadas?', [['auto', 'No lo sé: averígualo'], ['modulo', 'Métrico (módulo)'], ['dp', 'En pulgadas (paso diametral)']], { def: 'auto' }),
+      s('alfaSabido', 'Ángulo de presión', [['auto', 'No lo sé: averígualo'], ['20', '20°'], ['14.5', '14,5°'], ['25', '25°']], { def: 'auto', ayuda: 'Si no lo sabes, déjalo: con la medida sobre k y sobre k + 1 dientes lo calculo.' }),
+      ...HELICE, n('b', 'Grosor (ancho del diente)', { req: 1, min: 0.5, max: 200 }), ...EJE(), HOLGURA,
+      n('juegoF', 'Juego para que gire suave', { def: 0.1, est: 1, min: 0, max: 0.5, paso: 0.01, ayuda: 'Lo que se quita a cada diente para que engrane sin atascarse. 0,10 mm va bien; tu calibración de engranajes le suma lo que engorda TU impresora.' }),
+      s('imp', 'Impresora', [['P1P', 'Bambu P1P'], ['A1 mini', 'Bambu A1 mini']], { def: 'P1P' }), s('mat', 'Material', [['PLA', 'PLA'], ['PETG', 'PETG'], ['TPU', 'TPU']], { def: 'PLA' }),
+      ...BUJE,
+      n('Wp', 'Rodaja de prueba impresa: medida sobre k dientes', { min: 0, max: 1000, ayuda: 'Cuando imprimas la rodaja de prueba, mídela IGUAL que el original (sobre los mismos k dientes) y escríbela: calculo cuánto engorda tu impresora el diente y lo corrijo.' }),
+      c('hibrido', 'Usar el STL que he subido y cambiarle SOLO los dientes', { def: false, si: () => !!MALLAS.copia, ayuda: 'Para piezas difíciles (con levas, nervios, chaveteros, varios pisos…): se queda todo el cuerpo de tu STL y se cambian sus dientes por los exactos.' })],
+    ejemplo: { z: 20, da: 32.96, W: 11.49, W1: 15.92, k: 3, b: 8, eje: 5 }, // (módulo 1,5 · 20° con la punta algo gastada)
+    med(v) { const beta = v.forma && v.forma !== 'recto' ? Number(v.beta) || 0 : 0, al = v.alfaSabido && v.alfaSabido !== 'auto' ? Number(v.alfaSabido) : 20;
+      const k = v.k > 0 ? v.k : EC.kRecomendado(v.z, al, beta); return { z: v.z, da: v.da, df: v.df, W: v.W, W1: v.W1, k, beta, sistema: v.sistema, alfa: v.alfaSabido }; },
+    // todo lo que sale de las medidas: lo deducido, la calibración, el juego con el que se imprime y la cota de la rodaja
+    todo(v) {
+      const M = this.med(v), D = EC.deduce(M); if (!D.mejor) return { D, M };
+      const o = D.mejor, cal = EC.calDe(v.imp, v.mat), dJ = cal ? cal.dJ : 0, jT = (v.juegoF || 0) + dJ;
+      const Wtest = EC.cotaW({ mn: o.mn, alfa: o.alfa, beta: M.beta, z: Math.round(v.z), x: o.x, k: M.k, juego: jT });
+      const corr = v.Wp > 0 ? EC.correccionDePrueba({ Wimp: v.Wp, Wdis: Wtest, alfa: o.alfa, dJusado: dJ }) : null;
+      const juego = Math.max(0, (v.juegoF || 0) + (corr ? corr.dJ : dJ));
+      const P = Object.assign(EC.params(D, v, juego), { eje: v.eje, ejeForma: v.ejeForma, plano: v.plano, holgura: hol(v), buje: v.buje, bujeD: v.bujeD, bujeH: v.bujeH });
+      return { D, M, o, cal, dJ, jT, Wtest, corr, juego, P };
+    },
+    calcula(v) { const T = this.todo(v); if (!T.o) return []; const { D, M, o, cal, dJ, Wtest, corr, juego } = T, Wt = EC.cotaW({ mn: o.mn, alfa: o.alfa, beta: M.beta, z: Math.round(v.z), x: o.x, k: M.k });
+      const L = [['Lo que es', o.texto, 'confianza ' + o.confianza.toUpperCase()], ['Ø exterior · medido / el del diente', f(v.da, 2) + ' / ' + f(o.daP, 2) + ' mm', 'el teórico es módulo × (dientes + 2 + 2 × desplazamiento)']];
+      if (v.W > 0) L.push(['Sobre ' + M.k + ' dientes · medido / copia', f(v.W, 3) + ' / ' + f(Wt, 3) + ' mm', 'la cota W de la copia, sin juego']);
+      else L.push(['📏 Mide sobre ' + M.k + ' dientes', 'debería dar ≈ ' + f(Wt, 2) + ' mm', 'y luego sobre ' + (M.k + 1) + ' (≈ ' + f(EC.cotaW({ mn: o.mn, alfa: o.alfa, beta: M.beta, z: Math.round(v.z), x: o.x, k: M.k + 1 }), 2) + ')']);
+      if (D.conPb) L.push(['Paso de base · medido / el del diente', f(v.W1 - v.W, 3) + ' / ' + f(Math.PI * o.mn * Math.cos(o.alfa * G.RAD), 3) + ' mm', 'π × módulo × cos α: de aquí sale el ángulo']);
+      L.push(['Tu calibración de engranajes', cal ? '+' + f(dJ, 3) + ' mm (' + EC.claveCal(v.imp, v.mat) + ', ' + cal.fecha + ')' : 'sin calibrar todavía', cal ? 'lo que engorda tu impresora el diente' : 'imprime la rodaja y mídela']);
+      L.push(['Juego con el que sale', f(juego, 3) + ' mm', 'el tuyo para que gire + lo que engorda tu impresora']);
+      L.push(['Rodaja de prueba: tiene que medir', f(Wtest, 3) + ' mm sobre ' + M.k + ' dientes', 'si mide más, tu impresora engorda el diente']);
+      if (corr) L.push(['La rodaja salió', (corr.e >= 0 ? '+' : '') + f(corr.e, 3) + ' mm en el diente', 'corrección total: ' + f(corr.dJ, 3) + ' mm (pulsa «💾 Guardar mi calibración»)']);
+      return L; },
+    revisa(v) { const T = this.todo(v), L = T.D.avisos.slice(); if (!T.o) return L;
+      L.push(...G.revisaPieza(T.P).filter(x => x.n !== 'ok'));
+      if (!T.cal && !T.corr) L.push({ n: 'aviso', t: 'Tu impresora todavía no está calibrada para engranajes (' + EC.claveCal(v.imp, v.mat) + '): imprime la RODAJA de prueba (abajo), mídela sobre ' + T.M.k + ' dientes y escríbela en «Rodaja de prueba impresa».' });
+      if (T.corr && Math.abs(T.corr.e) > 0.25) L.push({ n: 'aviso', t: 'La rodaja sale ' + f(T.corr.e, 2) + ' mm distinta en el diente: es mucho. ¿Mediste sobre los mismos ' + T.M.k + ' dientes? ¿Tienes la calibración general de la impresora hecha (🎯)?' });
+      if (v.hibrido && MALLAS.copia) L.push({ n: 'ok', t: 'Se usa tu STL «' + MALLAS.copia.nombre + '» y se le cambian solo los dientes.' });
+      return L; },
+    construye(v) { const T = this.todo(v); if (!T.o) N.mal('No he podido deducir el engranaje con esas medidas.');
+      if (v.hibrido && MALLAS.copia) { const r = EC.hibrido(MALLAS.copia.sopa, T.P, { da: v.da }); return { partes: [{ m: r.m, nombre: 'copia_' + Math.round(v.z) }] }; }
+      return { partes: [{ m: G.engranaje(T.P).m, nombre: 'copia_' + Math.round(v.z) }] }; },
+    cotas(v) { const T = this.todo(v); if (!T.o) return []; const K = G.numeros(T.P); return [{ a: [-K.ra, -K.ra - 4, v.b], b: [K.ra, -K.ra - 4, v.b], t: 'Ø ' + f(2 * K.ra, 2) }, { a: [K.ra + 4, 0, 0], b: [K.ra + 4, 0, v.b], t: f(v.b, 2) }]; },
+    kit(v) { const T = this.todo(v); if (!T.o) N.mal('Faltan medidas.'); return { t: 'Rodaja de prueba: el mismo engranaje con 3 mm de grosor (con tu calibración actual)', d: 'Pruébala en el eje y contra el engranaje de al lado. Después MÍDELA sobre ' + T.M.k + ' dientes: tiene que dar ' + f(T.Wtest, 3) + ' mm. Escribe lo que mida en «Rodaja de prueba impresa» y la pieza final sale corregida.', partes: [{ m: G.engranaje(Object.assign({}, T.P, { juego: T.jT, b: Math.min(3, v.b), buje: false })).m, nombre: 'rodaja_prueba' }] }; },
+    acciones: [
+      { t: '📸 Asistente: copiar con fotos (frente y lado, te marco qué medir)', fn: X => abreAsistente(X) },
+      { t: '📷 Contar los dientes con una foto', fn: async X => { const C = await import('./comun.js'), fi = await C.pideArchivo('image/*'); if (!fi) return; X.toast('Contando los dientes…', '', 2500);
+        try { const r = await EC.contarDientesFoto(fi); X.pon('z', r.z, 'estimada'); X.toast('He contado ' + r.z + ' dientes. Compruébalo (marca uno con rotulador) y pulsa ✓.', 'ok', 8000); X.rehaz(); } catch (e) { X.toast(e.message || String(e), 'bad', 9000); } } },
+      { t: '🧩 Subir su STL o escaneo (cambio solo los dientes)', fn: async X => { const C = await import('./comun.js'), fi = await C.pideArchivo('.stl,.obj,.3mf'); if (!fi) return;
+        try { const r = await C.leeModelo(fi); MALLAS.copia = { sopa: r.sopa, nombre: r.nombre }; X.pon('hibrido', true); X.toast('STL «' + r.nombre + '» cargado: le cambio solo los dientes por los exactos.', 'ok', 6000); X.rehaz(); } catch (e) { X.toast(e.message || String(e), 'bad', 9000); } } },
+      { t: '💾 Guardar mi calibración de engranajes', si: v => v.Wp > 0, fn: X => { const T = TIPOS.copia.todo(X.v); if (!T.corr) return; const c2 = EC.guardaCal(X.v.imp, X.v.mat, T.corr.dJ, { e: T.corr.e }); X.pon('Wp', null); X.toast('💾 Guardada: tus engranajes en ' + EC.claveCal(X.v.imp, X.v.mat) + ' saldrán con ' + f(c2.dJ, 3) + ' mm de corrección. Desde ahora, todos.', 'ok', 8000); X.rehaz(); } },
+      { t: '🧹 Olvidar mi calibración de engranajes', si: v => !!EC.calDe(v.imp, v.mat), fn: X => { EC.borraCal(X.v.imp, X.v.mat); X.toast('Calibración de engranajes olvidada (' + EC.claveCal(X.v.imp, X.v.mat) + ').', 'ok'); X.rehaz(); } }] },
   engranaje: { e: '⚙️', t: 'Engranaje', d: 'Recto, helicoidal o en espiga',
     campos: [POR, ...TAM, n('z', 'Número de dientes', { req: 1, u: '', min: 6, max: 400, paso: 1, ayuda: 'Cuéntalos marcando uno con rotulador.' }), ALFA, ...HELICE, n('b', 'Ancho (grosor) del diente', { req: 1, min: 1, max: 200 }), ...EJE(), HOLGURA, JUEGO, XSH, ...BUJE],
     ejemplo: { por: 'modulo', m: 1.5, z: 20, b: 8, eje: 5 },
@@ -158,6 +223,9 @@ TIPOS.diferencialRC = { e: '🏎️', t: 'Diferencial RC completo', d: 'Carcasa 
     s('salida', 'Salida de los planetarios', [['hex', 'Hexágono'], ['d', 'Eje en D'], ['redonda', 'Redonda']], { def: 'hex', est: 1 }), est('ejeSal', 'Medida de la salida (entre caras / diámetro)', 5, { min: 2, max: 12 }),
     est('cruceta', 'Pasador de la cruceta (Ø)', 3, { min: 1.5, max: 6, paso: 0.1, ayuda: 'Mejor un pasador de ACERO (o un tornillo) de esa medida: impreso es débil.' }),
     s('rodCaja', 'Rodamientos de la carcasa', OPS_ROD, { def: '10x15x4', est: 1, ayuda: 'Tamaños normalizados (interior × exterior × ancho). Elige los que vayas a comprar o los que lleva tu coche.' }),
+    s('rodCaja2', 'Rodamiento del lado de la tapa', [['', 'Igual que el de la carcasa']].concat(OPS_ROD), { def: '', ayuda: 'Algunos coches llevan uno distinto a cada lado (por ejemplo 8 × 16 junto a la corona y 10 × 15 en la tapa). Míralo en el despiece de tu coche.' }),
+    c('junta', 'Con junta de TPU entre carcasa y tapa (para diferencial con aceite)', { def: false }), c('ejeSalida', 'Con los ejes de salida impresos (entran a presión en los planetarios)', { def: false }),
+    n('largoSal', 'Ejes de salida: lo que salen por fuera de la caja', { def: 14, min: 4, max: 60, si: v => v.ejeSalida }), n('pinSal', 'Ejes de salida: Ø del pasador del vaso', { def: 2, min: 1, max: 4, paso: 0.1, si: v => v.ejeSalida }),
     s('rodPinon', 'Rodamientos del piñón', OPS_ROD, { def: '5x11x4', est: 1 }), est('ejePinon', 'Eje del piñón (Ø)', 5, { min: 2, max: 10, paso: 0.5 }),
     s('torTapa', 'Tornillos de la tapa', Object.keys(TORNILLOS).map(k => [k, k]), { def: 'M2.5', est: 1 }), s('torCaja', 'Tornillos de la caja', Object.keys(TORNILLOS).map(k => [k, k]), { def: 'M3', est: 1 }),
     est('pared', 'Grosor de las paredes', 2.5, { min: 1.6, max: 5, paso: 0.1 }), est('holg', 'Holgura de lo que gira con la caja', 1.5, { min: 0.6, max: 4, paso: 0.1 }),
@@ -167,7 +235,8 @@ TIPOS.diferencialRC = { e: '🏎️', t: 'Diferencial RC completo', d: 'Carcasa 
   revisa(v) { const R = difDe(v); return R.avisos.concat(R.choques.filter(c => c.vol > 0.05).length ? [] : []); },
   construye(v) { const R = difDe(v), P = R.partes, vista = v.vista || 'montado', desp = vista === 'despiezado';
     const mov = (m, d) => desp ? m.translate(d) : m, corte = m => vista === 'corte' ? m.intersect(N.forma3d('caja', { x: 600, y: 600, z: 300, radio: 0 }).translate([0, 0, -300])) : m;
-    const vis = [[P.carcasa, '#e2231a', 'carcasa', [0, 0, 0]], [P.tapa, '#ff8a3d', 'tapa', [-22, 0, 0]], [P.planD, '#2457d6', 'planetario', [30, 0, 0]], [P.planI, '#2457d6', 'planetario', [-40, 0, 0]], ...P.sats.map((m, i) => [m, '#29d3ff', 'satélite', [0, 0, 0].map((x, k) => k === 2 ? (i % 2 ? -1 : 1) * 30 : 0)]), [P.pasador, '#b8bec4', 'cruceta', [0, 0, 45]], [P.pinon, '#7c6cff', 'piñón', [0, -18, 0]], [P.eje, '#b8bec4', 'eje', [0, -32, 0]]];
+    const extra = [...(P.junta ? [[P.junta, '#3ddc97', 'junta', [-12, 0, 0]]] : []), ...(P.ejesSal || []).map((m, i) => [m, '#b8bec4', 'eje de salida', [i ? -60 : 60, 0, 0]])];
+    const vis = [...extra, [P.carcasa, '#e2231a', 'carcasa', [0, 0, 0]], [P.tapa, '#ff8a3d', 'tapa', [-22, 0, 0]], [P.planD, '#2457d6', 'planetario', [30, 0, 0]], [P.planI, '#2457d6', 'planetario', [-40, 0, 0]], ...P.sats.map((m, i) => [m, '#29d3ff', 'satélite', [0, 0, 0].map((x, k) => k === 2 ? (i % 2 ? -1 : 1) * 30 : 0)]), [P.pasador, '#b8bec4', 'cruceta', [0, 0, 45]], [P.pinon, '#7c6cff', 'piñón', [0, -18, 0]], [P.eje, '#b8bec4', 'eje', [0, -32, 0]]];
     const partes = vis.map(([m, color, nombre, d]) => ({ m: corte(mov(m, d)), color, nombre })), caja = [[P.cajaAbajo, [0, 0, -40]], [P.cajaArriba, [0, 0, 60]]];
     const fantasma = desp ? caja.map(([m, d]) => ({ m: m.translate(d), color: '#8e9196', nombre: 'caja' })) : [{ m: corte(P.cajaAbajo), color: '#8e9196', nombre: 'caja' }];
     if (vista !== 'corte' && !desp) fantasma.push({ m: P.cajaArriba, color: '#8e9196', nombre: 'caja' });
@@ -251,3 +320,205 @@ export const visibles = (tipo, v) => TIPOS[tipo].campos.filter(c => !c.si || c.s
 export function faltan(tipo, v) { return visibles(tipo, v).filter(c => c.req && (v[c.k] == null || v[c.k] === '' || !isFinite(Number(v[c.k])) || (c.tipo === 'num' && Number(v[c.k]) <= 0 && c.min > 0))).map(c => c.t); }
 // valores listos para construir (números de verdad; lo opcional vacío = 0)
 export function valores(tipo, v) { const o = Object.assign({}, v); TIPOS[tipo].campos.forEach(c => { if (c.tipo === 'num') o[c.k] = v[c.k] == null || v[c.k] === '' ? 0 : Number(v[c.k]); }); return o; }
+// ---------- 13-10-2026 · 🪐 REDUCTORA PLANETARIA DE PRECISIÓN (r8/planetaria.js), con su carcasa, tapa y soporte del motor ----------
+let memoPla = null;
+const plaVals = v => { const cal = EC.calDe(v.imp, v.mat); return Object.assign({}, v, { np: Number(v.np), etapas: Number(v.etapas), alfa: Number(v.alfa), juego: (v.juego || 0) + (cal ? cal.dJ : 0) }); };
+const plaDe = v => { const key = JSON.stringify(v); if (!memoPla || memoPla.key !== key || !memoPla.vivo) memoPla = { key, vivo: true, R: planetaria(plaVals(v)) }; return memoPla.R; };
+export const olvidaPla = () => { if (memoPla) memoPla.vivo = false; };
+TIPOS.planetaria = { e: '🪐', t: 'Reductora planetaria', d: 'Sol, planetas, corona en su carcasa, tapa y motor',
+  campos: [
+    est('m', 'Módulo', 1, { min: 0.5, max: 3, paso: 0.05, ayuda: 'El tamaño del diente. Con boquilla de 0,4: 1 o más. Más grande = más fuerte y más grande la caja.' }),
+    est('zs', 'Dientes del sol (el del motor)', 12, { u: '', min: 8, max: 60, paso: 1 }), est('zp', 'Dientes de cada planeta', 18, { u: '', min: 8, max: 80, paso: 1, ayuda: 'La corona sale sola: sol + 2 × planeta. Relación de cada etapa: 1 + corona ÷ sol.' }),
+    s('np', 'Planetas', [['3', '3 (lo normal)'], ['4', '4 (más fuerte)'], ['2', '2'], ['5', '5'], ['6', '6']], { def: '3' }),
+    s('etapas', 'Etapas', [['1', '1 etapa'], ['2', '2 etapas (relación al cuadrado)'], ['3', '3 etapas']], { def: '1' }),
+    s('alfa', 'Ángulo de presión', [['20', '20°'], ['25', '25° (dientes más fuertes)']], { def: '20', est: 1 }),
+    est('b', 'Grosor de los dientes', 8, { min: 3, max: 40, paso: 0.5 }), est('juego', 'Juego entre dientes', 0.1, { min: 0, max: 0.4, paso: 0.01, ayuda: 'Para que giren suaves. Tu calibración de engranajes (impresora y material de abajo) se le suma sola.' }),
+    s('motor', 'Motor', [['ninguno', 'Sin soporte de motor'], ['nema17', 'NEMA 17 (paso a paso)'], ['propio', 'El mío (pongo sus medidas)']], { def: 'ninguno' }),
+    n('mAg', 'Motor: entre agujeros (cuadrado)', { req: 1, min: 5, max: 200, si: v => v.motor === 'propio', ayuda: 'De centro a centro de dos agujeros SEGUIDOS de su cara (en cuadrado).' }), n('mTor', 'Motor: Ø de los agujeros de paso', { req: 1, min: 1, max: 8, def: 3.4, si: v => v.motor === 'propio' }), n('mBoss', 'Motor: Ø del resalte del eje (0 si no tiene)', { min: 0, max: 60, si: v => v.motor === 'propio' }),
+    est('ejeSol', 'Eje del motor (Ø)', 5, { min: 1, max: 14, paso: 0.05 }), s('formaSol', 'Eje del motor', [['d', 'En D (con plano)'], ['redondo', 'Redondo']], { def: 'd', est: 1 }), est('planoSol', 'Eje del motor: del plano al otro lado', 4.5, { min: 0.5, max: 14, paso: 0.05, si: v => v.formaSol === 'd' }),
+    est('pin', 'Pasadores de los planetas (Ø)', 3, { min: 1.5, max: 8, paso: 0.1, ayuda: 'Mejor de ACERO (varilla, clavo o tornillo de esa medida). También salen impresos.' }),
+    s('salida', 'Salida (agujero para tu eje)', [['hex', 'Hexágono'], ['d', 'En D'], ['redondo', 'Redonda']], { def: 'hex', est: 1 }), est('ejeSal', 'Salida: medida (entre caras / Ø)', 5, { min: 2, max: 20, paso: 0.05 }), est('planoSal', 'Salida: del plano al otro lado', 4.5, { min: 0.5, max: 20, si: v => v.salida === 'd' }),
+    est('pared', 'Pared de la carcasa', 3, { min: 2, max: 8, paso: 0.2 }),
+    s('imp', 'Impresora', [['P1P', 'Bambu P1P'], ['A1 mini', 'Bambu A1 mini']], { def: 'P1P' }), s('mat', 'Material', [['PLA', 'PLA'], ['PETG', 'PETG']], { def: 'PLA' }),
+    s('vista', 'Ver', [['montado', 'Montada (la carcasa, transparente)'], ['corte', 'En corte (por la mitad)'], ['despiezado', 'Despiezada']], { def: 'montado' })],
+  ejemplo: {},
+  calcula(v) { const R = plaDe(v), C = R.cuentas; if (!C) return []; const L = [['Corona', C.zr + ' dientes', 'sol + 2 × planeta'], ['Relación por etapa', f(C.i1, 3) + ' : 1', '1 + corona ÷ sol'], ['Relación total', f(C.i, 2) + ' : 1', Number(v.etapas) > 1 ? '(por etapa) elevado a ' + v.etapas : 'el motor da ' + f(C.i, 2) + ' vueltas por cada vuelta de la salida'], ['Del centro a cada planeta', f(C.a, 3) + ' mm', '(sol + planeta) × módulo ÷ 2']];
+    if (C.Rext) L.push(['Carcasa', 'Ø ' + f(2 * C.Rext, 1) + ' × ' + f(C.H, 1) + ' mm de alto', 'sin las orejas de los tornillos'], ['Fuerza en la salida', '≈ ' + f(C.i * Math.pow(0.85, Number(v.etapas) || 1), 1) + ' × la del motor', 'ESTIMADO: la relación menos un 15 % de rozamiento por etapa (no medido)']);
+    const cal = EC.calDe(v.imp, v.mat); L.push(['Tu calibración de engranajes', cal ? '+' + f(cal.dJ, 3) + ' mm (' + EC.claveCal(v.imp, v.mat) + ')' : 'sin calibrar (usa «Copiar uno que ya tengo» → rodaja)', 'se suma al juego']); return L; },
+  revisa(v) { return plaDe(v).avisos; },
+  construye(v) { const R = plaDe(v); if (!R.partes) N.mal(R.avisos.filter(a => a.n === 'error').map(a => a.t).join(' ') || 'No se ha podido construir.');
+    const P = R.partes, vista = v.vista || 'montado', desp = vista === 'despiezado', H = R.cuentas.H;
+    const corte = m => vista === 'corte' ? m.intersect(N.forma3d('caja', { x: 600, y: 300, z: 600, radio: 0 }).translate([0, 150, -100])) : m, mov = (m, dz) => desp ? m.translate([0, 0, dz]) : m; // (se queda la mitad de atrás: el corte mira a la cámara)
+    const partes = [[P.soles, '#2457d6', 'sol', 0], [P.planetas, '#29d3ff', 'planetas', H * 0.6], [P.porta, '#7c6cff', 'portaplanetas', H * 1.2], [P.pasadores, '#b8bec4', 'pasadores', H * 0.9]].map(([m, color, nombre, dz]) => ({ m: corte(mov(m, dz)), color, nombre }));
+    const caja = [{ m: corte(P.carcasa), color: '#e2231a', nombre: 'carcasa' }, { m: corte(mov(P.tapa, H * 1.9)), color: '#ff8a3d', nombre: 'tapa' }];
+    return { partes: desp || vista === 'corte' ? partes.concat(caja) : partes, fantasma: desp || vista === 'corte' ? [] : caja, choques: R.choques, lista: R.lista,
+      imprimir: R.piezasImprimir.map(([nombre, m, color]) => ({ m, nombre, color })) }; },
+  cotas(v) { const R = plaDe(v); if (!R.cuentas || !R.cuentas.Rext) return []; const Re = R.cuentas.Rext; return [{ a: [-Re, -Re - 8, 0], b: [Re, -Re - 8, 0], t: 'Ø ' + f(2 * Re, 1) }, { a: [Re + 8, 0, 0], b: [Re + 8, 0, R.cuentas.H], t: f(R.cuentas.H, 1) + ' alto' }]; },
+  kit(v) { return { t: 'Prueba: el sol, un planeta (3 mm) y un cuarto de la corona', d: 'Comprueba que el sol entra en el eje del motor, que el planeta gira en su pasador y que los tres engranan suaves antes de imprimir la caja entera.', partes: pruebaPlanetaria(plaVals(v)) }; } };
+// ---------- 13-10-2026 · 🧩 COPIAR CUALQUIER PIEZA con fotos (r8/copia_pieza.js): contorno + agujeros + dientes en línea + pisos ----------
+// La silueta de la foto (MALLAS.pieza.A) no va en las medidas (pesa y no se guarda en «Mis repuestos»): se vuelve a hacer la foto.
+const PZ = () => MALLAS.pieza && MALLAS.pieza.A;
+const camposAg = Array.from({ length: 6 }, (_, i) => n('ag' + i, 'Agujero ' + (i + 1) + ' (Ø)', { min: 0, max: 500, si: () => !!PZ() && PZ().agujeros.length > i && PZ().agujeros[i].redondo, ayuda: 'Mejor mide el EJE o el tornillo que entra, no el agujero gastado. Vacío = el de la foto.' }));
+const camposPaso = [0, 1].map(i => n('paso' + i, 'Dientes del borde ' + (i + 1) + ': de la punta 1 a la punta 11', { min: 0, max: 2000, si: () => !!PZ() && PZ().dientes.length > i, ayuda: 'Con el calibre, de la punta de un diente a la de 10 dientes más allá (10 pasos). Es lo que hace que salgan EXACTOS. Vacío = el de la foto.' }));
+TIPOS.pieza = { e: '🧩', t: 'Copiar cualquier pieza', d: 'Con fotos: soportes, tapas, pomos, sierras, peines…',
+  campos: [n('largo', 'Largo total (la flecha ①)', { req: 1, min: 1, max: 2000, ayuda: 'De punta a punta por lo más largo de la pieza (la flecha amarilla del asistente). Da la escala de todo lo demás.' }),
+    n('grosor', 'Grosor (de canto)', { req: 1, min: 0.3, max: 300 }), ...camposAg, ...camposPaso,
+    c('regulariza', 'Rehacer los dientes en línea todos iguales (el diente medio)', { def: true, si: () => !!PZ() && PZ().dientes.length > 0 }),
+    n('bujeD', 'Buje o resalte: Ø', { min: 0, max: 500, ayuda: 'Si tiene un piso más (un buje alrededor del agujero, un saliente redondo…). 0 = no tiene.' }), n('bujeH', 'Buje o resalte: alto', { min: 0, max: 300, si: v => v.bujeD > 0 }),
+    s('bujeDonde', 'El buje va', [['agujero', 'Alrededor del agujero más grande'], ['centro', 'En el centro de la pieza']], { def: 'agujero', si: v => v.bujeD > 0 })],
+  ejemplo: {},
+  med(v) { return { largo: v.largo, grosor: v.grosor, agujeros: Array.from({ length: 6 }, (_, i) => v['ag' + i] || null), pasoMm: [0, 1].map(i => v['paso' + i] > 0 ? v['paso' + i] / 10 : null) }; },
+  calcula(v) { const A = PZ(); if (!A) return [['Falta la foto', 'pulsa «📸 Asistente»', 'la silueta sale de la foto de frente']]; const k = v.largo > 0 ? v.largo / A.largo : null, L = [['Escala', k ? f(1 / k, 2) + ' píxeles por mm' : '—', 'de tu largo total']];
+    if (k) L.push(['Ancho (de la foto)', '≈ ' + f(A.ancho * k, 2) + ' mm', 'compruébalo con el calibre']);
+    A.dientes.forEach((D, i) => { const p = v['paso' + i] > 0 ? v['paso' + i] / 10 : k ? D.paso * k : null; L.push(['Borde ' + (i + 1) + ': ' + D.n + ' dientes', p ? 'paso ' + f(p, 3) + ' mm' + (v['paso' + i] > 0 ? '' : ' (≈ de la foto)') : '—', 'alto del diente ≈ ' + (k ? f((D.alto - D.fondo) * k, 2) + ' mm' : '—')]); });
+    A.agujeros.forEach((h, i) => L.push(['Agujero ' + (i + 1), h.redondo ? (v['ag' + i] > 0 ? 'Ø ' + f(v['ag' + i], 2) + ' mm' : k ? 'Ø ≈ ' + f(2 * h.r * k, 2) + ' mm (de la foto)' : '—') : 'con forma: se copia tal cual', h.redondo ? 'redondo: se rehace como círculo perfecto' : '']));
+    return L; },
+  revisa(v) { const A = PZ(), L = []; if (!A) { L.push({ n: 'error', t: 'Falta la foto de frente: pulsa «📸 Asistente: copiar con fotos».' }); return L; }
+    A.dientes.forEach((D, i) => { if (!(v['paso' + i] > 0)) L.push({ n: 'aviso', t: 'Borde ' + (i + 1) + ' (' + D.n + ' dientes): mide de la punta 1 a la punta 11 con el calibre y escríbelo; con la foto sola el paso va a ±1 píxel.' }); else { const p = v['paso' + i] / 10, pf = v.largo > 0 ? D.paso * v.largo / A.largo : p; if (Math.abs(p - pf) > 0.06 * p) L.push({ n: 'aviso', t: 'Borde ' + (i + 1) + ': tu paso (' + f(p, 3) + ' mm) y el de la foto (' + f(pf, 3) + ') no cuadran más de un 6 %: ¿has medido 10 pasos (de la punta 1 a la 11)? ¿Está bien el largo total?' }); else L.push({ n: 'ok', t: 'Borde ' + (i + 1) + ': ' + D.n + ' dientes de ' + f(p, 3) + ' mm, todos iguales.' }); } });
+    A.agujeros.forEach((h, i) => { if (h.redondo && !(v['ag' + i] > 0)) L.push({ n: 'aviso', t: 'Agujero ' + (i + 1) + ': sale de la foto (≈). Mídelo para que entre justo.' }); });
+    if (!A.dientes.length && !A.agujeros.length) L.push({ n: 'ok', t: 'Pieza sin dientes ni agujeros: se copia el contorno a escala.' });
+    return L; },
+  construye(v) { const A = PZ(); if (!A) N.mal('Falta la foto de frente.'); let m = CP.construye(A, this.med(v), { regulariza: v.regulariza !== false });
+    if (v.bujeD > 0 && v.bujeH > 0) { const k = v.largo / A.largo, big = A.agujeros.filter(h => h.redondo).sort((a, b) => b.r - a.r)[0], c = v.bujeDonde === 'agujero' && big ? [(big.c[0] - (A.x0 + A.x1) / 2) * k, -(big.c[1] - (A.y0 + A.y1) / 2) * k] : [0, 0];
+      let b = N.forma3d('cilindro', { d: v.bujeD, h: v.bujeH + 0.01 }).translate([c[0], c[1], (v.grosor || 3) - 0.01]); if (big && v.bujeDonde === 'agujero') { const i = A.agujeros.indexOf(big), d = v['ag' + i] > 0 ? v['ag' + i] : 2 * big.r * k; b = b.subtract(N.forma3d('cilindro', { d, h: v.bujeH + 2 }).translate([c[0], c[1], v.grosor - 1])); } m = m.add(b); }
+    return { partes: [{ m, nombre: 'copia' }] }; },
+  cotas(v) { const A = PZ(); if (!A || !(v.largo > 0)) return []; const k = v.largo / A.largo, W = A.ancho * k; return [{ a: [-v.largo / 2, -W / 2 - 5, 0], b: [v.largo / 2, -W / 2 - 5, 0], t: f(v.largo, 2) }]; },
+  kit(v) { const A = PZ(); if (!A) N.mal('Falta la foto.'); return { t: 'Plantilla de prueba: la misma silueta con 0,8 mm de grosor', d: 'Pónla ENCIMA del original: tiene que taparlo justo (contorno, agujeros y dientes). Si sobra o falta, corrige el largo total.', partes: [{ m: CP.construye(A, Object.assign(this.med(v), { grosor: 0.8 }), { regulariza: v.regulariza !== false }), nombre: 'plantilla' }] }; },
+  acciones: [{ t: '📸 Asistente: copiar con fotos (frente y lado, te marco qué medir)', fn: X => abreAsistente(X) }] };
+// el asistente (sirve para «Copiar uno que ya tengo» y para «Copiar cualquier pieza»: decide solo con la foto de frente)
+export async function abreAsistente(X) {
+  const As = await import('./asistente_copia.js');
+  As.abrir({ v: X.v, alTerminar: out => { const tipo = out.__tipo || 'copia'; delete out.__tipo; if (out.__pieza) { MALLAS.pieza = out.__pieza; delete out.__pieza; }
+    if (X.tipo && X.tipoActual() !== tipo) X.tipo(tipo); Object.entries(out).forEach(([k, [val, e]]) => X.pon(k, val, val == null ? 'falta' : e)); X.toast('Hecho: lo marcado «≈» sale de la foto; confírmalo o mídelo.', 'ok', 7000); X.rehaz(); } });
+}
+// ---------- 13-10-2026 · 🏁 DIFERENCIAL RC LISTO PARA MONTAR: «que solo tenga que poner el eje y el pasador» (la dueña) ----------
+// Es el diferencial completo de arriba con CASQUILLOS impresos (sin rodamientos), la tapa A PRESIÓN y la caja con PASADORES impresos
+// (sin tornillos). Lo único que no se imprime: el eje del piñón y el pasador de la cruceta (de acero; también salen impresos).
+// Las medidas de cada escala son de PARTIDA (ESTIMADAS, las habituales; no medidas en un coche concreto): se cambian abajo.
+// (1/16 y 1/24: elegidas entre varias probándolas con el montaje virtual: con coronas más pequeñas el piñón tocaba la carcasa)
+export const ESCALAS_DIF = {
+  '10': { t: '1/10 (buggy, truggy, monster)', m: 1, zc: 38, zpi: 13, ms: 0.8, zpl: 16, zsa: 10, salida: 'hex', ejeSal: 5, cruceta: 3, ejePinon: 5, bujeCaja: 10, pared: 2.5, holg: 1.5 },
+  '16': { t: '1/16', m: 0.8, zc: 40, zpi: 12, ms: 0.8, zpl: 12, zsa: 9, salida: 'hex', ejeSal: 4, cruceta: 2.5, ejePinon: 4, bujeCaja: 8, pared: 2.2, holg: 1.2 },
+  '24': { t: '1/24 (mini)', m: 0.8, zc: 36, zpi: 10, ms: 0.8, zpl: 10, zsa: 8, salida: 'd', ejeSal: 3, cruceta: 2, ejePinon: 3, bujeCaja: 6, pared: 2, holg: 1 } };
+const difListo = v => { const E = ESCALAS_DIF[v.escala] || ESCALAS_DIF['10'], o = Object.assign({}, E, { alfa: '20', juego: 0.1, ns: v.ns || '2', vista: v.vista, rodCaja: 'impreso', rodPinon: 'impreso', torTapa: 'presion', torCaja: 'pasadores' });
+  ['zc', 'zpi', 'ejeSal', 'cruceta', 'ejePinon', 'bujeCaja'].forEach(k => { if (v[k] > 0) o[k] = v[k]; }); if (v.salida) o.salida = v.salida;
+  const cal = EC.calDe(v.imp, v.mat); if (cal) o.juego += cal.dJ; return o; };
+TIPOS.diferencialListo = { e: '🏁', t: 'Diferencial RC listo para montar', d: 'Solo pones el eje y el pasador: sin rodamientos ni tornillos',
+  campos: [s('escala', 'Escala', Object.entries(ESCALAS_DIF).map(([k, E]) => [k, E.t]), { def: '10', ayuda: 'Medidas de partida habituales de cada escala (ESTIMADAS). Si tu coche lleva otras, cámbialas abajo.' }),
+    s('ns', 'Satélites', [['2', '2 satélites'], ['4', '4 satélites (más fuerte)']], { def: '2' }),
+    s('salida', 'Salida a las ruedas', [['', 'La de la escala'], ['hex', 'Hexágono'], ['d', 'Eje en D'], ['redonda', 'Redonda']], { def: '' }),
+    n('ejeSal', 'Salida: medida (vacío = la de la escala)', { min: 0, max: 14 }), n('cruceta', 'Pasador de la cruceta: Ø (vacío = el de la escala)', { min: 0, max: 6, paso: 0.1, ayuda: 'Un trozo de varilla, un clavo o un tornillo de esa medida. También sale impreso.' }),
+    n('ejePinon', 'Eje del piñón: Ø (vacío = el de la escala)', { min: 0, max: 10, paso: 0.1 }), n('zc', 'Dientes de la corona (vacío = los de la escala)', { u: '', min: 0, max: 80, paso: 1 }), n('zpi', 'Dientes del piñón de ataque (vacío = los de la escala)', { u: '', min: 0, max: 30, paso: 1 }),
+    s('imp', 'Impresora', [['P1P', 'Bambu P1P'], ['A1 mini', 'Bambu A1 mini']], { def: 'P1P' }), s('mat', 'Material', [['PETG', 'PETG (mejor para RC)'], ['PLA', 'PLA']], { def: 'PETG' }),
+    s('vista', 'Ver', [['montado', 'Montado (la caja, transparente)'], ['corte', 'En corte (por la mitad)'], ['despiezado', 'Despiezado']], { def: 'montado' })],
+  ejemplo: {},
+  calcula(v) { const o = difListo(v), L = TIPOS.diferencialRC.calcula(o); L.unshift(['Escala', (ESCALAS_DIF[v.escala] || ESCALAS_DIF['10']).t, 'medidas de partida ESTIMADAS'], ['Lo que NO se imprime', 'eje Ø ' + f(o.ejePinon) + ' y pasador Ø ' + f(o.cruceta), 'de acero (o impresos)']); return L; },
+  revisa(v) { const L = TIPOS.diferencialRC.revisa(difListo(v)).slice(); L.push({ n: 'ok', t: 'Sin rodamientos ni tornillos: casquillos impresos con tu holgura «gira», la tapa a presión y la caja con pasadores impresos.' }); return L; },
+  construye(v) { return TIPOS.diferencialRC.construye(difListo(v)); },
+  cotas(v) { return TIPOS.diferencialRC.cotas ? TIPOS.diferencialRC.cotas(difListo(v)) : []; },
+  // la prueba: una placa con los TRES agujeros que tienen que girar (casquillo de la carcasa, eje del piñón y pasador de la cruceta), un
+  // trozo del buje para ver que gira suave en el suyo, y la pareja corona–piñón (lo mismo que el completo)
+  kit(v) { const o = difListo(v), g = ENCAJES.gira, R = difDe(o), dz = 4, L = o.bujeCaja + o.ejePinon + o.cruceta + 30;
+    let placa = N.forma3d('caja', { x: L, y: o.bujeCaja + 10, z: dz, radio: 2 }); const xs = [-L / 2 + o.bujeCaja / 2 + 6, -L / 2 + o.bujeCaja + o.ejePinon / 2 + 14, L / 2 - o.cruceta / 2 - 6];
+    [[o.bujeCaja, xs[0]], [o.ejePinon, xs[1]], [o.cruceta, xs[2]]].forEach(([d, x]) => { placa = placa.subtract(N.forma3d('cilindro', { d: d + 2 * g, h: dz + 2 }).translate([x, 0, -1])); });
+    const buje = N.forma3d('cilindro', { d: o.bujeCaja, h: dz + 6 }).translate([0, o.bujeCaja / 2 + 12, 0]);
+    return { t: 'Prueba: los agujeros que giran (casquillo Ø ' + f(o.bujeCaja) + ', eje Ø ' + f(o.ejePinon) + ', pasador Ø ' + f(o.cruceta) + ') + un trozo del buje, y la pareja corona–piñón', d: 'El trozo de buje tiene que girar SUAVE en el agujero grande, y tu eje y tu pasador en los suyos, sin bailar. Gira el piñón contra la corona a mano: tienen que rodar sin saltar. Si algo aprieta, imprime en PETG o revisa tu calibración.', partes: [{ m: placa.add(buje), nombre: 'prueba_casquillos' }, { m: R.partes.pinon, nombre: 'piñon' }, { m: R.partes.carcasa, nombre: 'carcasa_con_corona' }] }; } };
+// ---------- 13-10-2026 · 🔒 TRINQUETE y 🔗 ACOPLAMIENTOS (r8/mecanismos.js) ----------
+let memoMec = null;
+const mecDe = (k, v, fn) => { const key = k + JSON.stringify(v); if (!memoMec || memoMec.key !== key || !memoMec.vivo) memoMec = { key, vivo: true, R: fn() }; return memoMec.R; };
+export const olvidaMec = () => { if (memoMec) memoMec.vivo = false; };
+const FORMAS_EJE = [['redondo', 'Redondo'], ['d', 'En D (con plano)'], ['hex', 'Hexagonal (entre caras)'], ['cuadrado', 'Cuadrado']];
+TIPOS.trinquete = { e: '🔒', t: 'Trinquete', d: 'Rueda + uñeta con su muelle impreso: gira en un sentido, bloquea el otro',
+  campos: [est('z', 'Dientes de la rueda', 24, { u: '', min: 6, max: 120, paso: 1 }), est('D', 'Ø exterior de la rueda', 40, { min: 12, max: 300 }), est('h', 'Alto del diente', 3, { min: 1, max: 15, paso: 0.1, ayuda: 'Más alto = agarra más. Con boquilla de 0,4: 1,5 mm o más.' }),
+    est('b', 'Grosor', 6, { min: 2, max: 40, paso: 0.5 }), est('eje', 'Eje de la rueda (Ø; 0 = pivote impreso)', 5, { min: 0, max: 60 }), s('ejeForma', 'Forma del agujero', FORMAS_EJE, { def: 'redondo' }), n('plano', 'Del plano al otro lado', { req: 1, min: 0.5, max: 60, si: v => v.ejeForma === 'd' }),
+    s('sentido', 'Gira libre hacia', [['antihorario', 'Horario (bloquea al revés de las agujas del reloj)'], ['horario', 'Antihorario (bloquea a favor de las agujas)']], { def: 'antihorario' }),
+    n('L', 'Largo de la uñeta (vacío = el justo)', { min: 0, max: 200 }), c('placa', 'Con placa base (pivotes de la uñeta y del muelle a su distancia)', { def: true }),
+    s('vista', 'Ver', [['montado', 'Montado'], ['despiezado', 'Despiezado']], { def: 'montado' })],
+  ejemplo: {},
+  R(v) { return mecDe('trinquete', v, () => trinquete(v)); },
+  calcula(v) { const C = this.R(v).cuentas; if (!C.Ra) return []; return [['Paso entre dientes', f(C.paso, 2) + ' mm', 'en la punta'], ['Rampa del diente', f(C.rampa, 1) + '°', 'cuanto más tumbada, más suave salta la uñeta'], ['Uñeta', f(C.L, 1) + ' mm, a ' + f(C.beta, 0) + '°', 'inclinada hacia fuera de la tangente: se engancha sola'], ['Agarre', Math.round(C.agarre * 100) + ' % de la cara', 'lo que cubre la punta']]; },
+  revisa(v) { return this.R(v).avisos; },
+  construye(v) { const R = this.R(v), P = R.partes; if (!P.rueda) N.mal(R.avisos.map(a => a.t).join(' '));
+    const d = v.vista === 'despiezado' ? 1 : 0, L = [{ m: P.rueda.translate([0, 0, d * 12]), nombre: 'rueda', color: '#2457d6' }, { m: P.una.translate([0, 0, d * 24]), nombre: 'uñeta con muelle', color: '#ff8a3d' }];
+    if (P.placa) L.push({ m: P.placa, nombre: 'placa', color: '#8e9196' });
+    return { partes: L, choques: R.choques, imprimir: L.map(q => ({ m: q.m.translate([0, 0, -N.caja(q.m).min[2]]), nombre: q.nombre, color: q.color })) }; },
+  kit(v) { const R = this.R(Object.assign({}, v, { b: Math.min(3, v.b) })); return { t: 'Prueba: el trinquete entero con 3 mm de grosor', d: 'Monta la rueda y la uñeta en la placa: tiene que girar con un «clic-clic» suave en un sentido y quedarse clavada en el otro. Si la uñeta no vuelve sola, el muelle es poco: sube la precarga (escríbemelo).', partes: [R.partes.rueda, R.partes.una, R.partes.placa].filter(Boolean).map((m, i) => ({ m, nombre: ['rueda', 'uñeta', 'placa'][i] })) }; } };
+TIPOS.acople = { e: '🔗', t: 'Acoplamiento de ejes', d: 'Garras con estrella, Oldham, flexible o manguito',
+  campos: [s('tipo', 'Tipo', [['garras', 'De garras con estrella (amortigua)'], ['flexible', 'Flexible en espiral (una pieza)'], ['oldham', 'Oldham (ejes paralelos desplazados)'], ['manguito', 'Manguito rígido']], { def: 'garras' }),
+    est('D', 'Ø exterior', 25, { min: 8, max: 120 }), est('L', 'Largo total', 30, { min: 10, max: 200 }),
+    est('eje1', 'Eje 1 (Ø)', 5, { min: 1, max: 60, paso: 0.05 }), s('forma1', 'Eje 1: forma', FORMAS_EJE, { def: 'redondo' }), n('plano1', 'Eje 1: del plano al otro lado', { req: 1, min: 0.5, max: 60, si: v => v.forma1 === 'd' }),
+    est('eje2', 'Eje 2 (Ø)', 8, { min: 1, max: 60, paso: 0.05 }), s('forma2', 'Eje 2: forma', FORMAS_EJE, { def: 'redondo' }), n('plano2', 'Eje 2: del plano al otro lado', { req: 1, min: 0.5, max: 60, si: v => v.forma2 === 'd' }),
+    s('n', 'Garras por lado', [['3', '3'], ['2', '2'], ['4', '4']], { def: '3', si: v => v.tipo === 'garras' }), c('prisioneros', 'Con prisioneros M3 (tornillo que aprieta el eje)', { def: true })],
+  ejemplo: {},
+  R(v) { return mecDe('acople', v, () => acople(Object.assign({}, v, { n: Number(v.n) }))); },
+  calcula(v) { const R = this.R(v); return [['Piezas', R.piezas.map(q => q.nombre).join(' · '), ''], ['Pared mínima', f(v.D / 2 - Math.max(v.eje1, v.eje2) / 2, 2) + ' mm', 'entre el eje más gordo y el exterior']]; },
+  revisa(v) { return this.R(v).avisos; },
+  construye(v) { const R = this.R(v); return { partes: R.piezas, choques: R.choques.length ? R.choques : null, imprimir: R.piezas.map(q => ({ m: q.m.translate([0, 0, -N.caja(q.m).min[2]]), nombre: q.nombre, color: q.color })) }; },
+  kit(v) { const g = ENCAJES.gira, pr = ENCAJES.presion; let pl = N.forma3d('caja', { x: v.eje1 + v.eje2 + 20, y: Math.max(v.eje1, v.eje2) + 10, z: 4, radio: 2 });
+    [[v.eje1, v.forma1, v.plano1, -(v.eje2 + 10) / 2], [v.eje2, v.forma2, v.plano2, (v.eje1 + 10) / 2]].forEach(([d, fo, pl0, x]) => { const s2 = hueco2(fo || 'redondo', d + 2 * pr, (pl0 || 0) + pr); if (s2) pl = pl.subtract(s2.extrude(6).translate([x, 0, -1])); });
+    return { t: 'Prueba: los dos agujeros de los ejes en una placa de 4 mm', d: 'Mete tus dos ejes: tienen que entrar justos, a presión (tu holgura 0,05). Si bailan o no entran, revisa la calibración antes de imprimir el acople.', partes: [{ m: pl, nombre: 'prueba_ejes' }] }; } };
+// ---------- 13-10-2026 · 🔑 CERRAJERÍA (r8/mecanismos.js) y 🍪 CORTADOR DE GALLETAS / FONDANT (r8/copia_pieza.js) ----------
+const PIEZAS_CER = [['escudo', 'Escudo / roseta de puerta'], ['cerradero', 'Cerradero (placa del marco)'], ['pomo', 'Pomo con cuadradillo'], ['leva', 'Leva de buzón o de mueble'], ['cuadradillo', 'Adaptador de cuadradillo']];
+const siC = (...L) => v => L.includes(v.cual); // («cual» y no «pieza»: «pieza» es ya el nombre del repuesto, en «Del aparato»)
+TIPOS.cerrajeria = { e: '🔑', t: 'Cerrajería', d: 'Escudos, cerraderos, pomos, levas de buzón y adaptadores',
+  campos: [s('cual', 'Qué pieza', PIEZAS_CER, { def: 'escudo' }),
+    s('hueco', 'Hueco del centro', [['bombin', 'Bombín (perfil europeo)'], ['cuadradillo', 'Cuadradillo'], ['redondo', 'Redondo']], { def: 'bombin', si: siC('escudo') }),
+    s('huecoLeva', 'Agujero de la leva', [['dd', 'Doble D (Ø y entre planos)'], ['cuadrado', 'Cuadrado']], { def: 'dd', si: siC('leva') }),
+    est('D', 'Ø exterior', 52, { min: 15, max: 200, si: siC('escudo', 'pomo') }), est('e', 'Grosor', 3, { min: 1, max: 30, paso: 0.2, si: siC('escudo', 'cerradero', 'leva') }),
+    n('dHueco', 'Ø del hueco', { req: 1, min: 2, max: 150, si: v => v.cual === 'escudo' && v.hueco === 'redondo' }),
+    est('a', 'Cuadradillo / entre planos (lado)', 8, { min: 2, max: 40, paso: 0.05, si: v => ['cuadradillo', 'pomo', 'leva'].includes(v.cual) || (v.cual === 'escudo' && v.hueco === 'cuadradillo') }),
+    est('A', 'Cuadrado de fuera (lado)', 10, { min: 3, max: 60, paso: 0.05, si: siC('cuadradillo') }), est('L', 'Largo', 20, { min: 2, max: 200, si: siC('cuadradillo') }),
+    est('dEje', 'Ø del eje (doble D)', 10, { min: 2, max: 40, paso: 0.05, si: v => v.cual === 'leva' && v.huecoLeva === 'dd' }),
+    est('largo', 'Largo', 50, { min: 10, max: 300, si: siC('cerradero', 'leva') }), est('ancho', 'Ancho', 22, { min: 6, max: 120, si: siC('cerradero', 'leva') }),
+    est('hAncho', 'Hueco del pestillo: ancho', 10, { min: 2, max: 80, si: siC('cerradero') }), est('hAlto', 'Hueco del pestillo: alto', 20, { min: 2, max: 150, si: siC('cerradero') }),
+    est('alto', 'Alto del pomo', 25, { min: 8, max: 120, si: siC('pomo') }), est('prof', 'Hondo del agujero', 15, { min: 3, max: 100, si: siC('pomo') }),
+    est('dTor', 'Tornillos: Ø', 3.5, { min: 0, max: 8, paso: 0.1, si: siC('escudo', 'cerradero') }), est('sepTor', 'Tornillos: entre centros', 38, { min: 0, max: 300, si: siC('escudo', 'cerradero') })],
+  ejemplo: {},
+  R(v) { return mecDe('cerrajeria', v, () => cerrajeria(Object.assign({}, v, { pieza: v.cual, hueco: v.cual === 'leva' ? (v.huecoLeva === 'cuadrado' ? 'cuadrado' : 'dd') : v.hueco }))); },
+  calcula(v) { return [['Pieza', (PIEZAS_CER.find(x => x[0] === v.cual) || [])[1] || '', 'con tus medidas y tus holguras']].concat(v.cual === 'escudo' && v.hueco === 'bombin' ? [['Perfil del bombín', '17 · 10 · 33 mm', 'europeo (DIN 18252) + tu holgura «gira»']] : []); },
+  revisa(v) { return this.R(v).avisos; },
+  construye(v) { const R = this.R(v); if (!R.m) N.mal('No se ha podido construir.'); return { partes: [{ m: R.m, nombre: v.cual }] }; },
+  kit(v) { const R = this.R(v), b = N.caja(R.m), corte = N.forma3d('caja', { x: b.dims[0] + 2, y: b.dims[1] + 2, z: Math.min(2, b.dims[2]), radio: 0 }).translate([(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, b.min[2]]);
+    return { t: 'Prueba: los primeros 2 mm de la pieza', d: 'Una lámina con los mismos huecos y agujeros: pruébala en el bombín, el cuadradillo o el pestillo antes de imprimir la pieza entera.', partes: [{ m: R.m.intersect(corte), nombre: 'prueba_' + v.cual }] }; } };
+TIPOS.cortador = { e: '🍪', t: 'Cortador de galletas / fondant', d: 'Desde una foto o un dibujo: la forma, a tu medida',
+  campos: [n('largo', 'Tamaño (lo más largo de la forma)', { req: 1, min: 15, max: 250, def: 70 }), s('uso', 'Para', [['galletas', 'Galletas (pared 1 mm, 14 mm de alto)'], ['fondant', 'Fondant y arcilla (más fino, 10 mm)']], { def: 'galletas' }),
+    c('conReborde', 'Con reborde arriba (para apretar sin hacerte daño)', { def: true }), c('soloFuera', 'Solo el contorno de fuera (si es un dibujo de línea o no quieres los huecos de dentro)', { def: false })],
+  ejemplo: {},
+  A() { return MALLAS.cortador && MALLAS.cortador.A; },
+  o(v) { const fd = v.uso === 'fondant'; return { largo: v.largo, alto: fd ? 10 : 14, pared: fd ? 0.8 : 1.0, filo: fd ? 0.45 : 0.6, reborde: 3, conReborde: v.conReborde !== false }; },
+  calcula(v) { const A = this.A(); if (!A) return [['Falta la forma', 'pulsa «📷 Foto o dibujo»', '']]; const o = this.o(v); return [['Pared · filo · alto', f(o.pared) + ' · ' + f(o.filo) + ' · ' + f(o.alto) + ' mm', 'el filo fino va abajo: corta limpio'], ['Ancho de la forma', '≈ ' + f(A.ancho * v.largo / A.largo, 1) + ' mm', 'sale de la foto']]; },
+  revisa(v) { const A = this.A(); if (!A) return [{ n: 'error', t: 'Falta la forma: pulsa «📷 Foto o dibujo de la forma».' }]; const R = this.hazlo(v), L = [];
+    if (R.finos) L.push({ n: 'aviso', t: 'La forma tiene partes muy finas (menos de 1,2 mm) que la masa no rellenará bien: hazla más grande o simplifica el dibujo.' });
+    L.push({ n: 'ok', t: 'Imprímelo con el REBORDE abajo (en la cama): el filo fino queda arriba y sale limpio. PLA o PETG; para comida, lávalo bien y usa filamento apto (PETG, por ejemplo).' }); return L; },
+  hazlo(v) { const A = this.A(), A2 = v.soloFuera ? Object.assign({}, A, { agujeros: [] }) : A; return cortador(A2, this.o(v)); },
+  construye(v) { const R = this.hazlo(v); return { partes: [{ m: R.m, nombre: 'cortador' }], imprimir: [{ m: R.m.mirror([0, 0, 1]).translate([0, 0, this.o(v).alto]), nombre: 'cortador (reborde abajo)' }] }; },
+  kit(v) { const R = this.hazlo(Object.assign({}, v, { conReborde: false })), b = N.caja(R.m); return { t: 'Prueba: el filo de 3 mm de alto', d: 'Pásalo por la masa: tiene que cortar limpio y del tamaño que quieres.', partes: [{ m: R.m.intersect(N.forma3d('caja', { x: b.dims[0] + 2, y: b.dims[1] + 2, z: 3, radio: 0 }).translate([(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, 0])), nombre: 'prueba_filo' }] }; },
+  acciones: [{ t: '📷 Foto o dibujo de la forma', fn: async X => { const C = await import('./comun.js'), fi = await C.pideArchivo('image/*'); if (!fi) return; X.toast('Sacando la forma…', '', 2500);
+    try { const As = await import('./asistente_copia.js'), S = await As.silueta(fi); if (!S.pz) throw new Error('No encuentro la forma: dibújala con rotulador gordo sobre papel blanco, o haz la foto sobre un fondo liso.');
+      const A = CP.analiza(S.pz), grande = A.agujeros.length && Math.abs(A.agujeros.reduce((m, h) => Math.max(m, Math.abs(CP.areaDe(h.anillo))), 0)) > 0.5 * Math.abs(CP.areaDe(A.R));
+      MALLAS.cortador = { A }; if (grande) X.pon('soloFuera', true); X.toast(grande ? 'Parece un dibujo de línea: uso solo su contorno de fuera.' : 'Forma lista: ponle el tamaño.', 'ok', 6000); X.rehaz(); } catch (e) { X.toast(e.message || String(e), 'bad', 9000); } } }] };
+// ---------- 13-10-2026 · 🔪 PORTACUCHILLAS, FUNDAS Y GUÍAS DE CORTE (r8/mecanismos.js) ----------
+const siK = (...L) => v => L.includes(v.cual);
+TIPOS.corte = { e: '🔪', t: 'Portacuchillas, fundas y guías', d: 'Con las medidas de tu hoja: funda, mango o guía de corte',
+  campos: [s('cual', 'Qué pieza', [['funda', 'Funda / protector del filo'], ['portacuchillas', 'Portacuchillas (mango con prisionero)'], ['guia', 'Guía de corte con tope a escuadra']], { def: 'funda' }),
+    est('Lh', 'Hoja: largo', 100, { min: 10, max: 400, si: siK('funda', 'portacuchillas') }), est('Wh', 'Hoja: ancho', 18, { min: 2, max: 100, paso: 0.05, si: siK('funda', 'portacuchillas') }), est('th', 'Hoja: grueso', 0.5, { min: 0.1, max: 6, paso: 0.01, si: siK('funda', 'portacuchillas') }),
+    est('Lmango', 'Largo del mango', 110, { min: 60, max: 250, si: siK('portacuchillas') }), est('Lguia', 'Largo de la guía', 250, { min: 50, max: 600, si: siK('guia') }), est('Aguia', 'Ancho de la guía', 40, { min: 15, max: 150, si: siK('guia') })],
+  ejemplo: {},
+  R(v) { return mecDe('corte', v, () => corte(Object.assign({}, v, { pieza: v.cual }))); },
+  calcula(v) { return [['Pieza', v.cual === 'funda' ? 'funda' : v.cual === 'portacuchillas' ? 'portacuchillas' : 'guía de corte', 'con las medidas de tu hoja']]; },
+  revisa(v) { return this.R(v).avisos; },
+  construye(v) { return { partes: [{ m: this.R(v).m, nombre: v.cual }] }; },
+  kit(v) { const R = this.R(v), b = N.caja(R.m); return { t: 'Prueba: el primer trozo (15 mm)', d: 'Mete tu hoja: tiene que entrar justa, sin bailar ni forzar. Si no, revisa el grueso medido o tu calibración.', partes: [{ m: R.m.intersect(N.forma3d('caja', { x: b.dims[0] + 2, y: 15, z: b.dims[2] + 2, radio: 0 }).translate([(b.min[0] + b.max[0]) / 2, b.max[1] - 7.5, b.min[2] - 1])), nombre: 'prueba_hoja' }] }; } };
+// ---------- 13-10-2026 · 🧩 DIFERENCIAL RC POR PIEZAS (como el despiece de referencia de la dueña): el completo con un rodamiento distinto
+// a cada lado (8 × 16 junto a la corona y 10 × 15 en la tapa), 6 × 12 en el piñón, junta de TPU, ejes de salida impresos y tornillos.
+TIPOS.diferencialPiezas = { e: '🧩', t: 'Diferencial RC por piezas', d: 'Como un despiece de tienda: rodamientos, junta, salidas y tornillos',
+  campos: [est('m', 'Módulo de la corona y el piñón', 1, { min: 0.5, max: 3, paso: 0.05 }), est('zc', 'Dientes de la corona', 38, { u: '', min: 20, max: 80, paso: 1 }), est('zpi', 'Dientes del piñón de ataque', 13, { u: '', min: 8, max: 30, paso: 1 }),
+    s('rodCaja', 'Rodamiento junto a la corona', OPS_ROD, { def: '8x16x5', est: 1 }), s('rodCaja2', 'Rodamiento de la tapa', OPS_ROD, { def: '10x15x4', est: 1 }), s('rodPinon', 'Rodamientos del piñón', OPS_ROD, { def: '6x12x4', est: 1 }),
+    est('ejePinon', 'Eje del piñón (Ø)', 6, { min: 2, max: 10, paso: 0.5 }), s('salida', 'Salida de los planetarios', [['d', 'Eje en D'], ['hex', 'Hexágono'], ['redonda', 'Redonda']], { def: 'd', est: 1, ayuda: 'En D de 5 mm deja 1,2 mm de pared con un rodamiento de 8 mm; un hexágono de 5 no cabe (0,76).' }), est('ejeSal', 'Medida de la salida', 5, { min: 2, max: 12 }), est('planoSal', 'Salida en D: del plano al otro lado', 4, { min: 1, max: 12, si: v => v.salida === 'd' }),
+    est('cruceta', 'Pasador de la cruceta (Ø)', 3, { min: 1.5, max: 6, paso: 0.1 }), c('junta', 'Con junta de TPU (aceite)', { def: true }), c('ejeSalida', 'Con los ejes de salida impresos', { def: true }),
+    est('largoSal', 'Ejes de salida: lo que salen por fuera', 14, { min: 4, max: 60, si: v => v.ejeSalida }), est('pinSal', 'Ejes de salida: Ø del pasador', 2, { min: 1, max: 4, paso: 0.1, si: v => v.ejeSalida }),
+    s('vista', 'Ver', [['despiezado', 'Despiezado (como el despiece)'], ['montado', 'Montado'], ['corte', 'En corte']], { def: 'despiezado' })],
+  ejemplo: {},
+  v(v) { return Object.assign({ alfa: '20', juego: 0.1, ms: 0.8, zpl: 16, zsa: 10, ns: '2', torTapa: 'M2.5', torCaja: 'M3', pared: 2.5, holg: 1.5 }, v); },
+  calcula(v) { return TIPOS.diferencialRC.calcula(this.v(v)); }, revisa(v) { return TIPOS.diferencialRC.revisa(this.v(v)); }, construye(v) { return TIPOS.diferencialRC.construye(this.v(v)); },
+  cotas(v) { return TIPOS.diferencialRC.cotas(this.v(v)); }, kit(v) { return TIPOS.diferencialRC.kit(this.v(v)); } };

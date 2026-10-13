@@ -4,8 +4,9 @@ import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can
 import { aplicarColor, colorActual, dialogoColores, dialogoPlan } from './v17.js'; // v17: colores, plan de impresión y calendario
 import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
-import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30, selectorTema } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
+import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30, es50, selectorTema } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
 import { debeEstrenar20 } from './estreno20.js';
+import { pintaRail, marcaRail, lanzador, debeEstrenar50 } from './ui50.js'; // 13-10-2026 · la cara «CelebriDiseños»: barra lateral, lanzador y estreno
 import { debeRegalar } from './regalos302.js'; // v30.2 · 🎁 los 4 regalos (sale una vez, después del estreno)
 import { debeEstrenar30 } from './estreno30.js'; // v30: el estreno de la 30 (va antes que el de la 20) // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
 import { desktop } from './desktop.js';
@@ -165,7 +166,8 @@ async function route() {
     window.scrollTo(0, 0);
     entrada(content); // v14.0: el contenido entra suave
     if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); setTimeout(embalajeAuto, 6000); setTimeout(() => import('./r8/pregunta_rodamiento.js').then(m => m.alArrancar()).catch(() => { }), 9000); } // v16.1 · v20.2 · v20.3: «¿cuál de tus rodamientos de prueba gira?»
-    if (!route._est && debeEstrenar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer')) estreno({ ir: go }); else route._est = false; }, 900); }
+    if (!route._est && debeEstrenar50()) { route._est = route._inau = true; try { ['cd.estreno18', 'cd.estreno20', 'cd.estreno30', 'cd.inaug14'].forEach(k => localStorage.setItem(k, '1')); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) estrenoCD(); else route._est = false; }, 900); } // 13-10-2026
+    else if (!route._est && debeEstrenar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer')) estreno({ ir: go }); else route._est = false; }, 900); }
     else if (!route._est && debeEstrenar30()) { route._est = route._inau = true; try { localStorage.setItem('cd.estreno20', '1'); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno30.js').then(m => m.estreno30({ ir: go })); else route._est = false; }, 900); } // v30
     else if (!route._est && debeEstrenar20()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno20.js').then(m => m.estreno20({ ir: go })); else route._est = false; }, 900); } // v20.1 (la 18 va primero si no se vio)
     else if (!route._est && debeRegalar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis, .est20, .rg302')) import('./regalos302.js').then(m => m.regalos({ ir: go })); else route._est = false; }, 1400); } // v30.2
@@ -201,6 +203,7 @@ function precalentar() {
 function openNav() { document.body.classList.add('nav-open'); }
 export function closeNav() { document.body.classList.remove('nav-open'); }
 function toggleNav() {
+  if (es50()) return abrirTodo(); // (cara «CelebriDiseños»: el ☰ abre el lanzador con todas las secciones)
   if (document.body.classList.contains('nav-pinned') && matchMedia('(min-width: 900px)').matches) return pinNav(false);
   document.body.classList.toggle('nav-open');
 }
@@ -209,6 +212,15 @@ function pinNav(v) {
   try { localStorage.setItem('cd.navFijo', v ? '1' : '0'); } catch (e) { }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) closeNav(); });
+// el lanzador: todas las secciones (las que el menú de esa persona deja ver), por grupos y con sus avisos. Ctrl + espacio.
+function abrirTodo() {
+  if (!shell || !shell.lista) return;
+  const grupos = []; let g = { t: 'Lo principal', items: [] };
+  shell.lista.forEach(n => { if (n.sep) { if (g.items.length) grupos.push(g); g = { t: n.t || 'Más', items: [] }; } else g.items.push({ k: n.k, t: n.t, i: n.i, n: (shell.counts || {})[n.k] || 0 }); });
+  if (g.items.length) grupos.push(g);
+  lanzador({ grupos, ir: go, buscarEnTodo: q => palette(q) });
+}
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.code === 'Space' && es50() && S.me && shell) { e.preventDefault(); abrirTodo(); } });
 function accountMenu(anchor) {
   const old = document.querySelector('.acct-menu'); if (old) { old.remove(); return; }
   const r = anchor.getBoundingClientRect();
@@ -266,14 +278,15 @@ function buildShell() {
   const content = h('main.content', { id: 'main' });
   const tabbar = h('nav.tabbar', { 'aria-label': 'Secciones principales' });
   const fab = h('button.fab', { title: 'Crear', onclick: () => quickCreate() }, icon('plus', 'l'));
-  const root = h('div.shell', sidebar, scrim, h('div.main', topbar, banner, content), tabbar, fab);
+  const rail = h('aside.rail50', { 'aria-label': 'Barra lateral' }); // (solo se ve en la cara «CelebriDiseños»)
+  const root = h('div.shell', rail, sidebar, scrim, h('div.main', topbar, banner, content), tabbar, fab);
   mount(app, root);
   sidebar.addEventListener('click', e => { if (e.target.closest('a') && !document.body.classList.contains('nav-pinned')) closeNav(); });
   try { if (localStorage.getItem('cd.navFijo') === '1') document.body.classList.add('nav-pinned'); } catch (e) { }
-  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar, meBtn, meDot, quick };
+  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar, meBtn, meDot, quick, rail };
   refreshShell();
 }
-function markNav(name) { if (!shell) return; shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); if (shell.quick) shell.quick.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
+function markNav(name) { if (!shell) return; marcaRail(shell.rail, name); shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); if (shell.quick) shell.quick.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
 
 // v11.1: decisiones pendientes de CelebryNova en el menú (solo en el PC y para quien lo administra)
 let novaTimer = null;
@@ -349,6 +362,8 @@ function refreshShell() {
   if (shell.navSig !== navSig) { shell.navSig = navSig;
   // v13.10: el administrador ordena y oculta los apartados del menú a su gusto (para todo el equipo)
   const lista = menuNav(NAV).filter(n => n.sep || visible(n)).filter((n, i, a) => !(n.sep && (!a[i + 1] || a[i + 1].sep)));
+  shell.lista = lista; shell.counts = counts;
+  pintaRail(shell.rail, { visibles: new Set(lista.filter(n => !n.sep).map(n => n.k).concat(es18() ? ['puente'] : [])), counts, abrirTodo, logo: S.cfg && S.cfg.empresa && S.cfg.empresa.logo });
   // v16: grupos plegables. Un grupo cerrado enseña la suma de sus avisos; el apartado en el que estás nunca se esconde.
   const cerr = navCerrados(); let grupo = '';
   const sumas = {}; lista.forEach(n => { if (n.sep) grupo = n.t || ''; else if (grupo && counts[n.k]) sumas[grupo] = (sumas[grupo] || 0) + counts[n.k]; }); grupo = '';
@@ -413,6 +428,12 @@ function refreshBanner(n) {
   document.title = (n ? `(${n}) ` : '') + ((S.cfg && S.cfg.empresa.nombre) || 'CelebriDiseños');
 }
 export function roleName(r) { return roleLabel(r); }
+// el estreno de la cara «CelebriDiseños» (también desde Ctrl K → «estreno»)
+export function estrenoCD() {
+  return import('./ui50.js').then(m => m.estreno50({ ir: go, activar: () => { if (!es50()) ponInterfaz('v50'); },
+    novedades: [['🧭', 'Barra lateral', 'Lo de todos los días, siempre a la vista', 'pedidos'], ['🚀', 'Todo en una pantalla', 'El botón «Todo» o Ctrl + espacio', 'puente'],
+      ['🎨', 'Cuatro temas nuevos', 'Aurora, Eclipse, Perla y Champán', 'puente'], ['🧊', 'Diseñar', 'Tu CelebriR8, a un toque', 'celebrir8']] }));
+}
 
 function syncPanel() {
   const q = S.queue;
@@ -504,6 +525,7 @@ export function accionesPaleta() {
     fn('🎯 Calibrar tu calibre y tu impresora (probeta de precisión: luego todo sale corregido solo)', 'sparkles', () => import('./r8/calibracion_ui.js').then(m => m.abrir()), '', 'calibrar calibre impresora precision probeta medir compensar encoge agujeros contorno pie elefante monedas'), // v20.4
     fn('🔩 Rodamiento de metal: apuntar qué aro de su plantilla lo sujetó', 'sparkles', () => import('./r8/pregunta_rodamiento.js').then(m => m.preguntarMetal()), '', 'metal comprado plantilla aro ajuste mr115 608 muescas rayitas'), // v20.2.2
     fn('🎁 Los 4 regalos de la 30.2 (texto en caras, llenar la cama, QR, colores por capas)', 'sparkles', () => import('./regalos302.js').then(m => m.regalos({ ir: go })), '', 'regalos regalo premium sorpresa 30.2 qr llavero colores capas pausa llenar cama texto cara'),
+    fn('Ver el estreno de CelebriDiseños (la cara nueva)', 'sparkles', () => estrenoCD(), '', 'estreno inauguración fiesta nueva interfaz cara novedades aurora'),
     fn('Ver el estreno de la 30 (el «30» de oro imprimiéndose)', 'sparkles', () => import('./estreno30.js').then(m => m.estreno30({ ir: go })), '', 'estreno 30 treinta inauguración fiesta nueva versión novedades'),
     fn('Ver el estreno de la 20 (el «20» imprimiéndose en 3D)', 'sparkles', () => import('./estreno20.js').then(m => m.estreno20({ ir: go })), '', 'estreno inauguración fiesta novedades cine 20 celebrir8 imprimir'),
     fn('Ver el estreno de la 18', 'sparkles', () => estreno({ ir: go }), '', 'estreno inauguración fiesta novedades cine'),

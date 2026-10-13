@@ -216,14 +216,14 @@ function renderMarco(el) {
   const ancho = () => window.innerWidth >= 900;
   let foco = guardado('cd.r8.foco', '1') === '1';
   const ponFoco = v => { foco = v; apunta('cd.r8.foco', v ? '1' : '0'); document.documentElement.classList.toggle('r8-foco', v && ancho()); pintaCab(); };
-  const bFoco = h('button.r8v-bt', { type: 'button', onclick: () => ponFoco(!foco) }), bAyuda = h('button.r8v-bt.r8v-ayuda', { type: 'button', title: 'Aprender a utilizar CelebriR8 (visita guiada)', onclick: () => visita() }, '❓ ', h('span', 'Aprender'));
+  const bFoco = h('button.r8v-bt', { type: 'button', onclick: () => ponFoco(!foco) }), bAyuda = h('button.r8v-bt.r8v-ayuda', { type: 'button', title: 'Aprender a utilizar CelebriR8 (visita guiada)', onclick: () => aprender() }, '❓ ', h('span', 'Aprender'));
   // Noche / Día también dentro de CelebriR8 (en modo taller la barra del negocio no se ve)
   const bModo = h('button.r8v-bt.r8v-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: async () => { const U = await import('../ui18.js'); const m = U.cambiaModo(); bModo.textContent = m === 'noche' ? '🌙' : '☀️'; const b = document.querySelector('.topbar .u18-modo'); if (b) b.textContent = bModo.textContent; } }, document.documentElement.getAttribute('data-modo') === 'dia' ? '☀️' : '🌙');
   const bTema = h('span.r8v-tema'); import('../ui18.js').then(U => { if (U.selectorTema) bTema.replaceWith(U.selectorTema()); }).catch(() => { }); // v30.7.1: el desplegable de temas, también aquí
   const bNegocio = h('button.r8v-bt.r8v-negocio', { type: 'button', title: 'Volver al programa del negocio (pedidos, clientes…)', onclick: () => go('puente') }, '← ', h('span', 'Negocio'));
   const barra = h('div.r8v-estado', { role: 'status', 'aria-live': 'polite' });
   let actual = null, turno = 0, estudioVivo = null; // v20.2: el Estudio no se apaga al cambiar de pestaña (volver es al momento)
-  const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO 30'))), tabs, h('div.r8v-acc', bAyuda, bTema, bModo, bFoco)), cuerpo, barra);
+  const raiz = h('div.r8v', h('div.r8v-cab', bNegocio, h('div.r8v-logo', h('span.r8v-cubo', '🧊'), h('div', h('b', 'CelebriR8'), h('small', 'ESTUDIO'))), tabs, h('div.r8v-acc', bAyuda, bTema, bModo, bFoco)), cuerpo, barra);
   el.appendChild(raiz);
   // v30.6.3 · si se ha entrado con la placa de calibración todavía imprimiéndose, arriba queda el botón para terminarla
   import('../r8/calibracion_puerta.js').then(PU => { if (PU.sinPuerta() || PU.calibrada()) return; const b = h('button.r8v-bt.r8v-calpend', { type: 'button', title: 'La placa de calibración se está imprimiendo: cuando acabe, mide las 3 probetas y termina aquí', onclick: () => PU.abrirPlaca3({ alCerrar: () => { if (PU.calibrada()) b.remove(); } }) }, '🎯 ', h('span', 'Terminar la calibración')); const acc = raiz.querySelector('.r8v-acc'); if (acc) acc.prepend(b); }).catch(() => { });
@@ -280,6 +280,8 @@ function renderMarco(el) {
   const vigia = setInterval(() => { if (E && !E.enMarcha().length) E.sistema(true).catch(() => { }); }, 30000);
   // ---------- la visita guiada ----------
   async function visita(desde) { const V = await import('../r8/visita.js'); V.empezar({ ir, desde, alSalir: () => { } }); }
+  // 13-10-2026 · «❓ Aprender» abre el menú de lecciones (la visita general y una lección por cada cosa del Precision Lab)
+  async function aprender() { const L = await import('../r8/lecciones.js'); L.abrir({ ir }); }
   const alCambiarTam = () => document.documentElement.classList.toggle('r8-foco', foco && ancho());
   window.addEventListener('resize', alCambiarTam);
   ponFoco(foco); pinta(); ir(PEST);

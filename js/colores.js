@@ -96,7 +96,7 @@ export function selector(opts = {}) {
     const otro = inp({ placeholder: 'Otro color (p. ej. verde agua)', 'aria-label': 'Otro color', style: { maxWidth: '220px' } });
     otro.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (otro.value.trim()) { abiertoOtro = false; pon(otro.value.trim()); } } });
     const modos = [['uno', '🎨 Un color'], ['mezcla', '🌗 Una pieza con varios colores'], ['unidades', '🔢 Varias piezas de colores distintos']];
-    el.replaceChildren(
+    ponHijos(el,
       h('div.seg.sm.col-modos', modos.map(([k, t]) => h('button' + (st.modo === k ? '.on' : ''), { type: 'button', 'data-modo': k, onclick: () => cambiaModo(k) }, t))),
       delProd.length ? h('div.col-grupo', h('div.tiny.muted', 'Colores de este producto'), h('div.chips', delProd.map(c => chip(c, true)))) : null,
       h('div.col-grupo', h('div.tiny.muted', delProd.length ? 'Otros colores' : 'Colores'), h('div.chips', resto.map(c => chip(c)), propios.map(c => chip(c)),
@@ -118,6 +118,8 @@ export function selector(opts = {}) {
 // ================= v16.2 · COLORES DEL PRODUCTO: se eligen tocando círculos, no escribiendo =================
 // Primero salen los colores de TUS bobinas (las que no están agotadas), con su color de verdad; debajo, los demás.
 // Se guarda como siempre, en el campo «Color» del producto: «Blanco, Negro, Rosa» (así lo entienden pedidos y tienda).
+// (13-10-2026) «replaceChildren(null)» ESCRIBE la palabra «null»: salía dos veces en la ventana de pedido nuevo desde la 16.2. Lo vacío se quita antes.
+function ponHijos(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).filter(k => k !== null && k !== undefined && k !== false)); }
 const partir = t => String(t || '').split(/\s*[,/;]\s*/).map(x => x.trim()).filter(Boolean);
 const unico = l => { const v = new Set(); return l.filter(x => { const k = norm(x); if (!k || v.has(k)) return false; v.add(k); return true; }); };
 export function coloresDeBobinas(bobinas) {
@@ -161,7 +163,7 @@ export function paletaProducto(opts) {
     const mete = () => { const v = otro.value.trim(); otroAbierto = false; if (v) pon(lista().concat(partir(v))); else pinta(); };
     otro.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); mete(); } });
     const muchos = resto.length > 12 && bob.length > 0 && !verTodos;
-    el.replaceChildren(
+    ponHijos(el,
       h('div.pcol-cab', h('b', sel.length ? sel.length + (sel.length === 1 ? ' color elegido' : ' colores elegidos') : 'Toca los colores en los que lo haces'),
         bob.length ? btn('Todos los de mis bobinas', () => pon(lista().concat(bob.map(b => b.c))), { cls: 'sm pcol-todos' }) : null, sel.length ? btn('Quitar todos', () => pon([]), { cls: 'sm ghost pcol-nada' }) : null),
       bob.length ? h('div.pcol-g', h('div.tiny.muted', '🧵 De tus bobinas'), h('div.pcol-l', bob.map(b => circulo(b.c, b.hex)))) : null,

@@ -49,7 +49,7 @@ export async function montarPrecision(el, ext = {}) {
       try { const K = T.kit(vals), mk = N.union(K.partes.filter(p => p.m).map(p => p.m)); S.kit = { t: K.t, d: K.d, g: Math.max(0.1, mk.volume() / 1000 * 1.24), n: K.partes.length }; } catch (e) { S.kit = null; }
       pintaCotas(T.cotas ? T.cotas(vals) : []); S.ms = Math.round(performance.now() - t0);
     } catch (e) { S.avisos = [{ n: 'error', t: e.message || String(e) }]; S.info = null; if (esc) esc.ponPartes([]); pintaCotas([]); }
-    finally { N.limpia(); R.olvidaDif && R.olvidaDif(); }
+    finally { limpiaTodo(); }
     pintaDer(); pintaVacio(); publica();
   }
   function pintaVacio() { mount(vacio, S.faltan.length ? h('div', h('b', '❓ Faltan medidas'), h('small', 'Para construir la pieza necesito: ' + S.faltan.join(' · ') + '. Mídelas con el calibre; no me las invento.'), h('div.r8p-btns', btn('📋 Ver con un ejemplo', () => ejemplo(), { cls: 'sm' }))) : null); }
@@ -105,12 +105,17 @@ export async function montarPrecision(el, ext = {}) {
         [['spool', '🔒', 'Diferencial bloqueado (spool)'], ['difRectos', '⚙️', 'Diferencial de rectos'], ['cardan', '✚', 'Junta cardán (dobla sin chocar)'], ['esquinaDel', '🛞', 'Esquina delantera (trapecio + copa en C + mangueta)'], ['esquinaTras', '🛞', 'Esquina trasera (trapecio + portamangueta)'], ['palier', '🦴', 'Palier (dogbone)'], ['plantillaRodamientos', '🧪', 'Plantilla de rodamientos'], ['brazoServo', '🏎️', 'Más RC: servo, carrocería, repuestos…']].map(([k, e, t]) => h('button.r8pr-tipo.r8pr-ir', { type: 'button', 'data-ircat': k, title: 'Se abre en el catálogo RC (con sus medidas «mídelo» y su prueba de encaje)', onclick: () => ext.irA && ext.irA('catalogo', cat => { try { cat.abre && cat.abre(k); } catch (x) { } }) }, h('span', e), h('b', t), h('small', '↗ catálogo RC'))))),
       h('details.r8p-sec.r8pr-datos', { open: !!(S.v.pieza || S.v.marca) }, h('summary', h('b', '2 · Del aparato (para encontrarla otro día)')), R.DATOS_APARATO.map(c => h('div.r8pr-campo', h('label', { for: 'r8pr-' + c.k }, c.t, c.ayuda ? C.ayuda(c.ayuda) : null), h('input.inp', { id: 'r8pr-' + c.k, 'data-k': c.k, value: S.v[c.k] || '', onchange: e => { S.v[c.k] = e.target.value; } })))),
       h('div.r8p-sec.r8pr-medidas', h('b', '3 · Medidas · ' + T.t), h('small.muted', '✍️ tuya · ≈ de partida (confírmala) · 📋 ejemplo · ❓ falta'),
+        // 13-10-2026 · lo que se puede HACER en este tipo (asistente con fotos, contar los dientes, subir su STL, calibrar…), arriba
+        T.acciones ? h('div.r8pr-acc', T.acciones.filter(a => !a.si || a.si(S.v)).map(a => btn(a.t, () => a.fn(accion), { cls: 'sm' }))) : null,
         vis.map(campo),
         nEst || nEj ? h('p.r8p-nota.ojo', (nEj ? nEj + ' medida(s) son de ejemplo' : '') + (nEj && nEst ? ' y ' : '') + (nEst ? nEst + ' son valores de partida' : '') + ': confírmalas con el original antes de imprimir la pieza de verdad.') : null,
         h('div.r8p-btns', btn('📋 Ejemplo', () => ejemplo(), { cls: 'sm ghost r8pr-ejemplo', title: 'Rellena las medidas con un ejemplo (marcadas como ejemplo)' }), btn('🧹 Vaciar', () => elige(S.tipo, true), { cls: 'sm ghost' }))),
       h('div.r8p-sec', h('b', 'Mis repuestos'), lista()));
     publica();
   }
+  // (lo que se guarda de un cálculo a otro, el diferencial y la planetaria, apunta a piezas que limpia() borra: se olvida a la vez)
+  const limpiaTodo = () => { N.limpia(); R.olvidaDif && R.olvidaDif(); R.olvidaPla && R.olvidaPla(); R.olvidaMec && R.olvidaMec(); };
+  const accion = { get v() { return S.v; }, pon: (k, val, est) => { S.v[k] = val; S.est[k] = est || 'tuya'; }, rehaz: () => { S.encuadrar = true; pintaIzq(); genera(true); }, toast, tipo: k => elige(k), tipoActual: () => S.tipo };
   function lista() {
     const L = leeLib(); if (!L.length) return h('small.muted', 'Lo que guardes aparecerá aquí con sus medidas, para cambiarlo otro día.');
     return h('div.r8pr-lib', L.slice(0, 12).map(x => h('div.r8i-r', h('div', h('b', x.nombre || R.TIPOS[x.tipo].t), h('small', R.TIPOS[x.tipo].t + (x.v.marca ? ' · ' + x.v.marca : '') + (x.v.modelo ? ' ' + x.v.modelo : '') + ' · ' + E.fechaCorta(x.fecha))),
@@ -150,18 +155,18 @@ export async function montarPrecision(el, ext = {}) {
     if (B.dims[0] > cama - 20 || B.dims[1] > cama - 20) toast('⚠️ Las piezas no caben juntas en una cama de ' + cama + ' mm: Bambu Studio las repartirá en varias placas.', 'warn', 8000);
     return L.map(p => Object.assign({}, p, { m: p.m.translate([dx, dy, 0]) })); }
   function construye(kit) { const T = R.TIPOS[S.tipo], vals = R.valores(S.tipo, S.v); if (kit) return enFila(T.kit(vals).partes.filter(p => p.m)); const r = T.construye(vals); return r.imprimir ? enFila(r.imprimir) : r.partes; }
-  function alEstudio() { try { const P0 = construye(); ext.alEstudioPiezas(P0.map(p => ({ sopa: N.aSopa(p.m), nombre: p.nombre || nombrePieza(), color: p.color || '#2f7bff' })), nombrePieza()); } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { N.limpia(); } } // v30.6
+  function alEstudio() { try { const P0 = construye(); ext.alEstudioPiezas(P0.map(p => ({ sopa: N.aSopa(p.m), nombre: p.nombre || nombrePieza(), color: p.color || '#2f7bff' })), nombrePieza()); } catch (e) { toast(e.message || String(e), 'bad', 7000); } finally { limpiaTodo(); } } // v30.6
   async function saca(como) {
     try { const P0 = construye(), P = MESA ? MESA.expande(P0) : P0, nom = C.limpioNombre(nombrePieza()); // v30: con sus copias
       if (como === 'stl') { const stl = N.stl(N.union(P.map(p => p.m)), nom); await C.guardaEnPC(stl, 'Repuestos', nom + '.stl', 'model/stl'); }
       else { const A = await import('../r8/consejos3d.js'), blob = N.tresMF(P.map(p => ({ m: p.m, color: p.color || '#2f7bff', nombre: p.nombre })), nom, A.claves({ acabado: 'equilibrado', uso: 'encaje', soporte: 'no', balsa: 'auto' })); await C.guardaEnPC(blob, 'Repuestos', nom + '.3mf', 'model/3mf'); }
-    } catch (e) { toast(e.message || String(e), 'bad', 8000); } finally { N.limpia(); }
+    } catch (e) { toast(e.message || String(e), 'bad', 8000); } finally { limpiaTodo(); }
   }
-  async function sacaKit() { try { const P = construye(true), nom = C.limpioNombre(nombrePieza()) + '_PRUEBA'; const stl = N.stl(N.union(P.map(p => p.m)), nom); await C.guardaEnPC(stl, 'Repuestos/Pruebas de encaje', nom + '.stl', 'model/stl'); window.__r8pr.kitBytes = stl.byteLength; } catch (e) { toast(e.message || String(e), 'bad', 8000); } finally { N.limpia(); } }
+  async function sacaKit() { try { const P = construye(true), nom = C.limpioNombre(nombrePieza()) + '_PRUEBA'; const stl = N.stl(N.union(P.map(p => p.m)), nom); await C.guardaEnPC(stl, 'Repuestos/Pruebas de encaje', nom + '.stl', 'model/stl'); window.__r8pr.kitBytes = stl.byteLength; } catch (e) { toast(e.message || String(e), 'bad', 8000); } finally { limpiaTodo(); } }
   function aImprimir() {
     try { const P = construye(), nom = nombrePieza(), stl = N.stl(N.union(P.map(p => p.m)), C.limpioNombre(nom));
-      E.ponEnMesa({ nombre: nom, origen: 'precision', stl, datos: { tipo: S.tipo, v: S.v, est: S.est } }); N.limpia(); ext.irA && ext.irA('doctor');
-    } catch (e) { N.limpia(); toast(e.message || String(e), 'bad', 8000); }
+      E.ponEnMesa({ nombre: nom, origen: 'precision', stl, datos: { tipo: S.tipo, v: S.v, est: S.est } }); limpiaTodo(); ext.irA && ext.irA('doctor');
+    } catch (e) { limpiaTodo(); toast(e.message || String(e), 'bad', 8000); }
   }
   function guardaMedidas() { const L = leeLib(), id = S.id || ('r' + Date.now().toString(36)); S.id = id; const x = { id, tipo: S.tipo, nombre: nombrePieza(), v: S.v, est: S.est, fecha: Date.now() }; guardaLib([x].concat(L.filter(y => y.id !== id))); toast('💾 Guardado en Mis repuestos (en este aparato), con todas sus medidas', 'ok'); pintaIzq(); }
   function publica() { window.__r8pr = Object.assign(window.__r8pr || {}, { tipo: S.tipo, faltan: S.faltan.slice(), avisos: S.avisos.map(x => x.n + ':' + x.t), calc: S.calc.map(x => [x[0], x[1]]), choque: S.choque && S.choque.vol, dims: S.info && S.info.dims, kit: S.kit, est: Object.assign({}, S.est), elige, ejemplo, aImprimir, pon: (k, v) => { S.v[k] = v; S.est[k] = 'tuya'; pintaIzq(); genera(true); } }); }

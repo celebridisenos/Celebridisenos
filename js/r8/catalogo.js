@@ -28,6 +28,7 @@ import { DISENOS_CHASIS, ponTrapecio } from './cat_chasis.js'; // v30.5 · 🏎�
 import { DISENOS_KITS } from './cat_kits.js'; // v30.5 · 🚲 kits de dos ruedas (bici y moto)
 import { DISENOS_TALADRO } from './cat_taladro.js'; // v30.5 · 🔩 mini taladro de columna y portarrollos 1:12
 import { DISENOS_TARJETAS } from './cat_tarjetas.js'; // v40.1 · 🧩 tarjetas-kit para niños (avión, dinosaurio, peonza, cohete, coche, árbol)
+import { DISENOS_50 } from './cat_50.js'; // 13-10-2026 · 🎁 diseños nuevos: torre de canicas en zigzag, cuatro en línea, damas, serpiente articulada, deslizante, maquillaje giratorio, estación de carga, riel de pared, caja de engranajes
 import { DISENOS_PRO } from './cat_pro.js'; // v30.7.1 · ⭐ PRO: por piezas, que encajan (lava-pinceles, bote de rosca, escritorio modular, maceta con autorriego)
 import { DISENOS_PACK60 } from './cat_pack60.js'; // v30.7 · 🎁 el pack de 60: velas, lámparas, ratón, hogar, oficina, flores, hormigas, pinceles, papeleras, juegos y empresas
 import { DISENOS_MAS, PARTES_MAS } from './cat_mas.js'; // v30.6 · más cajas, bisagras, jarrones, vasos, decoración y accesorios
@@ -1232,6 +1233,7 @@ Object.assign(DISENOS, DISENOS_FIGURAS); // v30.3
 Object.assign(DISENOS, DISENOS_DECO); // v30.3
 Object.assign(DISENOS, DISENOS_SILUETAS); // v30.3
 Object.assign(DISENOS, DISENOS_JUEGOS); // v30.3
+Object.assign(DISENOS, DISENOS_50); // 13-10-2026
 Object.assign(DISENOS, DISENOS_CASA); // v30.3
 Object.assign(DISENOS, DISENOS_NAVIDAD); // v30.4
 Object.assign(DISENOS, DISENOS_REFERENCIAS); // v30.4

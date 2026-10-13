@@ -13,53 +13,62 @@ const leer = k => { try { return localStorage.getItem(k); } catch (e) { return n
 const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 const de = document.documentElement;
 
-export const interfaz = () => { const v = leer(CLAVE); return v === 'v18' || v === 'v30' || v === 'clasica' ? v : 'nueva'; }; // v30: «Atelier 30» (la 18 por dentro, cara nueva)
-export const es18 = () => interfaz() === 'v18' || interfaz() === 'v30';
+export const interfaz = () => { const v = leer(CLAVE); return v === 'v18' || v === 'v30' || v === 'v50' || v === 'clasica' ? v : 'nueva'; }; // v30: «Atelier 30» (la 18 por dentro, cara nueva)
+export const es18 = () => interfaz() === 'v18' || interfaz() === 'v30' || interfaz() === 'v50';
 export const es30 = () => interfaz() === 'v30';
+// 13-10-2026 · la cara «CelebriDiseños» (sin número: «una interfaz nueva, sorpresa, premium, que cuando la abra no la reconozca»).
+// Por dentro es la 18 (mismas pantallas y botones) con su barra lateral, el lanzador y sus cuatro temas (css/ui50.css, js/ui50.js).
+export const es50 = () => interfaz() === 'v50';
 // v30.7.1 · 🎨 LOS TEMAS de la «Atelier 30» (la dueña, 12-10-2026: «pon más estilos de temas, pero desplegables, que puedas elegir…
 // los temas del sistema se tienen que adaptar… y que se vean los textos»). Cada tema trae TODOS sus colores (css/ui30.css, generados
 // y con el contraste comprobado por tools/temas30.py). «auto» = como Windows: claro si Windows está en claro, oscuro si en oscuro
 // (con el último tema claro y el último oscuro que elegiste). Se guarda en cada aparato.
 export const TEMAS30 = [['papel', 'Papel cálido', 'dia'], ['nieve', 'Blanco nieve', 'dia'], ['cuarzo', 'Rosa cuarzo', 'dia'], ['menta', 'Menta fresca', 'dia'], ['lavanda', 'Lavanda', 'dia'], ['cielo', 'Cielo', 'dia'], ['claro-fuerte', 'Alto contraste claro', 'dia'],
   ['obsidiana', 'Obsidiana y oro', 'noche'], ['medianoche', 'Medianoche azul', 'noche'], ['bosque', 'Bosque de noche', 'noche'], ['ciruela', 'Ciruela', 'noche'], ['grafito', 'Grafito', 'noche'], ['oscuro-fuerte', 'Alto contraste oscuro', 'noche']];
-const TEMA = 'cd.tema30', esTema = k => TEMAS30.some(t => t[0] === k), oscuroWin = () => { try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; } };
-const ultimo = m => { const v = leer(TEMA + '.' + m); return esTema(v) && TEMAS30.find(t => t[0] === v)[2] === m ? v : m === 'dia' ? 'papel' : 'obsidiana'; };
+// los temas de la cara «CelebriDiseños» (contraste comprobado con tools/temas50.py)
+export const TEMAS50 = [['perla', 'Perla', 'dia'], ['champan', 'Champán y rosa', 'dia'], ['aurora', 'Aurora', 'noche'], ['eclipse', 'Eclipse', 'noche']];
+const LISTA = () => (es50() ? TEMAS50 : TEMAS30), POR_DEFECTO = m => (es50() ? (m === 'dia' ? 'perla' : 'aurora') : (m === 'dia' ? 'papel' : 'obsidiana'));
+const TEMA_ = () => (es50() ? 'cd.tema50' : 'cd.tema30'), esTema = k => LISTA().some(t => t[0] === k), oscuroWin = () => { try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; } };
+const ultimo = m => { const v = leer(TEMA_() + '.' + m); return esTema(v) && LISTA().find(t => t[0] === v)[2] === m ? v : POR_DEFECTO(m); };
 // lo elegido («auto» o un tema) · el tema que de verdad se pinta
-export const tema30 = () => { const v = leer(TEMA); return v === 'auto' || esTema(v) ? v : (leer(MODO) === 'dia' ? 'papel' : 'obsidiana'); };
+export const tema30 = () => { const v = leer(TEMA_()); return v === 'auto' || esTema(v) ? v : POR_DEFECTO(leer(MODO) === 'dia' ? 'dia' : 'noche'); };
 export const temaReal = () => { const k = tema30(); return k === 'auto' ? ultimo(oscuroWin() ? 'noche' : 'dia') : k; };
 export function ponTema30(k) {
   if (k !== 'auto' && !esTema(k)) return tema30();
-  guardar(TEMA, k); if (k !== 'auto') { const m = TEMAS30.find(t => t[0] === k)[2]; guardar(MODO, m); guardar(TEMA + '.' + m, k); }
+  guardar(TEMA_(), k); if (k !== 'auto') { const m = LISTA().find(t => t[0] === k)[2]; guardar(MODO, m); guardar(TEMA_() + '.' + m, k); }
   tema18(); avisa(); return k;
 }
-try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (es30() && tema30() === 'auto') { tema18(); avisa(); } }); } catch (e) { }
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if ((es30() || es50()) && tema30() === 'auto') { tema18(); avisa(); } }); } catch (e) { }
 // el desplegable (arriba, en CelebriR8 y en Configuración): todos los que haya en pantalla se ponen de acuerdo solos
 export function selectorTema(o = {}) {
-  const grupo = (t, m) => h('optgroup', { label: t }, TEMAS30.filter(x => x[2] === m).map(x => h('option', { value: x[0] }, x[1])));
+  const grupo = (t, m) => h('optgroup', { label: t }, LISTA().filter(x => x[2] === m).map(x => h('option', { value: x[0] }, x[1])));
   const s = h('select.u30-tema' + (o.cls ? '.' + o.cls : ''), { title: 'Tema de colores del programa (se guarda en este aparato)', 'aria-label': 'Tema de colores',
     onchange: e => { guardar('cd.color', ''); ponTema30(e.target.value); } }, // (al elegir un tema, el color de acento vuelve al del tema)
     h('option', { value: 'auto' }, '🖥️ Como Windows'), grupo('☀️ Claros', 'dia'), grupo('🌙 Oscuros', 'noche'));
-  s.value = tema30(); return s;
+  s.value = tema30(); s.dataset.lista = es50() ? '50' : '30'; s._grupo = grupo; return s;
 }
-window.addEventListener('cd:interfaz', () => { try { document.querySelectorAll('.u30-tema').forEach(s => { if (s.value !== tema30()) s.value = tema30(); }); } catch (e) { } });
-export const modo = () => (es30() ? TEMAS30.find(t => t[0] === temaReal())[2] : leer(MODO) === 'dia' ? 'dia' : 'noche');
+window.addEventListener('cd:interfaz', () => { try { document.querySelectorAll('.u30-tema').forEach(s => {
+  const l = es50() ? '50' : '30'; if (s.dataset.lista !== l && s._grupo) { s.dataset.lista = l; while (s.children.length > 1) s.lastChild.remove(); s.append(s._grupo('☀️ Claros', 'dia'), s._grupo('🌙 Oscuros', 'noche')); } /* (al cambiar de cara, el desplegable trae los temas de esa cara) */
+  if (s.value !== tema30()) s.value = tema30(); }); } catch (e) { } });
+export const modo = () => (es30() || es50() ? LISTA().find(t => t[0] === temaReal())[2] : leer(MODO) === 'dia' ? 'dia' : 'noche');
 // El tema que de verdad se pinta: en la V18 manda el modo; fuera de ella, el del perfil
 export function tema18(real) {
   const on = es18();
-  de.classList.toggle('ui18', on); de.classList.toggle('ui30', es30());
+  de.classList.toggle('ui18', on); de.classList.toggle('ui30', es30()); de.classList.toggle('ui50', es50());
   if (es30()) de.dataset.tema30 = temaReal(); else de.removeAttribute('data-tema30'); // v30.7.1
+  if (es50()) de.dataset.tema50 = temaReal(); else de.removeAttribute('data-tema50');
   if (on) { de.classList.remove('ui14'); de.dataset.modo = modo(); return modo() === 'noche' ? 'oscuro' : 'claro'; }
   de.removeAttribute('data-modo');
   return real;
 }
 const avisa = () => { try { window.dispatchEvent(new Event('cd:interfaz')); } catch (e) { } };
 export function ponInterfaz(k, m) {
-  guardar(CLAVE, k === 'v18' || k === 'v30' ? k : k === 'clasica' ? 'clasica' : 'nueva');
-  if (m) { guardar(MODO, m === 'dia' ? 'dia' : 'noche'); if (k === 'v30' && tema30() !== 'auto') guardar(TEMA, ultimo(m === 'dia' ? 'dia' : 'noche')); }
+  guardar(CLAVE, k === 'v18' || k === 'v30' || k === 'v50' ? k : k === 'clasica' ? 'clasica' : 'nueva');
+  if (m) { guardar(MODO, m === 'dia' ? 'dia' : 'noche'); if ((k === 'v30' || k === 'v50') && tema30() !== 'auto') guardar(TEMA_(), ultimo(m === 'dia' ? 'dia' : 'noche')); }
   aplicarUI(undefined, false); tema18(); avisa(); // app.js vuelve a aplicar el tema (y la paleta) al oír el aviso
   return interfaz();
 }
-export function cambiaModo() { const m = modo() === 'noche' ? 'dia' : 'noche'; if (es30()) { ponTema30(ultimo(m)); return m; } /* v30.7.1: el sol / la luna saltan entre tu último tema claro y tu último oscuro */ guardar(MODO, m); tema18(); avisa(); return m; }
+export function cambiaModo() { const m = modo() === 'noche' ? 'dia' : 'noche'; if (es30() || es50()) { ponTema30(ultimo(m)); return m; } /* v30.7.1: el sol / la luna saltan entre tu último tema claro y tu último oscuro */ guardar(MODO, m); tema18(); avisa(); return m; }
 export const botonModo = () => h('button.u18-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: e => { const m = cambiaModo(); e.currentTarget.textContent = m === 'noche' ? '🌙' : '☀️'; } }, modo() === 'noche' ? '🌙' : '☀️');
 
 // ---------- el sonido del estreno (hecho aquí, sin archivos) ----------
