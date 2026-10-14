@@ -664,7 +664,7 @@ export function applyTheme(t) {
     if (!conArchivos(e) || e.defaultPrevented) return; // lo recogió la zona de esa pantalla
     e.preventDefault();
     if (!S.me || !shell) return;
-    const f = [...(e.dataTransfer.files || [])].find(x => /\.(stl|3mf|obj)$/i.test(x.name));
+    const f = [...(e.dataTransfer.files || [])].find(x => /\.(stl|3mf|obj|glb|gltf)$/i.test(x.name));
     if (!f) return toast('Para saber el precio de una pieza, suelta su archivo STL, 3MF u OBJ.', 'warn', 5000);
     // v30.6.3 · dentro de CelebriR8 el archivo se queda en la herramienta abierta (la dueña, 12-10-2026: «el reparador STL manda al
     // cotizador y obliga a volver atrás para encontrar la herramienta»)

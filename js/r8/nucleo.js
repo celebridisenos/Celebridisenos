@@ -340,7 +340,7 @@ export function contornoDe(f) {
     case 'corazon': return [gira(corazon2(Math.max(1, num(f.w, 30))), f.ang, x, y)];
     case 'elipse': return [gira(elipse2(Math.max(0.1, num(f.w, 30)), Math.max(0.1, num(f.h, 20))), f.ang, x, y)];
     case 'ranura': return [gira(ranura2(Math.max(0.2, num(f.l, 30)), Math.max(0.1, num(f.w, 8))), f.ang, x, y)];
-    case 'linea': return f.pts && f.pts.length > 2 ? [f.pts.map(q => [num(q[0], 0), num(q[1], 0)])] : [];
+    case 'linea': return f.pts && f.pts.length > 2 && !f.abierta ? [f.pts.map(q => [num(q[0], 0), num(q[1], 0)])] : []; // (14-10-2026: una línea ABIERTA no encierra nada)
   }
   return [];
 }

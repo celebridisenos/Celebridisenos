@@ -57,7 +57,7 @@ export async function montarEstudio(el, ext = {}) {
   const filtro = h('div.r8e-filtro');
   const vista = h('div.r8e-vista', lienzo, chips, etiquetas, cubo, filtro, vacio, cargando);
   const nav = h('div.r8e-nav'), prop = h('div.r8e-prop'), estado = h('div.r8e-estado'), cinta = h('div.r8e-cinta');
-  const fi = h('input', { type: 'file', accept: '.stl,.3mf,.obj,.svg', multiple: true, style: { display: 'none' }, onchange: e => { [...(e.target.files || [])].forEach(importar); e.target.value = ''; } });
+  const fi = h('input', { type: 'file', accept: '.stl,.3mf,.obj,.glb,.gltf,.svg', multiple: true, style: { display: 'none' }, onchange: e => { [...(e.target.files || [])].forEach(importar); e.target.value = ''; } });
   const fiR8 = h('input', { type: 'file', accept: '.r8,.json', style: { display: 'none' }, onchange: e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) f.text().then(t => { try { ponProyecto(PR.deArchivo(t)); toast('📂 Proyecto abierto', 'ok'); } catch (x) { toast(x.message, 'bad'); } }); } });
   const raiz = h('div.r8e', { tabindex: '-1' }, cinta, h('div.r8e-main', nav, vista, prop), estado, fi, fiR8);
   el.appendChild(raiz);
@@ -489,7 +489,7 @@ export async function montarEstudio(el, ext = {}) {
   async function importar(f) {
     try {
       if (/\.svg$/i.test(f.name)) { const txt = await f.text(); const p = await editarBoceto(vista, { formas: [], svgTexto: txt, svgNombre: f.name }); if (p && p.crear) return creaDeFoto(p.crear); if (p) añade({ tipo: 'boceto', nombre: f.name.replace(/\.svg$/i, '').slice(0, 40), p, color: colorSiguiente() }); return; } // v20.4: un SVG → boceto (con sus agujeros)
-      if (!/\.(stl|3mf|obj)$/i.test(f.name)) throw new Error('Elige un archivo STL, 3MF, OBJ o SVG.');
+      if (!/\.(stl|3mf|obj|glb|gltf)$/i.test(f.name)) throw new Error('Elige un archivo STL, 3MF, OBJ, GLB o SVG.');
       const p = await parse3D(await f.arrayBuffer(), f.name); if (!p || p.length < 9) throw new Error('Ese archivo no tiene ninguna pieza.');
       let s = p instanceof Float32Array ? p : new Float32Array(p);
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity; for (let i = 0; i < s.length; i += 3) { x0 = Math.min(x0, s[i]); x1 = Math.max(x1, s[i]); y0 = Math.min(y0, s[i + 1]); y1 = Math.max(y1, s[i + 1]); z0 = Math.min(z0, s[i + 2]); }
@@ -1302,7 +1302,7 @@ export async function montarEstudio(el, ext = {}) {
     const m = await import('../r8/consejos3d.js').catch(e => { console.error(e); return null; }); if (!m || herr !== 'imprimir') return;
     if (!P.cuerpos.length) return mount(prop, h('div.r8e-prop-t', h('b', '🖨️ IMPRIMIR')), h('p.small', 'Primero diseña algo 🙂'));
     await m.panel(prop, { P, PR, N, nombre: nombreArchivo(), cama: P.cama || 256, cc: (P.colores = P.colores || { base: null, cambios: [] }), alCambiarCC: () => { commit(); }, alGirar: rot => { const g = PR.agrupar(P, P.cuerpos.map(c => c.id), 'unir'); if (g) { g.colores = 'cada'; g.nombre = 'Todo (tumbado para imprimir)'; g.t.rot = rot; PR.aLaCama(P, [g.id]); commit(); elige([g.id]); panelImprimir(); } }, baja, zipStl, catalogo });
-    if (herr === 'imprimir') prop.appendChild(h('div.r8e-btns.r8e-adoctor', btn('🩺 Revisar a fondo en el Print Doctor', async () => { try { const L = PR.partesFinales(P), E = await import('../r8/estado.js'); E.ponEnMesa({ nombre: P.nombre || 'Mi diseño', origen: 'estudio', stl: new Uint8Array(N.stl(N.union(L.map(x => x.m)), nombreArchivo())) }); N.limpia(); ext.irA && ext.irA('doctor'); } catch (e) { N.limpia(); toast(e.message || String(e), 'bad'); } }, { cls: 'sm', title: 'Paredes finas, orientación con voladizos en rojo, soportes, informe… (v20)' })));
+    if (herr === 'imprimir') prop.appendChild(h('div.r8e-btns.r8e-adoctor', btn('🩺 Revisar a fondo en el Print Doctor', async () => { try { const L = PR.partesFinales(P), E = await import('../r8/estado.js'); E.ponEnMesa({ nombre: P.nombre || 'Mi diseño', origen: 'estudio', stl: new Uint8Array(N.stl(N.union(L.map(x => x.m)), nombreArchivo())) }); N.limpia(); ext.irA && ext.irA('doctor'); } catch (e) { N.limpia(); toast(e.message || String(e), 'bad'); } }, { cls: 'sm', title: 'Paredes finas, orientación con voladizos en rojo, soportes, informe… (v20)' }), btn('🛡️ ¿Se va a partir? Resistencia', async () => { try { const L = PR.partesFinales(P), E = await import('../r8/estado.js'); E.ponEnMesa({ nombre: P.nombre || 'Mi diseño', origen: 'estudio', stl: new Uint8Array(N.stl(N.union(L.map(x => x.m)), nombreArchivo())) }); N.limpia(); ext.irA && ext.irA('fragil'); } catch (e) { N.limpia(); toast(e.message || String(e), 'bad'); } }, { cls: 'sm r8e-afragil', title: 'Las zonas que se van a partir, en colores, y reforzarlas tocándolas (50.1)' })));
   }
   const nombreArchivo = () => String(P.nombre || 'diseno').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 50) || 'diseno';
   function baja(blob, nombre) { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nombre }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); if (window.__r8e) window.__r8e.bajado = { nombre, bytes: blob.size }; }

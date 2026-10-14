@@ -7,10 +7,14 @@ import { h, mount, btn, toast, modal } from '../ui.js';
 import * as N from '../r8/nucleo.js';
 import { crearEscena } from '../r8/escena3d.js';
 import * as CJ from '../r8/cajas.js';
+import * as CP from '../r8/cajas_pro.js'; // 14-10-2026 · Taller de cajas PRO: impresoras, estilos (el limitador y «arreglar todo» viven en cajas.js)
 
 const LS = 'cd.r8.cajas';
+// las plantillas nuevas (14-10-2026) van primero: son las «premium»
+const NUEVAS = ['secreta', 'combinacion', 'conLlave', 'seisEnUno', 'multifuncion', 'herramientas2', 'tornillos2', 'pilas'];
+const traslada = (x, y, z) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
 const n1 = x => (Math.round(x * 10) / 10).toLocaleString('es-ES');
-const lee = () => { try { const x = JSON.parse(localStorage.getItem(LS) || 'null'); if (x && x.L && Array.isArray(x.els)) return x; } catch (e) { } return CJ.dePlantilla('joyero'); };
+const lee = () => { try { const x = JSON.parse(localStorage.getItem(LS) || 'null'); if (x && x.L && Array.isArray(x.els)) return Object.assign(CJ.nueva(), x); } catch (e) { } return CJ.dePlantilla('joyero'); }; // (lo guardado antes del 14-10 no tenía estilo ni impresora)
 const graba = C => { try { localStorage.setItem(LS, JSON.stringify(C)); } catch (e) { } };
 const MEDIDAS = [['L', 'Largo', 30, 250, 1], ['W', 'Ancho', 30, 250, 1], ['H', 'Alto de la caja', 15, 230, 1], ['pared', 'Paredes', 1.2, 6, 0.2], ['suelo', 'Suelo', 1.2, 6, 0.2], ['tapaG', 'Grosor de la tapa', 1.6, 6, 0.2], ['radio', 'Esquinas redondeadas', 0, 30, 0.5]];
 
@@ -33,16 +37,23 @@ export async function montarCajas(el, ext = {}) {
     try {
       const g = CJ.construye(C);
       G = { eje: g.eje, avisos: g.avisos, puertas: g.puertas.map(P => ({ id: P.id, eje: P.eje, F: P.F })), sueltas: g.sueltas.map(s => ({ id: s.id, con: s.con, nombre: s.nombre })) };
-      const mt = CJ.giroTapa(G, ang);
+      const mt = matTapa(ang);
       L.push({ id: 'cuerpo', vista: N.aVista(g.cuerpo), color: C.color, acabado: 'mate' });
-      L.push({ id: 'tapa', vista: N.aVista(g.tapa), color: C.colorTapa, acabado: 'mate', matriz: G.eje ? mt : null, fantasma: verDentro });
+      L.push({ id: 'tapa', vista: N.aVista(g.tapa), color: C.colorTapa, acabado: 'mate', matriz: mt, fantasma: verDentro });
       g.puertas.forEach(P => L.push({ id: 'puerta:' + P.id, vista: N.aVista(P.m), color: C.colorTapa, acabado: 'mate', matriz: angP ? CJ.giroPuerta(P, angP) : null }));
-      g.sueltas.forEach(s => { const P = s.con && s.con.startsWith('puerta:') ? G.puertas.find(q => 'puerta:' + q.id === s.con) : null;
-        L.push({ id: s.id, vista: N.aVista(s.m), color: s.nombre.startsWith('Pomo') ? C.colorTapa : C.color, acabado: 'mate', matriz: s.con === 'tapa' ? (G.eje ? mt : null) : P && angP ? CJ.giroPuerta(P, angP) : null, fantasma: s.con === 'tapa' && verDentro }); });
-    } catch (e) { G = { avisos: [e.message || String(e)], puertas: [], sueltas: [] }; }
+      g.sueltas.filter(s => s.m).forEach(s => { const P = s.con && s.con.startsWith('puerta:') ? G.puertas.find(q => 'puerta:' + q.id === s.con) : null;
+        L.push({ id: s.id, vista: N.aVista(s.m), color: s.tapaColor || s.nombre.startsWith('Pomo') ? C.colorTapa : C.color, acabado: 'mate', matriz: s.con === 'tapa' ? mt : P && angP ? CJ.giroPuerta(P, angP) : null, fantasma: s.con === 'tapa' && verDentro }); });
+    } catch (e) { G = { avisos: [e.message || String(e)], error: e.message || String(e), puertas: [], sueltas: [] }; }
     finally { N.limpia(); }
     escena.ponPartes(L); pintaMarcas(); if (encuadra) escena.encuadrar('iso');
-    window.__r8cj = { C, G, ang, verDentro, avisos: G.avisos };
+    window.__r8cj = { C, G, ang, verDentro, avisos: G.avisos, revisa: CJ.revisa(C) };
+  }
+  // la tapa abierta «a» (0–180): con bisagra gira; la corredera sale hacia la derecha; la de presión sube
+  function matTapa(a) {
+    if (G && G.eje) return CJ.giroTapa(G, a);
+    if (!a) return null;
+    if (C.tapa === 'corredera') return traslada(a / 180 * (C.L + 8), 0, 0);
+    return traslada(0, 0, a / 180 * ((C.labio || 5) + 30));
   }
 
   // ---------- 🟩🟥 las zonas (mientras se arrastra) ----------
@@ -142,8 +153,8 @@ export async function montarCajas(el, ext = {}) {
   const rango = h('input', { type: 'range', min: 0, max: 180, step: 1, value: 0, 'aria-label': 'Abrir la tapa', oninput: e => { ang = Number(e.target.value); pinta3D(); } });
   function pintaBarra() {
     mount(vbar, [
-      conBis() ? h('label.r8p-pill.r8cj-ang', { title: 'Abrir la tapa (girando en su bisagra)' }, '↻ Tapa ', rango) : null,
-      btn('▶ Abrir y cerrar', animar, { cls: 'sm r8cj-anim', title: 'La tapa (y las puertas) se abren y se cierran como de verdad' }),
+      h('label.r8p-pill.r8cj-ang', { title: conBis() ? 'Abrir la tapa (girando en su bisagra)' : C.tapa === 'corredera' ? 'Sacar la tapa (corre por sus ranuras)' : 'Levantar la tapa' }, (conBis() ? '↻' : C.tapa === 'corredera' ? '↔' : '↥') + ' Tapa ', rango),
+      btn('▶ Abrir y cerrar', animar, { cls: 'sm r8cj-anim', title: 'La tapa, las puertas y el cajón se abren y se cierran como de verdad' }),
       btn(verDentro ? '🙈 Tapa' : '👁 Ver dentro', () => { verDentro = !verDentro; pinta3D(); pintaBarra(); }, { cls: 'sm ghost r8cj-dentro', title: 'Ver la caja por dentro (la tapa se vuelve transparente)' }),
       h('div.der', btn('⌂', () => escena.encuadrar('iso', true), { cls: 'sm ghost', title: 'Encuadrar' }), btn('↶', undo, { cls: 'sm ghost r8cj-undo', title: 'Deshacer (Ctrl Z)' })),
       h('div.r8cj-leyenda', h('span.v', '■'), ' funciona ', h('span.r', '■'), ' aquí no ', h('span.a', '■'), ' cabe, pero ojo')]);
@@ -152,7 +163,9 @@ export async function montarCajas(el, ext = {}) {
   function animar() {
     ang = 0; angP = 0; rango.value = 0; pinta3D(); const max = (resultado && resultado.apertura) ? Math.min(resultado.apertura, 110) : 105, pmax = 100, dur = 4.2;
     escena.animar(t => { if (t > dur) { escena.animar(null); return null; } const k = Math.sin(Math.min(1, t / dur) * Math.PI), D = {};
-      if (G.eje) { const M = new T.Matrix4().fromArray(CJ.giroTapa(G, k * max)); D.tapa = M; G.sueltas.filter(s => s.con === 'tapa').forEach(s => { D[s.id] = M; }); }
+      const mt = G.eje ? CJ.giroTapa(G, k * max) : matTapa(k * 180);
+      if (mt) { const M = new T.Matrix4().fromArray(mt); D.tapa = M; G.sueltas.filter(s => s.con === 'tapa').forEach(s => { D[s.id] = M; }); }
+      G.sueltas.filter(s => s.id.startsWith('cajon:')).forEach(s => { D[s.id] = new T.Matrix4().fromArray(traslada(0, -k * C.W * 0.7, 0)); }); // (el cajón sale hacia delante)
       G.puertas.forEach(P => { const M = new T.Matrix4().fromArray(CJ.giroPuerta(P, k * pmax)); D['puerta:' + P.id] = M; G.sueltas.filter(s => s.con === 'puerta:' + P.id).forEach(s => { D[s.id] = M; }); });
       return D; });
   }
@@ -161,49 +174,101 @@ export async function montarCajas(el, ext = {}) {
   window.addEventListener('keydown', tecla);
 
   // ---------- izquierda: la caja y la paleta ----------
+  // 🛑 el limitador: largo, ancho y alto, como mucho lo que imprime SU impresora
+  const impresora = () => CP.IMPRESORAS[C.impresora] || CP.IMPRESORAS.p1p;
   function campoNum([k, t, mi, ma, pa]) {
-    return h('label.r8cj-num', h('span', t), h('input.inp', { type: 'number', min: mi, max: ma, step: pa, value: C[k], 'data-k': k, onchange: e => { const v = Number(String(e.target.value).replace(',', '.')); if (!(v >= mi && v <= ma)) { toast(t + ': entre ' + n1(mi) + ' y ' + n1(ma), 'warn'); e.target.value = C[k]; return; } const antes = copia(); C[k] = v; commit(antes); } }), h('small', 'mm'));
+    const I = impresora(), porImp = k === 'L' || k === 'W' ? I.cama - 6 : k === 'H' ? I.alto - 2 - (CJ.altoTotal(C) - C.H) : null;
+    if (porImp != null && porImp < ma) ma = Math.floor(porImp);
+    return h('label.r8cj-num', h('span', t), h('input.inp', { type: 'number', min: mi, max: ma, step: pa, value: C[k], 'data-k': k, onchange: e => { const v = Number(String(e.target.value).replace(',', '.')); if (!(v >= mi && v <= ma)) { toast('🛑 ' + t + ': entre ' + n1(mi) + ' y ' + n1(ma) + ' mm' + (porImp != null && v > ma && ma === Math.floor(porImp) ? ' (lo que imprime tu ' + I.t + ')' : ''), 'warn', 6000); e.target.value = C[k]; return; } const antes = copia(), malos0 = CJ.revisa(C).length; C[k] = v; commit(antes); const malos = CJ.revisa(C).length; if (malos > malos0) toast('⚠️ Con esa medida hay ' + malos + ' cosa' + (malos > 1 ? 's' : '') + ' en rojo: mira «Revisión» (a la derecha) y pulsa 🛠️ Arreglar todo.', 'warn', 7000); } }), h('small', 'mm'));
   }
-  function pintaIzq() {
+  // cambiar de tapa: fuera lo que con esa tapa no va (y se dice), y bisagras si hacen falta
+  function cambiaTapa(k) {
+    if (C.tapa === k) return; const antes = copia(), fuera = [];
+    C.tapa = k;
+    C.els = C.els.filter(e => { const no = CJ.porQueNo(C, e.tipo, e.id, true); if (no) fuera.push(CJ.TIPOS[e.tipo].e + ' ' + CJ.TIPOS[e.tipo].t); return !no; });
+    if (CJ.conBisagra(C) && !C.els.some(e => e.tipo === 'bisagra')) C.els.push(CJ.elemento('bisagra', 'atras', 0, 0, { largo: Math.min(60, Math.round((C.L - 2 * C.radio) * 0.45)) }));
+    if (fuera.length) toast(CJ.TAPAS[k].e + ' Con esta tapa no van y los he quitado: ' + fuera.join(', ') + ' (↶ para deshacer)', 'info', 7000);
+    ang = 0; rango.value = 0; commit(antes); pintaBarra();
+  }
+  // (14-10: si al repintar se quita un campo que tenía el foco, el navegador lanza su «change» otra vez y se repintaba DENTRO del repintado: se deja para luego)
+  let pintaIzqYa = false; function pintaIzq() { if (pintaIzqYa) { setTimeout(pintaIzq, 0); return; } pintaIzqYa = true; try { pintaIzq0(); } finally { pintaIzqYa = false; } }
+  function pintaIzq0() {
     mount(izq, [
-      h('div.r8p-tit', h('span', '📦'), h('div', h('div.r8p-marca', 'CELEBRIR8 · 30'), h('b', 'Taller de cajas'), h('small', 'Elige la tapa y ARRASTRA bisagras, cierres, pomos o puertas: verde = ahí funciona, rojo = ahí no.'))),
-      h('div.r8p-sec', h('b', 'Empezar de'), h('div.r8cj-plant', Object.entries(CJ.PLANTILLAS).map(([k, P]) => h('button.r8cj-pl', { type: 'button', 'data-pl': k, title: P.d, onclick: () => { const antes = copia(); C = CJ.dePlantilla(k); selId = null; ang = 0; rango.value = 0; commit(antes); pinta3D(true); pintaBarra(); toast(P.e + ' ' + P.t + ': ' + P.d, 'ok', 4000); } }, h('span', P.e), h('small', P.t))))),
-      h('div.r8p-sec', h('b', 'La tapa'), h('div.r8cj-tapas', Object.entries(CJ.TAPAS).filter(([k, D]) => !D.fragil || C.tapa === k).map(([k, D]) => h('button.r8cj-tapa' + (C.tapa === k ? '.on' : ''), { type: 'button', 'data-tapa': k, 'aria-pressed': String(C.tapa === k), onclick: () => { if (C.tapa === k) return; const antes = copia(); C.tapa = k; if (k === 'presion') { C.els = C.els.filter(e => e.tipo !== 'bisagra'); toast('Tapa a presión: las bisagras se quitan', 'info'); } else if (!C.els.some(e => e.tipo === 'bisagra')) C.els.push(CJ.elemento('bisagra', 'atras', 0, 0, { largo: Math.min(60, Math.round((C.L - 2 * C.radio) * 0.45)) })); ang = 0; rango.value = 0; commit(antes); pintaBarra(); } }, h('span', D.e), h('div', h('b', D.t), h('small', D.d))))),
-        C.tapa !== 'presion' ? h('label.check.small.r8cj-tope', h('input', { type: 'checkbox', checked: C.tope !== false, onchange: e => { const antes = copia(); C.tope = e.target.checked; commit(antes); } }), 'Tope: la tapa se queda abierta (a unos 105°)') : null,
+      h('div.r8p-tit', h('span', '📦'), h('div', h('div.r8p-marca', 'CELEBRIR8 · PRO'), h('b', 'Taller de cajas'), h('small', 'Empieza de una plantilla o elige la tapa y ARRASTRA lo que quieras: verde = ahí funciona, rojo = ahí no (y te dice por qué).'))),
+      h('div.r8p-sec', h('b', 'Empezar de'), [['✨ Nuevas', k => NUEVAS.includes(k)], ['Las de siempre', k => !NUEVAS.includes(k)]].map(([gt, f]) => h('div.r8cj-grupo', h('small.r8cj-gt', gt), h('div.r8cj-plant', Object.entries(CJ.PLANTILLAS).filter(([k]) => f(k)).map(([k, P]) => h('button.r8cj-pl' + (NUEVAS.includes(k) ? '.nueva' : ''), { type: 'button', 'data-pl': k, title: P.d, onclick: () => { const antes = copia(); C = CJ.dePlantilla(k); selId = null; ang = 0; rango.value = 0; resultado = null; commit(antes); pinta3D(true); pintaBarra(); toast(P.e + ' ' + P.t + ': ' + P.d, 'ok', 4000); } }, h('span', P.e), h('small', P.t))))))),
+      h('div.r8p-sec', h('b', 'La tapa'), h('div.r8cj-tapas', Object.entries(CJ.TAPAS).filter(([k, D]) => !D.fragil || C.tapa === k).map(([k, D]) => h('button.r8cj-tapa' + (C.tapa === k ? '.on' : ''), { type: 'button', 'data-tapa': k, 'aria-pressed': String(C.tapa === k), onclick: () => cambiaTapa(k) }, h('span', D.e), h('div', h('b', D.t), h('small', D.d))))),
+        CJ.conBisagra(C) ? h('label.check.small.r8cj-tope', h('input', { type: 'checkbox', checked: C.tope !== false, onchange: e => { const antes = copia(); C.tope = e.target.checked; commit(antes); } }), 'Tope: la tapa se queda abierta (a unos 105°)') : null,
         C.tapa === 'presion' ? h('div.r8cj-fila', h('label.r8cj-num', h('span', 'Ajuste'), h('select.inp', { onchange: e => { const antes = copia(); C.ajuste = e.target.value; commit(antes); } }, Object.entries(CJ.AJUSTES).map(([k, [t]]) => h('option', { value: k, selected: C.ajuste === k }, t)))), campoNum(['labio', 'Labio', 2, 15, 0.5])) : null),
-      h('div.r8p-sec', h('b', 'Arrastra a la caja'), h('div.r8cj-paleta', Object.entries(CJ.TIPOS).map(([k, D]) => h('button.r8cj-el' + (armado === k ? '.on' : ''), { type: 'button', 'data-tipo': k, title: D.d + (D.comprado ? ' (necesitas ' + D.comprado + ')' : ''), onpointerdown: ev => { ev.preventDefault(); empieza(k, ev, null); } }, h('span', D.e), h('small', D.t)))),
-        h('small.muted', '🖱️ Arrastra · 👆 en tablet también: toca uno y luego la caja. Para mover uno ya puesto, arrástralo. Supr lo quita.')),
+      h('div.r8p-sec', h('b', 'Arrastra a la caja'), Object.entries(CJ.GRUPOS).map(([g, gt]) => h('div.r8cj-grupo', h('small.r8cj-gt', gt), h('div.r8cj-paleta', Object.entries(CJ.TIPOS).filter(([, D]) => D.grupo === g).map(([k, D]) => { const no = CJ.porQueNo(C, k);
+          return h('button.r8cj-el' + (armado === k ? '.on' : '') + (no ? '.no' : ''), { type: 'button', 'data-tipo': k, title: (no ? '⛔ ' + no + '\n' : '') + D.d + (D.comprado ? ' (necesitas ' + D.comprado + ')' : ''), 'aria-disabled': no ? 'true' : null, onpointerdown: ev => { ev.preventDefault(); if (no) { dice('⛔ ' + D.t + ': ' + no, 'mal'); toast('⛔ ' + D.t + ': ' + no, 'warn', 6000); return; } empieza(k, ev, null); } }, h('span', D.e), h('small', D.t)); })))),
+        h('small.muted', '🖱️ Arrastra · 👆 en tablet también: toca uno y luego la caja. Para mover uno ya puesto, arrástralo. Supr lo quita. Lo que sale apagado no va con esta caja (pasa por encima y te dice por qué).')),
       h('div.r8p-sec', h('b', 'Medidas'), h('div.r8cj-medidas', MEDIDAS.map(campoNum)),
-        h('div.r8cj-fila', h('label.r8cj-col', 'Caja ', h('input', { type: 'color', value: C.color, onchange: e => { const antes = copia(); C.color = e.target.value; commit(antes); } })), h('label.r8cj-col', 'Tapa ', h('input', { type: 'color', value: C.colorTapa, onchange: e => { const antes = copia(); C.colorTapa = e.target.value; commit(antes); } }))))
+        h('div.r8cj-fila', h('label.r8cj-col', 'Caja ', h('input', { type: 'color', value: C.color, onchange: e => { const antes = copia(); C.color = e.target.value; commit(antes); } })), h('label.r8cj-col', 'Tapa ', h('input', { type: 'color', value: C.colorTapa, onchange: e => { const antes = copia(); C.colorTapa = e.target.value; commit(antes); } })))),
+      h('div.r8p-sec', h('b', 'Acabado'), h('div.r8cj-fila',
+        h('label.r8cj-num.r8cj-estilo', h('span', 'Estilo'), h('select.inp', { 'data-k': 'estilo', onchange: e => { const antes = copia(); C.estilo = e.target.value; commit(antes); } }, Object.entries(CP.ESTILOS).map(([k, t]) => h('option', { value: k, selected: (C.estilo || 'lisa') === k }, t)))),
+        h('label.check.small.r8cj-pies', h('input', { type: 'checkbox', checked: !!C.pies, onchange: e => { const antes = copia(); C.pies = e.target.checked; commit(antes); } }), 'Patas (3 mm: no raya la mesa)')),
+        C.estilo === 'hexagonal' && C.tapa === 'corredera' ? h('small.muted', 'El panal no se pone en la tapa corredera (iría muy fina).') : null,
+        h('label.r8cj-num.r8cj-imp', h('span', 'Tu impresora'), h('select.inp', { 'data-k': 'impresora', onchange: e => { const antes = copia(); C.impresora = e.target.value; commit(antes); const n = CJ.revisa(C).length; if (n) toast('⚠️ En la ' + impresora().t + ' hay ' + n + ' cosa' + (n > 1 ? 's' : '') + ' que no salen: pulsa 🛠️ Arreglar todo', 'warn', 7000); } }, Object.entries(CP.IMPRESORAS).map(([k, I]) => h('option', { value: k, selected: (C.impresora || 'p1p') === k }, I.t)))))
     ]);
   }
 
   // ---------- derecha: lo puesto, comprobar e imprimir ----------
   function quita(id) { const antes = copia(); C.els = C.els.filter(e => e.id !== id); if (selId === id) selId = null; commit(antes); }
-  function pintaDer() {
-    const malos = (G && G.avisos) || [];
+  // 🛑 cambiar una medida de un elemento: se limpia (cifras, letras) y, si con el valor nuevo ya no funciona, NO se cambia y se dice por qué
+  const limpia = (e, k, v) => (e.tipo === 'combinacion' && k === 'codigo' ? String(v).replace(/\D/g, '').slice(0, 4) : e.tipo === 'llave' && k === 'codigo' ? String(v).toUpperCase().replace(/[^NCL]/g, '').slice(0, 3) : String(v).slice(0, 40));
+  function ponProp(e, k, v, inp) {
+    const p2 = Object.assign({}, e.p, { [k]: v }), Z = CJ.zona(C, e.tipo, e.cara, e.u, e.v, p2, e.id);
+    if (!Z.ok) { toast('⛔ No lo cambio: ' + Z.motivo, 'warn', 7000); if (inp) inp.value = e.p[k]; return; }
+    if (Z.aviso) toast('⚠️ ' + Z.motivo, 'warn', 6000);
+    const antes = copia(); e.p[k] = v; if (Z.u !== undefined && !CJ.TIPOS[e.tipo].junta) { e.u = Math.round(Z.u * 2) / 2; e.v = Math.round(Z.v * 2) / 2; } commit(antes);
+  }
+  const campoEl = e => ([k, t, mi, ma, pa]) => {
+    if (mi === 'txt') return h('label.r8cj-num.r8cj-txt', h('span', t), h('input.inp', { type: 'text', value: e.p[k], maxlength: 40, 'data-prop': k, onchange: ev => { const v = limpia(e, k, ev.target.value); ev.target.value = v; ponProp(e, k, v, ev.target); } }));
+    if (mi && mi.ops) return h('label.r8cj-num.r8cj-txt', h('span', t), h('select.inp', { 'data-prop': k, onchange: ev => ponProp(e, k, ev.target.value, ev.target) }, mi.ops.map(([v, tt]) => h('option', { value: v, selected: e.p[k] === v }, tt))));
+    return h('label.r8cj-num', h('span', t), h('input.inp', { type: 'number', min: mi, max: ma, step: pa, value: e.p[k], 'data-prop': k, onchange: ev => { const v = Number(String(ev.target.value).replace(',', '.')); if (!(v >= mi && v <= ma)) { toast('🛑 ' + t + ': entre ' + n1(mi) + ' y ' + n1(ma), 'warn'); ev.target.value = e.p[k]; return; } ponProp(e, k, v, ev.target); } }), h('small', /cifras|Columnas|Filas|Compartimentos|cuenco/.test(t) ? '' : 'mm'));
+  };
+  // 🛠️ arreglar todo: medidas a su impresora, grosores, bisagras que faltan y cada cosa en rojo a su sitio bueno (o fuera)
+  function arreglar() {
+    const R = CJ.arreglaTodo(C); if (!R.hechos.length) return toast('✅ No hay nada que arreglar', 'ok');
+    const antes = copia(); C = Object.assign(CJ.nueva(), R.C); resultado = null; commit(antes); pinta3D(true); pintaBarra();
+    const quedan = CJ.revisa(C);
+    modal('🛠️ Arreglado', h('div', h('ul.small', R.hechos.map(x => h('li', x))), quedan.length ? h('p.small.r8e-mal', '⚠️ Aún queda: ' + quedan.map(x => x.t).join(' · ')) : h('p.small', '✅ Ya está todo en orden. Si algo no te gusta: ↶ deshacer.')), c => [btn('Vale', c, { cls: 'primary' })]);
+  }
+  // 🛡️ antes de imprimir o bajar: si algo no saldría bien, se dice y se ofrece arreglarlo
+  function guardia(fn) {
+    const prob = CJ.revisa(C); if (!prob.length && !(G && G.error)) return fn();
+    modal('🛡️ Espera: así no saldría bien', h('div', h('p', 'Antes de imprimir hay ' + (prob.length || 1) + ' cosa' + (prob.length > 1 ? 's' : '') + ' que arreglar:'), h('ul.small', (G && G.error ? [{ t: G.error }] : []).concat(prob).map(x => h('li', x.t)))),
+      c => [btn('🛠️ Arreglar todo', () => { c(); arreglar(); }, { cls: 'primary r8cj-guardia-arregla' }), btn('Lo miro yo', c, { cls: 'ghost' })]);
+  }
+  // (14-10: si al repintar se quita un campo que tenía el foco, el navegador lanza su «change» otra vez y se repintaba DENTRO del repintado: se deja para luego)
+  let pintaDerYa = false; function pintaDer() { if (pintaDerYa) { setTimeout(pintaDer, 0); return; } pintaDerYa = true; try { pintaDer0(); } finally { pintaDerYa = false; } }
+  function pintaDer0() {
+    const prob = CJ.revisa(C), I = impresora(), fragil = (CJ.TAPAS[C.tapa] || {}).fragil;
     const fila = e => { const D = CJ.TIPOS[e.tipo], Z = e.tipo === 'bisagra' ? CJ.zona(C, 'bisagra', e.cara, e.u, e.v, e.p, e.id) : CJ.zona(C, e.tipo, e.cara, e.u, e.v, e.p, e.id);
       return h('div.r8cj-it' + (selId === e.id ? '.on' : '') + (Z.ok ? '' : '.mal'), { 'data-id': e.id },
         h('button.r8cj-it-t', { type: 'button', onclick: () => { selId = selId === e.id ? null : e.id; pintaMarcas(); pintaDer(); } }, h('span', D.e), h('div', h('b', D.t), h('small', CJ.CARAS[e.cara] + (Z.ok ? '' : ' · ⛔ ' + Z.motivo)))),
         h('button.r8cj-x', { type: 'button', title: 'Quitar', 'aria-label': 'Quitar ' + D.t, onclick: () => quita(e.id) }, '✕'),
-        selId === e.id ? h('div.r8cj-props', D.campos.map(([k, t, mi, ma, pa]) => h('label.r8cj-num', h('span', t), h('input.inp', { type: 'number', min: mi, max: ma, step: pa, value: e.p[k], onchange: ev => { const v = Number(String(ev.target.value).replace(',', '.')); if (!(v >= mi && v <= ma)) { toast(t + ': entre ' + n1(mi) + ' y ' + n1(ma), 'warn'); ev.target.value = e.p[k]; return; } const antes = copia(); e.p[k] = v; commit(antes); } }), h('small', 'mm'))),
+        selId === e.id ? h('div.r8cj-props', D.campos.map(campoEl(e)),
           e.tipo === 'separador' ? h('label.r8cj-num', h('span', 'Dirección'), h('select.inp', { onchange: ev => { const antes = copia(); e.p.dir = ev.target.value; commit(antes); } }, h('option', { value: 'y', selected: e.p.dir !== 'x' }, 'De delante a atrás'), h('option', { value: 'x', selected: e.p.dir === 'x' }, 'De lado a lado'))) : null,
           h('small.muted', 'Para moverlo, arrástralo en la caja.')) : null); };
     mount(der, [
       h('div.r8p-sec', h('b', 'Tu caja'), h('p.small', CJ.resumen(C))),
       h('div.r8p-sec', h('b', 'Puesto (' + C.els.length + ')'), C.els.length ? h('div.r8cj-lista', C.els.map(fila)) : h('p.small.muted', 'Nada todavía: arrastra algo desde la izquierda.')),
-      malos.length ? h('div.r8cj-malos', malos.map(a => h('p.small', '⛔ ' + a))) : null,
+      h('div.r8p-sec.r8cj-rev', h('b', '🛡️ Revisión'), G && G.error ? h('p.small.r8e-mal', '⛔ ' + G.error) : null,
+        prob.length ? [h('div.r8cj-malos', prob.map(x => h('p.small', '⛔ ' + x.t))), btn('🛠️ Arreglar todo', arreglar, { cls: 'primary r8cj-arregla', title: 'Ajusta las medidas a tu impresora, pone lo que falta y lleva cada cosa en rojo a su sitio bueno (o la quita si no cabe)' })]
+          : h('p.small.r8cj-ok', '✅ Cabe en tu ' + I.t + ' y cada cosa está en su sitio bueno.'),
+        fragil ? h('p.small.r8e-mal', '⚠️ La bisagra de clic se raja al engancharla: elige otra tapa.') : null),
       h('div.r8p-sec', h('b', 'Comprobar'), btn('🧪 Montarla y comprobar', comprobar, { cls: 'primary r8cj-comp' }), resultado ? h('div.r8cj-res', resultado.lista.map(x => h('div.r8cj-r' + (x.ok === true ? '.ok' : x.ok === false ? '.no' : '.ojo'), h('b', (x.ok === true ? '✅ ' : x.ok === false ? '⛔ ' : '⚠️ ') + x.t), x.d ? h('small', x.d) : null))) : h('small.muted', 'La monta en el ordenador: abre la tapa y las puertas de 5 en 5 grados hasta que algo choca, y mira cuánto engancha el cierre.')),
-      h('div.r8p-sec', h('b', 'Imprimir'), btn('🖨️ Preparar para tu Bambu', imprimir, { cls: 'primary r8cj-imp' }), h('div.row.wrap', btn('⬇ 3MF', () => baja('3mf'), { cls: 'sm ghost r8cj-3mf' }), btn('⬇ STL', () => baja('stl'), { cls: 'sm ghost' }), ext.alEstudioMalla ? btn('🧰 Al Estudio', alEstudio, { cls: 'sm ghost', title: 'Llevar la caja al Estudio para seguir diseñando' }) : null), piezasTxt()),
-      h('div.r8p-sec', h('b', '🎁 Sorpresas de la 30'), h('div.row.wrap', btn('📸 Escaparate', () => sorpresa('escaparate'), { cls: 'sm r8cj-escaparate', title: 'Foto de estudio y vídeo 360° (cerrada) para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma'), { cls: 'sm r8cj-fantasma', title: 'Mira cómo se imprimirán sus piezas, capa a capa' })))
+      h('div.r8p-sec', h('b', 'Imprimir'), btn('🖨️ Preparar para tu Bambu', () => guardia(imprimir), { cls: 'primary r8cj-imp' }), h('div.row.wrap', btn('⬇ 3MF', () => guardia(() => baja('3mf')), { cls: 'sm ghost r8cj-3mf' }), btn('⬇ STL', () => guardia(() => baja('stl')), { cls: 'sm ghost' }), ext.alEstudioMalla ? btn('🧰 Al Estudio', alEstudio, { cls: 'sm ghost', title: 'Llevar la caja al Estudio para seguir diseñando' }) : null), piezasTxt()),
+      h('div.r8p-sec', h('b', '🎁 Escaparate'), h('div.row.wrap', btn('📸 Escaparate', () => sorpresa('escaparate'), { cls: 'sm r8cj-escaparate', title: 'Foto de estudio y vídeo 360° (cerrada) para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma'), { cls: 'sm r8cj-fantasma', title: 'Mira cómo se imprimirán sus piezas, capa a capa' })))
     ]);
   }
-  function piezasTxt() { try { const L = CJ.piezasDe(C), extra = []; if (C.tapa === 'bisagraFil' && C.els.some(e => e.tipo === 'bisagra')) extra.push('🧵 un trozo de tu filamento de 1,75 por bisagra (córtalo 1 mm más largo y empújalo; si baila, dale un toque de calor en las puntas para hacerle cabeza)'); if (C.tapa === 'bisagraTor') C.els.filter(e => e.tipo === 'bisagra').forEach(e => extra.push('🪛 un tornillo M3 de ' + ([16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80].filter(l => l <= e.p.largo - 1.7).pop() || 16) + ' mm para la bisagra de ' + e.p.largo + ' mm (pasa libre y se rosca en el último nudo)')); const im = C.els.filter(e => e.tipo === 'iman'); if (im.length) extra.push('🧲 ' + 2 * im.length + ' imanes de ' + n1(im[0].p.d) + ' × ' + n1(im[0].p.h) + ' mm');
+  function piezasTxt() { try { const L = CJ.piezasDe(C), extra = []; if (C.tapa === 'bisagraFil' && C.els.some(e => e.tipo === 'bisagra')) extra.push('🧵 un trozo de tu filamento de 1,75 por bisagra (córtalo 1 mm más largo y empújalo; si baila, dale un toque de calor en las puntas para hacerle cabeza)'); if (C.tapa === 'bisagraTor') C.els.filter(e => e.tipo === 'bisagra').forEach(e => extra.push('🪛 un tornillo M3 de ' + ([16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80].filter(l => l <= e.p.largo - 1.7).pop() || 16) + ' mm para la bisagra de ' + e.p.largo + ' mm (pasa libre y se rosca en el último nudo)')); const im = C.els.filter(e => e.tipo === 'iman'); if (im.length) extra.push('🧲 ' + 2 * im.length + ' imanes de ' + n1(im[0].p.d) + ' × ' + n1(im[0].p.h) + ' mm'); if (C.tapa === 'bisagraImp' || C.els.some(e => ['combinacion', 'llave', 'cajon', 'cubetas'].includes(e.tipo))) extra.push('nada más: todo lo demás sale impreso');
       return h('div.r8cj-piezas', h('small.muted', 'Salen ' + L.length + ' piezas, cada una en la postura buena (sin soportes):'), h('ul.small', L.map(p => h('li', h('b', p.nombre), p.como ? ' · ' + p.como : ''))), extra.length ? h('small', 'Además: ' + extra.join(' · ')) : null); }
     catch (e) { return h('small.r8e-mal', '⚠️ ' + e.message); } finally { N.limpia(); } }
   function comprobar() {
     const b = der.querySelector('.r8cj-comp'); if (b) { b.disabled = true; b.textContent = '⏳ Montando…'; }
-    setTimeout(() => { resultado = CJ.comprueba(C); window.__r8cj.res = resultado; pintaDer(); const malos = resultado.lista.filter(x => x.ok === false).length; toast(malos ? '⛔ ' + malos + ' cosa' + (malos > 1 ? 's' : '') + ' que arreglar' : '✅ Montada y comprobada' + (resultado.apertura ? ': la tapa se abre ' + (resultado.apertura >= 200 ? 'del todo' : 'hasta ' + resultado.apertura + '°') : ''), malos ? 'warn' : 'ok', 6000); }, 30);
+    setTimeout(() => { resultado = CJ.comprueba(C); window.__r8cj.res = resultado; pintaDer(); const malos = resultado.lista.filter(x => x.ok === false).length; toast(malos ? '⛔ ' + malos + ' cosa' + (malos > 1 ? 's' : '') + ' que arreglar' : '✅ Montada y comprobada' + (resultado.apertura > 0 ? ': la tapa se abre ' + (resultado.apertura >= 200 ? 'del todo' : 'hasta ' + resultado.apertura + '°') : resultado.apertura === -1 ? (C.tapa === 'corredera' ? ': la tapa corre y sale entera' : ': la tapa sale entera') : ''), malos ? 'warn' : 'ok', 6000); }, 30);
   }
   const nombre = () => ('Caja_' + Math.round(C.L) + 'x' + Math.round(C.W) + 'x' + Math.round(C.H + C.tapaG) + '_' + C.tapa).replace(/[^\w.-]+/g, '_');
   const partes = () => CJ.colocaEnCama(CJ.piezasDe(C)).map(p => ({ m: p.m, color: p.color, nombre: p.nombre }));
@@ -217,7 +282,7 @@ export async function montarCajas(el, ext = {}) {
     A.asistente(cuerpo, { clave: 'caja', partes, N, uso: 'mecanica', nombre: nombre(), baja: (blob, n) => { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: n }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); }, cama: 256, forzar: { enable_support: '0' }, desktopAbrir: !!(d && d.desktop && d.desktop.on) });
   }
   async function sorpresa(que) { const S = await import('../r8/sorpresas.js'); let partes;
-    try { if (que === 'escaparate') { const G2 = CJ.construye(C); partes = [{ vista: N.aVista(G2.cuerpo), color: C.color }, { vista: N.aVista(G2.tapa), color: C.colorTapa }].concat(G2.puertas.map(P => ({ vista: N.aVista(P.m), color: C.colorTapa }))).concat(G2.sueltas.map(s => ({ vista: N.aVista(s.m), color: s.nombre.startsWith('Pomo') ? C.colorTapa : C.color }))); }
+    try { if (que === 'escaparate') { const G2 = CJ.construye(C); partes = [{ vista: N.aVista(G2.cuerpo), color: C.color }, { vista: N.aVista(G2.tapa), color: C.colorTapa }].concat(G2.puertas.map(P => ({ vista: N.aVista(P.m), color: C.colorTapa }))).concat(G2.sueltas.filter(s => s.m).map(s => ({ vista: N.aVista(s.m), color: s.tapaColor || s.nombre.startsWith('Pomo') ? C.colorTapa : C.color }))); }
       else partes = CJ.colocaEnCama(CJ.piezasDe(C)).map(p => ({ vista: N.aVista(p.m), color: p.color })); }
     catch (e) { return toast(e.message || String(e), 'bad'); } finally { N.limpia(); }
     S[que](partes, { nombre: 'Caja ' + CJ.TAPAS[C.tapa].t.toLowerCase() }); }
@@ -225,11 +290,11 @@ export async function montarCajas(el, ext = {}) {
     try { const G2 = CJ.construye(C), R2 = (() => { try { return CJ.comprueba(C); } catch (e) { return {}; } })(), L = [{ sopa: N.aSopa(G2.cuerpo), nombre: 'Caja', color: C.color }];
       L.push({ sopa: N.aSopa(G2.tapa), nombre: 'Tapa', color: C.colorTapa || C.color, bisagra: CJ.conBisagra(C) && G2.eje ? { o: G2.eje.o, dir: G2.eje.dir.map(v => -v), ang: Math.min(180, R2.apertura || 100) } : null });
       G2.puertas.forEach((Pu, i) => { const n = Pu.F.n, d = Pu.eje.dir, eu = Pu.F.eu, cr = [d[1] * eu[2] - d[2] * eu[1], d[2] * eu[0] - d[0] * eu[2], d[0] * eu[1] - d[1] * eu[0]], sg = Math.sign(cr[0] * n[0] + cr[1] * n[1] + cr[2] * n[2]) || 1; L.push({ sopa: N.aSopa(Pu.m), nombre: 'Puerta' + (G2.puertas.length > 1 ? ' ' + (i + 1) : ''), color: C.colorTapa || C.color, bisagra: { o: Pu.eje.o, dir: d.map(v => v * sg), ang: 100 } }); });
-      G2.sueltas.forEach(x => L.push({ sopa: N.aSopa(x.m), nombre: x.nombre, color: C.colorTapa || C.color }));
+      G2.sueltas.filter(x => x.m).forEach(x => L.push({ sopa: N.aSopa(x.m), nombre: x.nombre, color: x.tapaColor ? C.colorTapa : C.color }));
       if (ext.alEstudioPiezas) ext.alEstudioPiezas(L, 'Caja ' + CJ.TAPAS[C.tapa].t.toLowerCase()); else ext.alEstudioMalla(L[0].sopa, 'Caja');
     } catch (e) { toast(e.message, 'bad'); } finally { N.limpia(); } }
 
   pintaIzq(); pintaDer(); pintaBarra(); pinta3D(true);
-  window.__r8cjApi = { get C() { return C; }, set C(x) { C = x; commit(null); }, caraEn, escena, CJ, aPantalla: q => escena.aPantalla(q), comprobar, animar };
+  window.__r8cjApi = { get C() { return C; }, set C(x) { C = x; commit(null); }, caraEn, escena, CJ, aPantalla: q => escena.aPantalla(q), comprobar, animar, arreglar };
   return { destroy() { vivo = false; window.removeEventListener('pointermove', sigue); window.removeEventListener('pointerup', suelta); window.removeEventListener('keydown', tecla); window.removeEventListener('pointercancel', cancela); limpiaG(capaZ); limpiaG(capaM); escena.destruir(); delete window.__r8cjApi; } };
 }

@@ -5,7 +5,37 @@ export async function parse3D(buf, name) {
   const ext = String(name || '').split('.').pop().toLowerCase();
   if (ext === '3mf') return parse3MF(buf);
   if (ext === 'obj') return parseOBJ(new TextDecoder().decode(buf));
+  if (ext === 'glb' || ext === 'gltf') return parseGLTF(buf, ext === 'glb'); // 13-10-2026 · los escaneos de Polycam, KIRI, RealityScan…
   return parseSTL(buf);
+}
+// ---------- 13-10-2026 · GLB / GLTF (glTF 2.0): lo que dan gratis las apps de escanear con el móvil (Polycam, KIRI, RealityScan…) ----------
+// Se leen todas las mallas de la escena con su colocación (matriz o mover/girar/escalar de cada nodo). glTF va en METROS y con la Y hacia
+// arriba: se pasa a milímetros y a Z hacia arriba (como todo en el programa). Un .gltf con su .bin aparte no se puede abrir desde un solo
+// archivo: hay que exportarlo como GLB. Los comprimidos (Draco, meshopt) tampoco: se dice.
+function parseGLTF(buf, glb) {
+  let J, BIN = null; const u8 = new Uint8Array(buf);
+  if (glb) { const dv = new DataView(buf); if (dv.getUint32(0, true) !== 0x46546C67) throw new Error('Ese GLB no es válido.'); let o = 12;
+    while (o + 8 <= buf.byteLength) { const len = dv.getUint32(o, true), tipo = dv.getUint32(o + 4, true); if (tipo === 0x4E4F534A) J = JSON.parse(new TextDecoder().decode(u8.subarray(o + 8, o + 8 + len))); else if (tipo === 0x004E4942) BIN = u8.subarray(o + 8, o + 8 + len); o += 8 + len; } }
+  else J = JSON.parse(new TextDecoder().decode(u8));
+  if (!J) throw new Error('El archivo GLB/GLTF está vacío o dañado.');
+  const req = (J.extensionsRequired || []).filter(x => /draco|meshopt|quantiz/i.test(x)); if (req.length) throw new Error('El escaneo viene COMPRIMIDO (' + req.join(', ') + '): expórtalo otra vez como OBJ, STL o GLB sin comprimir.');
+  const bufs = (J.buffers || []).map((b, i) => { if (b.uri == null) return BIN; const m = /^data:[^;]*;base64,(.*)$/.exec(b.uri); if (!m) throw new Error('Ese .gltf lleva su .bin en otro archivo: expórtalo como GLB (un solo archivo).'); const s = atob(m[1]), a = new Uint8Array(s.length); for (let k = 0; k < s.length; k++) a[k] = s.charCodeAt(k); return a; });
+  const NC = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }, BY = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+  const lee = ai => { const A = J.accessors[ai], V = J.bufferViews[A.bufferView], B = bufs[V.buffer]; if (!B) throw new Error('Falta un trozo de datos del escaneo.'); const nc = NC[A.type], by = BY[A.componentType], paso = V.byteStride || nc * by, ini = (V.byteOffset || 0) + (A.byteOffset || 0), dv = new DataView(B.buffer, B.byteOffset), out = new Float64Array(A.count * nc);
+    for (let i = 0; i < A.count; i++) for (let c = 0; c < nc; c++) { const o = ini + i * paso + c * by; out[i * nc + c] = A.componentType === 5126 ? dv.getFloat32(o, true) : by === 4 ? dv.getUint32(o, true) : by === 2 ? dv.getUint16(o, true) : dv.getUint8(o); } return out; };
+  const mul = (a, b) => { const o = new Array(16).fill(0); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) o[j * 4 + i] += a[k * 4 + i] * b[j * 4 + k]; return o; }; // (columnas, como glTF)
+  const trs = n => { if (n.matrix) return n.matrix; const [tx, ty, tz] = n.translation || [0, 0, 0], [x, y, z, w] = n.rotation || [0, 0, 0, 1], [sx, sy, sz] = n.scale || [1, 1, 1];
+    return [(1 - 2 * (y * y + z * z)) * sx, (2 * (x * y + z * w)) * sx, (2 * (x * z - y * w)) * sx, 0, (2 * (x * y - z * w)) * sy, (1 - 2 * (x * x + z * z)) * sy, (2 * (y * z + x * w)) * sy, 0, (2 * (x * z + y * w)) * sz, (2 * (y * z - x * w)) * sz, (1 - 2 * (x * x + y * y)) * sz, 0, tx, ty, tz, 1]; };
+  const out = [], visto = new Set();
+  const pinta = (ni, M) => { if (visto.has(ni + ':' + M.join())) return; visto.add(ni + ':' + M.join()); const n = J.nodes[ni], Mn = mul(M, trs(n));
+    if (n.mesh != null) for (const pr of J.meshes[n.mesh].primitives || []) { if ((pr.mode ?? 4) !== 4 || pr.attributes.POSITION == null) continue; const P = lee(pr.attributes.POSITION), I = pr.indices != null ? lee(pr.indices) : null, nV = P.length / 3, nI = I ? I.length : nV;
+      for (let k = 0; k < nI; k++) { const v = I ? I[k] : k, x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], X = Mn[0] * x + Mn[4] * y + Mn[8] * z + Mn[12], Y = Mn[1] * x + Mn[5] * y + Mn[9] * z + Mn[13], Z = Mn[2] * x + Mn[6] * y + Mn[10] * z + Mn[14];
+        out.push(X * 1000, -Z * 1000, Y * 1000); } } // (metros → mm · Y arriba → Z arriba)
+    (n.children || []).forEach(c => pinta(c, Mn)); };
+  const I4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], sc = J.scenes && J.scenes[J.scene || 0];
+  (sc ? sc.nodes : (J.nodes || []).map((_, i) => i)).forEach(ni => pinta(ni, I4));
+  if (!out.length) throw new Error('No encuentro ninguna malla en ese archivo.');
+  return new Float32Array(out);
 }
 function parseSTL(buf) {
   const dv = new DataView(buf);

@@ -125,7 +125,7 @@ export async function medir3D(buf, nombre) {
   if (ext === 'stl') return sinUnidad(cajaSTL(buf), 'STL');
   throw new Error('Solo sé medir archivos STL, 3MF y OBJ.');
 }
-export const esArchivo3D = nombre => /\.(stl|3mf|obj)$/i.test(String(nombre || ''));
+export const esArchivo3D = nombre => /\.(stl|3mf|obj|glb|gltf)$/i.test(String(nombre || ''));
 export const escalar = (m, f) => Object.assign({}, m, { x: r1(m.x * f), y: r1(m.y * f), z: r1(m.z * f), estado: 'manual', aviso: '' });
 // v16: las medidas se enseñan con su nombre y en centímetros. X, Y, Z de la Bambu = Ancho, Largo, Alto.
 export const cm = mm => String(Math.round(Number(mm) / 10 * 10) / 10).replace('.', ',');

@@ -39,7 +39,7 @@ export const VISTAS = [['iso', '◆', 'Vista 3D'], ['frente', 'Frente', 'De fren
 export const botonesVista = esc => h('div.der', VISTAS.map(([k, t, tt]) => h('button.r8p-pill', { type: 'button', title: tt, 'data-v': k, onclick: () => esc() && esc().encuadrar(k) }, t)));
 
 // ---------- abrir un archivo (STL / OBJ / 3MF) → STL binario + sopa ----------
-export function pideArchivo(acepta = '.stl,.obj,.3mf') { return new Promise(res => { const i = h('input', { type: 'file', accept: acepta, style: { display: 'none' }, onchange: () => { const f = i.files && i.files[0]; i.remove(); res(f || null); } }); document.body.appendChild(i); i.click(); }); }
+export function pideArchivo(acepta = '.stl,.obj,.3mf,.glb,.gltf') { return new Promise(res => { const i = h('input', { type: 'file', accept: acepta, style: { display: 'none' }, onchange: () => { const f = i.files && i.files[0]; i.remove(); res(f || null); } }); document.body.appendChild(i); i.click(); }); }
 export async function leeModelo(f) {
   const buf = await f.arrayBuffer(), { parse3D } = await import('../stl.js');
   const sopa = await parse3D(buf, f.name);

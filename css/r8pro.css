@@ -414,7 +414,7 @@ code.r8i-fuente { padding: 4px 8px; border-radius: 6px; background: var(--surfac
 .clon-f.on { border-color: var(--brand, #7c5cff); } .clon-f img { width: 100%; height: 110px; object-fit: contain; border-radius: 8px; background: #0003; }
 .clon-f-d { display: grid; gap: 4px; } .clon-f-d small { font-size: 11px; color: var(--muted); } .clon-quitar { position: absolute; top: 8px; right: 8px; border: 0; background: rgba(0, 0, 0, .5); color: #fff; border-radius: 8px; cursor: pointer; }
 .clon-vacio p { margin: 0 0 8px; font-size: 13px; }
-.clon-foto { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+.clon-foto { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
 .clon-barra { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); align-items: center; }
 .clon-b { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2, #1b2140); color: var(--text); font: 650 12px var(--font-d, system-ui); cursor: pointer; } .clon-b.on { border-color: var(--brand, #7c5cff); background: color-mix(in srgb, var(--brand, #7c5cff) 24%, transparent); } .clon-b:disabled { opacity: .45; cursor: not-allowed; }
 .clon-calmm { display: flex; align-items: center; gap: 6px; font-size: 12px; } .clon-calmm .inp { width: 90px; }
@@ -716,3 +716,103 @@ html[data-modo="dia"] .r8cj-aviso.bien { color: #0f8a3d; } html[data-modo="dia"]
 .lec50-it { display: grid; grid-template-columns: 36px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); cursor: pointer; font: inherit; }
 .lec50-it span { grid-row: span 2; font-size: 24px; } .lec50-it b { font-size: 14px; } .lec50-it small { color: var(--text-2); font-size: 12px; line-height: 1.3; }
 .lec50-it:hover { border-color: var(--brand); transform: translateY(-1px); } .lec50-general { border-color: var(--brand); }
+
+/* ===== 13-10-2026 · 🩹 restaurador de fotos: lo que ha arreglado, el velo de espera y la ventana de retoque (opción B) ===== */
+.clon-rest:empty { display: none; } .clon-rest { position: absolute; left: 8px; top: 8px; z-index: 3; max-width: min(560px, calc(100% - 16px)); max-height: calc(100% - 16px); overflow-y: auto; } .clon-rest .frp { margin: 0; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow-l); backdrop-filter: blur(6px); } .clon-rest-no { margin: 0; padding: 6px 10px; border-radius: 12px; font-size: 12.5px; color: var(--text-2); background: color-mix(in srgb, var(--surface) 92%, transparent); }
+.frp { margin: 6px 0; padding: 8px 12px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface-2); font-size: 13px; }
+.frp summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; cursor: pointer; list-style: none; } .frp summary::-webkit-details-marker { display: none; } .frp summary small { color: var(--muted); }
+.frp-sello { padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; background: color-mix(in srgb, #1fbf6a 18%, transparent); color: var(--text); } .frp.media .frp-sello { background: color-mix(in srgb, #ffb020 26%, transparent); } .frp.baja .frp-sello { background: color-mix(in srgb, #ff3b5c 24%, transparent); }
+.frp-pasos { margin: 8px 0 4px; padding-left: 20px; display: grid; gap: 3px; color: var(--text-2); } .frp-aviso { margin: 4px 0; color: var(--text); font-weight: 600; }
+.frp-acc { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; } .frp-otra { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--text-2); } .frp-otra .inp { height: 32px; padding: 0 8px; }
+.frp-cal { margin: 6px 0 2px; font-size: 12.5px; color: var(--text-2); } .frp-link { border: 0; background: none; padding: 0; color: var(--text); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.clon-velo { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 10px; background: color-mix(in srgb, var(--bg) 78%, transparent); backdrop-filter: blur(3px); font-weight: 600; } .clon-velo[hidden] { display: none; } .clon-velo p { margin: 0; }
+.ac50-btns { display: flex; flex-wrap: wrap; gap: 8px; } .ac50-arreglos { padding: 6px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); } .ac50-arreglos summary { cursor: pointer; font-weight: 700; color: var(--text); } .ac50-arreglos p { margin: 4px 0; } .ac50-arreglos p.mal { color: var(--text); font-weight: 600; }
+.frr { position: fixed; inset: 0; z-index: 290; display: grid; place-items: center; padding: 2vh 14px; background: color-mix(in srgb, var(--bg) 84%, transparent); backdrop-filter: blur(10px); }
+.frr-caja { width: min(1280px, 100%); height: min(92vh, 900px); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 10px; padding: 16px 18px; border-radius: 22px; border: 1px solid var(--line-2); background: var(--surface); box-shadow: var(--shadow-l); }
+.frr-cab { display: flex; justify-content: space-between; align-items: center; gap: 12px; } .frr-cab small { display: block; font-size: 11px; letter-spacing: .18em; color: var(--muted); } .frr-cab b { font-size: 19px; }
+.frr-x { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); cursor: pointer; }
+.frr-barra { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; } .frr-modos, .frr-ops, .frr-fin { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .frr-fin { margin-left: auto; }
+.frr-b { min-height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; } .frr-b.on { background: var(--brand); border-color: var(--brand); color: var(--brand-text, #fff); } .frr-b:disabled { opacity: .5; }
+.frr-ops label { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--text-2); } .frr-esp { font-size: 13px; color: var(--muted); }
+.frr-lienzo { position: relative; min-height: 0; border-radius: 14px; overflow: hidden; background: #0b0b10; } .frr-cv { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
+.frr-pista { margin: 0; font-size: 13px; color: var(--text-2); }
+
+/* ===== 13-10-2026 · 🛡️ Resistencia (detector de fragilidad): la lista de zonas débiles, sus colores y el panel de reforzar ===== */
+.fg-ley { gap: 6px; } .fg-p { display: inline-block; width: 10px; height: 10px; border-radius: 50%; } .fg-p.rojo { background: #ff3350; } .fg-p.naranja { background: #ff8029; } .fg-p.amarillo { background: #ffd140; } .fg-p.verde { background: #5cc799; }
+.fg-lista { display: grid; gap: 8px; margin: 8px 0; }
+.fg-z { display: grid; gap: 4px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); border-left: 4px solid #ffd140; background: var(--surface-2); cursor: pointer; transition: border-color .15s, transform .15s; }
+.fg-z:hover { transform: translateY(-1px); } .fg-z.rojo { border-left-color: #ff3350; } .fg-z.naranja { border-left-color: #ff8029; }
+.fg-z.on { border-color: #59d9ff; box-shadow: 0 0 0 2px color-mix(in srgb, #59d9ff 35%, transparent); cursor: default; }
+.fg-z-t { display: flex; gap: 8px; align-items: center; } .fg-z-t b { flex: 1; font-size: 13.5px; } .fg-z small { color: var(--text-2); font-size: 12px; line-height: 1.35; }
+.fg-kg { padding: 2px 9px; border-radius: 99px; background: var(--surface-3, rgba(127, 127, 127, .15)); font-weight: 800; font-size: 12px; white-space: nowrap; }
+.fg-acc { display: grid; gap: 8px; margin-top: 6px; } .fg-mas { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; color: var(--text-2); } .fg-mas i { font-style: normal; font-weight: 700; color: var(--text); min-width: 34px; text-align: right; }
+.fg-ojo { color: var(--text-2); } .fg-global { margin: 8px 0; }
+.fg-antes { display: grid; gap: 3px; margin: 8px 0; padding: 9px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, #3ddc97 45%, transparent); background: color-mix(in srgb, #3ddc97 9%, transparent); font-size: 13px; } .fg-antes small { color: var(--text-2); }
+.fg-espera { display: grid; place-items: center; gap: 10px; padding: 40px 10px; text-align: center; color: var(--text-2); }
+.fg-postura p { margin: 4px 0 8px; }
+
+/* ===== 13-10-2026 · 📸 Desde una foto: CelebriCLON + Foto → 3D en una pestaña (los dos caminos arriba) ===== */
+.df { display: grid; gap: 10px; } .df-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+.df-tit { display: flex; gap: 10px; align-items: center; } .df-tit > span { font-size: 26px; } .df-tit b { display: block; font-size: 16px; } .df-tit small { color: var(--text-2); font-size: 12px; }
+.df-modos { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.df-modo { display: flex; gap: 10px; align-items: center; min-width: 240px; flex: 1; max-width: 420px; text-align: left; padding: 9px 14px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; transition: border-color .15s, transform .15s; }
+.df-modo:hover { transform: translateY(-1px); border-color: var(--brand); } .df-modo > span { font-size: 24px; } .df-modo b { display: block; font-size: 14px; } .df-modo small { color: var(--text-2); font-size: 11.5px; line-height: 1.3; }
+.df-modo.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, var(--surface-2)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 30%, transparent); }
+.df-misma { white-space: nowrap; }
+/* 13-10-2026 · 🧾 tapete de calco en CelebriCLON */
+.clon-tap { display: grid; gap: 6px; margin: 0 0 12px; padding: 10px 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)); background: color-mix(in srgb, var(--brand) 10%, var(--surface-2)); }
+.clon-tap b { font-size: 13.5px; } .clon-tap small { color: var(--text-2); font-size: 12px; line-height: 1.35; } .clon-grosor { margin-top: 4px; font-size: 12px; }
+/* 13-10-2026 (noche) · 📏 «Mi tapete mide…» */
+.clon-tm p { margin: 0 0 10px; line-height: 1.4; } .clon-tm-f { display: grid; gap: 7px; padding: 12px 0; border-top: 1px solid var(--line); } .clon-tm-c { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; } .clon-tm-c label, .clon-tm-b { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--text-2); } .clon-tm .inp { width: 92px; }
+/* 14-10-2026 · 🧲 boceto como en Fusion: más sitio (tapa navegador y propiedades), largo escrito al dibujar, punto elegido, líneas abiertas */
+.r8e-main { position: relative; }
+.r8b.r8b-grande { z-index: 30; }
+.r8b-chk-ay { font-weight: 700; }
+.r8b-teclea { position: absolute; z-index: 5; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 330px; padding: 6px 9px; border-radius: 11px; border: 2px solid #ffb020; background: rgba(12, 15, 28, .95); color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); font: 600 12px system-ui; }
+.r8b-teclea label { display: flex; align-items: center; gap: 4px; }
+.r8b-teclea small { opacity: .75; font-weight: 500; }
+.r8b-teclea i { opacity: .7; font-style: normal; }
+.r8b-teclea input { width: 58px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .35); background: transparent; color: #fff; font: 700 14px/1.2 system-ui; text-align: right; padding: 2px 0; outline: none; }
+.r8b-teclea input:focus { border-bottom-color: #ffb020; }
+.r8b-teclea .r8b-teclea-ay { flex-basis: 100%; font-size: 10.5px; }
+.r8b-punto { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; border: 1px solid #ffb020; background: rgba(255, 176, 32, .08); }
+.r8b-abierta-n { margin: 0; padding: 6px 9px; border-radius: 9px; background: rgba(255, 176, 32, .12); border: 1px dashed #ffb020; }
+/* 14-10-2026 · 📷 guía de fotos de CelebriCLON (y del asistente del Lab): huecos por foto, dibujos de dónde va el móvil, consejos */
+.gf-slot, .gf-hecha { display: grid; gap: 6px; padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2, transparent); }
+.gf-slot.ahora { border: 2px solid #ffb020; box-shadow: 0 0 0 3px rgba(255, 176, 32, .18); background: color-mix(in srgb, #ffb020 7%, var(--surface)); }
+.gf-slot.no, .gf-slot.luego { opacity: .72; }
+.gf-cab { display: flex; align-items: center; justify-content: space-between; gap: 6px; } .gf-cab b { font-size: 13px; }
+.gf-est { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); white-space: nowrap; }
+.gf-est.ahora { background: #ffb020; color: #1b1405; border-color: #ffb020; } .gf-est.hecha { background: none; border: 0; }
+.gf-dib { border-radius: 10px; background: color-mix(in srgb, var(--surface) 70%, #0b0f1e 30%); color: var(--text); overflow: hidden; }
+.gf-dib svg { display: block; width: 100%; height: auto; }
+.gf-dib.grande { max-width: 520px; width: 100%; margin: 0 auto; }
+.gf-porque, .gf-motivo { color: var(--text-2); line-height: 1.35; }
+.gf-tips { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 12px; line-height: 1.35; color: var(--text-2); }
+.gf-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.gf-mejora { display: grid; gap: 2px; } .gf-mejora small { line-height: 1.3; }
+.gf-consejos { border: 1px dashed var(--line); border-radius: 12px; padding: 6px 9px; } .gf-consejos summary { cursor: pointer; font-weight: 700; font-size: 12.5px; }
+.gf-consejos .gf-tips { margin-top: 6px; } .gf-no { display: grid; gap: 6px; margin-top: 8px; }
+.clon-tap.compacto small { display: none; }
+.gf-centro { position: absolute; inset: 44px 0 30px; z-index: 4; display: grid; place-items: center; padding: 14px; overflow: auto; background: color-mix(in srgb, var(--surface) 94%, transparent); }
+.gf-centro[hidden] { display: none; }
+.gf-centro-c { display: grid; gap: 10px; justify-items: center; max-width: 560px; text-align: center; } .gf-centro-c .gf-tips { text-align: left; font-size: 13px; }
+.gf-centro-t { font: 800 18px var(--font-d, system-ui); color: #ffb020; }
+.ac50-guia { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 12px; align-items: center; } .ac50-guia .gf-tips { font-size: 12.5px; }
+@media (max-width: 700px) { .ac50-guia { grid-template-columns: 1fr; } }
+.clon-fotos { grid-template-columns: minmax(0, 1fr); } .clon-fotos > * { min-width: 0; } .gf-cab b { min-width: 0; }
+@media (min-width: 1201px) { .clon-main { grid-template-columns: 252px minmax(0, 1fr) 360px; } }
+/* 14-10-2026 · la pista de arriba del boceto, de ALTO FIJO (2 líneas): al cambiar de herramienta el texto cambia de largo y antes la barra
+   cambiaba de alto y las herramientas de la izquierda «saltaban» (con el dedo se tocaba la de al lado) */
+.r8b-top .r8b-pista { flex: 1 1 320px; min-width: 220px; line-height: 1.3; height: 2.6em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; align-self: center; }
+/* 14-10-2026 · Taller de cajas PRO: grupos, lo que no va (apagado), revisión y acabado */
+.r8cj-grupo { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.r8cj-gt { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+.r8cj-pl.nueva { border-color: color-mix(in srgb, var(--a1, #7c6cff) 55%, var(--line)); background: color-mix(in srgb, var(--a1, #7c6cff) 7%, var(--surface)); }
+.r8cj-el.no { opacity: .42; border-style: dotted; cursor: not-allowed; filter: grayscale(.7); }
+.r8cj-el.no:hover { transform: none; }
+.r8cj-num.r8cj-txt, .r8cj-estilo, .r8cj-imp { grid-template-columns: 1fr; }
+.r8cj-estilo, .r8cj-imp { flex: 1 1 180px; }
+.r8cj-ok { margin: 0; color: #0f8a3d; font-weight: 600; }
+html:not([data-modo="dia"]) .r8cj-ok { color: #2fdc72; }
+.r8cj-rev .r8cj-arregla { margin-top: 6px; width: 100%; }

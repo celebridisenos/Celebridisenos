@@ -10,6 +10,7 @@ import { h, mount, btn, toast, confirmDlg } from '../ui.js';
 import * as N from '../r8/nucleo.js';
 import { crearEscena, COLORES } from '../r8/escena3d.js';
 import * as HF from '../r8/hfclave.js'; // v20.1
+import * as ES from '../r8/estado.js'; // 13-10: la foto compartida con CelebriCLON («📸 Desde una foto»)
 
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES');
 const F = { modo: 'figura3d', img: null, nombre: '', prof: null, mascara: null, v: { relieve: { forma: 'placa', ancho: 100, alto: 6, base: 2, marco: 3, suave: 1, invertir: false }, lito: { forma: 'plana', ancho: 100, min: 0.8, max: 3, marco: 3, radio: 4 }, inflada: { ancho: 70, alto: 10, base: 1.2, doble: false }, figura3d: { motor: 'auto', alto: 100, resolucion: '256', detalle: 'normal', peana: true, recortar: true } }, res: {} };
@@ -254,7 +255,7 @@ export async function montarFoto(el, ext = {}) {
   }
   function alEstudio() { if (!ultima) return toast('Primero sube una foto.', 'warn'); const s2 = N.aSopa(ultima); if (ext.alEstudioMalla) ext.alEstudioMalla(s2, (F.modo === 'lito' ? 'Litofanía ' : F.modo === 'relieve' ? 'Relieve ' : 'Figura ') + (F.nombre || '')); }
   pintaModos(); pintaFoto(); pintaCampos(); genera(true);
-  return { destroy() { vivo = false; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); if (ultima) N.suelta(ultima); } };
+  return { destroy() { vivo = false; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); if (ultima) N.suelta(ultima); }, usaFoto: f => cargaFoto(f), tieneFoto: () => !!F.blob && F.blob === ES.fotoCompartida() };
 }
 // el contorno de una imagen en blanco y negro (lo opaco) → polígonos en mm (1 px = 1 unidad; luego se escala)
 import { trazar } from '../r8/motor.js';

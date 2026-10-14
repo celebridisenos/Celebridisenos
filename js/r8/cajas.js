@@ -9,6 +9,7 @@
 // Cada cara lateral tiene su «u» (a lo ancho, mirándola desde fuera, de izquierda a derecha) y su «v» (la altura, z).
 import * as N from './nucleo.js';
 import { ENCAJES } from './motor.js';
+import * as CP from './cajas_pro.js'; // 14-10-2026 · cerraduras, compartimentos, estilos y el limitador (Taller de cajas PRO)
 
 const M = () => N.MF();
 const segs = d => Math.max(24, Math.min(96, Math.round(d * 3 + 16)));
@@ -33,10 +34,11 @@ export const TAPAS = {
   bisagraFil: { e: '🧵', t: 'Bisagra · eje de filamento', d: 'El eje es un trozo de TU filamento de 1,75 mm: no compras nada.', pin: 1.75, Rk: 4.2, hEje: 0.15, hTapa: 0.3 },
   bisagraImp: { e: '📌', t: 'Bisagra · eje impreso', d: 'Sale un pasador gordo (Ø4) con cabeza que se mete por los nudos: fuerte y sin comprar nada.', pin: 4, Rk: 5.5, hEje: 0.15, hTapa: 0.3 },
   bisagraTor: { e: '🪛', t: 'Bisagra · tornillo M3', d: 'El eje es un tornillo M3 largo que se rosca en el último nudo: la más fuerte (el tornillo se compra).', pin: 3, Rk: 5, hEje: 0.2, hTapa: 0.3, rosca: 1.3, comprado: 'tornillo M3' },
-  bisagraClic: { e: '🫰', t: 'Bisagra de clic (frágil)', d: 'Ya no se recomienda: para engancharla hay que abrir un aro impreso por capas y se raja. Cámbiala por otra.', pin: 4, Rk: 5.5, hTapa: 0.3, boca: 3.4, fragil: true }
+  bisagraClic: { e: '🫰', t: 'Bisagra de clic (frágil)', d: 'Ya no se recomienda: para engancharla hay que abrir un aro impreso por capas y se raja. Cámbiala por otra.', pin: 4, Rk: 5.5, hTapa: 0.3, boca: 3.4, fragil: true },
+  corredera: { e: '↔️', t: 'Tapa corredera', d: 'Va metida y corre por unas ranuras en cola de milano; sale por la derecha. La del cierre secreto.' }
 };
 export const AJUSTES = { suave: ['Suave', 'gira'], firme: ['Firme', 'justo'], fuerte: ['Muy firme', 'presion'] };
-export const conBisagra = C => C.tapa !== 'presion';
+export const conBisagra = C => C.tapa !== 'presion' && C.tapa !== 'corredera';
 export const CARAS = { frente: 'Delante', atras: 'Detrás', izq: 'Izquierda', der: 'Derecha', tapa: 'Encima de la tapa', dentro: 'Dentro' };
 const LADOS = ['frente', 'atras', 'izq', 'der'];
 // p = medidas por defecto · campos = [clave, texto, mín, máx, paso] · junta = va en la unión tapa-caja (su altura no se elige)
@@ -52,7 +54,22 @@ export const TIPOS = {
   etiqueta: { e: '🏷️', t: 'Portaetiquetas', d: 'Un marquito para meter una tarjeta', caras: LADOS, p: { ancho: 40, alto: 22 }, campos: [['ancho', 'Ancho de la tarjeta', 16, 140, 1], ['alto', 'Alto de la tarjeta', 10, 90, 1]] },
   separador: { e: '▤', t: 'Separador', d: 'Una pared por dentro (compartimentos)', caras: ['dentro'], p: { dir: 'y' }, campos: [] }
 };
-export function nueva() { return { L: 120, W: 80, H: 50, pared: 3, suelo: 2.4, tapaG: 3, radio: 4, tapa: 'bisagraFil', ajuste: 'firme', labio: 5, tope: true, color: '#9d6d3f', colorTapa: '#c9a227', els: [] }; }
+// 14-10-2026 · los nuevos (cajas_pro.js) y los GRUPOS de la paleta
+Object.assign(TIPOS, CP.TIPOS_PRO);
+Object.entries({ bisagra: 'cerrar', cierre: 'cerrar', candado: 'cerrar', iman: 'cerrar', pomo: 'abrir', asa: 'abrir', puerta: 'abrir', cable: 'mas', etiqueta: 'mas', separador: 'dentro' }).forEach(([k, g]) => { TIPOS[k].grupo = g; });
+export const GRUPOS = { cerrar: '🔒 Cerrar', abrir: '✋ Abrir y coger', dentro: '🗂️ Dentro', mas: '✨ Más' };
+// 🛑 ¿por qué NO se puede poner este elemento en esta caja, esté donde esté? → el motivo o null (soloTapa: solo lo que depende de la tapa)
+export function porQueNo(C, tipo, idIgnora, soloTapa) {
+  const D = TIPOS[tipo]; if (!D) return 'No sé qué es eso.';
+  if (tipo === 'bisagra' && !conBisagra(C)) return C.tapa === 'corredera' ? 'La tapa corredera no lleva bisagras (va metida en sus ranuras).' : 'Con la tapa a presión no hay bisagras: elige arriba una tapa con bisagra.';
+  if (C.tapa === 'corredera' && ['cierre', 'candado', 'iman', 'combinacion', 'llave'].includes(tipo)) return 'Con la tapa corredera no hace falta ni cabe (la tapa va metida en sus ranuras): elige una tapa con bisagra o a presión.';
+  if (tipo === 'gravedad' && C.tapa !== 'corredera') return 'El cierre secreto va con la TAPA CORREDERA: elígela arriba.';
+  if (soloTapa) return null;
+  const yaHay = C.els.filter(e => e.id !== idIgnora && e.tipo === tipo).length;
+  if (yaHay >= (CP.MAXIMO[tipo] || 99)) return 'Ya hay ' + yaHay + ': como mucho ' + CP.MAXIMO[tipo] + ' por caja.';
+  return null;
+}
+export function nueva() { return { L: 120, W: 80, H: 50, pared: 3, suelo: 2.4, tapaG: 3, radio: 4, tapa: 'bisagraFil', ajuste: 'firme', labio: 5, tope: true, color: '#9d6d3f', colorTapa: '#c9a227', estilo: 'lisa', pies: false, impresora: 'p1p', els: [] }; }
 let ids = 0;
 export const nuevoId = () => 'e' + Date.now().toString(36) + (ids++).toString(36);
 export const elemento = (tipo, cara, u, v, p) => ({ id: nuevoId(), tipo, cara, u, v, p: Object.assign({}, TIPOS[tipo].p, p || {}) });
@@ -61,12 +78,32 @@ export const PLANTILLAS = {
     els: [['bisagra', 'atras', -26, 0, { largo: 28 }], ['bisagra', 'atras', 26, 0, { largo: 28 }], ['cierre', 'frente', 0, 0], ['separador', 'dentro', -18, 0], ['separador', 'dentro', 18, 0]] },
   herramientas: { e: '🧰', t: 'Caja de herramientas', d: 'Bisagras de eje impreso, cierres, candado y asas', C: { L: 200, W: 110, H: 70, radio: 6, tapa: 'bisagraImp', pared: 3, tapaG: 3, color: '#c8102e', colorTapa: '#1b1b1d' },
     els: [['bisagra', 'atras', -55, 0, { largo: 44 }], ['bisagra', 'atras', 55, 0, { largo: 44 }], ['cierre', 'frente', -60, 0, { ancho: 18 }], ['cierre', 'frente', 60, 0, { ancho: 18 }], ['candado', 'frente', 0, 0], ['asa', 'izq', 0, 42], ['asa', 'der', 0, 42]] },
+  // 13-10-2026 · 50.1 («cajas de diferentes estilos, formas, cierres seguros con protección»): con las piezas que ya se han probado aquí
+  maletin: { e: '💼', t: 'Maletín', d: 'Bisagra con tornillo M3 (la más fuerte), dos cierres, candado y asa arriba', C: { L: 200, W: 140, H: 60, radio: 8, tapa: 'bisagraTor', pared: 3.2, tapaG: 3.2, color: '#1b1b1d', colorTapa: '#3d4048' }, // (con las asas, 230 mm: cabe en la P1P)
+    els: [['bisagra', 'atras', -55, 0, { largo: 52 }], ['bisagra', 'atras', 55, 0, { largo: 52 }], ['cierre', 'frente', -65, 0, { ancho: 20 }], ['cierre', 'frente', 65, 0, { ancho: 20 }], ['candado', 'frente', 0, 0, { agujero: 6 }], ['asa', 'izq', 0, 30, { ancho: 56, alto: 15 }], ['asa', 'der', 0, 30, { ancho: 56, alto: 15 }], ['separador', 'dentro', 0, 0]] },
+  segura: { e: '🛡️', t: 'Caja de seguridad', d: 'Paredes gruesas, bisagra de tornillo, dos cierres y candado en medio', C: { L: 150, W: 100, H: 70, radio: 5, tapa: 'bisagraTor', pared: 4, tapaG: 4, suelo: 3, color: '#2a3a4a', colorTapa: '#c9a227' },
+    els: [['bisagra', 'atras', -38, 0, { largo: 50 }], ['bisagra', 'atras', 38, 0, { largo: 50 }], ['cierre', 'frente', -48, 0, { ancho: 18 }], ['cierre', 'frente', 48, 0, { ancho: 18 }], ['candado', 'frente', 0, 0, { agujero: 7 }], ['etiqueta', 'izq', 0, 35]] },
   armarito: { e: '🗄️', t: 'Armarito con puerta', d: 'Tapa a presión, puerta de clic con su pomo', C: { L: 90, W: 70, H: 100, radio: 4, tapa: 'presion', color: '#f4f4f2', colorTapa: '#00a4e4' },
     els: [['puerta', 'frente', 0, 50, { ancho: 60, alto: 70 }], ['pomo', 'frente', 20, 50, { d: 12, alto: 10 }]] },
   tornillos: { e: '🔩', t: 'Caja de tornillos', d: 'Tapa a presión y 6 compartimentos', C: { L: 150, W: 100, H: 40, radio: 4, tapa: 'presion', color: '#8e9196', colorTapa: '#f7d117' },
     els: [['separador', 'dentro', -25, 0], ['separador', 'dentro', 25, 0], ['separador', 'dentro', 0, 0, { dir: 'x' }], ['etiqueta', 'frente', 0, 20]] },
-  secreta: { e: '🤫', t: 'Caja secreta', d: 'Bisagra de eje impreso y cierre con imanes', C: { L: 90, W: 90, H: 45, radio: 8, tapa: 'bisagraImp', pared: 3, tapaG: 3, color: '#5e43b7', colorTapa: '#c08ee8' },
-    els: [['bisagra', 'atras', 0, 0, { largo: 50 }], ['iman', 'frente', -22, 0], ['iman', 'frente', 22, 0], ['pomo', 'tapa', 0, -20, { d: 14, alto: 9 }]] }
+  // 14-10-2026 · las que pidió: secreta de verdad, combinación, llave, pilas, 6 en 1 y multifunción (y herramientas y tornillos, mejores)
+  secreta: { e: '🤫', t: 'Caja secreta', d: 'Tapa corredera que solo sale BOCA ABAJO (cierre por gravedad) y fondo falso', C: { L: 110, W: 80, H: 50, radio: 6, tapa: 'corredera', pared: 3.2, tapaG: 4, suelo: 2.4, color: '#2b2d42', colorTapa: '#c9a227', estilo: 'acanalada' },
+    els: [['gravedad', 'dentro', -30, 12], ['fondo', 'dentro', 0, 0, { alto: 12 }]] },
+  combinacion: { e: '🔢', t: 'Caja con combinación', d: 'Tres ruedas de números (diseño propio) y bisagra de tornillo', C: { L: 130, W: 90, H: 60, radio: 5, tapa: 'bisagraTor', pared: 3.2, tapaG: 3.2, color: '#1b1b1d', colorTapa: '#c9a227', estilo: 'biselada' },
+    els: [['bisagra', 'atras', -35, 0, { largo: 40 }], ['bisagra', 'atras', 35, 0, { largo: 40 }], ['combinacion', 'frente', 0, 0, { codigo: '427' }]] },
+  conLlave: { e: '🔑', t: 'Caja con llave', d: 'Bombín impreso con su llave: un cuarto de vuelta y no se abre', C: { L: 120, W: 85, H: 55, radio: 5, tapa: 'bisagraImp', pared: 3.2, tapaG: 3.2, color: '#7a4a2a', colorTapa: '#d4a373', estilo: 'biselada' },
+    els: [['bisagra', 'atras', -30, 0, { largo: 40 }], ['bisagra', 'atras', 30, 0, { largo: 40 }], ['llave', 'frente', -20, 0, { codigo: 'LCL' }]] },
+  pilas: { e: '🔋', t: 'Caja de pilas', d: 'AA y AAA de pie, cada una en su hueco, y tapa a presión', C: { L: 150, W: 90, H: 60, radio: 5, tapa: 'presion', pared: 2.6, tapaG: 2.6, labio: 4, color: '#f7d117', colorTapa: '#1b1b1d' },
+    els: [['pilas', 'dentro', 0, 0, { tipo: 'aa_aaa' }], ['etiqueta', 'frente', 0, 24, { ancho: 50, alto: 18 }]] },
+  seisEnUno: { e: '🧊', t: 'Caja 6 en 1', d: 'Seis cubetas sueltas que encajan dentro: cámbialas de sitio o sácalas a la mesa', C: { L: 170, W: 110, H: 50, radio: 6, tapa: 'bisagraImp', pared: 3, tapaG: 3, color: '#f4acb7', colorTapa: '#ffffff', estilo: 'acanalada' },
+    els: [['bisagra', 'atras', -45, 0, { largo: 40 }], ['bisagra', 'atras', 45, 0, { largo: 40 }], ['cierre', 'frente', 0, 0, { ancho: 18 }], ['cubetas', 'dentro', 0, 0, { cols: 3, filas: 2 }]] },
+  multifuncion: { e: '🗃️', t: 'Caja multifunción', d: 'Cajón abajo, bandeja arriba, dos cierres, asas y nombre', C: { L: 180, W: 120, H: 95, radio: 6, tapa: 'bisagraImp', pared: 3.2, tapaG: 3.2, suelo: 2.4, color: '#3d5a80', colorTapa: '#e0fbfc', estilo: 'biselada', pies: true },
+    els: [['bisagra', 'atras', -50, 0, { largo: 44 }], ['bisagra', 'atras', 50, 0, { largo: 44 }], ['cierre', 'frente', -60, 0, { ancho: 18 }], ['cierre', 'frente', 60, 0, { ancho: 18 }], ['cajon', 'frente', 0, 0, { alto: 24 }], ['bandeja', 'dentro', 0, 0, { prof: 20, cols: 3 }], ['asa', 'izq', 0, 62, { ancho: 50, alto: 15 }], ['asa', 'der', 0, 62, { ancho: 50, alto: 15 }], ['texto', 'tapa', 0, 0, { txt: 'CelebriDiseños', alto: 9 }]] },
+  herramientas2: { e: '🧰', t: 'Herramientas PRO', d: 'Bandeja que se saca, dos cierres, candado, asas y patas', C: { L: 220, W: 120, H: 90, radio: 6, tapa: 'bisagraTor', pared: 3.2, tapaG: 3.2, color: '#c8102e', colorTapa: '#1b1b1d', estilo: 'biselada', pies: true },
+    els: [['bisagra', 'atras', -60, 0, { largo: 48 }], ['bisagra', 'atras', 60, 0, { largo: 48 }], ['cierre', 'frente', -70, 0, { ancho: 20 }], ['cierre', 'frente', 70, 0, { ancho: 20 }], ['candado', 'frente', 0, 0, { agujero: 6 }], ['bandeja', 'dentro', 0, 0, { prof: 24, cols: 3 }], ['asa', 'izq', 0, 60, { ancho: 60, alto: 16 }], ['asa', 'der', 0, 60, { ancho: 60, alto: 16 }]] },
+  tornillos2: { e: '🔩', t: 'Tornillos PRO', d: 'Rejilla de 4 × 3 con fondo en cuenco (se cogen con un dedo)', C: { L: 170, W: 110, H: 40, radio: 5, tapa: 'presion', pared: 2.6, tapaG: 2.6, labio: 4, color: '#8e9196', colorTapa: '#f7d117', estilo: 'hexagonal' },
+    els: [['rejilla', 'dentro', 0, 0, { cols: 4, filas: 3, cuencos: 1 }], ['etiqueta', 'frente', 0, 18, { ancho: 50, alto: 14 }]] }
 };
 export function dePlantilla(k) { const P = PLANTILLAS[k], C = Object.assign(nueva(), P.C); C.els = P.els.map(([t, c, u, v, p]) => elemento(t, c, u, v, p)); return C; }
 
@@ -102,6 +139,7 @@ export function cierreMedidas(C) {
 const LADO_HUECO = C => ({ L: C.L - 2 * C.pared, W: C.W - 2 * C.pared });
 // el rectángulo que ocupa cada elemento en su cara (para que no se pisen)
 export function rect(C, e) {
+  if (CP.TIPOS_PRO[e.tipo]) return CP.rectPro(C, e);
   const H = C.H, tg = C.tapaG, p = e.p, u = e.u, v = e.v, T = TAPAS[C.tapa] || {};
   switch (e.tipo) {
     case 'bisagra': return { u0: u - p.largo / 2, u1: u + p.largo / 2, v0: H - 2.6 * (T.Rk || 4), v1: H + tg };
@@ -127,11 +165,14 @@ export function zona(C, tipo, cara, u, v, p, idIgnora) {
   const H = C.H, tg = C.tapaG, pr = C.pared, R = C.radio, T = TAPAS[C.tapa] || {};
   const no = (motivo, extra) => Object.assign({ ok: false, motivo, u, v }, extra || {}), si = (motivo, extra) => Object.assign({ ok: true, motivo, u, v }, extra || {});
   if (!D.caras.includes(cara)) return no('«' + D.t + '» va ' + D.caras.map(c => CARAS[c].toLowerCase()).join(', ').replace(/, ([^,]*)$/, ' o $1') + '.');
+  // 14-10-2026 · 🛑 el LIMITADOR: cuántos como mucho de cada uno, y lo que no va con la tapa corredera
+  const no0 = porQueNo(C, tipo, idIgnora); if (no0) return no(no0);
   const F = marco(C, cara), uso = F.hw - R - 1; // lo recto de la cara (sin la esquina redondeada)
   if (D.junta) v = H;
   const otros = C.els.filter(e => e.id !== idIgnora && e.cara === cara), yo = rect(C, { tipo, cara, u, v, p });
-  const choca = otros.find(e => e.tipo !== 'pomo' && e.tipo !== 'separador' && pisa(rect(C, e), yo));
+  const choca = otros.find(e => e.tipo !== 'pomo' && e.tipo !== 'separador' && (cara !== 'dentro') && pisa(rect(C, e), yo));
   const nombre = e => TIPOS[e.tipo].t.toLowerCase();
+  if (CP.TIPOS_PRO[tipo]) return CP.zonaPro(C, tipo, cara, u, v, p, idIgnora, { no, si, uso, choca, nombre: e => 'el ' + nombre(e), rectDe: e => rect(C, e), marco: c => marco(C, c), Rk: conBisagra(C) ? (T.Rk || 0) : 0 });
   switch (tipo) {
     case 'bisagra': {
       if (!conBisagra(C)) return no('Con la tapa a presión no hay bisagras: elige arriba una tapa con bisagra.');
@@ -178,6 +219,8 @@ export function zona(C, tipo, cara, u, v, p, idIgnora) {
     case 'separador': {
       const I = LADO_HUECO(C), dir = p.dir === 'x' ? 'x' : 'y', pos = dir === 'y' ? u : v, lim = (dir === 'y' ? I.L : I.W) / 2;
       if (Math.abs(pos) > lim - 8) return no('Muy pegado a la pared: deja al menos 8 mm para que quepan los dedos.');
+      const ll = C.els.filter(e => e.tipo === 'llave').map(e => CP.llaveSitio(C, e, marco(C, e.cara))); // (14-10: la cuña de la cerradura de llave gira ahí dentro)
+      if (ll.some(B => dir === 'y' ? pos > B.x0 - 1.5 && pos < B.x1 + 1.5 : pos > B.y0 - 1.5 && pos < B.y1 + 1.5)) return no('Ahí gira la leva de la cerradura de llave: muévelo un poco.');
       const par = C.els.find(e => e.id !== idIgnora && e.tipo === 'separador' && (e.p.dir === 'x' ? 'x' : 'y') === dir && Math.abs((dir === 'y' ? e.u : e.v) - pos) < 8);
       if (par) return no('Muy pegado a otro separador (menos de 8 mm).');
       return si('Aquí queda un compartimento de ' + n1(lim + pos - 0.8) + ' y otro de ' + n1(lim - pos - 0.8) + ' mm.');
@@ -193,14 +236,17 @@ export function construye(C) {
   const L = C.L, W = C.W, H = C.H, pr = C.pared, sf = C.suelo, tg = C.tapaG, R = Math.max(0, Math.min(C.radio, Math.min(L, W) / 2 - 1)), T = TAPAS[C.tapa] || TAPAS.presion;
   if (pr < 1.6) N.mal('Las paredes tienen que medir al menos 1,6 mm (con menos se parten).');
   if (L - 2 * pr < 10 || W - 2 * pr < 10 || H < sf + 8) N.mal('La caja es demasiado pequeña para sus paredes.');
-  let cuerpo = prisma(L, W, R, 0, H).subtract(prisma(L - 2 * pr, W - 2 * pr, Math.max(0.3, R - pr), sf, H + 1));
+  const corr = C.tapa === 'corredera', LI0 = L - 2 * pr, WI0 = W - 2 * pr, RI0 = Math.max(0.3, R - pr);
+  let cuerpo = prisma(L, W, R, 0, H + (corr ? tg : 0)).subtract(prisma(LI0, WI0, RI0, sf, H + tg + 1));
   let tapa = prisma(L, W, R, H, H + tg);
-  const masC = [], menosC = [], masT = [], menosT = [], sueltas = [], puertas = [], avisos = [];
+  if (corr) { const TC = CP.tapaCorredera({ L, W, H, pr, tg, LI: LI0, WI: WI0 }); tapa = TC.tapa; cuerpo = cuerpo.subtract(TC.corte); }
+  ({ cuerpo, tapa } = CP.aplicaEstilo({ C, L, W, H, tg, R, marco, enCara }, cuerpo, tapa)); // 14-10: biselada, acanalada, panal, patas
+  const masC = [], menosC = [], masT = [], menosT = [], sueltas = [], puertas = [], avisos = [], mec = [];
   if (T.fragil) avisos.push('La bisagra de clic se raja al engancharla: cámbiala por la de eje impreso, la de filamento o la de tornillo.');
   if (pr < 2.4 || tg < 2.4) avisos.push('Paredes o tapa de menos de 2,4 mm: con bisagras y cierres conviene 3 mm (lo fino se parte).');
   const LI = L - 2 * pr, WI = W - 2 * pr, RI = Math.max(0.3, R - pr);
   // el labio de la tapa: a presión (alto «labio», con tu holgura) o, con bisagra, un labio corto que la centra al cerrar
-  { const hol = conBisagra(C) ? 0.3 : holTapa(C), alto = conBisagra(C) ? 1.6 : C.labio, g = 1.6;
+  if (!corr) { const hol = conBisagra(C) ? 0.3 : holTapa(C), alto = conBisagra(C) ? 1.6 : C.labio, g = 1.6;
     const fuera = prisma(LI - 2 * hol, WI - 2 * hol, Math.max(0.3, RI - hol), H - alto, H + 0.01), dentro = prisma(LI - 2 * hol - 2 * g, WI - 2 * hol - 2 * g, Math.max(0.3, RI - hol - g), H - alto - 1, H + 0.02);
     masT.push(fuera.subtract(dentro)); }
   // ---- las BISAGRAS de la tapa: eje a lo largo de X, detrás, a la altura de la junta ----
@@ -245,6 +291,8 @@ export function construye(C) {
     if (e.tipo === 'bisagra') return;
     const F = marco(C, e.cara), p = e.p, u = e.u, v = e.v, Z = zona(C, e.tipo, e.cara, u, v, p, e.id);
     if (!Z.ok) avisos.push(TIPOS[e.tipo].e + ' ' + TIPOS[e.tipo].t + ' (' + CARAS[e.cara].toLowerCase() + '): ' + Z.motivo);
+    if (porQueNo(C, e.tipo, e.id, true)) return; // (14-10: lo que no va con esta tapa —un cierre con la corredera…— no se construye: saldría suelto)
+    if (CP.TIPOS_PRO[e.tipo]) return; // (los nuevos se hacen en cajas_pro.js, abajo)
     const enF = m => enCara(m, F);
     switch (e.tipo) {
       case 'cierre': {
@@ -323,11 +371,12 @@ export function construye(C) {
       }
     }
   });
+  CP.construyePro({ C, L, W, H, pr, sf, tg, R, LI, WI, RI, masC, menosC, masT, menosT, sueltas, avisos, mec, marco, enCara, porQueNo });
   if (masC.length) cuerpo = cuerpo.add(N.union(masC));
   if (menosC.length) cuerpo = cuerpo.subtract(N.union(menosC));
   if (masT.length) tapa = tapa.add(N.union(masT));
   if (menosT.length) tapa = tapa.subtract(N.union(menosT));
-  return { cuerpo, tapa, sueltas, puertas, eje, avisos };
+  return { cuerpo, tapa, sueltas, puertas, eje, avisos, mec };
 }
 
 // ---------- girar piezas (para animar y para comprobar) ----------
@@ -354,8 +403,14 @@ export function comprueba(C) {
     const conTapa = N.union([G.tapa].concat(G.sueltas.filter(s => s.con === 'tapa').map(s => s.m)));
     const fijo = G.cuerpo;
     const toque = (a, b) => { const x = a.intersect(b); const v = x.isEmpty() ? 0 : x.volume(); return v; };
-    const v0 = toque(conTapa, fijo);
+    const v0 = Math.max(0, toque(conTapa, fijo)); // (sin el «-0»)
     if (v0 < 0.5) ok('Cerrada, la tapa no roza nada', 'Volumen que se pisa: ' + n2(v0) + ' mm³.'); else mal('Cerrada, la tapa se pisa con la caja', n2(v0) + ' mm³ ocupan el mismo sitio: revisa los elementos de la junta.');
+    // abrir la tapa con otras cosas en medio (los pestillos, las levas): bisagra = grados que se abre; a presión o corredera = −1 si sale, 0 si no
+    const abreTapa = extra => { const obst = N.union([fijo, mesa].concat(extra || []));
+      if (conBisagra(C) && G.eje) { let m = 0; for (let a = 1; a <= 180; a += a < 20 ? 1 : 5) { if (toque(mueve(conTapa, giroTapa(G, a)), obst) > 0.5) break; m = a; } return m; } // (de grado en grado al principio: un gancho fino no puede «saltar» un pestillo)
+      if (C.tapa === 'corredera') { for (let d = 1; d <= C.L + 6; d += 3) if (toque(conTapa.translate([d, 0, 0]), obst) > 0.5) return 0; return -1; }
+      for (let d = 0.5; d <= (C.labio || 5) + 3; d += 0.5) if (toque(conTapa.translate([0, 0, d]), obst) > 0.5) return 0; return -1; };
+    if (C.tapa === 'corredera') { const a = abreTapa([]); out.apertura = a; if (a === -1) ok('La tapa corre y sale entera por la derecha', 'Montada en el ordenador: corre ' + Math.round(C.L) + ' mm por sus ranuras sin tocar nada.'); else mal('La tapa corredera se traba', 'Algo se pisa en las ranuras.'); }
     if (conBisagra(C) && G.eje) {
       let max = 0; const obst = fijo.add(mesa);
       for (let a = 5; a <= 200; a += 5) { if (toque(mueve(conTapa, giroTapa(G, a)), obst) > 0.5) break; max = a; }
@@ -379,7 +434,8 @@ export function comprueba(C) {
     if (ci.length) { const K = cierreMedidas(C); out.cierre = K; ok('El cierre engancha ' + n2(K.enganche) + ' mm', 'La patilla mide ' + K.La + ' mm y al cerrar se dobla ' + n2(K.enganche) + ' mm: un ' + n1(K.def * 100) + ' % (se imprime de pie: entre capas el PLA aguanta cerca del 1 %; el PETG, más). Grosor de la patilla: ' + n2(K.tt) + ' mm.'); if (K.def > 0.0051) ojo('El cierre se dobla un ' + n1(K.def * 100) + ' %', 'En PLA puede partirse: sube la caja (la patilla será más larga) o imprímelo en PETG.'); }
     const im = C.els.filter(e => e.tipo === 'iman');
     if (im.length) ok(im.length + ' pareja' + (im.length > 1 ? 's' : '') + ' de imanes alineadas', 'Pon los de la tapa con el otro polo hacia abajo (que se atraigan). Una gota de pegamento si bailan.');
-    if (!ci.length && !im.length && !C.els.some(e => e.tipo === 'candado') && conBisagra(C)) ojo('No lleva cierre', 'Se queda cerrada por su peso; si quieres que no se abra sola, arrastra un 🔒 cierre o un 🧲 imán.');
+    if (!ci.length && !im.length && !C.els.some(e => ['candado', 'combinacion', 'llave'].includes(e.tipo)) && conBisagra(C)) ojo('No lleva cierre', 'Se queda cerrada por su peso; si quieres que no se abra sola, arrastra un 🔒 cierre o un 🧲 imán.');
+    out.lista.push(...CP.compruebaPro(C, G, { toque, abreTapa, enCara }));
     if (C.tapa === 'presion') ok('Tapa a presión: ' + (AJUSTES[C.ajuste] || AJUSTES.firme)[0].toLowerCase(), 'El labio entra con ' + n2(holTapa(C)) + ' mm por lado (tu holgura «' + (AJUSTES[C.ajuste] || AJUSTES.firme)[1] + '»).');
     out.piezas = piezasDe(C, G).map(p => p.nombre);
   } catch (e) { mal('No se ha podido montar', e.message || String(e)); }
@@ -391,9 +447,9 @@ export function comprueba(C) {
 export function piezasDe(C, G) {
   G = G || construye(C);
   const L = [{ nombre: 'Caja', m: N.aLaCama(G.cuerpo), color: C.color, como: 'de pie, como se usa' },
-    { nombre: 'Tapa', m: N.aLaCama(G.tapa.rotate([180, 0, 0])), color: C.colorTapa, como: 'boca abajo (la cara de fuera en la cama)' }];
+    C.tapa === 'corredera' ? { nombre: 'Tapa corredera', m: N.aLaCama(G.tapa), color: C.colorTapa, como: 'tal cual (lo de abajo en la cama: así sus cantos no cuelgan)' } : { nombre: 'Tapa', m: N.aLaCama(G.tapa.rotate([180, 0, 0])), color: C.colorTapa, como: 'boca abajo (la cara de fuera en la cama)' }];
   G.puertas.forEach((P, i) => L.push({ nombre: 'Puerta' + (G.puertas.length > 1 ? ' ' + (i + 1) : ''), m: N.aLaCama(P.local.rotate([90, 0, 0])), color: C.colorTapa, como: 'tumbada (la cara de fuera en la cama)' }));
-  G.sueltas.forEach(s => L.push({ nombre: s.nombre, m: s.imprimir, color: s.nombre.startsWith('Pomo') ? C.colorTapa : C.color, como: s.nota || '' }));
+  G.sueltas.forEach(s => L.push({ nombre: s.nombre, m: s.imprimir, color: s.tapaColor || s.nombre.startsWith('Pomo') ? C.colorTapa : C.color, como: s.nota || '' }));
   return L;
 }
 export function colocaEnCama(L, cama = 250, sep = 6) {
@@ -402,5 +458,43 @@ export function colocaEnCama(L, cama = 250, sep = 6) {
     if (x > 0 && x + w > cama) { x = 0; y += fila + sep; fila = 0; }
     out.push(Object.assign({}, p, { m: p.m.translate([x - b.min[0], y - b.min[1], -b.min[2]]) })); x += w + sep; fila = Math.max(fila, d); });
   return out;
+}
+// ---------- 🛑 EL LIMITADOR y el CONTROLADOR DE ERRORES (que no salga nada mal) ----------
+// ¿cabe en la impresora? ¿hay algo en zona roja? ¿le falta algo? → [{ t, arreglo, id? }]
+export const altoTotal = C => C.H + C.tapaG + (C.pies ? 3 : 0) + (C.els.some(e => e.tipo === 'gravedad') ? CP.gravBoss(C.tapaG) : 0);
+export function revisa(C) {
+  const I = CP.IMPRESORAS[C.impresora] || CP.IMPRESORAS.p1p, out = [];
+  if (C.L > I.cama - 6 || C.W > I.cama - 6) out.push({ t: 'No cabe en la cama de tu ' + I.t + ': la caja mide ' + n1(C.L) + ' × ' + n1(C.W) + ' mm y caben ' + (I.cama - 6) + '.', arreglo: 'medidas' });
+  if (altoTotal(C) > I.alto - 2) out.push({ t: 'Mide ' + n1(altoTotal(C)) + ' mm de alto: más de lo que imprime tu ' + I.t + '.', arreglo: 'medidas' });
+  if (conBisagra(C) && (C.pared < 2.4 || C.tapaG < 2.4)) out.push({ t: 'Con bisagras, paredes y tapa de menos de 2,4 mm se parten.', arreglo: 'grosor' });
+  if (conBisagra(C) && !C.els.some(e => e.tipo === 'bisagra')) out.push({ t: 'La tapa es de bisagra pero no tiene ninguna bisagra.', arreglo: 'bisagras' });
+  C.els.forEach(e => { const Z = zona(C, e.tipo, e.cara, e.u, e.v, e.p, e.id); if (!Z.ok) out.push({ t: TIPOS[e.tipo].e + ' ' + TIPOS[e.tipo].t + ': ' + Z.motivo, arreglo: 'mover', id: e.id }); });
+  return out;
+}
+// el sitio BUENO más cercano (en la misma cara): se busca alrededor, cada vez más lejos → la zona buena (con su u, v) o null
+export function sitioBueno(C, tipo, cara, u, v, p, id) {
+  const D = TIPOS[tipo], F = marco(C, cara); if (!D || !F) return null;
+  const Z0 = zona(C, tipo, cara, u, v, p, id); if (Z0.ok) return Object.assign({ dist: 0 }, Z0);
+  const plano = cara === 'tapa' || cara === 'dentro', vmax = plano ? F.hv : C.H, paso = Math.max(1, Math.min(C.L, C.W) / 70);
+  for (let r = paso; r <= 2.2 * Math.max(F.hw, vmax); r += paso) {
+    const L = D.junta ? [[u - r, v], [u + r, v]] : [[u - r, v], [u + r, v], [u, v - r], [u, v + r], [u - r, v - r], [u + r, v + r], [u - r, v + r], [u + r, v - r]];
+    for (const [uu, vv] of L) { if (Math.abs(uu) > F.hw || (plano ? Math.abs(vv) > vmax : vv < 0 || vv > vmax)) continue; const Z = zona(C, tipo, cara, uu, vv, p, id); if (Z.ok) return Object.assign({ dist: r }, Z); }
+  }
+  return null;
+}
+// 🛠️ ARREGLAR TODO: medidas a tu impresora, grosores, bisagras que faltan y cada elemento en rojo a su sitio bueno (o fuera, si no hay)
+export function arreglaTodo(C0) {
+  const C = JSON.parse(JSON.stringify(C0)), I = CP.IMPRESORAS[C.impresora] || CP.IMPRESORAS.p1p, hechos = [];
+  const k = Math.min(1, (I.cama - 6) / C.L, (I.cama - 6) / C.W);
+  if (k < 1) { C.L = Math.floor(C.L * k); C.W = Math.floor(C.W * k); C.els.forEach(e => { e.u = Math.round(e.u * k * 2) / 2; if (e.cara === 'dentro' || e.cara === 'tapa') e.v = Math.round(e.v * k * 2) / 2; }); hechos.push('Medidas ajustadas a tu ' + I.t + ': ' + C.L + ' × ' + C.W + ' mm.'); }
+  const extra = altoTotal(C) - C.H; if (C.H + extra > I.alto - 2) { C.H = Math.floor(I.alto - 2 - extra); hechos.push('Alto ajustado a ' + C.H + ' mm.'); }
+  if (conBisagra(C) && C.pared < 2.4) { C.pared = 3; hechos.push('Paredes a 3 mm (con bisagras, lo fino se parte).'); }
+  if (conBisagra(C) && C.tapaG < 2.4) { C.tapaG = 3; hechos.push('Tapa a 3 mm.'); }
+  if (conBisagra(C) && !C.els.some(e => e.tipo === 'bisagra')) { const lg = Math.max(16, Math.min(44, Math.round(C.L * 0.28))); [-1, 1].forEach(s => C.els.push(elemento('bisagra', 'atras', s * Math.round(C.L * 0.25), 0, { largo: lg }))); hechos.push('Puestas dos bisagras detrás (la tapa las necesita).'); }
+  C.els.slice().forEach(e => { if (!C.els.includes(e)) return; const Z = zona(C, e.tipo, e.cara, e.u, e.v, e.p, e.id); if (Z.ok) return;
+    const S = sitioBueno(C, e.tipo, e.cara, e.u, e.v, e.p, e.id), D = TIPOS[e.tipo];
+    if (S) { e.u = Math.round(S.u * 2) / 2; e.v = Math.round(S.v * 2) / 2; hechos.push(D.e + ' ' + D.t + ': movido a su sitio bueno, a ' + n1(S.dist) + ' mm.'); }
+    else { C.els = C.els.filter(x => x.id !== e.id); hechos.push(D.e + ' ' + D.t + ': quitado (' + Z.motivo.replace(/\.$/, '') + ').'); } });
+  return { C, hechos };
 }
 export function resumen(C) { const T = TAPAS[C.tapa]; return n1(C.L) + ' × ' + n1(C.W) + ' × ' + n1(C.H + C.tapaG) + ' mm · ' + T.t.toLowerCase() + ' · ' + C.els.length + ' elemento' + (C.els.length === 1 ? '' : 's'); }

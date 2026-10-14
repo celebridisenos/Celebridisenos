@@ -110,8 +110,9 @@ export function correccionDePrueba({ Wimp, Wdis, alfa, dJusado = 0 }) {
 // ---------- 1) CONTAR LOS DIENTES con una foto de frente (no hace falta calibrar la foto: el número no depende del tamaño) ----------
 export async function contarDientesFoto(file) {
   const FM = await import('./foto_medida.js');
-  const I = await FM.cargaArchivo(file, 1800), im = await FM.imagenDe(I.id), D = FM.pixeles(im), C = FM.contornos(D), pz = FM.pieza(C.anillos, p => p, 400);
-  FM.IMAGENES.delete(I.id);
+  // (13-10-2026 · 🩹 la foto pasa por el restaurador: fondos con textura, sombras, brillos, pieza pequeña; si no encuentra pieza, como antes)
+  let pz = null; try { const AC = await import('./asistente_copia.js'), S = await AC.silueta(file); pz = S.pz; } catch (e) { pz = null; }
+  if (!pz) { const I = await FM.cargaArchivo(file, 1800), im = await FM.imagenDe(I.id), D = FM.pixeles(im), C = FM.contornos(D); pz = FM.pieza(C.anillos, p => p, 400); FM.IMAGENES.delete(I.id); }
   if (!pz) throw new Error('No encuentro la pieza en la foto: ponla sobre un fondo liso (un folio) y que salga entera.');
   const L = FM.leeEngranaje(pz);
   if (L.error) throw new Error(L.error);

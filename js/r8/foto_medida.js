@@ -107,13 +107,18 @@ export function contornos(D, o = {}) {
   // ¿la pieza es oscura sobre fondo claro? (lo que toca el borde de la foto es el fondo)
   let claros = 0, n = 0; for (let x = 0; x < W; x++) { claros += g[x] > umbral; claros += g[(H - 1) * W + x] > umbral; n += 2; } for (let y = 0; y < H; y++) { claros += g[y * W] > umbral; claros += g[y * W + W - 1] > umbral; n += 2; }
   const oscura = o.oscura ?? claros > n / 2, dentro = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (oscura ? g[y * W + x] < umbral : g[y * W + x] > umbral);
+  // (13-10-2026 · o.suave) con una máscara de borde SUAVE (la del restaurador de fotos), el borde no va por la mitad del píxel sino
+  // por donde el tono cruza el corte, entre los dos píxeles: sale el contorno sin escalones. El mismo lado da el mismo punto en las
+  // dos celdas que lo comparten (misma cuenta, mismo orden), así que los trozos se siguen encadenando.
+  const cruce = (x0, y0, x1, y1) => { if (x0 < 0 || y0 < 0 || x1 >= W || y1 >= H) return 0.5; const g0 = g[y0 * W + x0], g1 = g[y1 * W + x1]; if (g0 === g1) return 0.5; const t = (umbral - g0) / (g1 - g0); return t < 0.02 ? 0.02 : t > 0.98 ? 0.98 : t; };
   // cuadrados que marchan (con la mitad del píxel: el borde va por en medio) → segmentos → anillos
   const seg = new Map(), k = (x, y) => x + ',' + y, pon = (a, b) => { seg.set(k(a[0], a[1]), b); };
   for (let y = -1; y < H; y++) for (let x = -1; x < W; x++) {
     const c = (dentro(x, y) ? 8 : 0) | (dentro(x + 1, y) ? 4 : 0) | (dentro(x + 1, y + 1) ? 2 : 0) | (dentro(x, y + 1) ? 1 : 0);
     if (c === 0 || c === 15) continue;
     // la celda une los centros de 4 píxeles (x,y)…(x+1,y+1); sus lados, por la mitad: arriba, derecha, abajo, izquierda
-    const a = [x + 1, y + 0.5], r = [x + 1.5, y + 1], b = [x + 1, y + 1.5], l = [x + 0.5, y + 1];
+    let a = [x + 1, y + 0.5], r = [x + 1.5, y + 1], b = [x + 1, y + 1.5], l = [x + 0.5, y + 1];
+    if (o.suave) { a = [x + 0.5 + cruce(x, y, x + 1, y), y + 0.5]; r = [x + 1.5, y + 0.5 + cruce(x + 1, y, x + 1, y + 1)]; b = [x + 0.5 + cruce(x, y + 1, x + 1, y + 1), y + 1.5]; l = [x + 0.5, y + 0.5 + cruce(x, y, x, y + 1)]; }
     switch (c) { // siempre con la pieza al MISMO lado de la marcha (así los trozos se encadenan y los agujeros salen al revés)
       case 1: pon(b, l); break; case 2: pon(r, b); break; case 3: pon(r, l); break; case 4: pon(a, r); break;
       case 5: pon(a, l); pon(b, r); break; case 6: pon(a, b); break; case 7: pon(a, l); break; case 8: pon(l, a); break;

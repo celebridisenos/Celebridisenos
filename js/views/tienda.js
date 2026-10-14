@@ -35,7 +35,7 @@ function panel(root, tab0) {
   if (!can('tienda.gestionar')) { mount(root, empty('store', 'Solo para quien gestiona la tienda', 'Pide el permiso «Gestionar la tienda web» a una administradora.')); return; }
   let tab = tab0;
   const tabs = h('div.tabs'), body = h('div.col', { style: { gap: 'var(--gap)' } });
-  const TABS = [['resumen', 'Resumen'], ['conexion', 'Conexión'], ['datos', 'Datos y margen'], ['campanas', '✨ Campañas'], ['envios', 'Envíos'], ['textos', 'Quiénes somos y legal'], ['ideas', '💡 Ideas']];
+  const TABS = [['resumen', 'Resumen'], ['descripciones', '✍️ Descripciones'], ['conexion', 'Conexión'], ['datos', 'Datos y margen'], ['campanas', '✨ Campañas'], ['envios', 'Envíos'], ['textos', 'Quiénes somos y legal'], ['ideas', '💡 Ideas']];
   const draw = () => { mount(tabs, TABS.map(([k, t]) => h('button' + (tab === k ? '.on' : ''), { onclick: () => { tab = k; draw(); } }, t))); mount(body); SECS[tab](body, draw); };
   mount(root, tabs, body);
   draw();
@@ -57,6 +57,8 @@ async function guardar(valor, publicar = true, confirmar = false) {
 }
 
 const SECS = {
+  // 50.3 · ✍️ título y descripción corta de TODOS los productos, y a la web de una vez (desc_venta.js)
+  async descripciones(b) { if (!can('productos.editar')) { b.append(card(null, h('p.muted', 'Para cambiar títulos y descripciones hace falta el permiso «Editar productos».'))); return; } const M = await import('../desc_venta.js'); M.panel(b); },
   async resumen(b) {
     const st = h('div', h('p.muted', 'Comprobando la tienda…'));
     const pubs = S.t.productos.filter(p => web(p).publicado);
@@ -332,7 +334,7 @@ function genKeys() {
 
 // ---------- Pestaña «Tienda web» del producto ----------
 const toB64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
-async function webPhoto(blob, max = 1200) {
+export async function webPhoto(blob, max = 1200) { // (50.3: también la usa ✍️ Descripciones para volver a publicar)
   const bmp = await createImageBitmap(blob), s = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);

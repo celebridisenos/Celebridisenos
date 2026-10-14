@@ -13,6 +13,7 @@
 //     dice; y si falta una foto (de lado) o la foto no vale (se sale, poco contraste, sin calibrar, torcida), se PIDE.
 import * as N from './nucleo.js';
 import * as FM from './foto_medida.js';
+import { superficie, superficieEn } from './foto_restaura.js';
 
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES');
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], dot = (a, b) => a[0] * b[0] + a[1] * b[1], len = a => Math.hypot(a[0], a[1]);
@@ -60,7 +61,8 @@ export { aMarco, deMarco };
 // ---------- 1) MIRAR UNA FOTO ----------
 // D = ImageData · o.espejo (la foto de lado hecha desde el otro lado) → { R, fuera (marco, px), agujeros, niveles, avisos }
 export function analizaFoto(D, o = {}) {
-  const C = FM.contornos(D), avisos = [];
+  // (13-10-2026 · o.suave: D es la MÁSCARA del restaurador de fotos —blanco = pieza, borde suave—: se corta a medias y sin escalones)
+  const C = FM.contornos(D, o.suave ? { umbral: 127.5, oscura: false, suave: true, tol: 0.6 } : {}), avisos = [];
   const pz = FM.pieza(C.anillos, q => q, Math.max(30, D.width * D.height * 0.0005));
   if (!pz) return { error: 'No encuentro la pieza: ponla sobre un fondo liso que contraste (papel blanco o cartulina negra) y que se vea entera.' };
   const areaFrac = pz.area / (D.width * D.height);
@@ -109,9 +111,16 @@ export function relieveDeFoto(D, A, o = {}) {
   // suavizar (dos pasadas de 3 × 3, solo con vecinos de dentro) y quitar la luz desigual (menos la media de un entorno grande)
   const caja = (src, r) => { const out = new Float32Array(w * h), I = new Float64Array((w + 1) * (h + 1)), Nn = new Float64Array((w + 1) * (h + 1)); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x, j = (y + 1) * (w + 1) + x + 1; I[j] = (m[i] ? src[i] : 0) + I[j - 1] + I[j - w - 1] - I[j - w - 2]; Nn[j] = m[i] + Nn[j - 1] + Nn[j - w - 1] - Nn[j - w - 2]; }
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r), y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r), a = (y1 + 1) * (w + 1) + x1 + 1, b = y0 * (w + 1) + x1 + 1, c = (y1 + 1) * (w + 1) + x0, d = y0 * (w + 1) + x0, n = Nn[a] - Nn[b] - Nn[c] + Nn[d]; out[y * w + x] = n > 0 ? (I[a] - I[b] - I[c] + I[d]) / n : src[y * w + x]; } return out; };
-  let g = caja(caja(lum, 1), 1); const luz = caja(g, Math.max(6, Math.round(0.16 * Math.max(w, h)))); for (let i = 0; i < w * h; i++) g[i] = g[i] - luz[i];
+  // (13-10-2026: antes se restaba la media de un entorno grande, y alrededor de cada dibujo quedaba un «halo» del tono contrario que
+  // se tomaba por otro nivel: una estrella pequeña partía la cara en dos mitades. Ahora la luz de la cara se ajusta con una superficie
+  // curva a TODA la pieza, sin hacer caso de lo que se sale —los propios dibujos—; si no se puede, como antes)
+  let g = caja(caja(lum, 1), 1); { const paso = Math.max(1, Math.round(Math.sqrt(nd / 5000))), Pq = [], Vq = []; for (let y = 0; y < h; y += paso) for (let x = 0; x < w; x += paso) if (m[y * w + x]) { Pq.push([2 * x / (w - 1) - 1, 2 * y / (h - 1) - 1]); Vq.push(g[y * w + x]); }
+    const S2 = Pq.length > 40 && !o._luzVieja ? superficie(Pq, Vq) : null;
+    if (S2) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) g[y * w + x] -= superficieEn(S2.c, 2 * x / (w - 1) - 1, 2 * y / (h - 1) - 1);
+    else { const luz = caja(g, Math.max(6, Math.round(0.16 * Math.max(w, h)))); for (let i = 0; i < w * h; i++) g[i] = g[i] - luz[i]; } }
   // K grupos de tono (k-medias en una dimensión, empezando por los cuantiles)
   const vals = []; for (let i = 0; i < w * h; i++) if (m[i]) vals.push(g[i]); vals.sort((a, b) => a - b); let cen = Array.from({ length: K }, (_, k) => vals[Math.floor((k + 0.5) / K * (vals.length - 1))]);
+  if (K === 2 && vals.length > 20 && !o._iniViejo) { const med = vals[vals.length >> 1], lo = vals[Math.floor(vals.length * 0.01)], hi = vals[Math.floor(vals.length * 0.99)]; cen = [med, hi - med > med - lo ? hi : lo]; }
   for (let it = 0; it < 14; it++) { const su = new Float64Array(K), nu = new Float64Array(K); for (const v of vals) { let b = 0; for (let k = 1; k < K; k++) if (Math.abs(v - cen[k]) < Math.abs(v - cen[b])) b = k; su[b] += v; nu[b]++; } cen = cen.map((c, k) => nu[k] ? su[k] / nu[k] : c); }
   const grupoDe = v => { let b = 0; for (let k = 1; k < K; k++) if (Math.abs(v - cen[k]) < Math.abs(v - cen[b])) b = k; return b; };
   const cuenta = new Array(K).fill(0); let et = new Int8Array(w * h).fill(-1); for (let i = 0; i < w * h; i++) if (m[i]) { et[i] = grupoDe(g[i]); cuenta[et[i]]++; }
@@ -130,7 +139,19 @@ export function relieveDeFoto(D, A, o = {}) {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (et[y * w + x] >= l) { const j = ((y + 1) * (w + 2) + x + 1) * 4; im.data[j] = im.data[j + 1] = im.data[j + 2] = 0; hay++; }
     if (!hay) { capas.push([]); continue; }
     capas.push(FM.contornos(im, { umbral: 128, oscura: true, tol: 0.55 }).anillos.map(r => r.map(q => { const a = aMarco(R, [(q[0] - 1) / s, (q[1] - 1) / s]); return [esp * a[0], a[1]]; })).filter(r => r.length >= 4)); }
-  return { K, capas, ocupa: ocupa.map(n => n / nd), contraste, plano: contraste < 9, noAgujeros, tonoFondo };
+  // ¿DIBUJO o BRILLO? Un dibujo o un relieve de verdad acaba en un borde nítido; un brillo (un reflejo en el metal) se apaga poco a
+  // poco. Nitidez = cuánto cambia el tono por punto en el borde de las zonas, frente al contraste entero (≈ 0,2 nítido · ≈ 0,03 brillo)
+  let sgr = 0, nbr = 0; for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; if (et[i] < 1 || (et[i - 1] !== 0 && et[i + 1] !== 0 && et[i - w] !== 0 && et[i + w] !== 0)) continue; sgr += Math.hypot(g[i + 1] - g[i - 1], g[i + w] - g[i - w]) / 2; nbr++; }
+  const nitidez = nbr && contraste > 0 ? sgr / nbr / contraste : 0;
+  return { K, capas, ocupa: ocupa.map(n => n / nd), contraste, plano: contraste < 9, noAgujeros, tonoFondo, nitidez };
+}
+// 13-10-2026 · ella: «esos relieves son importantes; si eso se hace automático, muy bien». ¿El relieve que sale de la foto es lo
+// bastante CLARO como para ponerlo sin preguntar? Tiene que haber contraste de sobra, ocupar una parte razonable de la cara (ni
+// cuatro motas ni media pieza) y no ser un enjambre de manchitas (óxido, reflejos). Si no, se deja apagado y se ofrece.
+export function relieveClaro(rel) {
+  if (!rel || rel.plano || rel.pocas || !rel.capas || !rel.capas.length) return false;
+  const ocupa = 1 - (rel.ocupa[0] || 1), zonas = rel.capas.reduce((s, c) => s + c.length, 0);
+  return rel.contraste >= 24 && ocupa >= 0.03 && ocupa <= 0.45 && zonas >= 1 && zonas <= 16 && !(rel.nitidez < 0.09); // (borde blando = brillo, no dibujo)
 }
 // el SVG por capas (en milímetros, a TUS medidas): el contorno, los agujeros y cada nivel de relieve en su grupo. Se abre en el Boceto
 // (o en Inkscape / Illustrator) para retocarlo «y luego amoldar».
@@ -201,25 +222,27 @@ export function planMedidas(fotos, antes = []) {
     });
   }
   // ALTO y ESCALONES (de la foto de lado; si no hay, se pide la foto y el alto se mide a mano)
-  const S = fotos.find(f => (f.vista === 'lado' || f.vista === 'canto') && f.analisis && f.analisis.R);
-  if (S) {
-    const B = S.analisis.R, nv = S.analisis.niveles, y0 = -B.W / 2, y1 = B.W / 2, offS = Math.max(18, 0.08 * B.L), pref = S.vista === 'lado' ? 'lado' : 'canto';
-    add({ clave: 'alto', nombre: 'Alto total', foto: S.i, geo: { tipo: 'cota', a: [B.L / 2, y0], b: [B.L / 2, y1], d: [offS, 0] }, instr: 'Del apoyo a lo más alto (calibre, o la profundidad del calibre).', critica: true });
+  // 14-10-2026 · la de LADO y, además, la de CANTO (desde la punta): con las dos, lo que cambia a lo largo Y a lo ancho sale (tres vistas)
+  const SS = ['lado', 'canto'].map(v => fotos.find(f => f.vista === v && f.analisis && f.analisis.R)).filter(Boolean), S = SS[0];
+  SS.forEach((S, si) => {
+    const B = S.analisis.R, nv = S.analisis.niveles, y0 = -B.W / 2, y1 = B.W / 2, offS = Math.max(18, 0.08 * B.L), pref = S.vista === 'lado' ? 'lado' : 'canto', dePunta = S.vista === 'canto' && si > 0 ? ' (desde la punta)' : '';
+    if (!si) add({ clave: 'alto', nombre: 'Alto total', foto: S.i, geo: { tipo: 'cota', a: [B.L / 2, y0], b: [B.L / 2, y1], d: [offS, 0] }, instr: 'Del apoyo a lo más alto (calibre, o la profundidad del calibre).', critica: true });
     nv.filter(n => n.y > y0 + 0.04 * B.W && n.y < y1 - 0.04 * B.W).forEach((n, i) => {
       const t = n.tramos.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]))[0], xm = (t[0] + t[1]) / 2;
-      add({ clave: pref + 'Esc' + i, nombre: 'Alto hasta el escalón ' + (i + 1), foto: S.i, geo: { tipo: 'cota', a: [xm, y0], b: [xm, n.y], d: [0, 0], dentro: true }, instr: 'Desde el apoyo hasta la parte plana de ese escalón.', critica: true, nivel: n.y });
+      add({ clave: pref + 'Esc' + i, nombre: 'Alto hasta el escalón ' + (i + 1) + dePunta, foto: S.i, geo: { tipo: 'cota', a: [xm, y0], b: [xm, n.y], d: [0, 0], dentro: true }, instr: 'Desde el apoyo hasta la parte plana de ese escalón.', critica: true, nivel: n.y });
     });
     // la parte ALTA (si no ocupa todo el largo): su largo, y su sitio si no está centrada
     const top = nv.find(n => Math.abs(n.y - y1) < Math.max(2, 0.025 * B.W));
     if (top && nv.some(n => n.y > y0 + 0.04 * B.W && n.y < y1 - 0.04 * B.W)) { const xs = top.tramos.flat(), a = Math.min(...xs), b = Math.max(...xs);
-      if (b - a < 0.92 * B.L) { add({ clave: pref + 'Top', nombre: 'Largo de la parte alta', foto: S.i, geo: { tipo: 'cota', a: [a, y1], b: [b, y1], d: [0, -offS] }, instr: 'De lado a lado de la parte más alta.', critica: true, tramo: [a, b] });
-        if (!cent((a + b) / 2, B.L)) add({ clave: pref + 'TopX', nombre: 'Del borde izquierdo a la parte alta', foto: S.i, geo: { tipo: 'cota', a: [-B.L / 2, y1], b: [a, y1], d: [0, -offS * 0.6] }, instr: 'Desde la punta izquierda (en esta foto) hasta donde empieza la parte alta.', critica: true }); } }
-  } else {
+      if (b - a < 0.92 * B.L) { add({ clave: pref + 'Top', nombre: (pref === 'canto' ? 'Ancho' : 'Largo') + ' de la parte alta' + dePunta, foto: S.i, geo: { tipo: 'cota', a: [a, y1], b: [b, y1], d: [0, -offS] }, instr: 'De lado a lado de la parte más alta.', critica: true, tramo: [a, b] });
+        if (!cent((a + b) / 2, B.L)) add({ clave: pref + 'TopX', nombre: 'Del borde izquierdo a la parte alta' + dePunta, foto: S.i, geo: { tipo: 'cota', a: [-B.L / 2, y1], b: [a, y1], d: [0, -offS * 0.6] }, instr: 'Desde la punta izquierda (en esta foto) hasta donde empieza la parte alta.', critica: true }); } }
+  });
+  if (!S) {
     add({ clave: 'alto', nombre: 'Alto (grosor) de la pieza', foto: P.i, geo: { tipo: 'nota', a: [R.L / 2, R.W / 2], t: 'grosor: mídelo de lado' }, instr: 'El grosor NO se ve en esta foto: mídelo con el calibre (o haz una foto de lado y lo marco).', critica: true });
     pet.push({ tipo: 'foto', vista: 'lado', t: 'Haz una foto DE LADO (que se vea el largo y el alto), a la altura de la pieza, para ver si tiene escalones o salientes. Si es una pieza plana del mismo grosor, basta con medir el grosor.' });
   }
   // ¿la foto de lado y la principal casan? (el largo de las dos)
-  return { medidas: M, peticiones: pet, deducidas: ded, principal: P.i, lado: S ? S.i : null };
+  return { medidas: M, peticiones: pet, deducidas: ded, principal: P.i, lado: S ? S.i : null, lados: SS.map(x => x.i) };
 }
 
 // ---------- 3) LO QUE VALE CADA MEDIDA (la escrita, o la estimada de la foto si no hay otra) ----------
@@ -260,7 +283,8 @@ const tramos = C => { C = C.slice().sort((a, b) => a[0] - b[0]).filter((c, i, L)
 export function construye(fotos, plan) {
   const V = c => { const m = plan.medidas.find(x => x.clave === c); return m ? valorDe(m, fotos, plan.medidas).v : null; };
   const P = fotos.find(f => f.i === plan.principal); if (!P) N.mal('Falta la foto principal.');
-  const A = P.analisis, R = A.R, largo = V('largo'), ancho = V('ancho'), alto = V('alto');
+  const A = P.analisis; if (!A || !A.R) N.mal(A && A.error ? 'No he podido sacar la pieza de la foto principal (' + A.error + '). Prueba «🩹 Retocar» o con otra foto.' : 'No encuentro la pieza en la foto principal. Prueba «🩹 Retocar» o con otra foto.'); // 13-10 (noche): antes salía «Cannot read properties of null»
+  const R = A.R, largo = V('largo'), ancho = V('ancho'), alto = V('alto');
   const falta = [['largo', largo], ['ancho', ancho], ['alto', alto]].filter(x => !(x[1] > 0)).map(x => x[0]);
   if (falta.length) N.mal('Faltan medidas imprescindibles: ' + falta.join(', ') + '. Escríbelas (o calibra la foto para estimarlas).');
   const sx = largo / R.L, sy = ancho / R.W, avisos = [], inciertas = [];
@@ -269,8 +293,8 @@ export function construye(fotos, plan) {
   let m = N.cs([N.ccw(perfil)], 'Positive').extrude(alto);
   inciertas.push('La FORMA del contorno (curvas, chaflanes, esquinas redondeadas) sale de la foto: ±' + n2(Math.max(sx, sy) * 2) + ' mm. Lo medido (largo, ancho, agujeros) es exacto.');
   // de lado: se cruza (lo que se ve de frente ∩ lo que se ve de lado), con sus escalones a la altura medida
-  const S = plan.lado != null ? fotos.find(f => f.i === plan.lado) : null;
-  if (S) {
+  const LS = (plan.lados || (plan.lado != null ? [plan.lado] : [])).map(i => fotos.find(f => f.i === i && f.analisis && f.analisis.R)).filter(Boolean);
+  for (const S of LS) { // 14-10-2026: la de lado y la de canto, las dos (lo que se ve de frente ∩ de lado ∩ desde la punta)
     const B = S.analisis.R, y0 = -B.W / 2, esc = plan.medidas.filter(x => x.nivel != null && x.foto === S.i);
     const cy = [[y0, 0], [B.W / 2, alto]].concat(esc.map(e => [e.nivel, V(e.clave)]).filter(c => c[1] > 0)), fy = tramos(cy);
     const pref = S.vista === 'lado' ? 'lado' : 'canto', top = plan.medidas.find(x => x.clave === pref + 'Top'), topX = plan.medidas.find(x => x.clave === pref + 'TopX');
@@ -281,8 +305,10 @@ export function construye(fotos, plan) {
     let lado = N.cs([N.ccw(perfil2)], 'Positive').extrude(ext).translate([0, 0, -ext / 2]);
     lado = S.vista === 'lado' ? lado.rotate([90, 0, 0]) : lado.rotate([90, 0, 90]);
     m = m.intersect(lado);
-    if (esc.length) inciertas.push('Dónde empieza cada escalón (a lo largo) sale de la foto de lado, salvo lo que hayas medido.');
-  } else inciertas.push('Sin foto de lado: la pieza sale del MISMO grosor en todas partes. Si tiene escalones o salientes, haz la foto de lado.');
+    if (esc.length) inciertas.push('Dónde empieza cada escalón (' + (S.vista === 'lado' ? 'a lo largo' : 'a lo ancho') + ') sale de la foto ' + (S.vista === 'lado' ? 'de lado' : 'desde la punta') + ', salvo lo que hayas medido.');
+  }
+  if (!LS.length) inciertas.push('Sin foto de lado: la pieza sale del MISMO grosor en todas partes. Si tiene escalones o salientes, haz la foto de lado.');
+  else if (LS.length === 1 && LS[0].vista === 'lado' && plan.medidas.some(x => /^lado(Esc|Top)/.test(x.clave))) inciertas.push('Tiene escalones: lo que cambia A LO ANCHO solo sale con otra foto DESDE LA PUNTA (de canto).');
   // v40.2 · 🗻 los RELIEVES sacados de la foto de frente (si se han pedido): cada nivel, un escalón encima (o hundido) de la cara de arriba
   const RL = plan.relieve && plan.relieve.on && P.relieve && !P.relieve.plano ? P.relieve : null; let nRel = 0;
   if (RL) { const hT = Math.max(0.4, Math.min(8, Number(plan.relieve.alto) || 1.2)), paso = hT / (RL.K - 1), hundido = plan.relieve.modo === 'hundido', dentroC = N.cs([N.ccw(perfil)], 'Positive').offset(-0.6, 'Round', 2, 16);

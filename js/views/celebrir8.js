@@ -78,7 +78,7 @@ export function renderPlantillas(el) {
   let cv = cv0(), visor = null, pos = null, info = null, tic = 0;
   const grupos = h('div.r8-grupos'), tipos = h('div.r8-tipos'), panel = h('div.r8-campos'), datos = h('div.r8-datos'), aviso = h('div.r8-aviso'), chips = h('div.r8-chips'), hueco = h('div.r8-hueco');
   const escena = h('div.r8-vista', cv, chips, hueco);
-  const elegir = h('input', { type: 'file', accept: '.stl,.3mf,.obj', style: { display: 'none' }, onchange: e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) abrir(f); } });
+  const elegir = h('input', { type: 'file', accept: '.stl,.3mf,.obj,.glb,.gltf', style: { display: 'none' }, onchange: e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) abrir(f); } });
   const acciones = h('div.row.wrap.r8-acc', btn('⬇ Descargar STL', () => descargar(), { cls: 'primary r8-bajar' }), btn('🧩 Por separado (.zip)', () => porSeparado(), { cls: 'r8-separar' }), btn('⚡ Ver precio en el Cotizador', () => cotizar(), { cls: 'r8-precio' }));
   // ✨ pídemelo con palabras
   const frase = h('input.inp.r8-frase', { type: 'text', maxlength: 160, placeholder: 'Escribe lo que necesitas: «una caja de 12 x 8 x 5 cm con tapa»…', 'aria-label': 'Pide la pieza con palabras', onkeydown: e => { if (e.key === 'Enter') pedir(); } }), entendido = h('div.r8-entendido');
@@ -89,7 +89,7 @@ export function renderPlantillas(el) {
 
   const nombre = () => String(HERRAMIENTAS[E.k].nombre(valores(E.k), E) || 'pieza').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'pieza';
   async function abrir(f) {
-    try { if (!/\.(stl|3mf|obj)$/i.test(f.name)) throw new Error('Elige un archivo STL, 3MF u OBJ.'); const p = await parse3D(await f.arrayBuffer(), f.name); if (!p || p.length < 9) throw new Error('Ese archivo no tiene ninguna pieza.');
+    try { if (!/\.(stl|3mf|obj|glb|gltf)$/i.test(f.name)) throw new Error('Elige un archivo STL, 3MF, OBJ o GLB.'); const p = await parse3D(await f.arrayBuffer(), f.name); if (!p || p.length < 9) throw new Error('Ese archivo no tiene ninguna pieza.');
       E.base = p instanceof Float32Array ? p : new Float32Array(p); E.archivo = f.name; if (E.k !== 'editar') { E.k = 'editar'; pintaTipos(); monta(); } const M = medidas(E.base), v = valores('editar'); Object.assign(v, { texto: '', tapar: false, modo: 'entera', escala: 100, dx: 0, dy: 0 }); v.corte = Math.round(M.dims[v.eje === 'x' ? 0 : v.eje === 'y' ? 1 : 2] * 5) / 10; v.alto = Math.max(3, Math.round(Math.min(M.dims[0], M.dims[1]) * 0.18)); monta(); genera(0);
     } catch (e) { toast(e.message || String(e), 'bad', 7000); }
   }
@@ -156,7 +156,7 @@ export function renderPlantillas(el) {
   // soltar un STL encima lo abre para editarlo (aquí manda esta pantalla, no el Cotizador)
   const sobre = e => { if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); escena.classList.add('encima'); } };
   el.addEventListener('dragover', sobre); el.addEventListener('dragleave', () => escena.classList.remove('encima'));
-  el.addEventListener('drop', e => { escena.classList.remove('encima'); const f = e.dataTransfer && [...(e.dataTransfer.files || [])].find(x => /\.(stl|3mf|obj)$/i.test(x.name)); if (f) { e.preventDefault(); abrir(f); } });
+  el.addEventListener('drop', e => { escena.classList.remove('encima'); const f = e.dataTransfer && [...(e.dataTransfer.files || [])].find(x => /\.(stl|3mf|obj|glb|gltf)$/i.test(x.name)); if (f) { e.preventDefault(); abrir(f); } });
   pintaTipos(); monta(); hacer();
   window.__r8abrir = abrir;
   return { destroy: () => { clearTimeout(tic); try { visor && visor.destroy(); } catch (e) { } delete window.__r8; delete window.__r8abrir; } };
@@ -169,11 +169,11 @@ export function renderPlantillas(el) {
 // haciendo y qué hay en este PC (tarjeta gráfica, Blender, motores). Se recuerda la última pestaña.
 const PESTANAS = [
   ['inicio', '🏠', 'Inicio', 'Empieza aquí', ''],
-  ['estudio', '🧰', 'Estudio', 'Diseña como en Fusion', 'CREAR'], ['catalogo', '🛍️', 'Catálogo', 'Diseños listos', 'CREAR'], ['clon', '🧬', 'CelebriCLON', 'Repuestos desde fotos', 'CREAR'], ['cajas', '📦', 'Cajas', 'Bisagras y cierres', 'CREAR'], ['foto', '🪄', 'Foto → 3D', 'Con IA', 'CREAR'],
+  ['estudio', '🧰', 'Estudio', 'Diseña como en Fusion', 'CREAR'], ['catalogo', '🛍️', 'Catálogo', 'Diseños listos', 'CREAR'], ['cajas', '📦', 'Cajas', 'Bisagras y cierres', 'CREAR'], ['foto', '📸', 'Desde foto', 'Repuestos o figuras', 'CREAR'],
   ['lab', '🧪', 'Smart Lab', 'El mejor motor, solo', 'CREAR'], ['precision', '📏', 'Precisión', 'Repuestos a medida', 'CREAR'], ['fundas', '📱', 'Fundas', 'Tu móvil, mil estilos', 'CREAR'], ['plantillas', '📐', 'Plantillas', 'Las de siempre', 'CREAR'],
-  ['taller', '🛠️', 'Reparar', 'Blender Workshop', 'MEJORAR'],
+  ['taller', '🛠️', 'Reparar', 'Blender Workshop', 'MEJORAR'], ['fragil', '🛡️', 'Resistencia', 'Dónde se parte', 'MEJORAR'],
   ['doctor', '🩺', 'Imprimir', 'Print Doctor', 'IMPRIMIR']];
-const VISTAS = { cajas: ['./r8_cajas.js', 'montarCajas'], clon: ['./r8_clon.js', 'montarClon'], inicio: ['./r8_inicio.js', 'montarInicio'], estudio: ['./r8_estudio.js', 'montarEstudio'], fundas: ['./r8_fundas.js', 'montarFundas'], catalogo: ['./r8_catalogo.js', 'montarCatalogo'], foto: ['./r8_foto.js', 'montarFoto'], lab: ['./r8_lab.js', 'montarLab'], precision: ['./r8_precision.js', 'montarPrecision'], taller: ['./r8_taller.js', 'montarTaller'], doctor: ['./r8_doctor.js', 'montarDoctor'] };
+const VISTAS = { cajas: ['./r8_cajas.js', 'montarCajas'], clon: ['./r8_desdefoto.js', 'montarDesdeFoto'], inicio: ['./r8_inicio.js', 'montarInicio'], estudio: ['./r8_estudio.js', 'montarEstudio'], fundas: ['./r8_fundas.js', 'montarFundas'], catalogo: ['./r8_catalogo.js', 'montarCatalogo'], foto: ['./r8_desdefoto.js', 'montarDesdeFoto'], /* 13-10: CelebriCLON y Foto → 3D, juntos */ lab: ['./r8_lab.js', 'montarLab'], precision: ['./r8_precision.js', 'montarPrecision'], taller: ['./r8_taller.js', 'montarTaller'], doctor: ['./r8_doctor.js', 'montarDoctor'], fragil: ['./r8_fragil.js', 'montarFragil'] };
 const guardado = (k, def) => { try { return localStorage.getItem(k) ?? def; } catch (e) { return def; } };
 const apunta = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 let PEST = guardado('cd.r8.pest', 'inicio');
@@ -192,6 +192,7 @@ function vuelveSitio(k, caja) {
     if (faltan && n++ < 24) setTimeout(pon, 150); };
   pon();
 }
+if (PEST === 'clon') { PEST = 'foto'; apunta('cd.r8.fotomodo', 'clon'); } // 13-10: CelebriCLON vive ahora dentro de «📸 Desde foto»
 if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio';
 // v30.6.3 · 🎯 PRIMERO, CALIBRAR (la dueña, 12-10-2026: «que no deje iniciar sin antes calibrar»): si no hay ninguna calibración en uso
 // (ni en este aparato ni guardada en el taller), en vez de CelebriR8 sale la puerta (r8/calibracion_puerta.js). Con la placa ya
@@ -211,7 +212,7 @@ function renderMarco(el) {
   try { ponAutoria(ST.cfg && ST.cfg.empresa && ST.cfg.empresa.nombre); } catch (e) { }
   import('../store.js').then(st => st.pausaSync && st.pausaSync(true)).catch(() => { }); // v20.2: sin sincronizar mientras diseñas
   import('../ai/engine.js').then(m => m.liberaIA && m.liberaIA(true)).catch(() => { }); // v30.7.1: la tarjeta gráfica, para el 3D
-  PEST = guardado('cd.r8.pest', PEST); if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio'; // v20.1: el estreno puede pedir una pestaña
+  PEST = guardado('cd.r8.pest', PEST); if (PEST === 'clon') { PEST = 'foto'; apunta('cd.r8.fotomodo', 'clon'); } if (!PESTANAS.some(p => p[0] === PEST)) PEST = 'inicio'; // v20.1: el estreno puede pedir una pestaña
   const tabs = h('div.r8v-tabs', { role: 'tablist', 'aria-label': 'Partes de CelebriR8' }), cuerpo = h('div.r8v-cuerpo');
   const ancho = () => window.innerWidth >= 900;
   let foco = guardado('cd.r8.foco', '1') === '1';
@@ -235,10 +236,11 @@ function renderMarco(el) {
   // v30.6.3 · un STL / OBJ / 3MF soltado en cualquier sitio de CelebriR8: en Reparar y en Imprimir se abre AHÍ; en las demás
   // pestañas, en el Estudio (para editarlo). Nunca se va al Cotizador.
   window.__r8soltar = f => {
-    if ((PEST === 'taller' || PEST === 'doctor') && actual && actual.abreArchivo) { actual.abreArchivo(f); toast('📂 ' + f.name + ' → ' + (PEST === 'taller' ? 'Reparar' : 'Imprimir'), 'ok', 3000); return; }
+    if ((PEST === 'taller' || PEST === 'doctor' || PEST === 'fragil') && actual && actual.abreArchivo) { actual.abreArchivo(f); toast('📂 ' + f.name + ' → ' + ({ taller: 'Reparar', doctor: 'Imprimir', fragil: 'Resistencia' })[PEST], 'ok', 3000); return; }
     ir('estudio', est => { if (est && est.importar) est.importar(f); }); toast('📂 ' + f.name + ' → se abre en el Estudio para editarlo', 'ok', 3500);
   };
   async function ir(k, despues) {
+    let modoFoto = null; if (k === 'clon' || k === 'figura') { modoFoto = k; k = 'foto'; } // 13-10: CelebriCLON = «📸 Desde foto» en su camino de repuesto
     try { recuerdaSitio(window.__r8pest, cuerpo.querySelector('.r8v-pest:not([hidden])')); } catch (e) { }
     const yo = ++turno; PEST = k; apunta('cd.r8.pest', k); pinta();
     if (!(estudioVivo && actual === estudioVivo.r)) { try { actual && actual.destroy && actual.destroy(); } catch (e) { } }
@@ -248,7 +250,7 @@ function renderMarco(el) {
     const caja = h('div.r8v-pest.r8v-' + k); cuerpo.appendChild(caja);
     try {
       let r;
-      const ext = { irA: ir, go, visita: () => visita(), alEstudio: (dk, v, o) => ir('estudio', est => est.añadeDiseno(dk, v, o)), alEstudioMalla: (sopa, nombre) => ir('estudio', est => est.añadeMalla(sopa, nombre)), alEstudioPiezas: (L, nombre) => ir('estudio', est => est.añadePiezas(L, nombre)) };
+      const ext = { modo: modoFoto, irA: ir, go, visita: () => visita(), alEstudio: (dk, v, o) => ir('estudio', est => est.añadeDiseno(dk, v, o)), alEstudioMalla: (sopa, nombre) => ir('estudio', est => est.añadeMalla(sopa, nombre)), alEstudioPiezas: (L, nombre) => ir('estudio', est => est.añadePiezas(L, nombre)) };
       if (VISTAS[k]) { const [mod, fn] = VISTAS[k]; const m = await import(mod); if (yo !== turno) return; r = await m[fn](caja, ext); }
       else r = renderPlantillas(caja);
       if (yo !== turno) { try { r && r.destroy && r.destroy(); } catch (e) { } return; }

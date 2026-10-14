@@ -13,12 +13,25 @@
 import { h, mount, btn, toast } from '../ui.js';
 import * as FM from './foto_medida.js';
 import * as EC from './engranaje_copia.js';
+import * as GF from './guia_fotos.js'; // 14-10-2026 · 📷 dibujos de dónde va el móvil en cada foto, y consejos
 
 const n2 = (x, d = 2) => x == null || !isFinite(x) ? '—' : Number(x).toLocaleString('es-ES', { maximumFractionDigits: d });
 const COL = { linea: '#ffd23f', k: '#2dd4bf', ag: '#f472b6', piso: '#a78bfa', contorno: 'rgba(45,212,191,.9)' };
 
 // ---------- separar la pieza del fondo: IA de la torre si está; si no, por contraste ----------
-export async function silueta(file) {
+// (13-10-2026 · 🩹) Antes: la IA de la torre si estaba, o un corte de claro/oscuro. Ahora la foto pasa primero por el RESTAURADOR
+// (foto_restaura.js: fondo con textura, luz desigual, sombras, brillos; recorte y ampliación a la pieza; la IA solo si hace falta) y
+// se mide sobre su máscara de borde suave. «file» puede ser también una foto ya restaurada y retocada a mano: { img, mascara, rest }.
+// Si el restaurador no encuentra pieza, se intenta como antes.
+export async function silueta(file, o = {}) {
+  let R = file && file.img && file.mascara ? file : null;
+  if (!R && o.restaurar !== false) { try { const FRU = await import('./foto_restaura_ui.js'), I0 = await FM.cargaArchivo(file, 2400); R = await FRU.restauraImagen(I0.id, { alEsperar: o.alEsperar }); } catch (e) { R = null; } }
+  if (R) {
+    const D = FM.pixeles(await FM.imagenDe(R.mascara)), C = FM.contornos(D, { umbral: 127.5, oscura: false, suave: true, tol: 0.6 }), pz = FM.pieza(C.anillos, p => p, 30);
+    if (pz) { const A0 = Math.abs(FM.area(pz.fuera)); pz.agujeros = pz.agujeros.filter(r => Math.abs(FM.area(r)) >= Math.max(30, 0.0015 * A0)); }
+    if (pz) return { url: FM.IMAGENES.get(R.img).url, W: D.width, H: D.height, D, C, pz, ia: !!(R.rest && R.rest.conIA), R, rest: R.rest };
+  }
+  if (file && file.img) throw new Error('No encuentro la pieza en la foto.');
   const I = await FM.cargaArchivo(file, 1800), im = await FM.imagenDe(I.id);
   let D = FM.pixeles(im), ia = false;
   try {
@@ -37,8 +50,8 @@ export async function silueta(file) {
 }
 
 // ---------- 1) la cara de frente ----------
-export async function analizaFrente(file) {
-  const S = await silueta(file);
+export async function analizaFrente(file, o) {
+  const S = await silueta(file, o);
   if (!S.pz) throw new Error('No encuentro la pieza en la foto.' + (S.ia ? '' : ' Ponla sobre algo liso que contraste (un folio) o haz la foto en el PC, que separa la pieza sola.'));
   const L = FM.leeEngranaje(S.pz);
   // no es un engranaje: CUALQUIER PIEZA (contorno, agujeros y, si los hay, dientes en línea: sierras, peines…)
@@ -48,8 +61,8 @@ export async function analizaFrente(file) {
   return Object.assign(S, { L, th0 });
 }
 // ---------- 2) la vista de lado: los PISOS (de arriba abajo), ancho de cada uno ----------
-export async function analizaLado(file) {
-  const S = await silueta(file);
+export async function analizaLado(file, o) {
+  const S = await silueta(file, o);
   if (!S.pz) throw new Error('No encuentro la pieza en la foto de lado.');
   const xs = S.pz.fuera.map(p => p[0]), ys = S.pz.fuera.map(p => p[1]), x0 = Math.floor(Math.min(...xs)), x1 = Math.ceil(Math.max(...xs)), y0 = Math.floor(Math.min(...ys)), y1 = Math.ceil(Math.max(...ys));
   // ancho de la silueta en cada fila (lo más a la izquierda y lo más a la derecha que está DENTRO del contorno de fuera)
@@ -140,33 +153,40 @@ export function abrir(o = {}) {
   async function eligeFoto(cual) {
     const C = await import('./comun.js'), f = await C.pideArchivo('image/*'); if (!f) return;
     mount(cuerpo, h('div.ac50-espera', h('div.ac50-giro'), h('p', cual === 'frente' ? 'Buscando la pieza y contando los dientes…' : 'Buscando los pisos de la pieza…')));
-    try { est[cual] = cual === 'frente' ? await analizaFrente(f) : await analizaLado(f); if (cual === 'frente' && est.frente && est.frente.L) { est.med.z = est.frente.L.z; } }
+    const alEsperar = t => { const p = cuerpo.querySelector('.ac50-espera p'); if (p) p.textContent = t; };
+    try { est[cual] = cual === 'frente' ? await analizaFrente(f, { alEsperar }) : await analizaLado(f, { alEsperar }); if (cual === 'frente' && est.frente && est.frente.L) { est.med.z = est.frente.L.z; } }
     catch (e) { toast(e.message || String(e), 'bad', 9000); }
     pinta();
   }
+  // 🩹 lo que ha arreglado el restaurador en esa foto, y la OPCIÓN B: retocar el contorno a mano (pintar, varita, contornear con imán)
+  const selloDe = X => (X.rest ? (X.rest.conIA ? '✨ IA de tu PC · ' : '🩹 restaurada · ') + (X.rest.confianza === 'alta' ? '' : 'contorno ' + (X.rest.confianza === 'baja' ? 'poco seguro' : 'dudoso') + ' · ') : X.ia ? '✨ separada con la IA de tu PC · ' : '');
+  const arreglos = X => (X && X.rest && (X.rest.pasos.length || X.rest.avisos.length) ? h('details.ac50-arreglos', { open: X.rest.confianza !== 'alta' }, h('summary', '🩹 Lo que he arreglado en la foto (' + X.rest.pasos.length + ')'), X.rest.pasos.map(t => h('p', '✔ ' + t)), X.rest.avisos.map(t => h('p.mal', '⚠️ ' + t))) : null);
+  const bRetoca = cual => (est[cual] && est[cual].R ? btn('🩹 Retocar el contorno', async () => { const X = est[cual], FRU = await import('./foto_restaura_ui.js');
+    FRU.abreRetoque({ img: X.R.img, mascara: X.R.mascara, alGuardar: async id => { const R2 = { img: X.R.img, mascara: id, rest: Object.assign({}, X.rest, { metodo: 'mano', nombre: 'Retocada a mano', confianza: 'alta', conIA: false, avisos: [], pasos: X.rest.pasos.concat(['El contorno lo has retocado tú.']) }) };
+      try { est[cual] = cual === 'frente' ? await analizaFrente(R2) : await analizaLado(R2); if (cual === 'frente' && est.frente.L) est.med.z = est.frente.L.z; } catch (e) { toast(e.message || String(e), 'bad', 9000); } pinta(); } }); }, { cls: 'sm ac50-retoca', title: 'Si la línea verde no es la pieza: pinta, borra, usa la varita o marca el contorno a ojo (se pega solo al borde)' }) : null);
   function pinta() {
     const F = est.frente, Ld = est.lado, k = kDe(), s = escala(), sl = escalaL();
     const gen = F && F.generica, G = gen ? F.G : null;
-    const frenteGen = () => h('div.ac50-fila', h('div.ac50-foto', lienzoF, h('div.ac50-sello', (F.ia ? '✨ separada con la IA de tu PC · ' : '') + 'pieza sin engranaje' + (G.dientes.length ? ' · ' + G.dientes.map(D => D.n + ' dientes en línea').join(' · ') : '') + (G.agujeros.length ? ' · ' + G.agujeros.length + ' agujero(s)' : ''))),
+    const frenteGen = () => h('div.ac50-fila', h('div.ac50-foto', lienzoF, h('div.ac50-sello', selloDe(F) + 'pieza sin engranaje' + (G.dientes.length ? ' · ' + G.dientes.map(D => D.n + ' dientes en línea').join(' · ') : '') + (G.agujeros.length ? ' · ' + G.agujeros.length + ' agujero(s)' : ''))),
       h('div.ac50-meds', campo('largo', 1, 'Largo total', 'De punta a punta por lo más largo (la flecha amarilla).'),
         G.dientes.map((D, j) => campo('paso' + j, j ? '2b' : 2, 'De la punta 1 a la punta ' + (pasosMedir(D) + 1), 'Las dos puntas grandes verdes. Mide de punta a punta con el calibre (' + pasosMedir(D) + ' pasos de ' + D.n + ' dientes).', { px: D.paso * pasosMedir(D), e: 'F' }, 've')),
         G.agujeros.map((hh, i) => hh.redondo ? campo('ag' + i, 3 + G.agujeros.slice(0, i).filter(x => x.redondo).length, 'Agujero', 'El círculo rosa. Mejor mide el eje o tornillo que entra.', { px: 2 * hh.r, e: 'F' }, 'ro') : null),
-        btn('↺ Otra foto de frente', () => eligeFoto('frente'), { cls: 'sm ghost' })));
+        arreglos(F), h('div.ac50-btns', btn('↺ Otra foto de frente', () => eligeFoto('frente'), { cls: 'sm ghost' }), bRetoca('frente'))));
     const pasoFrente = h('section.ac50-paso', h('h3', '1 · Foto de FRENTE (la cara que más se ve)'),
-      gen ? frenteGen() : !F ? h('div.ac50-pide', h('p', 'Con el móvil paralelo a la pieza y desde un poco lejos (con zoom), que salga entera. Cualquier fondo vale en el PC; en el móvil, mejor un folio.'), btn('📷 Elegir la foto de frente', () => eligeFoto('frente'), { cls: 'primary ac50-bf' }))
-        : h('div.ac50-fila', h('div.ac50-foto', lienzoF, h('div.ac50-sello', (F.ia ? '✨ separada con la IA de tu PC · ' : '') + F.L.z + ' dientes contados')),
+      gen ? frenteGen() : !F ? h('div.ac50-pide.ac50-guia', h('div.gf-dib', { html: GF.DIBUJOS.principal() }), h('div', h('b.gf-centro-t', '👉 AHORA: la foto de frente'), h('ul.gf-tips', GF.PASOS.principal.tips.map(t => h('li', t)).concat([h('li', 'Cualquier fondo vale en el PC (la IA separa la pieza); en el móvil, mejor un folio.')])), btn('📷 Elegir la foto de frente', () => eligeFoto('frente'), { cls: 'primary ac50-bf' })))
+        : h('div.ac50-fila', h('div.ac50-foto', lienzoF, h('div.ac50-sello', selloDe(F) + F.L.z + ' dientes contados')),
           h('div.ac50-meds', h('label.ac50-campo', h('span.ac50-n.z', '#'), h('span.ac50-t', h('b', 'Dientes (contados)'), h('small', 'Compruébalos: marca uno con rotulador.')), h('input.inp', { type: 'number', step: 1, min: 6, value: est.med.z ?? '', 'data-k': 'z', onchange: e => { est.med.z = e.target.value; F.L.z = Math.round(Number(e.target.value)) || F.L.z; pinta(); } })),
             campo('da', 1, 'Ø exterior', 'Con las bocas de fuera del calibre, de punta a punta (la flecha amarilla).'),
             campo('W', 2, 'Sobre ' + k + ' dientes', 'Abraza los ' + k + ' dientes marcados en verde, con las bocas planas en los costados del primero y del último.', null, 've'),
             campo('W1', '2+', 'Sobre ' + (k + 1) + ' dientes (si puedes)', 'Uno más. Con esta saco el ángulo de los dientes.', null, 've'),
             F.L.agujero ? campo('eje', 3, 'Agujero (el eje)', 'Mejor mide el EJE donde va, no el agujero gastado (el círculo rosa).', { px: F.L.agujero.d, e: 'F' }, 'ro') : null,
-            btn('↺ Otra foto de frente', () => eligeFoto('frente'), { cls: 'sm ghost' }))));
+            arreglos(F), h('div.ac50-btns', btn('↺ Otra foto de frente', () => eligeFoto('frente'), { cls: 'sm ghost' }), bRetoca('frente')))));
     const pasoLado = h('section.ac50-paso', h('h3', '2 · Foto de LADO (de canto, con el eje hacia arriba) · si es plano, sáltalo'),
-      !Ld ? h('div.ac50-pide', btn('📷 Elegir la foto de lado', () => eligeFoto('lado'), { cls: 'ac50-bl' })) :
+      !Ld ? h('div.ac50-pide.ac50-guia', h('div.gf-dib', { html: GF.DIBUJOS.lado() }), h('div', F ? h('b.gf-centro-t', '👉 AHORA: la foto de lado') : h('b', 'Después de la de frente: la foto de lado'), h('ul.gf-tips', GF.PASOS.lado.tips.map(t => h('li', t))), btn('📷 Elegir la foto de lado', () => eligeFoto('lado'), { cls: (F ? 'primary ' : '') + 'ac50-bl' }))) :
         h('div.ac50-fila', h('div.ac50-foto', lienzoL, h('div.ac50-sello', Ld.pisos.length + (Ld.pisos.length === 1 ? ' piso' : ' pisos'))),
           h('div.ac50-meds', Ld.pisos.map((p, i) => i === Ld.iDientes ? campo('b', 4 + Ld.pisos.slice(0, i).reduce((a, q, j) => a + (j === Ld.iDientes ? 1 : 2), 0), gen ? 'Grosor' : 'Grosor de los dientes', 'La flecha verde, de canto.', { px: p.y1 - p.y0 + 1, e: 'L' }, 've')
             : [campo('h' + i, 4 + Ld.pisos.slice(0, i).reduce((a, q, j) => a + (j === Ld.iDientes ? 1 : 2), 0), 'Alto de este piso', 'Flecha morada ↕.', { px: p.y1 - p.y0 + 1, e: 'L' }, 'mo'), campo('d' + i, 5 + Ld.pisos.slice(0, i).reduce((a, q, j) => a + (j === Ld.iDientes ? 1 : 2), 0), 'Ø de este piso', 'Flecha morada ↔.', { px: p.w, e: 'L' }, 'mo')]),
-            btn('↺ Otra foto de lado', () => eligeFoto('lado'), { cls: 'sm ghost' }))));
+            arreglos(Ld), h('div.ac50-btns', btn('↺ Otra foto de lado', () => eligeFoto('lado'), { cls: 'sm ghost' }), bRetoca('lado')))));
     const listo = F && Number(gen ? est.med.largo : est.med.da) > 0;
     mount(cuerpo, pasoFrente, pasoLado,
       h('section.ac50-paso.ac50-fin', h('h3', '3 · Construir la copia'), h('p', listo ? 'Con lo medido construyo la pieza exacta. Lo que no hayas medido y saque de la foto irá marcado «≈» para que lo confirmes.' : gen ? 'Mide al menos el largo total (①).' : 'Haz la foto de frente y mide al menos el Ø exterior (①).'),
