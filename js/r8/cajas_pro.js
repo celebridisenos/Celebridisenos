@@ -28,7 +28,8 @@ export const HOLGURA_MOVIL = 0.35; // lo que corre o gira (pestillos, ruedas, ca
 
 // ---------- las IMPRESORAS (para el limitador: lo que no cabe en la cama, no sale) ----------
 export const IMPRESORAS = { p1p: { t: 'Bambu P1P (256 mm)', cama: 256, alto: 250 }, a1mini: { t: 'Bambu A1 mini (180 mm)', cama: 180, alto: 180 } };
-export const ESTILOS = { lisa: 'Lisa', biselada: 'Biselada (cantos en chaflán)', acanalada: 'Acanalada (rayas verticales, muy premium)', hexagonal: 'Tapa con panal hexagonal' };
+export const ESTILOS = { lisa: 'Lisa', biselada: 'Biselada (cantos en chaflán)', acanalada: 'Acanalada (rayas verticales, muy premium)', hexagonal: 'Tapa con panal hexagonal',
+  libro: 'Libro (hojas en tres lados y tapa de cubierta: discreta)', cofre: 'Cofre del tesoro (bandas de refuerzo)', tablas: 'Tablas de madera', rombos: 'Acolchado de rombos (capitoné)' }; // (14-10 tarde: «más formas, que sean guapas, discretas»)
 
 // ======================= 🔢 CERRADURA DE COMBINACIÓN (diseño propio) =======================
 // Un PESTILLO (eje en D con una pestaña por rueda) atraviesa unas orejetas de la caja y la orejeta de la TAPA. Cada RUEDA (con sus 10
@@ -164,7 +165,7 @@ const altoPila = k => PILAS[k].h;
 const LADOS = ['frente', 'atras', 'izq', 'der'];
 export const TIPOS_PRO = {
   combinacion: { e: '🔢', t: 'Combinación', d: 'Ruedas con números: con la combinación buena sale el pestillo y se abre', caras: ['frente', 'izq', 'der'], junta: 1, grupo: 'cerrar', p: { codigo: '427' }, campos: [['codigo', 'Combinación (2 a 4 cifras)', 'txt']] },
-  llave: { e: '🔑', t: 'Cerradura con llave', d: 'Bombín y su llave impresos: un cuarto de vuelta y la tapa no se abre', caras: ['frente', 'izq', 'der'], junta: 1, grupo: 'cerrar', p: { codigo: 'LCL' }, campos: [['codigo', 'Código de la llave (3 letras: N, C o L)', 'txt']] },
+  llave: { e: '🔑', t: 'Cerradura con llave', d: 'Bombín y su llave impresos: un cuarto de vuelta y la tapa no se abre', caras: ['frente', 'izq', 'der'], junta: 1, grupo: 'cerrar', p: { codigo: 'LCL', llaves: 2 }, campos: [['codigo', 'Código de la llave (3 letras: N, C o L)', 'txt'], ['llaves', 'Llaves (copias iguales)', 1, 3, 1]] }, // (14-10: ella, «tenías que haber hecho la llave»: de serie salen 2)
   gravedad: { e: '🤫', t: 'Cierre secreto', d: 'Solo con tapa corredera: de pie no se abre; boca abajo, la tapa corre', caras: ['dentro'], grupo: 'cerrar', p: {}, campos: [] },
   cajon: { e: '🗃️', t: 'Cajón', d: 'Un cajón abajo, con su estante encima', caras: ['frente'], grupo: 'abrir', p: { alto: 22, ancho: 0 }, campos: [['alto', 'Alto del cajón', 12, 80, 1], ['ancho', 'Ancho (0 = todo lo que cabe)', 0, 240, 1]] },
   bandeja: { e: '🧺', t: 'Bandeja que se saca', d: 'Una bandeja arriba que apoya en unos rebordes', caras: ['dentro'], grupo: 'dentro', p: { prof: 18, cols: 2 }, campos: [['prof', 'Hondo de la bandeja', 10, 60, 1], ['cols', 'Compartimentos', 1, 6, 1]] },
@@ -349,7 +350,9 @@ export function construyePro(X) {
         const bombin = llaveBombin(C, e), leva = llaveLeva(C, e, true), llave = llaveLlave(C, Q.codigo);
         sueltas.push({ id: 'bombin:' + e.id, nombre: 'Bombín', m: enF(bombin, e.cara), imprimir: N.aLaCama(bombin.translate([-u, 0, -ZK]).rotate([90, 0, 0])), con: null, nota: 'de pie, sobre su pestaña · se mete desde fuera' });
         sueltas.push({ id: 'leva:' + e.id, nombre: 'Leva (la cuña)', m: enF(leva, e.cara), imprimir: N.aLaCama(leva.translate([-u, -Q.yLeva0, -ZK]).rotate([90, 0, 0])), con: null, nota: 'tumbada · por dentro, a presión en el hexágono del bombín, con la llave DE PIE y la cuña hacia abajo, del lado del gancho' });
-        sueltas.push({ id: 'llave:' + e.id, nombre: 'Llave (' + Q.codigo + ')', m: null, imprimir: N.aLaCama(llave.rotate([0, -90, 0])), con: null, nota: 'tumbada · llave de pie = cerrado; un cuarto de vuelta (tumbada) = abierto', tapaColor: true });
+        const nLl = Math.max(1, Math.min(3, Math.round(Number(p.llaves) || 2)));
+        sueltas.push({ id: 'llave:' + e.id, nombre: 'Llave' + (nLl > 1 ? ' 1' : '') + ' (' + Q.codigo + ')', m: enF(llaveMetida(C, e, Q.codigo), e.cara), /* (metida en su cerradura: se ve y gira en la animación) */ imprimir: N.aLaCama(llave.rotate([0, -90, 0])), con: null, nota: 'tumbada · llave de pie = cerrado; un cuarto de vuelta (tumbada) = abierto', tapaColor: true });
+        for (let k = 1; k < nLl; k++) sueltas.push({ id: 'llave' + k + ':' + e.id, nombre: 'Llave ' + (k + 1) + ' (copia, ' + Q.codigo + ')', m: null, imprimir: N.aLaCama(llave.rotate([0, -90, 0])), con: null, nota: 'igual que la primera: la de repuesto', tapaColor: true });
         mec.push({ tipo: 'llave', e, cara: e.cara, F: F(e.cara), Q });
         break;
       }
@@ -479,8 +482,35 @@ export function aplicaEstilo(X, cuerpo, tapa) {
     for (let j = -60; j <= 60; j++) { const yy = j * dy; if (Math.abs(yy) > W / 2 - R - 5) continue; for (let i = -60; i <= 60; i++) { const xx = i * p + (j % 2 ? p / 2 : 0); if (Math.abs(xx) > L / 2 - R - 5) continue; L2.push(hx.translate([xx, yy])); } }
     // (14-10: se graban las RAYAS del panal, 1,2 mm, y no los hexágonos: la tapa se imprime boca abajo y un hueco de 6 mm quedaba en el aire)
     if (L2.length) tapa = tapa.subtract(N.csUnion(L2.map(s => s.offset(0.6, 'Miter', 2).subtract(s))).extrude(0.7).translate([0, 0, H + tg - 0.6])); }
-  if (C.pies) { const L2 = [], r = 5, ix = L / 2 - Math.max(R, 4) - 6, iy = W / 2 - Math.max(R, 4) - 6; [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b]) => L2.push(M().hull([cilZ(r, -2.99, -1, a * ix, b * iy), cilZ(r - 1, -3, -2.99, a * ix, b * iy), cilZ(r, -1, 0.01, a * ix, b * iy)]))); cuerpo = cuerpo.add(N.union(L2)); }
-  return { cuerpo, tapa };
+  // 14-10 tarde · estilos nuevos: todo GRABADO (0,5 mm) o en relieve en las paredes de pie (se imprime sin soportes); en la tapa, solo grabado
+  // (la tapa se imprime boca abajo: un relieve encima la dejaría coja en la cama)
+  const ranura = (cara, cosas) => { const F = X.marco(C, cara), uso = F.hw - R - 2.5; return cosas(F, uso).map(m => X.enCara(m, F)); };
+  const lineasCara = (cara, ang, paso, ancho, z0, z1) => ranura(cara, (F, uso) => { const L2 = [], a = ang * Math.PI / 180, lar = 2 * (uso + H);
+    const zona = cubo(-uso, uso, -1, 0.5, z0, z1), dz = Math.abs(Math.cos(a)) > 0.2 ? paso / Math.abs(Math.cos(a)) : paso;
+    if (Math.abs(Math.cos(a)) < 0.2) { for (let x = -uso + paso / 2; x < uso; x += paso) L2.push(cubo(x - ancho / 2, x + ancho / 2, -1, 0.5, z0, z1)); }
+    else for (let c = -lar; c <= lar; c += dz) L2.push(cubo(-lar, lar, -1, 0.5, -ancho / 2, ancho / 2).rotate([0, ang, 0]).translate([0, 0, c]));
+    return L2.length ? [N.union(L2).intersect(zona)] : []; });
+  const lineasTapa = (ang, paso, ancho) => { const a = ang * Math.PI / 180, lx = L / 2 - R - 4, ly = W / 2 - R - 4, lar = 2 * (L + W), L2 = [], dy = Math.abs(Math.cos(a)) > 0.2 ? paso / Math.abs(Math.cos(a)) : paso;
+    if (Math.abs(Math.cos(a)) < 0.2) for (let x = -lx + paso / 2; x < lx; x += paso) L2.push(cubo(x - ancho / 2, x + ancho / 2, -ly, ly, H + tg - 0.5, H + tg + 1));
+    else for (let c = -lar; c <= lar; c += dy) L2.push(cubo(-lar, lar, -ancho / 2, ancho / 2, H + tg - 0.5, H + tg + 1).rotate([0, 0, ang]).translate([0, c, 0]));
+    return L2.length ? N.union(L2).intersect(cubo(-lx, lx, -ly, ly, H, H + tg + 2)) : null; };
+  const marcoTapa = (ins, ancho) => prisma(L - 2 * ins, W - 2 * ins, Math.max(0.3, R - ins), H + tg - 0.5, H + tg + 1).subtract(prisma(L - 2 * ins - 2 * ancho, W - 2 * ins - 2 * ancho, Math.max(0.3, R - ins - ancho), H + tg - 1, H + tg + 2));
+  const corr = C.tapa === 'corredera', quitaT = m => { if (m && !corr) tapa = tapa.subtract(m); };
+  if (st === 'libro') { const L2 = []; ['frente', 'izq', 'der'].forEach(c => L2.push(...lineasCara(c, 0, 1.8, 0.6, 2.5, H - 1.5))); if (L2.length) cuerpo = cuerpo.subtract(N.union(L2)); quitaT(marcoTapa(5, 0.9)); quitaT(marcoTapa(8, 0.6)); }
+  if (st === 'tablas') { const L2 = []; ['frente', 'atras', 'izq', 'der'].forEach(c => L2.push(...lineasCara(c, 0, 11, 0.8, 3, H - 2))); if (L2.length) cuerpo = cuerpo.subtract(N.union(L2)); quitaT(lineasTapa(90, 12, 0.8)); }
+  if (st === 'rombos') { const L2 = []; ['frente', 'atras', 'izq', 'der'].forEach(c => { L2.push(...lineasCara(c, 45, 12, 0.8, 3, H - 3)); L2.push(...lineasCara(c, -45, 12, 0.8, 3, H - 3)); }); if (L2.length) cuerpo = cuerpo.subtract(N.union(L2)); quitaT(lineasTapa(45, 12, 0.8)); quitaT(lineasTapa(-45, 12, 0.8)); quitaT(marcoTapa(4, 0.8)); }
+  if (st === 'cofre') { const L2 = []; const banda = (cara, u, w) => { const F = X.marco(C, cara); L2.push(X.enCara(cubo(u - w / 2, u + w / 2, -1.2, 0.01, 0, H - 0.4), F)); };
+    [-1, 1].forEach(s => { banda('frente', s * L * 0.3, 9); banda('izq', s * W * 0.25, 8); banda('der', s * W * 0.25, 8); });
+    cuerpo = cuerpo.add(N.union(L2)); // (bandas en relieve en las paredes: de pie se imprimen solas)
+    [-1, 1].forEach(s => { const x = s * L * 0.3; quitaT(cubo(x - 5, x - 4.2, -W, W, H + tg - 0.5, H + tg + 1).add(cubo(x + 4.2, x + 5, -W, W, H + tg - 0.5, H + tg + 1)).intersect(prisma(L - 2, W - 2, Math.max(0.3, R - 1), H, H + tg + 2))); });
+    quitaT(marcoTapa(3, 0.8)); }
+  // PATAS (14-10 tarde): eran 3 mm pegados debajo y todo el suelo quedaba EN EL AIRE al imprimir (ningún puente aguanta 150 mm).
+  // Ahora son 4 piezas sueltas (Ø10 × 3 con un tetón de Ø4) que se encajan a presión en 4 agujeros del suelo: la caja se imprime plana.
+  let patas = [];
+  if (C.pies) { const ix = L / 2 - Math.max(R, 4) - 6, iy = W / 2 - Math.max(R, 4) - 6, hondo = Math.max(0.8, Math.min(1.6, (C.suelo || 2.4) - 0.8)), hoyos = [];
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b]) => { hoyos.push(cilZ(2 + ENCAJES.presion, -0.01, hondo, a * ix, b * iy)); patas.push(M().hull([cilZ(5, -2.99, -0.01, a * ix, b * iy), cilZ(4, -3, -2.99, a * ix, b * iy)]).add(cilZ(2, -0.02, hondo - 0.2, a * ix, b * iy))); });
+    cuerpo = cuerpo.subtract(N.union(hoyos)); }
+  return { cuerpo, tapa, patas };
 }
 
 // ======================= 🧪 COMPROBAR los mecanismos (se monta en el ordenador) =======================

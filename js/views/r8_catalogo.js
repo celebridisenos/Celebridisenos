@@ -2,7 +2,9 @@
 // Tarjetas con la pieza en 3D de verdad (se dibuja aquí mismo, no son fotos), por apartados. Al tocar una: se ve grande,
 // se cambian sus medidas y su color, y se prepara para la Bambu (con el asistente) o se abre en el Estudio para seguir
 // añadiéndole cosas. Lo mismo para las FUNDAS: eliges el móvil y ves todos los estilos con ese móvil.
-import { h, mount, btn, toast } from '../ui.js';
+import { h, mount, btn, toast, modal } from '../ui.js';
+import * as CK from '../r8/cults_catalogo.js'; // 14-10-2026 (tarde) · 🛒 la ficha para Cults de cada diseño y «📦 Exportar todo»
+import * as CU from '../r8/cults.js';
 import * as N from '../r8/nucleo.js';
 import { crearEscena, miniatura, COLORES, ACABADOS } from '../r8/escena3d.js';
 import { MOVILES } from '../r8/moviles.js';
@@ -69,7 +71,9 @@ export async function montarCatalogo(el, ext = {}) {
         campos, h('div.r8c-nota'),
         h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio', title: 'La pieza entera, con sus medidas para seguir cambiándolas' }), ext.irA ? btn('🛡️ ¿Aguanta?', () => aResistencia(k), { cls: 'r8c-fragil', title: 'Dónde se partiría con estas medidas y reforzarla tocando la zona' }) : null, K.PARTES && K.PARTES[k] && ext.alEstudioPiezas ? btn('🧩 Al Estudio por piezas (editar y abrir)', () => alEstudioPiezas(k), { cls: 'r8c-estudio-p', title: 'Cada parte suelta (base, tapa, cajón…): se editan una a una y en 🎬 Animar se abre y se cierra' }) : null),
         h('div.r8e-btns.r8c-manual-f', { hidden: true }, btn('📄 Manual de montaje (para el paquete)', () => manual(k), { cls: 'r8c-manual', title: 'Una hoja A4 con la foto, las piezas y los pasos: se imprime o se guarda en PDF' })),
-        h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })))));
+        h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })),
+        h('div.r8c-cults', h('b', '🛒 Vender en Cults'), h('span.small.r8c-pvp', cultsLinea(k)),
+          CK.esAyuda(k) ? null : h('div.r8e-btns', btn('🛒 Ficha para Cults', () => fichaCults(k), { cls: 'r8c-ficha', title: 'Título, descripción, parámetros, categoría, etiquetas y precio: cada cosa con su botón de copiar y una nota' }), btn('📦 Exportar todo', () => exportar(k), { cls: 'primary r8c-exportar', title: 'Un ZIP con el vídeo, 3 fotos, la ficha, el manual (si lleva) y el ZIP de las piezas para subir a Cults' }))))));
     mount(campos, camposDe(K, k, v, () => genera()));
     import('../r8/manual.js').then(MAN => { const f = detalle.querySelector('.r8c-manual-f'); if (f && C.abierto === k) f.hidden = !MAN.tieneManual(D, v); }).catch(() => { });
     detalle.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -94,6 +98,69 @@ export async function montarCatalogo(el, ext = {}) {
     modal('🖨️ ' + D.t + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const nombre = (D.t + '_' + Object.values(C.v[k] || {}).filter(x => typeof x === 'string' && x.length < 14 && /[a-z]/i.test(x)).slice(0, 1).join('')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
     A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.usoDe ? D.usoDe(C.v[k]) : D.uso === 'pieza' ? 'mecanica' : D.uso, /* v30.3: jarrón hueco = impresión normal */ texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, sinSoportes: D.sinSoportes || '', /* v30.7 */ desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+  }
+  // ---------- 14-10-2026 (tarde) · 🛒 VENDER EN CULTS: la ficha (cada campo con su nota al lado) y «📦 Exportar todo» ----------
+  const LS_PV = 'cd.r8.cults.precios'; // los precios que ella pone (por diseño), en este aparato
+  const misPrecios = () => { try { return JSON.parse(localStorage.getItem(LS_PV) || '{}') || {}; } catch (e) { return {}; } };
+  function cultsLinea(k) { if (CK.esAyuda(k)) return 'Es una ayuda para diseñar (se resta o se añade a otra pieza): no se vende sola.'; const s = CK.precioDe(K, k), mio = misPrecios()[k]; return s === 0 ? 'Gratis: sube esta gratis, trae gente a tu perfil.' : CU.euros(mio || s) + (mio ? ' (el tuyo)' : ' (orientativo)'); }
+  const infoDe = k => (window.__r8c && window.__r8c.k === k && !window.__r8c.error) ? window.__r8c : {};
+  const copiar = async (txt, ok) => { try { await navigator.clipboard.writeText(txt); } catch (e) { const t = h('textarea', { style: { position: 'fixed', left: '-9999px' } }); t.value = txt; document.body.append(t); t.select(); try { document.execCommand('copy'); } catch (x) { } t.remove(); } toast('📋 Copiado: ' + ok, 'ok', 2500); };
+  function fichaCults(k) {
+    let Fi; try { Fi = CK.ficha(K, k, C.v[k], infoDe(k), { precio: misPrecios()[k] }); } catch (e) { return toast('No he podido preparar la ficha: ' + (e.message || e), 'bad'); }
+    if (window.__r8c) window.__r8c.ficha = Fi;
+    const precio = Fi.gratis ? h('b', 'Gratis') : h('input.inp.r8cj-precio', { type: 'number', min: 0.5, max: 99, step: 0.01, value: Fi.precio, 'aria-label': 'Tu precio en Cults (€)', onchange: e => { const v = Number(String(e.target.value).replace(',', '.')); if (!(v >= 0.5 && v <= 99)) { toast('🛑 El precio, entre 0,50 y 99 €', 'warn'); e.target.value = Fi.precio; return; } const P = misPrecios(); if (v === Fi.sugerido) delete P[k]; else P[k] = v; try { localStorage.setItem(LS_PV, JSON.stringify(P)); } catch (x) { } const l = detalle.querySelector('.r8c-pvp'); if (l) l.textContent = cultsLinea(k); toast('💶 Precio para Cults: ' + CU.euros(v), 'ok', 2500); } });
+    const cuerpo = h('div.r8cj-fichas', h('p.small.muted', { style: { margin: '0 0 8px' } }, 'Abre Cults → «Subir un diseño» y copia cada cosa en su sitio (📋). Las notas de la derecha son para ti. La ficha sale de ESTA variante: sus medidas, su color y su texto.'),
+      Fi.campos.map(c => h('div.r8cj-fc', { 'data-campo': c.k },
+        h('div.r8cj-fc-v', h('b', c.t), c.k === 'precio' ? h('div.row', precio, Fi.gratis ? null : h('small.muted', '€ · propuesto: ' + CU.euros(Fi.sugerido))) : h('textarea.inp', { readonly: true, rows: Math.min(14, Math.max(1, Math.ceil(c.v.length / 70) + (c.v.match(/\n/g) || []).length)), value: c.v }),
+          btn('📋 Copiar', () => copiar(c.k === 'precio' ? (Fi.gratis ? '0' : String(Fi.precio).replace('.', ',')) : c.v, c.t), { cls: 'sm ghost r8cj-copia' })),
+        h('small.r8cj-fc-nota', '📝 ' + c.nota))));
+    modal('🛒 Ficha para Cults · ' + Fi.titulo.es, cuerpo, c => [btn('📦 Exportar todo', () => { c(); exportar(k); }, { cls: 'primary' }), btn('Cerrar', c, { cls: 'ghost' })], { size: 'wide' });
+  }
+  // 📦 un ZIP con el vídeo (6 s girando), 3 fotos, la ficha, el manual (si se monta) y, dentro, el ZIP que se sube TAL CUAL a Cults
+  let exportando = false;
+  async function exportar(k, o = {}) {
+    if (exportando || !escena || C.abierto !== k) return; if (CK.esAyuda(k)) return toast('Es una ayuda para diseñar: no se vende sola.', 'warn');
+    exportando = true; const D = K.DISENOS[k], v = C.v[k], bt = detalle.querySelector('.r8c-exportar'), paso = t => { if (bt) bt.textContent = '⏳ ' + t; }; if (bt) bt.disabled = true;
+    const enc = new TextEncoder(), datos = async b => new Uint8Array(b instanceof Blob ? await b.arrayBuffer() : b), deFoto = u => { const b = atob(u.split(',')[1]), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; };
+    const espera2 = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    try {
+      const { zip } = await import('../r8/motor.js'), Fi = CK.ficha(K, k, v, infoDe(k), { precio: misPrecios()[k] }), base = Fi.nombreArchivo, A = [], dentro = [], color = C.color[k] || D.color || '#7c6cff';
+      paso('Piezas…'); await espera2();
+      // (un STL con todo tal como sale en la cama: en lo que se imprime YA MONTADO —bisagras, cadenas, rodamientos— no se puede separar)
+      try { const X = N.enAmbito(() => { const m = K.genera(k, v); return [{ stl: new Uint8Array(N.stl(m, D.t)), tres: N.tresMF([{ m, color, nombre: D.t }], base) }]; })[0]; // (en su ámbito: no deja memoria ocupada)
+        dentro.push({ nombre: base + '/' + base + '.stl', datos: X.stl });
+        dentro.push({ nombre: base + '/' + base + '.3mf', datos: await datos(X.tres) });
+      } finally { N.limpia(); }
+      paso('Fotos…'); const fotos = [];
+      for (const [n, dir] of [['01_portada.jpg', 'iso'], ['02_otro_lado.jpg', [-0.62, 0.95, 0.72]], ['03_desde_arriba.jpg', [0.15, -0.35, 1]]]) { escena.encuadrar(dir); await espera2(); fotos.push([n, escena.foto('image/jpeg', 0.9)]); }
+      escena.encuadrar('iso'); fotos.forEach(([n, u]) => A.push({ nombre: 'FOTOS/' + n, datos: deFoto(u) }));
+      paso('Manual…'); let manualHtml = null;
+      try { const MAN = await import('../r8/manual.js'); if (MAN.tieneManual(D, v)) { const H = await MAN.hojaDe({ K, N, k, v, escena, color: C.color[k] || D.color, acabado: C.acabado[k] || 'mate' }); manualHtml = H && H.html; } } catch (e) { console.warn('manual', e); } finally { genera(true); await espera2(); }
+      if (manualHtml) { dentro.push({ nombre: base + '/Manual_de_montaje.html', datos: enc.encode(manualHtml) }); A.push({ nombre: '3_Manual_de_montaje.html', datos: enc.encode(manualHtml) }); }
+      dentro.push({ nombre: base + '/LEEME.txt', datos: enc.encode([Fi.titulo.en, Fi.titulo.es, '', Fi.descripcion.en, '', '———', '', Fi.descripcion.es, '', '© CelebriDiseños · uso personal: no se permite vender los archivos ni lo impreso sin permiso.'].join('\r\n')) });
+      A.push({ nombre: '1_SUBIR_A_CULTS/' + base + '.zip', datos: await datos(zip(dentro)) });
+      A.push({ nombre: '2_FICHA_PARA_CULTS.txt', datos: enc.encode(CU.fichaTexto(Fi)) });
+      if (o.video !== false) { paso('Grabando el vídeo (6 s)…'); try { const V = await videoGiro(6); A.push({ nombre: 'VIDEO/' + base + '.' + V.ext, datos: await datos(V.blob) }); } catch (e) { toast('El vídeo no ha podido grabarse (' + (e.message || e) + '): va todo lo demás.', 'warn', 7000); } }
+      const todo = zip(A), n = base + '_CULTS.zip';
+      window.__r8c = Object.assign(window.__r8c || {}, { exportado: { nombre: n, bytes: todo.size, archivos: A.map(a => a.nombre), dentro: dentro.map(a => a.nombre), precio: Fi.precio, gratis: Fi.gratis } });
+      baja(todo, n);
+      modal('📦 Exportado: ' + n, h('div', h('p', 'Está en tu carpeta de Descargas. Dentro:'), h('ul.small',
+        h('li', h('b', '1_SUBIR_A_CULTS/' + base + '.zip'), ' → el archivo que subes a Cults TAL CUAL (el STL, el 3MF' + (manualHtml ? ', el manual' : '') + ').'),
+        h('li', h('b', '2_FICHA_PARA_CULTS.txt'), ' → título, descripción, parámetros, categoría, etiquetas, precio (' + (Fi.gratis ? 'gratis' : CU.euros(Fi.precio)) + ') y tus notas.'),
+        h('li', h('b', 'FOTOS/'), ' → 3 fotos (la 01 es la portada). Si la imprimes, añade una foto tuya: es lo que más vende.'),
+        A.some(a => a.nombre.startsWith('VIDEO/')) ? h('li', h('b', 'VIDEO/'), ' → 6 s girando: para Instagram, TikTok o Wallapop.') : null)), c => [btn('Vale', c, { cls: 'primary' })]);
+    } catch (e) { toast('No he podido exportar: ' + (e.message || e), 'bad', 9000); window.__r8c = Object.assign(window.__r8c || {}, { exportado: { error: e.message || String(e) } }); }
+    finally { exportando = false; if (bt) { bt.disabled = false; bt.textContent = '📦 Exportar todo'; } }
+  }
+  // ⏺ 6 s de la pieza girando (lo que se ve en el 3D), en MP4 si el navegador sabe (si no, WebM)
+  async function videoGiro(dur) {
+    if (!window.MediaRecorder || !lienzo.captureStream) throw new Error('este navegador no sabe grabar vídeo');
+    const st = lienzo.captureStream(30), tipo = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(x => MediaRecorder.isTypeSupported(x)) || '';
+    const rec = new MediaRecorder(st, tipo ? { mimeType: tipo, videoBitsPerSecond: 8e6 } : undefined), trozos = [], fin = new Promise(r => { rec.onstop = r; });
+    rec.ondataavailable = e => { if (e.data && e.data.size) trozos.push(e.data); };
+    escena.encuadrar('iso'); if (escena.giraCamara) escena.giraCamara(1); rec.start(250); const tic = setInterval(() => escena.pide(), 30);
+    try { await new Promise(r => setTimeout(r, dur * 1000)); } finally { clearInterval(tic); rec.stop(); await fin; if (escena.giraCamara) escena.giraCamara(0); escena.encuadrar('iso'); }
+    const mp4 = /mp4/.test(tipo); return { blob: new Blob(trozos, { type: mp4 ? 'video/mp4' : 'video/webm' }), ext: mp4 ? 'mp4' : 'webm' };
   }
   // v40 · 📄 el manual de montaje de los diseños que se montan (r8/manual.js)
   async function manual(k) { const MAN = await import('../r8/manual.js'); await MAN.abrirManual({ K, N, k, v: C.v[k], escena, color: C.color[k] || (K.DISENOS[k] || {}).color, acabado: C.acabado[k] || 'mate', alAcabar: () => genera(true) }); }

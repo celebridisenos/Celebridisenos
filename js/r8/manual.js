@@ -51,17 +51,23 @@ ${M.cuidados.length ? `<h2>Cuidados</h2><ul>${M.cuidados.map(p => `<li>${esc(p)}
 }
 
 // abre la ventana del manual desde la ficha de un diseño del catálogo. o = { K, N, k, v, escena, color, acabado, alAcabar() }
-export async function abrirManual(o) {
-  const { K, N, k, escena } = o, D = K.DISENOS[k], v = Object.assign({}, o.v); if (!D) return;
-  let M; try { M = datosManual(D, v); } catch (e) { return toast('No he podido preparar el manual: ' + (e.message || e), 'bad', 8000); }
-  if (!M.pasos.length) return toast('Este diseño es de una sola pieza: no necesita manual de montaje.', 'warn', 6000);
+// 14-10-2026 · la HOJA sola (sin enseñarla): para «📦 Exportar todo» (Cults) · null si es de una sola pieza
+export async function hojaDe(o) {
+  const { K, N, k, escena } = o, D = K.DISENOS[k], v = Object.assign({}, o.v); if (!D) return null;
+  const M = datosManual(D, v); if (!M.pasos.length) return null;
   // las fotos: montado (si el diseño sabe enseñarse montado) y las piezas tal como salen de la impresora
   const q = (D.campos || []).find(c => c.k === 'que'), ops = q ? q.ops.map(x => x[0]) : [], vistas = M.vistas || [ops.includes('montado') ? ['montado', 'Así queda montado'] : null, ops.length ? [ops.find(x => !/montado|prueba|cerrad|media/.test(x)) || ops[0], 'Las piezas, tal como salen'] : [v.que, 'El producto']].filter(Boolean);
   const fotos = [];
   for (const [que, pie] of vistas) { try { const m = K.genera(k, Object.assign({}, v, q ? { que } : {})); escena.ponPartes([{ id: k, vista: N.aVista(m), color: o.color || D.color || '#7c6cff', acabado: o.acabado || 'mate' }]); escena.encuadrar('iso'); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); fotos.push({ src: escena.foto('image/jpeg', 0.9), pie }); } catch (e) { console.warn('manual: foto', e); } finally { N.limpia(); } }
   if (o.alAcabar) o.alAcabar();
   let tienda = 'CelebriDiseños'; try { const { S } = await import('../store.js'); tienda = (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || tienda; } catch (e) { }
-  const html = hojaManual({ titulo: D.t, sub: D.d, tienda, fotos, M, color: claro(o.color || D.color) ? '' : (o.color || D.color) });
+  return { M, fotos, html: hojaManual({ titulo: D.t, sub: D.d, tienda, fotos, M, color: claro(o.color || D.color) ? '' : (o.color || D.color) }) };
+}
+export async function abrirManual(o) {
+  const { K, k } = o, D = K.DISENOS[k]; if (!D) return;
+  let H; try { H = await hojaDe(o); } catch (e) { return toast('No he podido preparar el manual: ' + (e.message || e), 'bad', 8000); }
+  if (!H) return toast('Este diseño es de una sola pieza: no necesita manual de montaje.', 'warn', 6000);
+  const { M, fotos, html } = H;
   const marco = h('iframe.man-marco', { title: 'Manual de montaje', sandbox: 'allow-same-origin allow-modals' }); marco.srcdoc = html;
   const nombre = 'Manual_' + D.t.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '_').slice(0, 50);
   window.__r8manual = { k, pasos: M.pasos.length, piezas: M.piezas.length, fotos: fotos.length, html };
