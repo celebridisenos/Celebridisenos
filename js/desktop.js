@@ -29,6 +29,8 @@ export const desktop = {
   file: async p => { const r = await call('file?' + q({ path: p })); return r.arrayBuffer(); },
   fileUrl: p => '/local/file?' + q({ path: p, key: H ? H.key : '' }),
   save: (p, data, replace) => call('save?' + q({ path: p, replace: replace ? '1' : '' }), { method: 'POST', body: data }),
+  // 16-10-2026: una página HTML → PDF (Edge sin ventana) guardado en el ESCRITORIO → { path, size } (catálogo para clientes)
+  pdf: (html, nombre) => call('pdf?' + q({ nombre }), { method: 'POST', headers: { 'Content-Type': 'text/html; charset=utf-8' }, body: html }),
   mkdir: p => call('mkdir', { method: 'POST', body: JSON.stringify({ path: p }) }),
   backup: json => call('backup', { method: 'POST', body: JSON.stringify(json) }),
   backups: () => call('backups'),

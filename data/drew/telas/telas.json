@@ -1,0 +1,77 @@
+{
+ "denim": {
+  "fuente": "ambientCG Fabric069 (CC0)",
+  "media": 0.0977,
+  "rug": 0.741
+ },
+ "algodon": {
+  "fuente": "ambientCG Fabric082A (CC0)",
+  "media": 0.4818,
+  "rug": 0.852
+ },
+ "gabardina": {
+  "fuente": "ambientCG Fabric036 (CC0)",
+  "media": 0.5009,
+  "rug": 0.829
+ },
+ "lino": {
+  "fuente": "ambientCG Fabric066 (CC0)",
+  "media": 0.2445,
+  "rug": 0.818
+ },
+ "elastica": {
+  "fuente": "ambientCG Fabric070 (CC0)",
+  "media": 0.4548,
+  "rug": 0.649
+ },
+ "felpa": {
+  "fuente": "ambientCG Fabric030 (CC0)",
+  "media": 0.1107,
+  "rug": 0.728
+ },
+ "lana": {
+  "fuente": "ambientCG Fabric085 (CC0)",
+  "media": 0.1375,
+  "rug": 0.784
+ },
+ "polipiel": {
+  "fuente": "ambientCG Leather026 (CC0)",
+  "media": 0.006,
+  "rug": 0.37
+ },
+ "cuero": {
+  "fuente": "ambientCG Leather037 (CC0)",
+  "media": 0.0532,
+  "rug": 0.397
+ },
+ "ante": {
+  "fuente": "ambientCG Leather039 (CC0)",
+  "media": 0.6226,
+  "rug": 0.593
+ },
+ "punto": {
+  "fuente": "propia (CelebriDREW, CC0)",
+  "media": 0.7975,
+  "rug": 0.84
+ },
+ "rib": {
+  "fuente": "propia (CelebriDREW, CC0)",
+  "media": 0.6943,
+  "rug": 0.8
+ },
+ "saten": {
+  "fuente": "propia (CelebriDREW, CC0)",
+  "media": 0.9282,
+  "rug": 0.3
+ },
+ "organza": {
+  "fuente": "propia (CelebriDREW, CC0)",
+  "media": 0.5058,
+  "rug": 0.48
+ },
+ "poliester": {
+  "fuente": "propia (CelebriDREW, CC0)",
+  "media": 0.8629,
+  "rug": 0.55
+ }
+}

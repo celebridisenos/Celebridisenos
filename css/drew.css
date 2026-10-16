@@ -1,0 +1,365 @@
+/* 👗 CelebriDREW · la pantalla (3D a la izquierda y patrón 2D a la derecha, como CLO3D). Usa los colores del tema del programa. */
+body[data-view="celebridrew"] .content { max-width: none; padding: 10px 12px 0; }
+.dw { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; height: calc(100vh - var(--topbar, 60px) - 14px); min-height: 560px; }
+.dw-cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.dw-cab h1 { font-size: 20px; margin: 0 6px 0 0; letter-spacing: .01em; white-space: nowrap; }
+.dw-cab h1 small { font-size: 12px; font-weight: 600; color: var(--muted); margin-left: 6px; }
+.dw-cab .dw-nombre { font-weight: 600; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; background: transparent; color: var(--text); min-width: 140px; max-width: 260px; font: inherit; }
+.dw-cab .dw-nombre:hover, .dw-cab .dw-nombre:focus { border-color: var(--line-2); background: var(--surface); outline: none; }
+.dw-cab .esp { flex: 1; }
+.dw-cuerpo { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 8px; min-height: 0; }
+.dw-lado { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+.dw-pest { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid var(--line); }
+.dw-pest button { border: 0; background: transparent; padding: 9px 2px 8px; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; display: grid; gap: 2px; justify-items: center; border-bottom: 2px solid transparent; }
+.dw-pest button b { font-size: 17px; line-height: 1; }
+.dw-pest button.on { color: var(--brand-2); border-bottom-color: var(--brand); }
+.dw-panel { overflow: auto; padding: 10px 12px 16px; min-height: 0; }
+.dw-panel h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 6px; }
+.dw-panel h3:first-child { margin-top: 2px; }
+.dw-ayuda { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 4px 0 8px; }
+.dw-fila { display: grid; grid-template-columns: minmax(0, 1fr) 84px; align-items: center; gap: 6px; padding: 3px 0; }
+.dw-fila label { font-size: 13px; line-height: 1.25; min-width: 0; }
+.dw-fila label small { display: block; font-size: 11px; color: var(--muted); }
+.dw-fila .dw-num { display: flex; align-items: center; gap: 3px; }
+.dw-fila input[type=number] { width: 62px; padding: 4px 6px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; text-align: right; }
+.dw-fila .u { font-size: 11px; color: var(--muted); }
+.dw-org { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--surface-3); color: var(--text-2); white-space: nowrap; }
+.dw-org.usuario { background: var(--info-soft); color: var(--info); } .dw-org.ia { background: var(--warn-soft); color: var(--warn); } .dw-org.calculada { background: var(--ok-soft); color: var(--ok); }
+.dw-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dw-chip { border: 1px solid var(--line-2); background: var(--surface); color: var(--text); border-radius: 99px; padding: 5px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+.dw-chip.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-2); font-weight: 600; }
+.dw-plantillas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.dw-plantillas button { border: 1px solid var(--line-2); background: var(--surface); border-radius: 10px; padding: 10px 6px; cursor: pointer; font: inherit; color: var(--text); display: grid; gap: 2px; justify-items: center; }
+.dw-plantillas button b { font-size: 24px; }
+.dw-plantillas button.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+.dw-sel { width: 100%; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.dw-ok { color: var(--ok); font-weight: 600; } .dw-mal { color: var(--bad); font-weight: 600; } .dw-ojo { color: var(--warn); font-weight: 600; }
+.dw-medido { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+/* las dos ventanas */
+.dw-vistas { display: grid; grid-template-columns: minmax(0, var(--dw-izq, 1fr)) 6px minmax(0, 1fr); min-height: 0; }
+.dw-ven { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.dw-ven.v3 { background: radial-gradient(120% 90% at 50% 15%, #fbfaf7 0%, #ece8e1 70%, #e3ded6 100%); }
+:root[data-theme="noche"] .dw-ven.v3, :root[data-theme="oscuro"] .dw-ven.v3 { background: radial-gradient(120% 90% at 50% 15%, #3b3a42 0%, #25242b 75%); }
+.dw-barra { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 88%, transparent); flex-wrap: wrap; position: relative; z-index: 2; }
+.dw-barra .tit { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.dw-barra button { border: 1px solid transparent; background: transparent; color: var(--text); border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.dw-barra button:hover { background: var(--surface-2); }
+.dw-barra button.on { background: var(--brand-soft); color: var(--brand-2); border-color: color-mix(in srgb, var(--brand) 40%, transparent); font-weight: 600; }
+.dw-barra .sep { width: 1px; height: 20px; background: var(--line); margin: 0 3px; }
+.dw-lienzo { position: absolute; inset: 0; }
+.dw-lienzo canvas.dw-3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.dw-divisor { cursor: col-resize; position: relative; }
+.dw-divisor::after { content: ''; position: absolute; left: 2px; top: 30%; bottom: 30%; width: 2px; border-radius: 2px; background: var(--line-2); }
+.dw-aviso3d { position: absolute; left: 10px; bottom: 10px; z-index: 3; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 12px; max-width: 70%; pointer-events: none; }
+.dw-leyenda { position: absolute; right: 10px; bottom: 10px; z-index: 3; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 12px; display: grid; gap: 3px; }
+.dw-leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
+/* el 2D */
+.dw-svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; cursor: default; }
+.dw-cuad { fill: none; stroke: color-mix(in srgb, var(--text) 9%, transparent); stroke-width: .3; }
+.dw-fondo { cursor: grab; }
+.dw-corte { fill: color-mix(in srgb, var(--brand) 6%, transparent); stroke: var(--text); stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: move; }
+.dw-pieza.on .dw-corte { fill: color-mix(in srgb, var(--brand) 14%, transparent); stroke: var(--brand-2); stroke-width: 2; }
+.dw-corte.mal { stroke: var(--bad); } .dw-corte.ojo { stroke: var(--warn); }
+.dw-costura { fill: none; stroke: color-mix(in srgb, var(--text) 55%, transparent); stroke-width: .8; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.dw-int { fill: none; stroke: color-mix(in srgb, var(--text) 60%, transparent); stroke-width: .8; stroke-dasharray: 6 3; vector-effect: non-scaling-stroke; }
+.dw-int.hilo { stroke-dasharray: none; }
+.dw-piq { stroke: var(--text); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.dw-dob { stroke: var(--text); stroke-width: 1.6; stroke-dasharray: 10 3 2 3; vector-effect: non-scaling-stroke; }
+.dw-borde { fill: none; stroke: transparent; vector-effect: non-scaling-stroke; cursor: pointer; }
+.dw-borde.on { stroke: color-mix(in srgb, var(--brand) 60%, transparent); }
+.dw-tramo { fill: none; stroke: transparent; cursor: pointer; }
+.dw-tramo.on { stroke: color-mix(in srgb, var(--info) 55%, transparent); }
+.dw-punto { fill: var(--surface); stroke: var(--brand-2); stroke-width: 1.4; vector-effect: non-scaling-stroke; cursor: grab; }
+.dw-punto.on { fill: var(--brand); }
+.dw-tir { fill: var(--info); stroke: none; cursor: grab; } .dw-tir-l { stroke: var(--info); stroke-width: .8; vector-effect: non-scaling-stroke; }
+.dw-nombre { fill: color-mix(in srgb, var(--text) 70%, transparent); font-weight: 700; text-anchor: middle; dominant-baseline: middle; pointer-events: none; font-family: var(--font); }
+.dw-med { fill: var(--bad); stroke: var(--bad); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.dw-medt { fill: var(--bad); font-weight: 700; text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; font-family: var(--font); }
+/* la barra de abajo */
+.dw-pie { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px; padding: 6px 4px 8px; color: var(--text-2); }
+.dw-pie .dw-est { font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--surface-3); }
+.dw-pie .dw-est.validado, .dw-pie .dw-est.revisado { background: var(--ok-soft); color: var(--ok); }
+.dw-pie .dw-est.ensamblable { background: var(--info-soft); color: var(--info); }
+.dw-pie .dw-est.borrador, .dw-pie .dw-est.inicial { background: var(--warn-soft); color: var(--warn); }
+.dw-ficha { position: absolute; right: 10px; top: 52px; z-index: 4; width: 250px; max-height: calc(100% - 64px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-l); padding: 10px 12px; font-size: 13px; }
+.dw-ficha h4 { margin: 0 0 4px; font-size: 15px; }
+.dw-ficha .dw-x { position: absolute; right: 6px; top: 6px; border: 0; background: transparent; cursor: pointer; font-size: 16px; color: var(--muted); }
+.dw-cargando { position: absolute; inset: 0; display: grid; place-items: center; z-index: 5; font-size: 14px; color: var(--text-2); background: color-mix(in srgb, var(--surface) 55%, transparent); pointer-events: none; }
+@media (max-width: 1100px) {
+  .dw { height: auto; }
+  .dw-cuerpo { grid-template-columns: 1fr; }
+  .dw-vistas { grid-template-columns: 1fr; grid-template-rows: 62vh 8px 52vh; }
+  .dw-divisor { display: none; }
+  .dw-lado { max-height: none; }
+}
+.dw-ficha select.dw-tipo { max-width: 100%; font-size: 11.5px; padding: 1px 3px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); margin: 1px 0; }
+
+.dw-panel .btn { white-space: normal; text-align: left; justify-content: flex-start; line-height: 1.25; height: auto; min-height: 36px; padding-top: 6px; padding-bottom: 6px; } /* (16-10: los textos largos de Exportar se cortaban) */
+
+/* 16-10 · a tamaño completo: sin el menú ni la barra del programa; una pestañita para volver */
+body.dw-solo .sidebar, body.dw-solo .rail, body.dw-solo .topbar, body.dw-solo .tabbar, body.dw-solo .fab, body.dw-solo .scrim { display: none !important; }
+body.dw-solo .content { max-width: none; padding: 8px 10px 6px 18px; }
+body.dw-solo .dw { height: calc(100vh - 14px); }
+.dw-volver { position: fixed; left: 0; top: 50%; transform: translateY(-50%) rotate(180deg); z-index: 60; writing-mode: vertical-rl; padding: 12px 4px; border: 1px solid var(--line-2, #ccc); border-right: 0; border-radius: 10px 0 0 10px; background: var(--surface, #fff); color: var(--muted, #666); font: 700 12px var(--font, system-ui); cursor: pointer; opacity: .8; }
+.dw-volver:hover { opacity: 1; color: var(--text, #111); }
+body:not(.dw-solo) .dw-volver { display: none; }
+.dw-atajos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 13px; }
+.dw-atajos div { display: flex; align-items: center; gap: 8px; }
+.dw-atajos kbd { min-width: 46px; text-align: center; padding: 2px 6px; border: 1px solid var(--line-2, #ccc); border-bottom-width: 2px; border-radius: 6px; font: 700 12px var(--font, system-ui); background: var(--surface-2, #f4f4f4); }
+body.dw-solo .shell { grid-template-columns: minmax(0, 1fr) !important; } body.dw-solo .shell > .main { grid-column: 1 !important; margin-left: 0 !important; }
+.dw-grabando { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; background: rgba(12, 10, 18, .82); color: #fff; font: 700 15px var(--font, system-ui); }
+.dw-grabando i { width: 14px; height: 14px; border-radius: 50%; background: #f04a2c; animation: dwLate 1s infinite; } @keyframes dwLate { 50% { opacity: .25; } }
+
+/* 16-10 · diseños listos y precio */
+.dw-disenos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.dw-disenos button { display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line-2); background: var(--surface); color: var(--text); border-radius: 10px; padding: 7px 8px; font: inherit; font-size: 12.5px; cursor: pointer; line-height: 1.2; }
+.dw-disenos button b { font-size: 20px; }
+.dw-disenos button:hover { border-color: var(--brand); }
+.dw-disenos button.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); font-weight: 600; }
+.dw-precio .dw-fila { grid-template-columns: minmax(0, 1fr) auto; }
+.dw-precio .dw-fila input[type=number] { width: 70px; }
+.dw-precio .dw-total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
+
+/* ===================== 16-10 · «ATELIER»: la cara PROPIA de CelebriDREW (ella: «una interfaz diferente a la de CelebriDiseños,
+   que entres y digas WOW, es otra cosa»). Marfil y tinta con oro y rosa, letra de revista de moda, el 3D en un estudio de fotos y el
+   patrón sobre una PLANCHA DE CORTE verde con las piezas en papel de patrón. Modo noche: .dw-noche. Todo dentro de .dw-atelier. ===================== */
+.dw.dw-atelier { --dw-bg: #f3eee6; --dw-papel: #fbf8f3; --dw-tinta: #1c1916; --dw-tinta2: #5d554c; --dw-raya: #e2d8ca; --dw-oro: #b0884f; --dw-rosa: #c25d74; --dw-mat: #2c5a4b; --dw-mat2: #24493d;
+  --surface: var(--dw-papel); --surface-2: #f1ebe2; --surface-3: #ebe3d7; --line: var(--dw-raya); --line-2: #d5c9b8; --text: var(--dw-tinta); --text-2: var(--dw-tinta2); --muted: #8a7f73;
+  --brand: var(--dw-rosa); --brand-2: #9e3f57; --brand-soft: #f6e3e6; --ok: #2f7d4f; --ok-soft: #e4f2e8; --warn: #b26a12; --warn-soft: #fbefdc; --bad: #b3352e; --bad-soft: #f8e2e0; --info: #2e5f9e; --info-soft: #e3ecf7;
+  --dw-serif: "Bodoni MT", "Didot", "Playfair Display", "Libre Bodoni", Georgia, "Times New Roman", serif;
+  color: var(--text); background: var(--dw-bg); border-radius: 18px; padding: 10px 12px 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.03); }
+.dw.dw-atelier.dw-noche { --dw-bg: #121014; --dw-papel: #1c181d; --dw-tinta: #f1ebe2; --dw-tinta2: #c9bfb2; --dw-raya: #2d2830; --surface-2: #231e25; --surface-3: #2b252e; --line-2: #3a333d; --muted: #9b9086;
+  --brand-soft: #3a2029; --brand-2: #e893a5; --ok-soft: #173326; --warn-soft: #3a2a12; --bad-soft: #3a1714; --info-soft: #162538; }
+body.dw-solo[data-view="celebridrew"] .content { background: #ece6dc; }
+body.dw-solo[data-view="celebridrew"] .content:has(.dw-noche) { background: #0b0a0c; }
+/* cabecera de revista */
+.dw-atelier .dw-cab { padding: 2px 4px 6px; border-bottom: 1px solid var(--line); }
+.dw-atelier .dw-marca { font-family: var(--dw-serif); font-weight: 400; font-size: 30px; letter-spacing: .01em; margin: 0 10px 0 0; line-height: 1; color: var(--text); display: flex; align-items: baseline; gap: 2px; }
+.dw-atelier .dw-marca b { font-weight: 700; letter-spacing: .06em; color: var(--dw-rosa); }
+.dw-atelier .dw-marca small { font-family: var(--font); font-size: 10.5px; font-weight: 700; letter-spacing: .32em; text-transform: uppercase; color: var(--dw-oro); margin-left: 12px; align-self: center; }
+.dw-atelier .dw-cab .btn { border-radius: 999px; }
+.dw-atelier .dw-cab .btn.primary { background: var(--dw-tinta); color: #f6e7c8; border-color: var(--dw-tinta); box-shadow: 0 6px 18px rgba(28,25,22,.22); }
+.dw-atelier.dw-noche .dw-cab .btn.primary { background: linear-gradient(135deg, #d9b26f, #b0884f); color: #1c1916; border-color: transparent; }
+.dw-atelier .dw-cab .btn.ghost { color: var(--text); }
+.dw-atelier .dw-nombre { font-family: var(--dw-serif); font-size: 18px; font-style: italic; }
+/* la biblioteca: columna de iconos + panel */
+.dw-atelier .dw-cuerpo { grid-template-columns: 330px minmax(0, 1fr); gap: 10px; }
+.dw-atelier .dw-lado { grid-template-columns: 66px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); border-radius: 16px; background: var(--dw-papel); box-shadow: 0 10px 30px rgba(40,30,20,.06); }
+.dw-atelier .dw-pest { grid-template-columns: 1fr; grid-auto-rows: 70px; align-content: start; border-bottom: 0; border-right: 1px solid var(--line); background: var(--surface-2); padding-top: 6px; }
+.dw-atelier .dw-pest button { border-bottom: 0; border-left: 3px solid transparent; font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.dw-atelier .dw-pest button b { font-size: 22px; filter: saturate(.85); }
+.dw-atelier .dw-pest button.on { color: var(--text); border-left-color: var(--dw-rosa); background: var(--dw-papel); }
+.dw-atelier .dw-panel h3 { font-family: var(--dw-serif); font-size: 17px; text-transform: none; letter-spacing: .01em; color: var(--text); font-weight: 600; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.dw-atelier .dw-disenos button, .dw-atelier .dw-plantillas button { border-radius: 14px; background: var(--dw-papel); transition: transform .15s ease, box-shadow .15s ease; }
+.dw-atelier .dw-disenos button:hover, .dw-atelier .dw-plantillas button:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(40,30,20,.10); }
+.dw-atelier .dw-chip { border-radius: 999px; }
+.dw-atelier .dw-chip.on { background: var(--dw-tinta); color: #f6e7c8; border-color: var(--dw-tinta); }
+.dw-atelier.dw-noche .dw-chip.on { background: #d9b26f; color: #1c1916; border-color: #d9b26f; }
+/* las dos ventanas: lienzo a sangre y barras FLOTANTES */
+.dw-atelier .dw-vistas { grid-template-columns: minmax(0, var(--dw-izq, 1.05fr)) 10px minmax(0, 1fr); }
+.dw-atelier .dw-ven { display: block; border-radius: 18px; border: 0; box-shadow: 0 14px 40px rgba(40,30,20,.10); }
+.dw-atelier .dw-ven > div:last-child { position: absolute !important; inset: 0; }
+.dw-atelier .dw-ven.v3 { background: radial-gradient(90% 75% at 50% 38%, #ffffff 0%, #f4efe8 45%, #e2d9cd 100%); }
+.dw-atelier.dw-noche .dw-ven.v3 { background: radial-gradient(90% 75% at 50% 38%, #3a3440 0%, #221e26 55%, #141216 100%); }
+.dw-atelier .dw-ven.v2 { background: var(--dw-mat); }
+.dw-atelier .dw-barra { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4; border-radius: 999px; border: 1px solid rgba(255,255,255,.6); padding: 5px 8px; max-width: calc(100% - 24px); flex-wrap: wrap; justify-content: center;
+  background: rgba(255,255,255,.72); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); box-shadow: 0 10px 28px rgba(30,24,18,.16); }
+.dw-atelier.dw-noche .dw-barra { background: rgba(28,24,29,.72); border-color: rgba(255,255,255,.08); }
+.dw-atelier .dw-ven.v2 .dw-barra { background: rgba(20,40,34,.62); border-color: rgba(255,255,255,.14); }
+.dw-atelier .dw-ven.v2 .dw-barra button, .dw-atelier .dw-ven.v2 .dw-barra .tit { color: #eef3ef; }
+.dw-atelier .dw-ven.v2 .dw-barra button:hover { background: rgba(255,255,255,.12); }
+.dw-atelier .dw-barra button { border-radius: 999px; font-size: 12.5px; padding: 6px 10px; }
+.dw-atelier .dw-barra button.on { background: var(--dw-tinta); color: #f6e7c8; border-color: var(--dw-tinta); }
+.dw-atelier .dw-ven.v2 .dw-barra button.on { background: #f6efe2; color: #1c1916; }
+.dw-atelier .dw-barra .tit { font-family: var(--dw-serif); font-size: 14px; letter-spacing: .02em; text-transform: none; font-weight: 600; color: var(--text); margin: 0 6px 0 4px; }
+.dw-atelier .dw-barra .sep { background: rgba(0,0,0,.12); }
+.dw-atelier .dw-divisor::after { background: rgba(0,0,0,.18); width: 3px; left: 3px; }
+/* el patrón en PAPEL sobre la plancha de corte */
+.dw-atelier .dw-ven.v2 .dw-cuad { stroke: rgba(255,255,255,.11); stroke-width: .35; }
+.dw-atelier .dw-ven.v2 .dw-corte { fill: #f7f0e3; stroke: #1c1916; stroke-width: 1.1; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+.dw-atelier .dw-ven.v2 .dw-pieza.on .dw-corte { fill: #fffaf0; stroke: var(--dw-rosa); stroke-width: 2; }
+.dw-atelier .dw-ven.v2 .dw-costura { stroke: rgba(28,25,22,.55); }
+.dw-atelier .dw-ven.v2 .dw-int, .dw-atelier .dw-ven.v2 .dw-piq, .dw-atelier .dw-ven.v2 .dw-dob { stroke: rgba(28,25,22,.7); }
+.dw-atelier .dw-ven.v2 .dw-nombre { fill: #2b2620; font-family: var(--dw-serif); font-weight: 600; letter-spacing: .02em; }
+.dw-atelier .dw-ven.v2 .dw-punto { fill: #fffaf0; stroke: var(--dw-rosa); }
+.dw-atelier .dw-ven.v2 .dw-punto.on { fill: var(--dw-rosa); }
+.dw-atelier .dw-ven.v2 .dw-medt { stroke: #f7f0e3; }
+.dw-atelier .dw-ficha { border-radius: 16px; top: 64px; background: var(--dw-papel); }
+.dw-atelier .dw-ficha h4 { font-family: var(--dw-serif); font-size: 19px; }
+.dw-atelier .dw-aviso3d, .dw-atelier .dw-leyenda { border-radius: 14px; background: rgba(255,255,255,.78); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.dw-atelier.dw-noche .dw-aviso3d, .dw-atelier.dw-noche .dw-leyenda { background: rgba(28,24,29,.8); }
+/* barra de abajo */
+.dw-atelier .dw-pie { border-top: 1px solid var(--line); font-size: 12px; }
+.dw-atelier .dw-pie .dw-est { border-radius: 999px; }
+/* entrada: el estudio se enciende */
+@keyframes dw-entra { from { opacity: 0; transform: translateY(8px) scale(.995); } to { opacity: 1; transform: none; } }
+.dw-atelier .dw-ven, .dw-atelier .dw-lado { animation: dw-entra .6s cubic-bezier(.2,.8,.2,1) both; }
+.dw-atelier .dw-ven.v2 { animation-delay: .08s; } .dw-atelier .dw-lado { animation-delay: .04s; }
+/* iPad / lápiz: dedos y lápiz con sitio de sobra */
+@media (pointer: coarse) { .dw-atelier .dw-barra button { padding: 9px 13px; font-size: 14px; } .dw-atelier .dw-chip { padding: 8px 14px; } .dw-atelier .dw-pest { grid-auto-rows: 78px; } }
+
+/* 16-10 · Atelier, 2.ª vuelta: el estudio claro manda sobre el tema oscuro del programa; barras ABAJO en una fila (iconos solos si no cabe) */
+body .dw.dw-atelier .dw-ven.v3 { background: radial-gradient(90% 75% at 50% 38%, #ffffff 0%, #f4efe8 45%, #e2d9cd 100%); }
+body .dw.dw-atelier.dw-noche .dw-ven.v3 { background: radial-gradient(90% 75% at 50% 38%, #3a3440 0%, #221e26 55%, #141216 100%); }
+.dw-atelier .dw-ven { container-type: inline-size; }
+.dw-atelier .dw-barra { top: auto; bottom: 14px; flex-wrap: nowrap; gap: 2px; padding: 4px 6px; white-space: nowrap; overflow: hidden; }
+.dw-atelier .dw-barra button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; }
+.dw-atelier .dw-barra button i { font-style: normal; font-size: 14px; }
+@container (max-width: 880px) { .dw-atelier .dw-barra button span.l { display: none; } .dw-atelier .dw-barra button { padding: 7px 9px; } }
+@container (max-width: 560px) { .dw-atelier .dw-barra .tit, .dw-atelier .dw-barra .sep { display: none; } }
+.dw-atelier.dw-noche .dw-barra button.on { background: #d9b26f; color: #1c1916; border-color: #d9b26f; }
+.dw-atelier.dw-noche .dw-barra button { color: #f1ebe2; }
+.dw-atelier .dw-aviso3d { top: 14px; bottom: auto; left: 14px; }
+.dw-atelier .dw-leyenda { bottom: 70px; }
+/* 16-10 · ventana ESTRECHA (iPad de pie, portátil pequeño): la regla de .dw-atelier pisaba la de @media (1100 px) y el patrón 2D quedaba
+   como una raya de 10 px al lado del 3D. Ahora: la biblioteca a la izquierda y el 3D ARRIBA con el patrón DEBAJO; en el móvil, una columna. */
+@media (max-width: 1100px) { .dw-atelier .dw-cuerpo { grid-template-columns: 300px minmax(0, 1fr); } }
+@media (max-width: 1100px) and (orientation: portrait) {
+  .dw-atelier .dw-vistas { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); row-gap: 10px; }
+  .dw-atelier .dw-divisor { display: none; }
+}
+@media (max-width: 1400px) { .dw-atelier .dw-marca small { display: none; } } /* (que la cabecera quepa en una fila en un portátil) */
+@media (max-width: 700px) {
+  body.dw-solo .dw.dw-atelier { height: auto; }
+  .dw-atelier .dw-cuerpo { grid-template-columns: minmax(0, 1fr); }
+  .dw-atelier .dw-vistas { grid-template-rows: 62vh 50vh; }
+  .dw-atelier .dw-lado { order: 2; max-height: 80vh; }
+}
+
+/* ===================== 16-10 · 📷 FOTO: guía con dibujos, MEDIR con una foto calibrada (folio A4) y CALIBRAR LA IMPRESORA (drew/calibra_ui.js) ===================== */
+/* las VENTANAS de CelebriDREW van fuera de .dw: llevan la misma cara Atelier (de día y de noche: body.dw-noche-on) */
+body.dw-solo .modal { --surface: #fbf8f3; --surface-2: #f1ebe2; --surface-3: #ebe3d7; --line: #e2d8ca; --line-2: #d5c9b8; --text: #1c1916; --text-2: #5d554c; --muted: #7d7267;
+  --brand: #c25d74; --brand-2: #9e3f57; --brand-soft: #f6e3e6; --brand-text: #fff; --ok: #2f7d4f; --ok-soft: #e4f2e8; --warn: #b26a12; --warn-soft: #fbefdc; --bad: #b3352e; --bad-soft: #f8e2e0; --info: #2e5f9e; --info-soft: #e3ecf7;
+  --dw-serif: "Bodoni MT", "Didot", "Playfair Display", "Libre Bodoni", Georgia, "Times New Roman", serif; color: var(--text); color-scheme: light; }
+body.dw-solo.dw-noche-on .modal { --surface: #1c181d; --surface-2: #231e25; --surface-3: #2b252e; --line: #2d2830; --line-2: #3a333d; --text: #f1ebe2; --text-2: #c9bfb2; --muted: #a3988d;
+  --brand-2: #e893a5; --brand-soft: #3a2029; --ok: #5fbf86; --ok-soft: #173326; --warn: #e3a24a; --warn-soft: #3a2a12; --bad: #f08a80; --bad-soft: #3a1714; --info: #7fb0ea; --info-soft: #162538; color-scheme: dark; }
+body.dw-solo .modal-h h2 { font-family: var(--dw-serif); font-weight: 600; letter-spacing: .01em; }
+.dw.dw-atelier { --brand-text: #fff; }
+.dw.dw-atelier.dw-noche { --ok: #5fbf86; --warn: #e3a24a; --bad: #f08a80; --info: #7fb0ea; --muted: #a3988d; }
+/* el botón principal del Atelier (cabecera, panel y ventanas): tinta y crema de día, oro de noche. «html body» delante porque cada cara del
+   programa (ui18 / ui30 / ui50) pinta .btn.primary con html.uiXX[…] y ganaba: según la cara que tuviera puesta salía rosa, negro u otro */
+html body .dw.dw-atelier .btn.primary, html body.dw-solo .modal .btn.primary { background: #1c1916; color: #f6e7c8; border-color: #1c1916; text-shadow: none; filter: none; box-shadow: 0 6px 18px rgba(28,25,22,.22); }
+html body .dw.dw-atelier .btn.primary:hover, html body.dw-solo .modal .btn.primary:hover { background: #3a332c; }
+html body .dw.dw-atelier.dw-noche .btn.primary, html body.dw-solo.dw-noche-on .modal .btn.primary { background: linear-gradient(135deg, #d9b26f, #b0884f); color: #1c1916; border-color: transparent; }
+html body .dw.dw-atelier.dw-noche .btn.primary:hover, html body.dw-solo.dw-noche-on .modal .btn.primary:hover { background: linear-gradient(135deg, #e3bf80, #bd9459); }
+.dw-ayuda.dw-bien { color: var(--ok); background: var(--ok-soft); padding: 7px 9px; border-radius: 10px; }
+.dw-ayuda a { font-weight: 700; text-decoration: underline; color: inherit; }
+/* la guía: tarjetas con su dibujo */
+.dw-guia { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.dw-guia-c { display: grid; gap: 4px; align-content: start; padding: 8px 10px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); font: inherit; text-align: left; }
+.dw-guia-c b { font-size: 13.5px; line-height: 1.25; } .dw-guia-c small { font-size: 12px; color: var(--text-2); line-height: 1.4; }
+.dw-dib { display: block; border-radius: 10px; background: #fbf8f3; overflow: hidden; } .dw-dib svg { display: block; width: 100%; height: auto; }
+.dw-guia-mal .dw-guia-c { border-color: color-mix(in srgb, var(--bad) 35%, var(--line)); }
+.dw-guia-h { margin: 16px 0 8px; font-family: var(--dw-serif, Georgia, serif); font-size: 17px; }
+.dw-guia-mini { grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+.dw-guia-mini .dw-guia-c { padding: 5px 6px 7px; border-radius: 12px; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+.dw-guia-mini .dw-guia-c:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(40,30,20,.10); }
+.dw-guia-mini .dw-guia-c b { font-size: 11.5px; font-weight: 600; }
+.dw-cal-elegir { width: 100%; margin: 2px 0 6px; }
+/* los pasos de la impresora */
+.dw-pasos { list-style: none; counter-reset: dwp; margin: 6px 0 0; padding: 0; display: grid; gap: 12px; }
+.dw-pasos > li { counter-increment: dwp; position: relative; padding-left: 30px; display: grid; gap: 6px; font-size: 13px; line-height: 1.35; }
+.dw-pasos > li::before { content: counter(dwp); position: absolute; left: 0; top: 0; width: 21px; height: 21px; border-radius: 50%; background: var(--text); color: var(--surface); font: 700 12px/21px var(--font, system-ui); text-align: center; }
+.dw-pasos .dw-fila { grid-template-columns: minmax(0, 1fr) 96px; }
+.dw-cal-num { width: 96px; padding: 7px 8px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; text-align: right; }
+.dw-cal-num:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+/* el CALIBRADOR (ventana grande): a la izquierda los pasos, a la derecha la foto */
+.modal.dw-cal-m { width: min(1500px, 100%); }
+.modal.dw-cal-m .modal-b { flex: 1; min-height: 0; display: flex; padding: 12px 14px; }
+.dw-cal { flex: 1; min-height: 0; display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; }
+.dw-cal-lado { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; }
+.dw-cal-pasos { display: flex; gap: 6px; flex-wrap: wrap; }
+.dw-cal-pasos span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 5px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.dw-cal-pasos span b { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--line-2); color: var(--surface); font-size: 11px; }
+.dw-cal-pasos span.on { background: var(--text); color: var(--surface); } .dw-cal-pasos span.on b { background: #c25d74; color: #fff; }
+.dw-cal-info { font-size: 13px; line-height: 1.45; padding: 9px 11px; border-radius: 12px; background: var(--surface-2); color: var(--text); }
+.dw-cal-info.ok { background: var(--ok-soft); color: var(--ok); } .dw-cal-info.aviso { background: var(--warn-soft); color: var(--warn); } .dw-cal-info.mal { background: var(--bad-soft); color: var(--bad); }
+.dw-cal-botones { display: grid; gap: 6px; }
+.dw-cal-botones .btn { justify-content: flex-start; white-space: normal; text-align: left; height: auto; }
+.dw-cal-lista { display: grid; gap: 8px; align-content: start; }
+.dw-cal-med { display: grid; gap: 5px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.dw-cal-med-c { display: flex; align-items: baseline; gap: 8px; }
+.dw-cal-med-c b { font-size: 16px; } .dw-cal-llevada { color: var(--ok); font-weight: 600; font-size: 12px; line-height: 1.3; }
+.dw-cal-med-c button { margin-left: auto; border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.dw-cal-med-c button:hover { color: var(--bad); background: var(--bad-soft); }
+.dw-cal-med .dw-sel { font-size: 12.5px; }
+.dw-cal-plana { display: flex !important; gap: 8px; align-items: flex-start; }
+.dw-cal-plana input { margin-top: 2px; }
+.dw-cal-cruz { display: grid; grid-template-columns: repeat(4, 44px); gap: 6px; }
+.dw-cal-cruz button { height: 40px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 18px; cursor: pointer; touch-action: manipulation; }
+.dw-cal-cruz button:hover { background: var(--surface-2); } .dw-cal-cruz button:active { background: var(--brand-soft); }
+.dw-cal-otra { margin-top: auto; padding-top: 6px; }
+.dw-cal-caja { position: relative; min-height: 0; min-width: 0; display: grid; place-items: center; overflow: hidden; border-radius: 16px;
+  background: #3a3631 repeating-linear-gradient(45deg, rgba(255,255,255,.025) 0 12px, transparent 12px 24px); }
+.dw-cal-marco { position: relative; box-shadow: 0 12px 40px rgba(0,0,0,.35); }
+.dw-cal-img, .dw-cal-capa { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.dw-cal-capa { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; overflow: visible; }
+.dw-cal-lupa { position: absolute; display: none; z-index: 3; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1.5px #c25d74, 0 14px 30px rgba(0,0,0,.45); pointer-events: none; }
+@media (max-width: 860px) {
+  .dw-cal { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 1fr) auto; }
+  .dw-cal-caja { order: 1; } .dw-cal-lado { order: 2; max-height: 38vh; }
+  .modal.dw-cal-m .modal-b { padding: 8px; }
+}
+@media (pointer: coarse) { .dw-cal-cruz { grid-template-columns: repeat(4, 52px); } .dw-cal-cruz button { height: 48px; } .dw-cal-med-c button { font-size: 22px; padding: 4px 10px; } }
+
+/* ---------- 16-10 · 👗 SACAR EL PATRÓN de una foto (drew/calibra_ui.js, modo «patron») y su rastro en la pestaña Prenda ---------- */
+.dw-cal-patron-elegir { width: 100%; margin: 2px 0 6px; }
+.dw-cal-cargando { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--text-2); padding: 10px; }
+.dw-cal-cargando i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: #c25d74; animation: dwgira .8s linear infinite; flex: none; }
+@keyframes dwgira { to { transform: rotate(360deg); } }
+.dw-cal-res { display: grid; gap: 2px; padding: 9px 11px; border-radius: 12px; background: var(--surface-2); }
+.dw-cal-res b { font-family: var(--dw-serif, Georgia, serif); font-size: 17px; } .dw-cal-res span { font-size: 12px; color: var(--text-2); }
+.dw-cal-h { margin: 6px 0 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.dw-cal-otra-cat { width: 100%; }
+.dw-cal-leyenda { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: var(--text-2); }
+.dw-cal-leyenda span { display: inline-flex; align-items: center; gap: 5px; }
+.dw-cal-leyenda i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--line-2); }
+.dw-cal-meds { display: grid; gap: 4px; }
+.dw-cal-fm { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; align-items: baseline; padding: 7px 9px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.dw-cal-fm[role=button] { cursor: pointer; } .dw-cal-fm[role=button]:hover { border-color: var(--line-2); background: var(--surface-2); }
+.dw-cal-fm.on { border-color: #c25d74; box-shadow: 0 0 0 2px rgba(194,93,116,.18); }
+.dw-cal-fm-t { font-size: 12.5px; line-height: 1.25; } .dw-cal-fm b { font-size: 14px; white-space: nowrap; text-align: right; }
+.dw-cal-est { justify-self: start; font-size: 10.5px; padding: 1px 7px; border-radius: 99px; background: var(--surface-3); color: var(--text-2); }
+.dw-cal-fm .dw-cal-est, .dw-cal-okbtn { grid-column: 1 / -1; }
+.dw-cal-est.observado { background: var(--ok-soft); color: var(--ok); } .dw-cal-est.mano, .dw-cal-est.confirmada { background: #efe3d0; color: #6b4f22; }
+.dw-cal-est.inferido { background: var(--surface-3); color: var(--text-2); } .dw-cal-est.confirmar { background: #f6dfc9; color: #8a4a12; font-weight: 700; }
+.dw-cal-fm.confirmar { border-color: #e6c29d; }
+.dw-cal-okbtn { justify-self: start; border: 1px solid #e6c29d; background: transparent; color: #8a4a12; border-radius: 8px; padding: 3px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.dw-cal-okbtn:hover { background: #f6dfc9; }
+.dw-cal-comp { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: baseline; font-size: 12.5px; }
+.dw-cal-comp small { grid-column: 1 / -1; color: var(--text-2); font-size: 11.5px; line-height: 1.35; }
+.dw-cal-ver { display: flex; gap: 8px; align-items: center; font-size: 12.5px; cursor: pointer; }
+.dw-cal-ver i { width: 14px; height: 10px; border-radius: 3px; flex: none; } .dw-cal-ver i.dw-cal-raya { height: 0; border-top: 2.5px dashed; border-radius: 0; background: none !important; }
+.dw-cal-avisos, .dw-cal-etapas { font-size: 12px; color: var(--text-2); border: 1px solid var(--line); border-radius: 11px; padding: 6px 9px; }
+.dw-cal-avisos summary, .dw-cal-etapas summary { cursor: pointer; font-weight: 600; color: var(--text); }
+.dw-cal-avisos div, .dw-cal-etapas div { padding: 4px 0; border-top: 1px dashed var(--line); line-height: 1.35; }
+.dw-cal-etapas div span { display: inline-block; width: 18px; }
+.dw-defoto { display: grid; gap: 3px; padding: 8px 10px; margin: 4px 0 8px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; }
+.dw-defoto span, .dw-defoto small { color: var(--text-2); } .dw-defoto a { font-weight: 600; }
+.dw-org.confirmar { background: #f6dfc9; color: #8a4a12; border: 0; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; }
+.dw-org.confirmar:hover { filter: brightness(.95); }
+.dw-org.supuesta { background: var(--surface-3); color: var(--text-2); font-style: italic; }
+body.dw-noche-on .dw-cal-est.confirmar, body.dw-noche-on .dw-org.confirmar { background: #4a3220; color: #f2c08f; }
+body.dw-noche-on .dw-cal-est.mano, body.dw-noche-on .dw-cal-est.confirmada { background: #3d3324; color: #e8cf9f; }
+body.dw-noche-on .dw-cal-fm.confirmar, body.dw-noche-on .dw-cal-okbtn { border-color: #6b4a2c; color: #f2c08f; }
+@media (pointer: coarse) { .dw-cal-fm { padding: 10px 11px; } .dw-cal-okbtn { padding: 7px 12px; font-size: 13px; } }
+/* 16-10 · medidas ESCRITAS en la ficha de la pieza (mover un punto y el largo exacto de un borde recto) */
+.dw-ficha-cm { width: 64px; padding: 3px 6px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; text-align: right; }
+.dw-ficha-pt { display: grid; gap: 4px; padding: 6px 8px; margin: 0 0 6px; border-radius: 10px; background: var(--surface-2); font-size: 12px; }
+.dw-ficha-mueve { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; } .dw-ficha-mueve label { display: inline-flex; gap: 4px; align-items: center; }
+.dw-ficha-l { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; } .dw-ficha-largo { width: 58px; padding: 1px 5px; }
+
+/* 16-10 · 🌐 DISEÑAR DESDE UNA IMAGEN (drew/inspira_ui.js): a la izquierda lo que lee la IA y las preguntas; a la derecha la imagen */
+.dw-insp { grid-template-columns: 360px minmax(0, 1fr); }
+.dw-insp-caja { position: relative; min-height: 0; min-width: 0; display: grid; place-items: center; overflow: hidden; border-radius: 16px; background: #1c1916; }
+.dw-insp-caja.soltar { outline: 3px dashed #c25d74; outline-offset: -8px; }
+.dw-insp-img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; cursor: crosshair; box-shadow: 0 12px 40px rgba(0,0,0,.35); touch-action: none; }
+.dw-insp-botones { display: flex; gap: 8px; flex-wrap: wrap; }
+.dw-insp-preg h4, .dw-insp-plan h4 { margin: 4px 0 6px; font-size: 15px; }
+.dw-insp-p { padding: 7px 0; border-bottom: 1px solid var(--line); } .dw-insp-p label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.dw-insp-ia { display: block; color: var(--muted); font-size: 11.5px; margin: -2px 0 5px; }
+.dw-insp-p .dw-chip { font-size: 12.5px; padding: 4px 10px; }
+.dw-insp-todo summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 4px 0; }
+.dw-insp-rej .dw-fila { display: grid; grid-template-columns: 1fr 1.2fr; gap: 6px; align-items: center; margin: 4px 0; } .dw-insp-rej label { font-size: 12.5px; }
+.dw-insp-si, .dw-insp-no { margin: 4px 0 8px 18px; padding: 0; font-size: 12.5px; line-height: 1.45; } .dw-insp-si li::marker { content: '✔ '; color: var(--ok); } .dw-insp-no li::marker { content: '⚠ '; color: var(--warn); }
+.dw-insp-crear { width: 100%; margin-top: 4px; }

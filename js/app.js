@@ -45,6 +45,7 @@ const VIEWS = {
   escanear: () => import('./views/escanear.js'),
   tienda: () => import('./views/tienda.js'), // v12: Tienda web (sustituye a THE NOORKO)
   celebrir8: () => import('./views/celebrir8.js'), // v18: 🧊 CelebriR8 (diseñar piezas con plantillas y editar STL)
+  celebridrew: () => import('./views/celebridrew.js'), // 👗 CelebriDREW: ropa en 3D (patrón 2D + avatar 3D con la tela simulada, como CLO3D)
   cotizador: () => import('./views/cotizador.js'), // v16.2: STL / 3MF → coste y precio al momento
   camaras: () => import('./views/camaras.js'), // v11.7: cámaras de las Bambu Lab (en el PC) // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
@@ -88,6 +89,7 @@ export const NAV = [
   { sep: true, t: 'Producción' },
   { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
   { k: 'celebrir8', t: 'CelebriR8 🧊', i: 'cube', p: 'productos.ver' }, // v18: diseñar piezas sin saber de 3D
+  { k: 'celebridrew', t: 'CelebriDREW 👗', i: 'sparkles', p: 'productos.ver' }, // ropa en 3D: patrones, avatar a medida, tela simulada y PDF para coser
   { k: 'cotizador', t: 'Cotizador 3D ⚡', i: 'cube', p: 'productos.ver' }, // v16.2: en lugar de «Cámaras» (no se usaba; sigue existiendo en #/camaras)
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { sep: true, t: 'Embalaje y logística' },
@@ -492,6 +494,7 @@ export function accionesPaleta() {
     fn('Llevar el programa a otro ordenador (mudanza)', 'download', () => import('./mudanza.js').then(M => M.dialogoMudanza()), '', 'mudanza copia de seguridad cambiar de ordenador pc nuevo usb migrar trasladar backup'), // (fuera del programa del PC explica que se hace allí)
     nav('Puente de mando: el taller de un vistazo', 'home', 'puente', '', 'inicio portada sala mando resumen directo'),
     nav('CelebriR8: diseñar una pieza (caja, engranaje, llavero con nombre, molde, cortador) o editar un STL', 'cube', 'celebrir8', 'productos.ver', 'celebrir8 r8 fusion diseñar dibujar 3d stl caja engranaje llavero nombre molde cortador galletas figura arandela editar cortar escalar'),
+    nav('CelebriDREW: ropa en 3D (patrón, avatar a medida, tela que cae y PDF para coser)', 'sparkles', 'celebridrew', 'productos.ver', 'celebridrew drew ropa moda costura patron patronaje prenda camiseta sudadera falda pantalon avatar maniqui clo3d tela coser pdf'),
     nav('Taller vivo: los pedidos moviéndose por el taller', 'play', 'tallervivo', 'pedidos.ver', 'taller vivo directo cubos cinta impresoras camión'),
     nav('Tráiler del mes: tus números en vídeo', 'play', 'trailer', 'pedidos.ver', 'trailer video mes resumen cine música reel'),
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),

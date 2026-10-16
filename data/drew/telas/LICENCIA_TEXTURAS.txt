@@ -1,0 +1,4 @@
+Texturas de tela de CelebriDREW
+Fotos: ambientCG (https://ambientcg.com), licencia CC0 1.0 (dominio público): uso libre, también comercial, sin atribución obligatoria.
+  denim = Fabric069, algodon = Fabric082A, gabardina = Fabric036, lino = Fabric066, elastica = Fabric070, felpa = Fabric030, lana = Fabric085, polipiel = Leather026, cuero = Leather037, ante = Leather039
+Fabricadas por CelebriDREW (tools/drew_telas.py): punto (jersey), rib (canalé), saten, organza, poliester. Propias, CC0.

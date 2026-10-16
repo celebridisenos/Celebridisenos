@@ -1,6 +1,6 @@
 // ================= v10 · Catálogo visual (foto grande, nombre y precio) =================
 // Pensado para enseñar los productos: nada de tablas ni datos internos. Quien puede editar
-// ve además el botón para abrir la ficha completa.
+// ve además el botón para abrir la ficha completa. 16-10-2026: «📄 Exportar catálogo» (PDF para clientes, catalogo_exporta.js).
 import { h, mount, icon, eur, empty, inp, debounce, btn } from '../ui.js';
 import { S, can, byId } from '../store.js';
 import { go } from '../app.js';
@@ -17,7 +17,8 @@ export function render(el) {
   search.addEventListener('input', debounce(() => { st.q = search.value; draw(); }, 120));
   const chk = h('input', { type: 'checkbox', onchange: e => { st.todos = e.target.checked; draw(); } });
   const grid = h('div');
-  el.append(h('div.page-head', h('h1', 'Catálogo'), can('productos.editar') ? btn('Nuevo producto', () => go('productos/nuevo'), { cls: 'primary', icon: 'plus' }) : null),
+  el.append(h('div.page-head', h('h1', 'Catálogo'), h('div.row', btn('📄 Exportar catálogo', () => import('../catalogo_exporta.js').then(m => m.abrir()), { title: 'El catálogo en PDF para tus clientes, con las piezas de ahora' }),
+    can('productos.editar') ? btn('Nuevo producto', () => go('productos/nuevo'), { cls: 'primary', icon: 'plus' }) : null)),
     h('div.row.wrap', { style: { marginBottom: '14px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('label.row.small', chk, 'Ver también vendidos y archivados')), grid);
   function draw() {
     const rows = S.t.productos.filter(p => (st.todos || !HIDDEN.includes(pState(p.estado))) && (!st.q || CL.matches([p.nombre, p.sku, p.categoria, p.color, p.material].join(' '), st.q)))
