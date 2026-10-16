@@ -1,0 +1,28 @@
+CelebriDREW · motores de IA que van DENTRO del programa (funcionan sin internet; la foto no sale del aparato)
+Descargados el 16-10-2026 con permiso de la dueña («sí, hazlo»), de sus fuentes oficiales. Huellas sha256 abajo.
+
+1) SAM 2.1 (Segment Anything 2.1, «hiera tiny») · Meta AI · licencia Apache-2.0 (código y pesos: https://github.com/facebookresearch/sam2)
+   Exportación a ONNX para navegador: https://huggingface.co/onnx-community/sam2.1-hiera-tiny-ONNX (versión «quantized», 8 bits)
+   Uso: recortar una prenda tocándola (un punto, varios, o el recuadro que da la IA de visión). Se puede usar y vender lo que se hace con él.
+   data/drew/ia/sam2/
+     vision_encoder_quantized.onnx              8800fdd04b9045cb6060ba8962b83c78ce9bb0976da8f030afa073467a888524
+     vision_encoder_quantized.onnx_data         ea1f677596dc82cef0dc317d78135d892f4b26e20a4439f899aa58d84965b324
+     prompt_encoder_mask_decoder_quantized.onnx a5f31dba5a7f03203dc3a130fdd7766f0fea952eb4aac1f55458549170eb51ff
+     prompt_encoder_mask_decoder_quantized.onnx_data fdb3179a32388267a944a416c0f992c77a138b69a4bfd94f0bbf7089430d7489
+     config.json / preprocessor_config.json     (los de la exportación)
+
+2) ONNX Runtime Web 1.29.0 · Microsoft · licencia MIT (https://www.npmjs.com/package/onnxruntime-web, https://github.com/microsoft/onnxruntime)
+   El motor que hace funcionar el modelo de arriba dentro del navegador (WebAssembly, en el procesador).
+   vendor/onnxruntime/
+     ort.wasm.min.mjs                 14a0a63ad1a0fe8127722929fd16fb26c2e5352ea221bc9034d12daf314d0b92
+     ort-wasm-simd-threaded.mjs       5a15f1fd086b3f6c2baf1f35105b8f502653b567e165cef80028870b39748747
+     ort-wasm-simd-threaded.wasm      ec8580a9d7b9476ceee52e10a7f94124e4dc71a019d666ed6d4726697c109a4d
+
+Estos archivos (74 MB) NO entran en la lista que la app guarda al instalarse (build_web.sh los quita de FILES): se bajan del propio
+programa la primera vez que se usan. Así el móvil no carga con ellos si no los usa.
+
+3) La IA de VISIÓN (qué prenda es, qué detalles lleva) NO va dentro del programa: es la de Ollama en el PC.
+   · qwen3-vl:4b (Qwen3-VL-4B-Instruct, Alibaba/Qwen) · licencia Apache-2.0 (https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct) · 3,3 GB ·
+     bajada el 16-10-2026 con «ollama pull qwen3-vl:4b». Es la que se usa PRIMERO (se puede usar para lo que se vende).
+   · qwen2.5vl:3b (la que ya había) · «Qwen RESEARCH LICENSE»: SOLO uso no comercial (investigación o evaluación). Se queda de reserva y,
+     si se usa, el programa lo dice.
