@@ -51,7 +51,17 @@ Encargo y estado: sección «👗 EN CURSO (16-10-2026)» al principio de `00_SI
   las VENTANAS van fuera de `.dw`: toman la cara Atelier por `body.dw-solo .modal` y la noche por `body.dw-noche-on`). Pestañas: Prenda,
   Avatar, Tela, 📷 Foto, Exportar (Exportar dice si la impresora está calibrada y lleva a Foto).
 
+- 17-10 · TABLET y 2D más fácil (`editor2d.js` + `views/celebridrew.js` + bloque «17-10 · TABLET» de `css/drew.css`): dos dedos = pellizcar
+  y mover la vista; zonas de 44 px (`.dw-zona`) con `(pointer: coarse)`; zona muerta 8 px; herramientas de tocar al levantar el dedo;
+  `ED.zoom(k)`, `ED.encuadraPieza(n)`; `ctx.cotas` (📐 Medidas, tecla K); línea de ayuda `.dw-pista`; flechas `.dw-cruceta` del punto elegido;
+  ficha: tocar un borde lo elige y se MUEVE ENTERO (`desplazaBorde` + `parejasDe`, «lo mismo en su pareja»); ficha encogible (▾);
+  biblioteca plegable (`cd.drew.plegado`); ⛶ Grande en cada barra (`.dw-vistas.solo2d/.solo3d`). Prueba: `node test/e2e_drew_tablet.js`.
+
 ## Cosas que NO hay que romper (aprendidas a golpes)
+- 2D con el dedo: las herramientas de TOCAR (punto, quitar, curva, piquete, medir) van en `toca()` al LEVANTAR; si se ejecutan al bajar el
+  dedo, apoyar el segundo dedo para acercar pone puntos sin querer. Al llegar el segundo dedo, `deshaz()` devuelve lo que se arrastraba.
+- El WebKit de Playwright en Windows deja en blanco CUALQUIER lienzo WebGL que cambie de tamaño (comprobado con un cubo): no es fallo nuestro;
+  para mirar el 3D en tablet usar Chromium con el dispositivo «iPad Pro 11» (`devices`, quitando `defaultBrowserType`).
 - `mh.js` `rejilla()`: la rejilla de 9 mm se queda corta en lo que sobresale; por eso baja sus nudos hasta que NINGÚN punto de la piel quede
   fuera. Y `malla()` (lo que se ve) va 1 mm por dentro. Sin esto, el maniquí asoma por la tela (la «mota blanca» del pecho).
 - `tela.js`: rigidez al estirar ≤ 0,85 (más vibra para siempre con la malla h 14); lo pegado no se «separa»; reposo tras caer.

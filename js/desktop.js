@@ -31,6 +31,7 @@ export const desktop = {
   save: (p, data, replace) => call('save?' + q({ path: p, replace: replace ? '1' : '' }), { method: 'POST', body: data }),
   // 16-10-2026: una página HTML → PDF (Edge sin ventana) guardado en el ESCRITORIO → { path, size } (catálogo para clientes)
   pdf: (html, nombre) => call('pdf?' + q({ nombre }), { method: 'POST', headers: { 'Content-Type': 'text/html; charset=utf-8' }, body: html }),
+  pdfBytes: async html => { const r = await call('pdf?' + q({ devolver: '1' }), { method: 'POST', headers: { 'Content-Type': 'text/html; charset=utf-8' }, body: html }); return r.blob(); }, // (16-10: el PDF del catálogo que encarga el iPad)
   mkdir: p => call('mkdir', { method: 'POST', body: JSON.stringify({ path: p }) }),
   backup: json => call('backup', { method: 'POST', body: JSON.stringify(json) }),
   backups: () => call('backups'),

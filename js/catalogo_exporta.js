@@ -63,7 +63,28 @@ export async function prepara(mesId, paso = () => { }) {
   R.malas = malas; R.sinFoto = P.filter(p => !fotosDe(p).length).map(p => textoDe(p).nombre);
   return R;
 }
-// en el móvil / navegador: la página en un marco escondido y la ventana de imprimir del sistema («Guardar como PDF»)
+// (16-10) en el iPad o el móvil: si el PC del taller está encendido con el programa, ÉL hace el PDF (Edge, igual que en el PC: con sus
+// enlaces de WhatsApp) y lo devuelve; se ve en el visor del programa con «Compartir / Guardar en Archivos». Viaja como encargo «caras»
+// con modo 'catalogo' (pc_encargos.js). → el PDF (Blob) o null si no hay PC al otro lado
+async function pdfPorPC(html, nombre, paso, signal) {
+  const { api } = await import('./store.js'), T = await import('./trabajospc.js');
+  const w = await api('pc.servidor', {}, { quiet: true }).catch(() => null); if (!w || !(w.puede || []).includes('caras')) return null;
+  paso('📤 Enviando el catálogo al PC del taller (' + w.dispositivo + ')…');
+  const F = await import('./files.js'), a = await F.uploadFile(new File([html], 'catalogo_para_pdf_' + Date.now() + '.html', { type: 'text/html' }), { original: true });
+  const res = await T.encargarAlPC('caras', { modo: 'catalogo', archivo: T.refArchivo(a), nombre }, { onStatus: t => paso(t), signal, maxMs: 6 * 60000 });
+  paso('📥 Recibiendo el PDF…'); const pdf = await F.fetchFile(res.archivo); api('pc.recibido', { id: res.__id }, { quiet: true }).catch(() => { });
+  return pdf;
+}
+// en el PC (lo llama pc_encargos.js): la página que manda el iPad → PDF con Edge sin ventana → se sube y vuelve → { archivo, nombre }
+export async function atiendePC(job, progreso) {
+  const { desktop: D } = await import('./desktop.js'), T = await import('./trabajospc.js'), F = await import('./files.js'), e = job.entrada || {};
+  progreso(5); const html = await (await T.archivoDelEncargo(e.archivo)).text(); progreso(25);
+  const pdf = await D.pdfBytes(html); progreso(80);
+  const nombre = String(e.nombre || nombreArchivo()).replace(/[\\/:*?"<>|]+/g, ' ');
+  const a = await F.uploadFile(new File([pdf], nombre, { type: 'application/pdf' }), { original: true });
+  return { archivo: T.refArchivo(a), nombre };
+}
+// en el móvil / navegador sin PC: la página en un marco escondido y la ventana de imprimir del sistema («Guardar como PDF»)
 async function imprimeEnMarco(html) {
   document.getElementById('cat-marco')?.remove();
   const f = h('iframe#cat-marco', { title: 'Catálogo', style: { position: 'fixed', right: '0', bottom: '0', width: '210mm', height: '297mm', border: '0', opacity: '0', pointerEvents: 'none' } });
@@ -86,7 +107,7 @@ export function abrir() {
     h('p', 'Hace el catálogo para tus clientes con las piezas que tienes ahora: ', h('b', conFoto.length + ' piezas'), ', cada una con su precio, su foto y su código para pedir por WhatsApp.'),
     sinFoto ? h('p.small.muted', '⚠ ' + sinFoto + (sinFoto === 1 ? ' pieza no sale porque no tiene foto: ' : ' piezas no salen porque no tienen foto: ') + P.filter(p => !fotosDe(p).length).map(p => textoDe(p).nombre).slice(0, 6).join(', ') + (sinFoto > 6 ? '…' : '') + '.') : null,
     field('⭐ La pieza del mes (con su página: fotos grandes y detalles)', elegir, 'Sale sola: la destacada en la tienda o la más vendida del último mes. Puedes cambiarla.'),
-    h('p.small.muted', desktop.on ? '📄 Se guarda en tu escritorio y se abre al terminar (tarda menos de un minuto).' : '📄 Se abre la ventana de imprimir: elige «Guardar como PDF».'), estado);
+    h('p.small.muted', desktop.on ? '📄 Se guarda en tu escritorio y se abre al terminar (tarda menos de un minuto).' : '📄 Si el PC del taller está encendido con el programa, él hace el PDF y te llega aquí para compartirlo por WhatsApp o guardarlo en Archivos (1–2 minutos). Si no, se abre la ventana de imprimir: elige «Guardar como PDF».'), estado);
   let ocupado = false;
   const m = modal('📄 Catálogo para clientes', cuerpo, close => [btn('Cerrar', close), btn('Crear el catálogo', async ev => {
     if (ocupado) return; ocupado = true; const b = ev.currentTarget; b.disabled = true;
@@ -101,7 +122,12 @@ export function abrir() {
         paso('✓ Guardado en el escritorio: ' + hecho.path.split(/[\\/]/).pop());
         desktop.open(hecho.path).catch(() => { });
         toast('📄 Catálogo listo: ' + R.piezas + ' piezas, ' + R.hojas + ' páginas. Está en tu escritorio.', 'ok', 8000);
-      } else { paso('Abriendo la ventana de imprimir… elige «Guardar como PDF».'); await imprimeEnMarco(R.html); }
+      } else {
+        let pdf = null; if (!desktop.on) { try { pdf = await pdfPorPC(R.html, nombre, paso); } catch (e) { paso('⚠ El PC no ha podido hacerlo (' + e.message + '): uso la ventana de imprimir de este aparato.'); } }
+        if (pdf) { paso('✓ Catálogo listo (' + R.piezas + ' piezas, ' + R.hojas + ' páginas).'); const V = await import('./pdfview.js');
+          m.close(); // (iPad: solo el visor del PDF; antes esta ventana se quedaba debajo y al cerrar el visor había que cerrar otra)
+          V.showPdf({ blob: pdf, title: '📄 ' + nombre.replace(/\.pdf$/, ''), fileName: nombre, nota: 'Hecho por el PC del taller. Compártelo por WhatsApp o guárdalo en Archivos.' }); }
+        else { paso('Abriendo la ventana de imprimir… elige «Guardar como PDF».'); await imprimeEnMarco(R.html); } }
       if (avisos.length) estado.append(h('div.small', { style: { color: 'var(--warn, #b45309)' } }, '⚠ ' + avisos.join(' ')));
     } catch (e) { estado.textContent = '✗ ' + (e.message || e); toast(e.message || String(e), 'bad'); }
     finally { ocupado = false; b.disabled = false; }

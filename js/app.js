@@ -709,7 +709,7 @@ export async function start() {
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
   import('./hologramas.js').then(m => m.iniciar()).catch(() => { }); // v16
-  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }); });
+  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }) /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); } // v30.7.1: la IA ya no se carga en la tarjeta gráfica al arrancar (ver warmUp)
 }

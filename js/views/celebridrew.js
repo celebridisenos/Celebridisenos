@@ -49,8 +49,11 @@ export function render(root) {
   let temaNoche = false; try { temaNoche = localStorage.getItem('cd.drew.tema') === 'noche'; } catch (e) { }
   document.body.classList.toggle('dw-noche-on', temaNoche); /* (las ventanas van fuera de .dw: el tema de noche les llega por el body) */
   const bTema = btn(temaNoche ? '☀' : '☾', () => { temaNoche = !temaNoche; raiz.classList.toggle('dw-noche', temaNoche); document.body.classList.toggle('dw-noche-on', temaNoche); bTema.querySelector('span').textContent = temaNoche ? '☀' : '☾'; try { localStorage.setItem('cd.drew.tema', temaNoche ? 'noche' : 'dia'); } catch (e) { } }, { cls: 'ghost', title: 'Atelier de día / de noche' });
+  // (17-10, iPad) los botones de la cabecera: icono + palabra; si no cabe (iPad, ventana estrecha) queda el icono y la palabra en el título
+  const bc = (ic, t, fn, o = {}) => { const b = btn('', fn, Object.assign({ cls: 'ghost', title: t }, o)); b.append(h('i.ic', ic), h('span.l', ' ' + t)); return b; };
   const cab = h('div.dw-cab', h('h1.dw-marca', 'Celebri', h('b', 'DREW'), h('small', 'atelier 3D')), nombre, bDeshacer, bRehacer, h('div.esp'), bTema,
-    btn('📂 Mis prendas', () => misPrendas(), { cls: 'ghost' }), btn('＋ Nueva', () => nueva(), { cls: 'ghost' }), btn('🎬 Vídeo 7 s', () => video7(), { cls: 'ghost', title: 'Un vídeo vertical de 7 segundos de la prenda girando, para redes (V)' }), btn('📄 PDF para imprimir', () => exporta('pdf'), { cls: 'primary', title: 'Patrón completo con manual (Ctrl+P)' }),
+    bc('📂', 'Mis prendas', () => misPrendas()), bc('＋', 'Nueva', () => nueva()), bc('🎬', 'Vídeo 7 s', () => video7(), { title: 'Un vídeo vertical de 7 segundos de la prenda girando, para redes (V)' }),
+    (() => { const b = btn('', () => exporta('pdf'), { cls: 'primary', title: 'Patrón completo con manual (Ctrl+P)' }); b.append(h('i.ic', '📄'), h('span', ' PDF'), h('span.l', ' para imprimir')); return b; })(),
     btn('⛶', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Este navegador no deja ponerla a pantalla completa', 'bad')); }, { cls: 'ghost', title: 'Pantalla completa (F11)' }), btn('⌨', () => atajos(), { cls: 'ghost', title: 'Atajos de teclado (?)' }));
   const pestanas = h('div.dw-pest', { role: 'tablist' }), panel = h('div.dw-panel');
   const lado = h('div.dw-lado', pestanas, panel);
@@ -59,10 +62,17 @@ export function render(root) {
   const barra3 = h('div.dw-barra'), ven3 = h('div.dw-ven.v3', barra3, h('div', { style: { position: 'relative', minHeight: 0 } }, lienzo3, aviso3, leyenda));
   // 2D
   const lienzo2 = h('div.dw-lienzo'), barra2 = h('div.dw-barra'), ficha = h('div.dw-ficha', { style: { display: 'none' } });
-  const ven2 = h('div.dw-ven.v2', barra2, h('div', { style: { position: 'relative', minHeight: 0 } }, lienzo2, ficha));
+  const pista = h('div.dw-pista', { 'aria-live': 'polite' }), cruceta = h('div.dw-cruceta', { style: { display: 'none' } }); /* (17-10: qué hace la herramienta y flechas para el dedo) */
+  const ven2 = h('div.dw-ven.v2', barra2, h('div', { style: { position: 'relative', minHeight: 0 } }, lienzo2, pista, cruceta, ficha));
   const divisor = h('div.dw-divisor', { title: 'Arrastra para cambiar el tamaño' }), vistas = h('div.dw-vistas', ven3, divisor, ven2);
   const pie = h('div.dw-pie');
-  const raiz = h('div.dw.dw-atelier' + (temaNoche ? '.dw-noche' : ''), cab, h('div.dw-cuerpo', lado, vistas), pie);
+  const cuerpo = h('div.dw-cuerpo', lado, vistas);
+  const raiz = h('div.dw.dw-atelier' + (temaNoche ? '.dw-noche' : ''), cab, cuerpo, pie);
+  // (17-10, iPad) PLEGAR la biblioteca (quedan sus iconos: tocar uno la abre) y ver solo el 3D o solo el patrón en grande
+  try { const pg = localStorage.getItem('cd.drew.plegado'); st.plegado = pg ? pg === '1' : window.innerWidth < 900 || (window.innerWidth < 1300 && matchMedia('(pointer: coarse)').matches); } /* (en el iPad, plegada de entrada: el 3D y el patrón tienen el doble de sitio) */ catch (e) { st.plegado = false; }
+  cuerpo.classList.toggle('plegado', st.plegado);
+  const plega = v => { st.plegado = v; cuerpo.classList.toggle('plegado', v); try { localStorage.setItem('cd.drew.plegado', v ? '1' : '0'); } catch (e) { } pintaPestanas(); };
+  const soloVista = k => { st.solo = st.solo === k ? null : k; vistas.classList.toggle('solo2d', st.solo === '2d'); vistas.classList.toggle('solo3d', st.solo === '3d'); pintaBarra2(); pintaBarra3(); requestAnimationFrame(() => requestAnimationFrame(() => ED.encuadra())); };
   mount(root, raiz);
   // el divisor entre el 3D y el 2D
   divisor.addEventListener('pointerdown', ev => { divisor.setPointerCapture(ev.pointerId); const r = vistas.getBoundingClientRect(), mv = e => { const f = Math.max(0.25, Math.min(0.75, (e.clientX - r.left) / r.width)); vistas.style.setProperty('--dw-izq', (f / (1 - f)).toFixed(3) + 'fr'); }, up = () => { divisor.removeEventListener('pointermove', mv); divisor.removeEventListener('pointerup', up); }; divisor.addEventListener('pointermove', mv); divisor.addEventListener('pointerup', up); });
@@ -76,17 +86,21 @@ export function render(root) {
     if (m.tipo === 'avatar') { V.ponAvatar({ H: m.H }, m.malla); st.med3d = { medido: m.medido, objetivo: m.objetivo, desvio: m.desvio, ms: m.ms, premium: m.premium, fuera: m.fuera }; if (m.aviso) toast(m.aviso, 'bad', 8000); st.niveles = m.niveles; st.avatarOk = true; V.piel(st.P.avatar.piel); V.verAvatar(st.verAv);
       aviso3.textContent = 'Avatar listo (' + (m.ms / 1000).toFixed(1) + ' s). Cosiendo la prenda…'; if (st.P.autoAjuste) { ajustaAlAvatar(); regenera(true); } else mandaPrenda(true); if (st.pest === 'avatar') pintaPanel(); }
     else if (m.tipo === 'modelo') { st.topo = m.topo; st.Sv = { P: m.topo.P.map(p => ({ off: p.off, n: p.n, tri: p.tri, tela: p.tela, pz: { nombre: p.nombre } })), uv: m.topo.uv, pos: new Float32Array(m.pos), pares: m.topo.pares };
-      V.ponTela(st.Sv, { colores: coloresPiezas() }); V.actualizaTela(null); V.resalta(st.sel); if (m.topo.avisos.length) console.warn('CelebriDREW 3D:', m.topo.avisos); st.cosida = false; st.quieta = false; pintaPie(); }
-    else if (m.tipo === 'pos') { if (st.Sv) { st.Sv.pos.set(m.pos); V.actualizaTela(st.mapa ? (m.estira || undefined) : undefined); } st.cosida = m.cosida; st.quieta = m.quieta; W.postMessage({ tipo: 'listo' }); if (m.quieta) pintaPie(); }
-    else if (m.tipo === 'estado') { st.est3d = m; st.cosida = m.cosida; pintaPie(); }
-    else if (m.tipo === 'error') { toast((m.drew ? '' : 'Simulación: ') + m.msg, 'bad', 8000); aviso3.textContent = '⚠️ ' + m.msg; }
+      V.ponTela(st.Sv, { colores: coloresPiezas() }); V.actualizaTela(null); V.resalta(st.sel); if (m.topo.avisos.length) console.warn('CelebriDREW 3D:', m.topo.avisos); if (m.gen === undefined || m.gen === st.gen) st.espera3d = false; /* (solo la prenda del último encargo) */ st.cosida = false; st.quieta = false; pintaPie(); }
+    // (16-10, iPad: mientras el hilo no ha montado la prenda nueva —espera3d—, lo que aún llegue de la anterior NO cuenta como «colocada»:
+    //  al crear el vestido desde una imagen, el pie decía «✔ colocada» con la camiseta de antes mientras el avatar se ajustaba)
+    else if (m.tipo === 'pos') { if (st.Sv) { st.Sv.pos.set(m.pos); V.actualizaTela(st.mapa ? (m.estira || undefined) : undefined); } if (!st.espera3d) { st.cosida = m.cosida; st.quieta = m.quieta; } W.postMessage({ tipo: 'listo' }); if (m.quieta) pintaPie(); }
+    else if (m.tipo === 'estado') { if (!st.espera3d) { st.est3d = m; st.cosida = m.cosida; st.quieta = !!m.quieta; } pintaPie(); }
+    else if (m.tipo === 'error') { st.espera3d = false; toast((m.drew ? '' : 'Simulación: ') + m.msg, 'bad', 8000); aviso3.textContent = '⚠️ ' + m.msg; }
   };
-  const mandaAvatar = () => { st.avatarOk = false; aviso3.textContent = 'Ajustando el avatar a sus medidas…'; aviso3.style.display = ''; W.postMessage({ tipo: 'avatar', med: st.P.avatar.med, sexo: st.P.avatar.sexo, peso: st.P.avatar.via === 'peso' ? st.P.avatar.peso : null, premium: st.P.avatar.realista !== false }); };
+  // (lo que hay en 3D ya no es lo que se pide: cada encargo lleva su turno —gen— y solo el «modelo» de ESE turno vuelve a dar por buena la tela)
+  const espera3d = () => { st.gen = (st.gen || 0) + 1; st.espera3d = true; st.cosida = false; st.quieta = false; pintaPie(); return st.gen; };
+  const mandaAvatar = () => { const gen = espera3d(); st.avatarOk = false; aviso3.textContent = 'Ajustando el avatar a sus medidas…'; aviso3.style.display = ''; W.postMessage({ tipo: 'avatar', gen, med: st.P.avatar.med, sexo: st.P.avatar.sexo, peso: st.P.avatar.via === 'peso' ? st.P.avatar.peso : null, premium: st.P.avatar.realista !== false }); };
   const telasPorPieza = () => { const P = st.P, o = {}; (P.prenda ? P.prenda.piezas : []).forEach(pz => { const k = P.tela.porPieza[pz.nombre] || P.tela.def; if (k) o[pz.nombre] = k; }); return Object.keys(o).length ? o : null; };
   // (el color «natural» solo existe en las telas fotografiadas con su color de verdad: vaquero, cuero, ante; en las demás, su color típico)
   const coloresPiezas = () => { const P = st.P, o = {}, def = P.tela.def || (P.prenda && P.prenda.tejido === 'punto' ? (P.k === 'sudadera' ? 'felpa' : 'punto') : P.k === 'pantalon' ? 'denim' : 'gabardina');
     (P.prenda ? P.prenda.piezas : []).forEach(pz => { const c = (P.tela.colorPieza && P.tela.colorPieza[pz.nombre]) || P.tela.color, k = P.tela.porPieza[pz.nombre] || def; o[pz.nombre] = c === 'natural' && !(ASPECTO[k] && ASPECTO[k].natural) ? (TELAS[k] || TELAS.punto).color : c; }); return o; };
-  const mandaPrenda = conservar => { if (!st.P.prenda) return; W.postMessage({ tipo: 'prenda', prenda: JSON.parse(JSON.stringify(st.P.prenda)), tela: telasPorPieza(), conservar }); };
+  const mandaPrenda = conservar => { if (!st.P.prenda) return; const gen = espera3d(); W.postMessage({ tipo: 'prenda', gen, prenda: JSON.parse(JSON.stringify(st.P.prenda)), tela: telasPorPieza(), conservar }); };
 
   // ---------- 2D ----------
   const ctx = { prenda: null, disp: {}, sel: {}, modo: 'elegir',
@@ -95,6 +109,33 @@ export function render(root) {
     alMoverPieza: () => { st.P.disp = ctx.disp; guarda(); }, alMedir: d => toast('📏 ' + G.cm(d, 2) + ' cm', 'ok', 4000), aviso: t => toast(t, 'bad', 5000) };
   try { ctx.iman = localStorage.getItem('cd.drew.iman') === '1'; } catch (e) { ctx.iman = false; }
   const iman = () => { ctx.iman = !ctx.iman; try { localStorage.setItem('cd.drew.iman', ctx.iman ? '1' : '0'); } catch (e) { } pintaBarra2(); toast(ctx.iman ? '🧲 Imán: los puntos caen en la cuadrícula de 5 mm' : 'Imán quitado: los puntos van libres', 'ok', 3500); };
+  try { ctx.cotas = localStorage.getItem('cd.drew.cotas') === '1'; } catch (e) { ctx.cotas = false; }
+  const cotas = () => { ctx.cotas = !ctx.cotas; try { localStorage.setItem('cd.drew.cotas', ctx.cotas ? '1' : '0'); } catch (e) { } ED.pinta(); pintaBarra2(); };
+  const TACTIL = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } })();
+  const AYUDA2 = { elegir: 'Toca una pieza para elegirla · arrastra un punto ● o un tirador ■ para cambiar la forma', anadir: 'Toca un borde de la pieza: pone un punto ahí', quitar: 'Toca un punto para quitarlo',
+    curva: 'Toca un tramo: pasa de recto a curvo (y al revés)', medir: 'Toca dos sitios: sale la distancia en cm', piquete: 'Toca un borde: piquete ahí y en su pareja (tocar uno lo quita)' };
+  function pintaAyuda2() { const pz = st.sel && st.P && st.P.prenda && st.P.prenda.piezas.find(p => p.nombre === st.sel), pt = pz && ctx.sel && ctx.sel.punto && pz.puntos[ctx.sel.punto], B = pz && ctx.sel && ctx.sel.borde && Z.bordePorId(pz, ctx.sel.borde), el = ctx.modo === 'elegir';
+    pista.textContent = (el && pt ? '● ' + pt.n + ': arrástralo o muévelo con las flechas' : el && B ? '▬ ' + B.n + ': en la ficha se mueve entero (alargar, ensanchar)' : AYUDA2[ctx.modo] || '') + (TACTIL ? ' · dos dedos: acercar y mover' : ' · rueda: acercar · arrastrar el fondo: mover');
+    if (el && pt) { const k = pz.nombre + '|' + ctx.sel.punto; if (k !== st.ultPunto && fichaEstrecha() && !st.fichaMini) { st.fichaMini = true; ficha.classList.add('mini'); pintaFicha(); } st.ultPunto = k; pintaCruceta(pz, pt); } /* (patrón estrecho: al elegir un punto la ficha se encoge, que no tape las flechas) */
+    else { cruceta.style.display = 'none'; st.ultPunto = null; } }
+  // las FLECHAS para mover el punto elegido con el dedo (cada toque: 1 mm, 5 mm o 1 cm; un toque = un Ctrl+Z)
+  let pasoCruceta = 1;
+  function pintaCruceta(pz, pt) { const id = ctx.sel.punto, mv = (dx, dy) => edita({ op: 'muevePunto', pieza: pz.nombre, args: { punto: id, dx: dx * pasoCruceta, dy: dy * pasoCruceta } }, 'Mover «' + pt.n + '» ' + (pasoCruceta >= 10 ? '1 cm' : pasoCruceta + ' mm'));
+    const f = (t, dx, dy, tl, cls) => h('button.' + cls, { type: 'button', title: tl, 'aria-label': tl, onclick: () => mv(dx, dy) }, t);
+    mount(cruceta, h('div.dw-cr-t', '● ' + pt.n), h('div.dw-cr-g', f('↑', 0, 1, 'Subir el punto', 'ar'), f('←', -1, 0, 'A la izquierda', 'iz'),
+      h('button.pa', { type: 'button', title: 'Cuánto se mueve en cada toque (toca para cambiar)', onclick: () => { pasoCruceta = pasoCruceta === 1 ? 5 : pasoCruceta === 5 ? 10 : 1; pintaCruceta(pz, pt); } }, pasoCruceta >= 10 ? '1 cm' : pasoCruceta + ' mm'),
+      f('→', 1, 0, 'A la derecha', 'de'), f('↓', 0, -1, 'Bajar el punto', 'ab')));
+    cruceta.style.display = ''; }
+  // (17-10) MOVER UN BORDE ENTERO: sus puntos se trasladan en paralelo hacia FUERA de la pieza (mm > 0) o hacia dentro → ediciones muevePunto
+  function desplazaBorde(pz, bid, mm) { const B = Z.bordePorId(pz, bid), L = Z.bordePolilinea(pz, bid); if (!B || !L || L.length < 2) return [];
+    const t = G.norma(G.sub(L[L.length - 1], L[0])), c = Z.caja(pz), mid = L[Math.floor(L.length / 2)]; let n = [-t[1], t[0]];
+    if ((mid[0] - (c.x0 + c.x1) / 2) * n[0] + (mid[1] - (c.y0 + c.y1) / 2) * n[1] < 0) n = [-n[0], -n[1]];
+    const ids = []; B.tramos.forEach(tid => { const tr = Z.tramoPorId(pz, tid); if (tr) [tr.a, tr.b].forEach(id => { if (!ids.includes(id)) ids.push(id); }); });
+    return ids.map(id => ({ op: 'muevePunto', pieza: pz.nombre, args: { punto: id, dx: Math.round(n[0] * mm * 10) / 10, dy: Math.round(n[1] * mm * 10) / 10 } })); }
+  // la PAREJA de un borde: el borde de la otra pieza con el que se cose
+  function parejasDe(prenda, pz, bid) { const out = []; (prenda.costuras || []).forEach(c => { if (c.tipo === 'espejo') return; const yo = c.a.pieza === pz.id && c.a.borde === bid ? 'a' : c.b.pieza === pz.id && c.b.borde === bid ? 'b' : null; if (!yo) return;
+      const o = yo === 'a' ? c.b : c.a; if (o.pieza === pz.id && o.borde === bid) return; const opz = prenda.piezas.find(p => p.id === o.pieza), ob = opz && Z.bordePorId(opz, o.borde);
+      if (ob && ob.tipo !== 'doblez' && !out.some(x => x.pz === opz && x.borde === o.borde)) out.push({ pz: opz, borde: o.borde, n: ob.n }); }); return out; }
   const ED = editor2d(lienzo2, ctx);
   let piezasVistas = '', encuadrado = false;
   new ResizeObserver(() => { const r = lienzo2.getBoundingClientRect(); if (r.width > 50 && r.height > 50 && !encuadrado && ctx.prenda) { encuadrado = true; ED.encuadra(); } }).observe(lienzo2);
@@ -114,7 +155,7 @@ export function render(root) {
     catch (e) { st.errorPrenda = e.message; toast(e.message, 'bad', 9000); pintaPie(); return false; }
     ctx.prenda = P.prenda; colocaPiezas(); if (st.sel) { const pz = P.prenda.piezas.find(p => p.nombre === st.sel); ctx.sel = pz ? Object.assign({}, ctx.sel, { pieza: pz.id }) : {}; if (!pz) st.sel = null; }
     ED.pinta(); const firma = P.prenda.piezas.map(p => p.nombre).join('|'); if (firma !== piezasVistas) { piezasVistas = firma; if (lienzo2.getBoundingClientRect().height > 50) { encuadrado = true; ED.encuadra(); } else encuadrado = false; }
-    pintaFicha(); pintaPie(); if (st.pest === 'prenda') pintaPanel(); nombre.value = P.nombre;
+    pintaFicha(); pintaAyuda2(); pintaPie(); if (st.pest === 'prenda') pintaPanel(); nombre.value = P.nombre;
     if (!sinMandar) mandaPrenda(conservar); guarda(); return true;
   }
   const guarda = debounce(() => { if (!st.P) return; PR.guarda(st.P).then(() => { try { localStorage.setItem(ULTIMO, st.P.id); } catch (e) { } }).catch(e => console.warn('No se pudo guardar', e)); }, 1200);
@@ -122,7 +163,7 @@ export function render(root) {
   function edita(e, que) { cambia(que, () => { st.P.ediciones.push(...[].concat(e)); }); } // (16-10: un piquete y su pareja = un solo paso de Ctrl+Z)
   function deshacer() { const r = st.hist.deshacer(st.P); if (!r) return toast('No hay nada que deshacer'); const avAntes = JSON.stringify(st.P.avatar); st.P = r.P; toast('↶ ' + r.que); if (JSON.stringify(st.P.avatar) !== avAntes) mandaAvatar(); regenera(true); }
   function rehacer() { const r = st.hist.rehacer(st.P); if (!r) return toast('No hay nada que rehacer'); const avAntes = JSON.stringify(st.P.avatar); st.P = r.P; toast('↷ ' + r.que); if (JSON.stringify(st.P.avatar) !== avAntes) mandaAvatar(); regenera(true); }
-  function elige(nombrePz, s) { st.sel = nombrePz; const pz = nombrePz && st.P.prenda.piezas.find(p => p.nombre === nombrePz); ctx.sel = pz ? Object.assign({ pieza: pz.id }, s || {}) : {}; V.resalta(nombrePz); ED.pinta(); pintaFicha(); if (st.pest === 'tela') pintaPanel(); }
+  function elige(nombrePz, s) { st.sel = nombrePz; const pz = nombrePz && st.P.prenda.piezas.find(p => p.nombre === nombrePz); ctx.sel = pz ? Object.assign({ pieza: pz.id }, s || {}) : {}; V.resalta(nombrePz); ED.pinta(); pintaFicha(); pintaAyuda2(); if (st.pest === 'tela') pintaPanel(); }
   function abre(P) { st.P = P; st.hist = PR.historial(); st.sel = null; ctx.sel = {}; ctx.disp = P.disp || {}; nombre.value = P.nombre; regenera(false, true); mandaAvatar(); ED.encuadra(); pintaPanel(); }
   async function nueva() { const k = await eligePlantilla(); if (!k) return; const P = proyectoNuevo(k); P.avatar = JSON.parse(JSON.stringify(st.P.avatar)); abre(P); toast('👗 ' + BL.BLOQUES[k].t + ' nueva, ajustada a tu avatar'); }
   function eligePlantilla() { return new Promise(res => { let ok = false; const m = modal('¿Qué prenda?', h('div.dw-plantillas', Object.values(BL.BLOQUES).map(D => h('button', { onclick: () => { ok = true; m.close(); res(D.k); } }, h('b', D.e), D.t))), null, { size: 'narrow', onclose: () => { if (!ok) res(null); } }); }); }
@@ -141,13 +182,14 @@ export function render(root) {
     const b = (t, on, fn, title) => botonBarra(t, on, fn, title);
     mount(barra3, h('span.tit', '3D'),
       b(st.pausa ? '▶ Simular' : '⏸ Pausar', st.pausa, () => { st.pausa = !st.pausa; W.postMessage({ tipo: st.pausa ? 'pausa' : 'sigue' }); pintaBarra3(); }, 'Parar o seguir la simulación de la tela'),
-      b('🪡 Vestir de nuevo', false, () => { W.postMessage({ tipo: 'revestir' }); }, 'Coloca las piezas otra vez alrededor del cuerpo y las cose desde cero'),
+      b('🪡 Vestir de nuevo', false, () => { W.postMessage({ tipo: 'revestir', gen: st.P.prenda ? espera3d() : st.gen }); }, 'Coloca las piezas otra vez alrededor del cuerpo y las cose desde cero'),
       h('span.sep'),
       b('🌡 Ajuste', st.mapa, () => { st.mapa = !st.mapa; leyenda.style.display = st.mapa ? '' : 'none'; W.postMessage({ tipo: 'mapa', si: st.mapa }); if (!st.mapa) { V.actualizaTela(null); Object.entries(coloresPiezas()).forEach(([n, c]) => V.colorTela(c, n)); } else W.postMessage({ tipo: 'sigue' }); pintaBarra3(); }, 'Mapa de ajuste: dónde tira la tela (rojo) y dónde va suelta (verde)'),
-      b('✋ Tirar de la tela', st.tirar, () => { st.tirar = !st.tirar; pintaBarra3(); toast(st.tirar ? '✋ Coge la tela con el ratón y tira: se estira como la de verdad' : 'Vuelves a girar la vista con el ratón', 'ok', 4000); }, 'Coger la tela con el ratón y estirarla'),
+      b('✋ Tirar de la tela', st.tirar, () => { st.tirar = !st.tirar; pintaBarra3(); toast(st.tirar ? '✋ Coge la tela con el dedo o el ratón y tira: se estira como la de verdad' : 'Vuelves a girar la vista', 'ok', 4000); }, 'Coger la tela con el dedo o el ratón y estirarla'),
       b('🧍 Avatar', st.verAv, () => { st.verAv = !st.verAv; V.verAvatar(st.verAv); pintaBarra3(); }, 'Ver u ocultar el avatar'),
       b('↻ Girar', V.gira, () => { V.gira = !V.gira; pintaBarra3(); }, 'Que gire sola, como en un escaparate'),
       h('span.sep'), b('Frente', false, () => V.vista('frente')), b('Lado', false, () => V.vista('izq')), b('Espalda', false, () => V.vista('espalda')),
+      b('⛶ Grande', st.solo === '3d', () => soloVista('3d'), 'Ver el 3D en grande (el patrón se esconde; vuelve con el mismo botón)'),
       h('span.sep'), b('📸', false, () => { const u = V.foto(1600, 2000); descarga(dataURLaBlob(u), limpio(st.P.nombre) + '_3d.png'); toast('📸 Foto guardada en Descargas', 'ok'); }, 'Guardar una foto del 3D (PNG)'));
   }
   // tocar en el 3D: elegir pieza · con «Tirar», arrastrar la tela
@@ -164,12 +206,16 @@ export function render(root) {
     mount(barra2, h('span.tit', 'Patrón 2D'), b('↖ Elegir', 'elegir', 'Tocar una pieza la elige; arrastrarla la mueve. Arrastra un punto o un tirador para cambiar la forma'),
       b('＋ Punto', 'anadir', 'Toca un borde de la pieza elegida para poner un punto'), b('－ Punto', 'quitar', 'Toca un punto para quitarlo'),       b('⌒ Curva', 'curva', 'Toca un tramo para pasarlo de recto a curvo (y al revés)'), b('📏 Medir', 'medir', 'Dos toques: la distancia en cm'),
       b('⊥ Piquete', 'piquete', 'Toca un borde: pone un piquete ahí y su pareja en la pieza con la que se cose (P). Toca uno que ya está para quitarlo'),
-      h('span.sep'), botonBarra('🧲 Imán', !!ctx.iman, iman, 'Imán: al arrastrar, los puntos caen en la cuadrícula de 5 mm (I). Mayús mientras arrastras = recto'), botonBarra('⤢ Encajar', false, () => ED.encuadra(), 'Ver todas las piezas'));
+      h('span.sep'), botonBarra('🧲 Imán', !!ctx.iman, iman, 'Imán: al arrastrar, los puntos caen en la cuadrícula de 5 mm (I). Mayús mientras arrastras = recto'), botonBarra('📐 Medidas', !!ctx.cotas, cotas, 'El largo de cada borde escrito en las piezas (K)'),
+      h('span.sep'), botonBarra('⊕ Acercar', false, () => ED.zoom(1 / 1.4), 'Acercar (también: pellizcar con dos dedos o la rueda del ratón)'), botonBarra('⊖ Alejar', false, () => ED.zoom(1.4), 'Alejar'),
+      botonBarra('⤢ Encajar', false, () => (st.sel ? ED.encuadraPieza(st.sel) : ED.encuadra()), 'Encajar: la pieza elegida o, sin elegir, todas (F)'), botonBarra('⛶ Grande', st.solo === '2d', () => soloVista('2d'), 'Ver el patrón en grande (el 3D se esconde; vuelve con el mismo botón)'));
+    pintaAyuda2();
   }
 
   // ---------- la ficha de la pieza elegida (en el 2D) ----------
   function pintaFicha() {
     const P = st.P, pz = st.sel && P.prenda && P.prenda.piezas.find(p => p.nombre === st.sel); if (!pz) { ficha.style.display = 'none'; return; }
+    if (st.fichaMini === undefined && fichaEstrecha()) st.fichaMini = true;
     const D = Z.datos(pz), cos = (P.prenda.costuras || []).filter(c => c.a.pieza === pz.id || c.b.pieza === pz.id), R = st.V && st.V.costuras || [];
     const corte = pz.corte.doblez ? 'Cortar ' + (pz.corte.n || 1) + ' al doblez' : pz.corte.espejo ? 'Cortar ' + (pz.corte.n || 2) + ' (una en espejo)' : 'Cortar ' + (pz.corte.n || 1);
     // (16-10) medidas ESCRITAS: mover el punto elegido tantos cm (→ y ↑) y el largo exacto de un borde recto
@@ -177,11 +223,20 @@ export function render(root) {
     const mueve = pt ? (() => { const ix = cmIn('0', 'Hacia la derecha (+) o la izquierda (−), en cm'), iy = cmIn('0', 'Hacia arriba (+) o abajo (−), en cm'), va = () => { const dx = Math.round(Number(String(ix.value || 0).replace(',', '.')) * 10), dy = Math.round(Number(String(iy.value || 0).replace(',', '.')) * 10); if (!dx && !dy) return toast('Escribe cuántos cm moverlo', 'info'); edita({ op: 'muevePunto', pieza: pz.nombre, args: { punto: ctx.sel.punto, dx, dy } }, 'Mover «' + pt.n + '» ' + G.cm(dx) + ' / ' + G.cm(dy) + ' cm'); };
       [ix, iy].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') va(); }));
       return h('div.dw-ficha-pt', h('div', h('b', '● ' + pt.n), h('small', ' en (' + G.cm(pt.x) + ', ' + G.cm(pt.y) + ') cm')), h('div.dw-ficha-mueve', h('label', '→', ix), h('label', '↑', iy), h('span.u', 'cm'), btn('Mover', va, { cls: 'ghost sm' }))); })() : null;
+    const Bsel = ctx.sel && ctx.sel.pieza === pz.id && ctx.sel.borde && pz.bordes.find(b => b.id === ctx.sel.borde);
+    const mueveBorde = !Bsel ? null : Bsel.tipo === 'doblez' ? h('div.dw-ayuda', 'El doblez no se mueve: es el centro de la pieza.') : (() => {
+      const par = parejasDe(P.prenda, pz, Bsel.id), chk = h('input', { type: 'checkbox', checked: true }), ent = cmIn('1', 'Cuántos cm: hacia fuera (+) o hacia dentro (−)');
+      const va = cm => { if (!cm) return toast('Escribe cuántos cm', 'info'); const E = desplazaBorde(pz, Bsel.id, cm * 10); if (chk.checked) par.forEach(x => E.push(...desplazaBorde(x.pz, x.borde, cm * 10)));
+        edita(E, (cm > 0 ? 'Sacar ' : 'Meter ') + '«' + Bsel.n + '» ' + String(Math.abs(cm)).replace('.', ',') + ' cm' + (chk.checked && par.length ? ' (y su pareja)' : '')); };
+      ent.addEventListener('keydown', e => { if (e.key === 'Enter') va(Number(String(ent.value || 0).replace(',', '.'))); });
+      return h('div.dw-ficha-borde', h('div', h('b', '▬ Mover «' + Bsel.n + '» entero'), h('small', ' hacia fuera = más grande (alargar el bajo, ensanchar el costado); hacia dentro = más pequeño')),
+        h('div.dw-ficha-bbtns', [-1, -0.5, 0.5, 1].map(v => btn((v > 0 ? '+' : '−') + String(Math.abs(v)).replace('.', ',') + ' cm', () => va(v), { cls: 'ghost sm' })), ent, btn('Mover', () => va(Number(String(ent.value || 0).replace(',', '.'))), { cls: 'ghost sm' })),
+        par.length ? h('label.dw-ficha-par', chk, ' lo mismo en su pareja: ' + par.map(x => '«' + x.n + '» de ' + x.pz.nombre).join(', ')) : null); })();
     const recto = B => { const b = pz.bordes.find(x => x.id === B.id); return b && b.tramos.length === 1 && !(Z.tramoPorId(pz, b.tramos[0]) || {}).c1; };
     const largoIn = B => h('input.dw-ficha-cm.dw-ficha-largo', { type: 'text', inputmode: 'decimal', autocomplete: 'off', value: String(Math.round(B.largo) / 10).replace('.', ','), title: 'Escribe el largo exacto (cm): se mueve la punta final del borde', onchange: e => { const mm = Math.round(Number(String(e.target.value).replace(',', '.')) * 10); if (!(mm > 5)) { e.target.value = String(Math.round(B.largo) / 10).replace('.', ','); return toast('Un largo en cm, mayor que 0,5', 'bad'); } edita({ op: 'largoBorde', pieza: pz.nombre, args: { borde: B.id, mm } }, 'Largo de «' + B.n + '» a ' + G.cm(mm) + ' cm'); } });
-    mount(ficha, h('button.dw-x', { onclick: () => elige(null), title: 'Cerrar' }, '✕'), h('h4', pz.nombre), h('div.dw-ayuda', { style: { margin: '0 0 6px' } }, corte + ' · ' + G.cm(D.ancho) + ' × ' + G.cm(D.alto) + ' cm · ' + (Math.abs(D.area) / 100).toFixed(0) + ' cm²'), mueve,
+    mount(ficha, h('button.dw-x', { onclick: () => elige(null), title: 'Cerrar' }, '✕'), h('button.dw-x.dw-mini', { onclick: () => { st.fichaMini = !st.fichaMini; ficha.classList.toggle('mini', st.fichaMini); pintaFicha(); }, title: st.fichaMini ? 'Abrir la ficha' : 'Encoger la ficha (ver el patrón)' }, st.fichaMini ? '▴' : '▾'), h('h4', { onclick: () => { if (st.fichaMini) { st.fichaMini = false; ficha.classList.remove('mini'); pintaFicha(); } } }, pz.nombre), h('div.dw-ayuda', { style: { margin: '0 0 6px' } }, corte + ' · ' + G.cm(D.ancho) + ' × ' + G.cm(D.alto) + ' cm · ' + (Math.abs(D.area) / 100).toFixed(0) + ' cm²'), mueve,
       h('div', { style: { fontWeight: 700, fontSize: '12px', margin: '6px 0 2px' } }, 'Bordes y márgenes de costura'),
-      D.bordes.map(B => h('div.dw-fila', h('label', B.n, recto(B) ? h('small.dw-ficha-l', largoIn(B), ' cm · ') : null, h('small', (recto(B) ? '' : G.cm(B.largo, 1) + ' cm · ') + ({ costura: 'se cose', bajo: 'bajo', remate: 'remate', doblez: 'al doblez', abierto: 'abierto', aplicado: 'pespunteado encima' }[B.tipo] || B.tipo))),
+      mueveBorde, D.bordes.map(B => h('div.dw-fila.dw-fila-borde' + (Bsel && Bsel.id === B.id ? '.on' : ''), { title: 'Toca para elegir este borde (se ve en el patrón y se puede mover entero)', onclick: e => { if (e.target.closest('input, select, button')) return; elige(pz.nombre, { pieza: pz.id, borde: B.id }); } }, h('label', B.n, recto(B) ? h('small.dw-ficha-l', largoIn(B), ' cm · ') : null, h('small', (recto(B) ? '' : G.cm(B.largo, 1) + ' cm · ') + ({ costura: 'se cose', bajo: 'bajo', remate: 'remate', doblez: 'al doblez', abierto: 'abierto', aplicado: 'pespunteado encima' }[B.tipo] || B.tipo))),
         B.tipo === 'doblez' ? h('span.u', 'sin margen') : h('span.dw-num', h('input', { type: 'number', min: 0, max: 60, step: 1, value: B.margen, onchange: e => { const mm = Math.max(0, Math.min(60, Number(e.target.value) || 0)); edita({ op: 'margen', pieza: pz.nombre, args: { borde: B.id, mm } }, 'Margen de «' + B.n + '»'); } }), h('span.u', 'mm')))),
       cos.length ? h('div', { style: { fontWeight: 700, fontSize: '12px', margin: '8px 0 2px' } }, 'Se cose con') : null,
       cos.map(c => { const r = R.find(x => x.id === c.id) || {}, otra = P.prenda.piezas.find(p => p.id === (c.a.pieza === pz.id ? c.b.pieza : c.a.pieza)), tipo = tipoDe(P.prenda, c, P.tiposCostura);
@@ -192,8 +247,10 @@ export function render(root) {
           Object.entries(TIPOS_COSTURA).map(([k, T]) => h('option', { value: k, selected: !!elegido && k === tipo }, T.t + ' · margen ' + G.cm(T.margen) + ' cm')));
         return h('div.dw-ayuda', { style: { margin: '2px 0' } }, sel, ' ', (r.ok === false ? '✘ ' : '✔ ') + c.n + (otra && otra !== pz ? ' (' + otra.nombre + ')' : '') + (r.La ? ' · ' + G.cm(r.La, 1) + ' / ' + G.cm(r.Lb, 1) + ' cm' : '')); }),
       pz.meta.notas.length ? h('div.dw-ayuda', pz.meta.notas.join(' ')) : null);
-    ficha.style.display = '';
+    ficha.classList.toggle('mini', !!st.fichaMini); ficha.style.display = '';
   }
+  // (17-10, iPad) si el patrón es estrecho (tablet, 3D al lado), la ficha sale ENCOGIDA: si no, tapa la pieza que se está tocando
+  const fichaEstrecha = () => { const r = ven2.getBoundingClientRect(); return r.width > 0 && r.width < 640; };
 
   // ---------- la barra de abajo ----------
   function pintaPie() {
@@ -210,7 +267,8 @@ export function render(root) {
 
   // ---------- la biblioteca (izquierda) ----------
   const PEST = [['prenda', '👗', 'Prenda'], ['avatar', '🧍', 'Avatar'], ['tela', '🧵', 'Tela'], ['foto', '📷', 'Foto'], ['exportar', '⬇', 'Exportar']];
-  function pintaPestanas() { mount(pestanas, PEST.map(([k, e, t]) => h('button' + (st.pest === k ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': st.pest === k ? 'true' : 'false', onclick: () => { st.pest = k; pintaPestanas(); pintaPanel(); } }, h('b', e), t))); }
+  function pintaPestanas() { mount(pestanas, PEST.map(([k, e, t]) => h('button' + (st.pest === k && !st.plegado ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': st.pest === k ? 'true' : 'false', onclick: () => { st.pest = k; if (st.plegado) plega(false); pintaPestanas(); pintaPanel(); } }, h('b', e), t)),
+    h('button.dw-plegar', { type: 'button', title: st.plegado ? 'Abrir la biblioteca' : 'Plegar la biblioteca: más sitio para el 3D y el patrón', 'aria-label': st.plegado ? 'Abrir la biblioteca' : 'Plegar la biblioteca', onclick: () => plega(!st.plegado) }, h('b', st.plegado ? '»' : '«'), st.plegado ? 'Abrir' : 'Plegar')); }
   function pintaPanel() { const f = { prenda: panelPrenda, avatar: panelAvatar, tela: panelTela, foto: panelFoto, exportar: panelExportar }[st.pest]; mount(panel, f()); }
   const irA = k => { st.pest = k; pintaPestanas(); pintaPanel(); };
   // 📷 FOTO (drew/calibra_ui.js): qué foto sirve, MEDIR con una foto calibrada con un folio A4 (y llevar la medida a la prenda), calibrar la IMPRESORA
@@ -414,9 +472,9 @@ export function render(root) {
   // ATAJOS (ella: «atajos de letras»): con Ctrl, deshacer / rehacer / PDF; sin Ctrl, las herramientas (si no se está escribiendo en una casilla)
   const modo = m => { ctx.modo = m; ED.borraMedida(); pintaBarra2(); };
   const ATAJOS = [['E', 'Elegir y mover (2D)', () => modo('elegir')], ['A', 'Añadir un punto', () => modo('anadir')], ['Q', 'Quitar un punto', () => modo('quitar')], ['C', 'Recta ↔ curva', () => modo('curva')], ['M', 'Medir', () => modo('medir')],
-    ['P', 'Poner o quitar un piquete (con su pareja)', () => modo('piquete')], ['I', 'Imán a la cuadrícula de 5 mm', () => iman()], ['F', 'Ver todas las piezas (2D)', () => ED.encuadra()], ['S', 'Simular / pausar la tela', () => { st.pausa = !st.pausa; W.postMessage({ tipo: st.pausa ? 'pausa' : 'sigue' }); pintaBarra3(); }], ['R', 'Girar el maniquí', () => { V.gira = !V.gira; pintaBarra3(); }],
+    ['P', 'Poner o quitar un piquete (con su pareja)', () => modo('piquete')], ['I', 'Imán a la cuadrícula de 5 mm', () => iman()], ['K', 'Medidas en los bordes (2D)', () => cotas()], ['F', 'Ver todas las piezas (2D)', () => ED.encuadra()], ['S', 'Simular / pausar la tela', () => { st.pausa = !st.pausa; W.postMessage({ tipo: st.pausa ? 'pausa' : 'sigue' }); pintaBarra3(); }], ['R', 'Girar el maniquí', () => { V.gira = !V.gira; pintaBarra3(); }],
     ['1', 'Vista de frente', () => V.vista('frente')], ['2', 'Vista de lado', () => V.vista('izq')], ['3', 'Vista de espalda', () => V.vista('espalda')], ['V', 'Vídeo de 7 s para redes', () => video7()], ['Esc', 'Soltar la herramienta y la pieza', () => { modo('elegir'); elige(null); }], ['?', 'Ver los atajos', () => atajos()]];
-  function atajos() { modal('⌨ Atajos de teclado', h('div', h('div.dw-atajos', ATAJOS.map(([k, t]) => h('div', h('kbd', k), h('span', t))), [['Ctrl Z', 'Deshacer'], ['Ctrl Y', 'Rehacer'], ['Ctrl P', 'Patrón completo en PDF'], ['Mayús', 'Arrastrar un punto en recto'], ['Rueda', 'Acercar / alejar (2D y 3D)']].map(([k, t]) => h('div', h('kbd', k), h('span', t)))), h('p.dw-ayuda', 'Las letras funcionan cuando no estás escribiendo en una casilla.')), null, { size: 'narrow' }); }
+  function atajos() { modal('⌨ Atajos de teclado', h('div', h('div.dw-atajos', ATAJOS.map(([k, t]) => h('div', h('kbd', k), h('span', t))), [['Ctrl Z', 'Deshacer'], ['Ctrl Y', 'Rehacer'], ['Ctrl P', 'Patrón completo en PDF'], ['Mayús', 'Arrastrar un punto en recto'], ['Rueda', 'Acercar / alejar (2D y 3D)'], ['2 dedos', 'iPad: pellizcar = acercar, arrastrar = mover']].map(([k, t]) => h('div', h('kbd', k), h('span', t)))), h('p.dw-ayuda', 'Las letras funcionan cuando no estás escribiendo en una casilla.')), null, { size: 'narrow' }); }
   const tecla = e => { if (!st.vivo || /INPUT|TEXTAREA|SELECT/.test((e.target.tagName || '')) || e.target.isContentEditable) return; const k = e.key.toLowerCase();
     if (e.ctrlKey || e.metaKey) { if (k === 'z') { e.preventDefault(); deshacer(); } else if (k === 'y') { e.preventDefault(); rehacer(); } else if (k === 'p') { e.preventDefault(); exporta('pdf'); } return; }
     if (e.altKey || document.querySelector('.modal-back, .modal')) return; const A = ATAJOS.find(([x]) => x.toLowerCase() === (e.key === 'Escape' ? 'esc' : k)); if (A) { e.preventDefault(); A[2](); } };

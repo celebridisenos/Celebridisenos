@@ -12,9 +12,10 @@ function montar(prenda, conservar) {
   const S2 = TL.monta(prenda, C, R, { h: 14, tela: tela || undefined }), sim2 = TL.simulador(S2, { grosor: C.premium ? 3 : 2.5 }); // (16-10: era 6,5 mm para que el pecho no asomara, pero eso son 4 cm de contorno de más: la cinturilla tiraba y la falda se arrugaba. Ahora el pecho del maniquí sale alisado de MH.construye (liso) y basta con 3 mm)
   let heredado = 0; if (conservar && S) { heredado = TL.hereda(S2, S); if (heredado > 0.6) sim2.yaPuesta(); }
   S = S2; sim = sim2; quieta = 0; cuadro = 0; foto = null;
-  const T = TL.topologia(S); manda({ tipo: 'modelo', topo: T, pos: S.pos.slice(), heredado });
+  const T = TL.topologia(S); manda({ tipo: 'modelo', topo: T, pos: S.pos.slice(), heredado, gen });
 }
-self.onmessage = async e => { const m = e.data;
+let gen = 0; // (16-10: el turno del último encargo de la pantalla; vuelve con el «modelo» para que no cuente como colocada una prenda vieja)
+self.onmessage = async e => { const m = e.data; if (m.gen !== undefined) gen = m.gen;
   try {
     if (m.tipo === 'avatar') {
       // el cuerpo REALISTA (MakeHuman, premium) por defecto; si faltara su archivo, el maniquí sencillo (y se dice)
@@ -43,10 +44,12 @@ function bucle() {
     sim.paso(1 / 60, 10); cuadro++;
     if (cuadro % 30 === 0) { let m = 0; if (foto && foto.length === S.pos.length) for (let i = 0; i < S.pos.length; i += 3) { const d = (S.pos[i] - foto[i]) ** 2 + (S.pos[i + 1] - foto[i + 1]) ** 2 + (S.pos[i + 2] - foto[i + 2]) ** 2; if (d > m) m = d; } else m = 1e9;
       quieta = Math.sqrt(m) < 0.6 && sim.cosida && sim.t > 2 ? quieta + 45 : 0; foto = S.pos.slice(); }
-    if (enVuelo < 2) { enVuelo++; const p = S.pos.slice(); const msg = { tipo: 'pos', pos: p, t: sim.t, cosida: sim.cosida, quieta: quieta >= 90 }; const tr = [p.buffer];
+    // (16-10, iPad: el ÚLTIMO fotograma, el de «quieta», se manda SIEMPRE: si la pantalla iba por detrás —enVuelo 2, aparato lento— se
+    //  perdía y el bucle ya no volvía a avisar: la prenda se quedaba en «🍃 cayendo» para siempre aunque estuviera colocada)
+    if (enVuelo < 2 || quieta >= 90) { enVuelo++; const p = S.pos.slice(); const msg = { tipo: 'pos', pos: p, t: sim.t, cosida: sim.cosida, quieta: quieta >= 90 }; const tr = [p.buffer];
       if (mapa && cuadro % 6 === 0) { const es = sim.estira(); msg.estira = es; tr.push(es.buffer); }
       manda(msg, tr); }
-    if (cuadro % 30 === 0) { const ab = sim.abiertas(), d = sim.dentro(); manda({ tipo: 'estado', abiertas: ab, dentro: d, t: sim.t, cosida: sim.cosida }); }
+    if (cuadro % 30 === 0) { const ab = sim.abiertas(), d = sim.dentro(); manda({ tipo: 'estado', abiertas: ab, dentro: d, t: sim.t, cosida: sim.cosida, quieta: quieta >= 90 }); }
   }
   setTimeout(bucle, Math.max(0, 16 - (performance.now() - t0)));
 }

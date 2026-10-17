@@ -363,3 +363,61 @@ body.dw-noche-on .dw-cal-fm.confirmar, body.dw-noche-on .dw-cal-okbtn { border-c
 .dw-insp-rej .dw-fila { display: grid; grid-template-columns: 1fr 1.2fr; gap: 6px; align-items: center; margin: 4px 0; } .dw-insp-rej label { font-size: 12.5px; }
 .dw-insp-si, .dw-insp-no { margin: 4px 0 8px 18px; padding: 0; font-size: 12.5px; line-height: 1.45; } .dw-insp-si li::marker { content: '✔ '; color: var(--ok); } .dw-insp-no li::marker { content: '⚠ '; color: var(--warn); }
 .dw-insp-crear { width: 100%; margin-top: 4px; }
+
+/* ===================== 17-10 · TABLET / iPad (ella: «va mal en la tablet») y el 2D más fácil («más funciones premium») ===================== */
+body.dw-solo .holo { display: none !important; } /* (la figurita holograma del programa flotaba encima del patrón y se llevaba los toques) */
+.dw button, .dw .btn, .dw select, .dw-cruceta button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; } /* (sin el retraso ni el zoom del doble toque) */
+/* cabecera en UNA fila: icono + palabra; si no cabe, solo el icono (la palabra queda en el título) */
+.dw-atelier .dw-cab { flex-wrap: nowrap; }
+.dw-atelier .dw-cab .btn i.ic { font-style: normal; }
+@media (max-width: 1350px) { .dw-atelier .dw-cab .btn .l { display: none; } .dw-atelier .dw-marca { font-size: 25px; } .dw-atelier .dw-cab .dw-nombre { min-width: 0; width: 150px; } }
+@media (max-width: 900px) { .dw-atelier .dw-marca { font-size: 21px; margin-right: 4px; } .dw-atelier .dw-cab .dw-nombre { width: 112px; font-size: 16px; } .dw-atelier .dw-cab { gap: 4px; } .dw-atelier .dw-cab .btn { padding-left: 9px; padding-right: 9px; } }
+/* la biblioteca PLEGADA: quedan sus iconos (tocar uno la abre) */
+.dw-atelier .dw-cuerpo.plegado { grid-template-columns: 66px minmax(0, 1fr) !important; }
+.dw-atelier .dw-cuerpo.plegado .dw-lado { grid-template-columns: 66px; }
+.dw-atelier .dw-cuerpo.plegado .dw-panel { display: none; }
+.dw-atelier .dw-pest .dw-plegar { color: var(--muted); border-left-color: transparent; font-size: 10px; }
+.dw-atelier .dw-pest .dw-plegar b { font-size: 20px; font-weight: 400; }
+/* el 3D o el patrón EN GRANDE */
+.dw-vistas.solo2d, .dw-vistas.solo3d { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; }
+.dw-vistas.solo2d > .v3, .dw-vistas.solo2d > .dw-divisor, .dw-vistas.solo3d > .v2, .dw-vistas.solo3d > .dw-divisor { display: none !important; }
+/* la línea de AYUDA del 2D (qué hace la herramienta que tienes) */
+.dw-pista { position: absolute; top: 10px; left: 10px; z-index: 3; pointer-events: none; font-size: 12px; line-height: 1.35; color: #eef3ef; background: rgba(20, 40, 34, .62);
+  border-radius: 12px; padding: 5px 11px; max-width: calc(100% - 290px); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.dw-ven.v2:not(:has(.dw-ficha[style*="none"])) .dw-pista { max-width: calc(100% - 290px); }
+.dw-ven.v2:has(.dw-ficha[style*="none"]) .dw-pista { max-width: calc(100% - 20px); }
+/* las FLECHAS para mover el punto elegido con el dedo */
+.dw-cruceta { position: absolute; left: 12px; bottom: 74px; z-index: 4; background: rgba(255, 250, 240, .94); border-radius: 16px; padding: 7px 8px 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); border: 1px solid #d5c9b8; }
+.dw-cr-t { font-size: 11.5px; font-weight: 700; text-align: center; margin-bottom: 5px; color: #1c1916; max-width: 148px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dw-cr-g { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; grid-template-areas: ". ar ." "iz pa de" ". ab ."; }
+.dw-cr-g button { border: 1px solid #d5c9b8; background: #fff; border-radius: 12px; font-size: 20px; color: #1c1916; cursor: pointer; padding: 0; }
+.dw-cr-g button:active { background: #f6e3e6; }
+.dw-cr-g .ar { grid-area: ar; } .dw-cr-g .iz { grid-area: iz; } .dw-cr-g .de { grid-area: de; } .dw-cr-g .ab { grid-area: ab; }
+.dw-cr-g .pa { grid-area: pa; font-size: 11px; font-weight: 800; background: #f6e7c8; }
+/* MEDIDAS de cada borde escritas en la pieza */
+.dw-cota { fill: #1c1916; font-weight: 600; paint-order: stroke; stroke: #fffaf0; stroke-linejoin: round; font-family: var(--font, system-ui); }
+.dw-cota.on { fill: #b03a58; font-weight: 800; }
+.dw-zona { cursor: pointer; }
+/* la ficha: se ENCOGE (para ver el patrón), los bordes se tocan, y el borde elegido se mueve entero */
+.dw-ficha .dw-mini { right: 30px; font-size: 15px; }
+.dw-ficha.mini { width: auto; min-width: 170px; padding: 8px 60px 8px 12px; }
+.dw-ficha.mini > :not(h4):not(.dw-x) { display: none !important; }
+.dw-ficha.mini h4 { margin: 0; cursor: pointer; }
+.dw-fila-borde { cursor: pointer; border-radius: 8px; padding-left: 4px; padding-right: 4px; margin: 0 -4px; }
+.dw-fila-borde:hover { background: rgba(194, 93, 116, .06); }
+.dw-fila-borde.on { background: rgba(194, 93, 116, .12); box-shadow: inset 3px 0 0 #c25d74; }
+.dw-ficha-borde { margin: 6px 0 8px; padding: 8px; border-radius: 12px; background: rgba(194, 93, 116, .08); border: 1px solid rgba(194, 93, 116, .25); font-size: 12px; line-height: 1.35; }
+.dw-ficha-borde small { color: var(--text-2); }
+.dw-ficha-bbtns { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; align-items: center; }
+.dw-ficha-bbtns .dw-ficha-cm { width: 52px; }
+.dw-ficha-par { display: flex; gap: 6px; align-items: flex-start; font-size: 11.5px; color: var(--text-2); cursor: pointer; }
+@media (pointer: coarse) { .dw-ficha-bbtns .btn { padding: 8px 10px; } .dw-ficha { width: min(290px, calc(100% - 20px)); } .dw-fila-borde { min-height: 40px; } }
+/* (17-10) la ficha no tapa la barra de abajo del 2D; con el patrón estrecho y la ficha abierta, la línea de ayuda se esconde */
+.dw-atelier .dw-ficha { top: 10px; max-height: calc(100% - 84px); }
+@container (max-width: 700px) { .dw-ven.v2:has(.dw-ficha:not(.mini):not([style*="none"])) .dw-pista { display: none; } }
+/* (17-10) si la barra no cabe (iPad), en DOS filas en vez de salirse por los lados; las flechas, arriba a la izquierda (no chocan con la barra) */
+@container (max-width: 620px) { .dw-atelier .dw-barra { flex-wrap: wrap; justify-content: center; border-radius: 22px; row-gap: 2px; max-width: calc(100% - 16px); width: max-content; } }
+.dw-cruceta { top: 54px; bottom: auto; }
+/* (17-10) las flechas, abajo a la izquierda junto a la barra (arriba tapaban la pieza que se estaba tocando) */
+.dw-cruceta { top: auto; bottom: 74px; }
+@container (max-width: 620px) { .dw-cruceta { bottom: 122px; } }

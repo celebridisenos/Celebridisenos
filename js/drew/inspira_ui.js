@@ -51,8 +51,14 @@ export function abre(o, archivo) {
   // ---------- la IA de visión (en el PC) ----------
   async function mira() {
     if (S.ab) S.ab.abort(); S.ab = new AbortController(); const ab = S.ab; S.ia = 'mirando'; S.iaT0 = Date.now(); S.iaErr = ''; pinta();
-    clearInterval(S.reloj); S.reloj = setInterval(() => { if (S.ia === 'mirando') pintaEstado(); }, 1000);
-    try { const R = await V.pregunta(I.PREGUNTA, V.jpeg(S.im.c), { signal: ab.signal }); if (ab.signal.aborted) return;
+    clearInterval(S.reloj); S.reloj = setInterval(() => { if (S.ia === 'mirando' || S.ia === 'pc') pintaEstado(); }, 1000);
+    try { const b64 = V.jpeg(S.im.c); let R;
+      try { R = await V.pregunta(I.PREGUNTA, b64, { signal: ab.signal }); }
+      catch (e) { if (ab.signal.aborted) return; const { desktop } = await import('../desktop.js'); if (desktop.on) throw e;
+        // (16-10: en el iPad o el móvil no hay IA de visión: la foto va al PC del taller y él la lee —drew/foto/vision_pc.js—)
+        S.ia = 'pc'; S.iaPc = '📤 Enviando la foto al PC del taller…'; pinta();
+        const PC = await import('./foto/vision_pc.js'); R = await PC.preguntaPorPC(I.PREGUNTA, b64, { signal: ab.signal, onStatus: t => { S.iaPc = t; pintaEstado(); } }); }
+      if (ab.signal.aborted) return;
       const N = I.lee(R.j, { modelo: R.modelo });
       // lo que ella ya ha contestado MANDA; lo demás, lo que dice la IA
       Object.entries(N.campos).forEach(([c, x]) => { const y = S.L.campos[c]; if (y && y.ia === false && y.toco) return; S.L.campos[c] = x; });
@@ -93,7 +99,8 @@ export function abre(o, archivo) {
     const s = Math.round((Date.now() - S.iaT0) / 1000);
     estado.replaceChildren(...(S.ia === 'sin' ? [h('b', '1 · La imagen'), h('div', 'Elige la foto de la prenda que has visto, o pégala: en internet, clic derecho en la foto → «Copiar imagen» y aquí Ctrl+V.')]
       : S.ia === 'mirando' ? [h('b', '🤖 La IA del PC está mirando la prenda… ' + s + ' s'), h('div', 'Tarda 1–2 minutos. Mientras, puedes ir contestando abajo: lo que elijas tú manda.')]
-      : S.ia === 'lista' ? [h('b', '✔ La IA ha leído la prenda (' + Math.round(S.iaMs / 1000) + ' s)'), h('div', (S.L.notas ? '«' + S.L.notas + '» ' : '') + 'Confirma lo de abajo con un toque y crea el patrón.'), S.iaMod && !S.iaMod.comercial ? h('div.dw-ojo', '⚠ Ha contestado ' + S.iaMod.t + ' (' + S.iaMod.licencia + '). Para vender, instala la que sí se puede usar (qwen3-vl:4b).') : null]
+      : S.ia === 'pc' ? [h('b', '🖥️ Se la he mandado al PC del taller… ' + s + ' s'), h('div', (S.iaPc || '') + ' Tarda 2–3 minutos (el PC tiene que estar encendido con el programa abierto). Mientras, puedes ir contestando abajo: lo que elijas tú manda.')]
+      : S.ia === 'lista' ? [h('b', '✔ La IA ' + (S.iaMod && S.iaMod.pc ? 'del PC del taller ' : '') + 'ha leído la prenda (' + Math.round(S.iaMs / 1000) + ' s)'), h('div', (S.L.notas ? '«' + S.L.notas + '» ' : '') + 'Confirma lo de abajo con un toque y crea el patrón.'), S.iaMod && !S.iaMod.comercial ? h('div.dw-ojo', '⚠ Ha contestado ' + S.iaMod.t + ' (' + S.iaMod.licencia + '). Para vender, instala la que sí se puede usar (qwen3-vl:4b).') : null]
       : [h('b', 'La IA de visión no está en este aparato'), h('div', 'Dímelo tú con unos toques (abajo). En el PC del taller lo lee sola. (' + S.iaErr + ')')]).filter(Boolean));
   }
   function pinta() {
@@ -131,7 +138,10 @@ export function abre(o, archivo) {
     return '#' + [0, 1, 2].map(k => Math.round(C.reduce((a, c) => a + c[k], 0) / n).toString(16).padStart(2, '0')).join('');
   }
   function crea(D) {
-    if (D.preguntas.some(c => S.L.campos[c] && S.L.campos[c].v == null)) return toast('Falta contestar: ' + D.preguntas.filter(c => S.L.campos[c].v == null).map(c => I.nombreDe(c, '') || c).join(', '), 'bad');
+    // (16-10, probado como en el iPad: sin IA salían 6 preguntas y no dejaba crear; ahora basta con la PRENDA y el LARGO: lo demás que no se
+    //  haya dicho sale con lo normal —manga corta, ajuste normal, escote redondo, falda recta— y se cambia luego en la ficha)
+    const faltan = ['categoria', 'largo'].filter(c => !S.L.campos[c] || S.L.campos[c].v == null);
+    if (faltan.length) return toast('Dime antes: ' + faltan.map(c => (I.CAMPOS.find(x => x[0] === c) || [, c])[1].toLowerCase()).join(' y ') + '.', 'bad');
     if (o.listo && !o.listo()) return toast('Espera un momento: el avatar se está preparando (para medir los largos en su cuerpo).', 'bad');
     const R = o.crear(D, S.L, { color: colorDe() }); if (R && R.ok === false) return toast(R.error || 'No se ha podido crear el patrón.', 'bad', 9000);
     ultima = { url: S.url, L: S.L, sil: S.sil }; toast('👗 ' + D.nombre + ': cosiéndose en tu avatar…', 'ok', 5000); m.close();
