@@ -4,15 +4,31 @@
 // la regla para medir y el plano del corte. Hecha con three.js (MIT, vendor/three). Z hacia arriba, en milímetros.
 import * as T from '../../vendor/three/three_r8.js';
 
+// 18-10-2026 · ACABADOS como filamento DE VERDAD (la dueña: «los acabados de vista son feos, mejor textura»). Todo se dibuja con cuentas en
+// la tarjeta gráfica (ruido 3D en milímetros del mundo): no hay imágenes ni nada que descargar. Lo que tiene cada uno:
+//   capas = las líneas de impresión en relieve (0,2 mm; solo se ven al acercarse: de lejos serían rayitas de un píxel que bailan)
+//   r / m = rugosidad y metal · cc = barniz · tr = translúcido de verdad (deja pasar la luz) · sh = brillo aterciopelado (TPU)
+//   y su «dibujo»: veta de mármol, anillos de madera, purpurina, motas de piedra, cepillado del metal, dos colores de la seda doble…
 export const ACABADOS = {
-  mate: { t: 'Mate (PLA normal)', r: 0.72, m: 0 },
-  seda: { t: 'Seda (brillo metálico)', r: 0.26, m: 0.62 },
-  brillo: { t: 'Brillante (PETG)', r: 0.18, m: 0.05, cc: 0.7 },
-  transl: { t: 'Translúcido', r: 0.2, m: 0, op: 0.62 },
-  arcoiris: { t: 'Arcoíris (multicolor)', r: 0.3, m: 0.45, arco: 1 },
-  marmol: { t: 'Mármol', r: 0.55, m: 0, marmol: 1 },
-  madera: { t: 'Madera', r: 0.8, m: 0, madera: 1 }
+  mate: { t: 'PLA normal (satinado)', r: 0.5, m: 0, capas: 1 },
+  pmate: { t: 'PLA Matte (mate de verdad)', r: 0.93, m: 0, capas: 0.7, tiza: 1 },
+  seda: { t: 'Seda (PLA Silk)', r: 0.24, m: 0.55, capas: 1.4, seda: 1 },
+  seda2: { t: 'Seda de dos colores (Dual Silk)', r: 0.24, m: 0.55, capas: 1.4, seda: 1, doble: 1 },
+  brillo: { t: 'Brillante (PETG)', r: 0.16, m: 0.04, cc: 0.8, capas: 0.8 },
+  transl: { t: 'Translúcido (PETG transparente)', r: 0.12, m: 0, tr: 0.82, capas: 0.8 },
+  arcoiris: { t: 'Arcoíris (Silk rainbow)', r: 0.26, m: 0.5, capas: 1.2, arco: 1 },
+  galaxia: { t: 'Galaxia (con purpurina)', r: 0.45, m: 0.1, capas: 0.8, galaxia: 1 },
+  marmol: { t: 'Mármol', r: 0.45, m: 0, capas: 0.7, marmol: 1 },
+  madera: { t: 'Madera (PLA Wood)', r: 0.82, m: 0, capas: 1, madera: 1 },
+  piedra: { t: 'Piedra (PLA Stone)', r: 0.9, m: 0, capas: 0.8, piedra: 1 },
+  carbono: { t: 'Fibra de carbono (PLA-CF)', r: 0.88, m: 0.05, capas: 1.1, carbono: 1 },
+  metal: { t: 'Metal (cobre, bronce, acero)', r: 0.32, m: 1, capas: 0.5, cepillado: 1 },
+  glow: { t: 'Brilla en la oscuridad', r: 0.7, m: 0, capas: 0.8, glow: 1 },
+  tpu: { t: 'TPU flexible (gomoso)', r: 0.86, m: 0, capas: 0.9, sh: 0.6 }
 };
+// El segundo color de la seda doble: el «contrario» del elegido, pero bonito (dorado con morado, azul con rosa…)
+const PAREJA = { '#c9a227': '#5e43b7', '#5e43b7': '#c9a227', '#0a2989': '#f55a9b', '#f55a9b': '#0a2989', '#c8102e': '#c9a227', '#00ae42': '#c9a227', '#41c3bd': '#c08ee8', '#c08ee8': '#41c3bd', '#1b1b1d': '#b87333', '#b87333': '#1b1b1d', '#f4f4f2': '#c9a227', '#b8bec4': '#0a2989', '#00a4e4': '#5e43b7', '#ff6a13': '#5e43b7', '#f7d117': '#00a4e4' };
+function segundoColor(hex) { if (PAREJA[hex]) return tono(PAREJA[hex]); const c = tono(hex), h = {}; c.getHSL(h); return new T.Color().setHSL((h.h + 0.45) % 1, Math.max(0.45, h.s), Math.min(0.6, Math.max(0.35, h.l))); }
 // Colores de filamento (los de la gama básica que más se ven). El tono en pantalla es APROXIMADO.
 export const COLORES = [
   ['#f4f4f2', 'Blanco'], ['#1b1b1d', 'Negro'], ['#8e9196', 'Gris'], ['#c8102e', 'Rojo'], ['#ff6a13', 'Naranja'], ['#f7d117', 'Amarillo'], ['#00ae42', 'Verde'], ['#7ed957', 'Verde manzana'],
@@ -21,24 +37,65 @@ export const COLORES = [
 ];
 const tono = hex => new T.Color(hex || '#9b8cff');
 
+// el «ruido» (valores al azar que cambian suave en el espacio) y sus capas, para dibujar vetas, motas y purpurina
+const GLSL = `
+varying vec3 vMundo; varying vec3 vNorMundo;
+float cdH(vec3 p) { p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float cdRuido(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(cdH(i), cdH(i + vec3(1, 0, 0)), f.x), mix(cdH(i + vec3(0, 1, 0)), cdH(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(cdH(i + vec3(0, 0, 1)), cdH(i + vec3(1, 0, 1)), f.x), mix(cdH(i + vec3(0, 1, 1)), cdH(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+float cdFbm(vec3 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * cdRuido(p); p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5; } return s; }
+// celdas de 1 mm con un «punto» al azar dentro (para purpurina y motas): x = cuánto cerca del punto · y = su número al azar
+vec2 cdCelda(vec3 p) { vec3 i = floor(p), f = fract(p); vec3 c = vec3(cdH(i), cdH(i + 7.1), cdH(i + 13.7)); return vec2(1.0 - smoothstep(0.0, 0.32, length(f - c)), cdH(i + 3.3)); }
+// el relieve: cambia la normal según cuánto sube y baja una «altura» h (en mm) de un punto a su vecino en pantalla
+vec3 cdRelieve(vec3 pos, vec3 nor, float h, float caras) { vec3 sx = dFdx(pos), sy = dFdy(pos); vec3 r1 = cross(sy, nor), r2 = cross(nor, sx);
+  float det = dot(sx, r1) * caras; vec2 dh = vec2(dFdx(h), dFdy(h)); vec3 g = sign(det) * (dh.x * r1 + dh.y * r2); return normalize(abs(det) * nor - g); }
+`;
 function material(color, acabado, capas) {
   const A = ACABADOS[acabado] || ACABADOS.mate;
-  const M = new T.MeshPhysicalMaterial({ color: tono(color), roughness: A.r, metalness: A.m, clearcoat: A.cc || 0, clearcoatRoughness: 0.25, side: T.FrontSide });
-  if (A.op) { M.transparent = true; M.opacity = A.op; M.depthWrite = true; }
-  if (capas || A.arco || A.marmol || A.madera) {
-    M.onBeforeCompile = sh => {
-      sh.vertexShader = 'varying vec3 vMundo;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vMundo = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-      let f = '';
-      if (A.arco) f += ' { float t = vMundo.z * 0.045; diffuseColor.rgb = 0.55 + 0.45 * cos(6.2831 * (t + vec3(0.0, 0.33, 0.67))); }\n';
-      if (A.marmol) f += ' { float v = sin(vMundo.x * 0.21 + sin(vMundo.y * 0.37 + vMundo.z * 0.11) * 3.0 + sin(vMundo.z * 0.23) * 2.0); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.32), smoothstep(0.86, 1.0, abs(v)) * 0.75); }\n';
-      if (A.madera) f += ' { float v = fract(length(vMundo.xy) * 0.18 + sin(vMundo.z * 0.4) * 0.15); diffuseColor.rgb *= 0.82 + 0.18 * smoothstep(0.0, 0.5, abs(v - 0.5) * 2.0); }\n';
-      if (capas) f += ' { float l = abs(fract(vMundo.z / 0.2) - 0.5) * 2.0; diffuseColor.rgb *= 0.86 + 0.14 * smoothstep(0.0, 0.7, l); }\n';
-      sh.fragmentShader = 'varying vec3 vMundo;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n' + f);
-    };
-    M.customProgramCacheKey = () => acabado + (capas ? '+capas' : '');
-  }
+  const M = new T.MeshPhysicalMaterial({ color: tono(color), roughness: A.r, metalness: A.m, clearcoat: A.cc || 0, clearcoatRoughness: 0.2, side: T.FrontSide });
+  if (A.tr) { M.transmission = A.tr; M.thickness = 2.5; M.ior = 1.5; M.attenuationColor = tono(color); M.attenuationDistance = 18; M.color = new T.Color(1, 1, 1).lerp(tono(color), 0.55); }
+  if (A.sh) { M.sheen = A.sh; M.sheenRoughness = 0.7; M.sheenColor = new T.Color(1, 1, 1).lerp(tono(color), 0.5); }
+  if (A.glow) { M.emissive = new T.Color(0.55, 1, 0.65).lerp(tono(color), 0.5); M.emissiveIntensity = 0.16; }
+  const c2 = A.doble ? segundoColor(color) : null, lineas = (capas ? 1.6 : 0) + (A.capas || 0);
+  M.onBeforeCompile = sh => {
+    if (c2) sh.uniforms.cdColor2 = { value: c2 };
+    sh.vertexShader = 'varying vec3 vMundo; varying vec3 vNorMundo;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vMundo = (modelMatrix * vec4(transformed, 1.0)).xyz; vNorMundo = normalize(mat3(modelMatrix) * objectNormal);');
+    let col = '', rug = '', met = '', nor = '', emi = '';
+    // las CAPAS de 0,2 mm en relieve (0,025 mm de alto): se apagan solas cuando cada capa ocupa menos de unos 3 puntos de pantalla
+    if (lineas > 0) nor += ` { float L = 0.2, w = fwidth(vMundo.z / L), at = 1.0 - smoothstep(0.18, 0.45, w); float tri = abs(fract(vMundo.z / L) - 0.5) * 2.0; float hc = (1.0 - tri * tri) * 0.025 * ${lineas.toFixed(2)} * at; normal = cdRelieve(-vViewPosition, normal, hc, faceDirection); }\n`;
+    // la seda: un brillo que cambia de tono con el ángulo (y la de dos colores: un color mirando a un lado y el otro al otro)
+    if (A.seda) col += ' { float f = pow(1.0 - abs(dot(normalize(vNorMundo), normalize(cameraPosition - vMundo))), 2.0); diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.25 + 0.06, f * 0.6); }\n';
+    if (c2) col += ' { float k = smoothstep(-0.25, 0.25, dot(normalize(vNorMundo.xy + 1e-4), normalize(vec2(0.7071, 0.7071)))); diffuseColor.rgb = mix(diffuseColor.rgb, cdColor2, k); }\n';
+    if (A.arco) col += ' { float t = vMundo.z * 0.022 + cdFbm(vMundo * 0.02) * 0.15; diffuseColor.rgb = 0.56 + 0.44 * cos(6.2831 * (t + vec3(0.0, 0.33, 0.67))); }\n';
+    // mármol: vetas finas, oscuras y ramificadas sobre el color elegido (aclarado), con nubes suaves
+    if (A.marmol) col += ' { vec3 p = vMundo * 0.035; float t = cdFbm(p * 1.3); float v = abs(sin((p.x + p.y * 0.6 + p.z * 0.35) * 5.0 + t * 7.0)); float vena = pow(1.0 - v, 9.0) + 0.5 * pow(1.0 - abs(sin((p.y - p.z) * 9.0 + t * 11.0)), 14.0);'
+      + ' vec3 base = mix(diffuseColor.rgb, vec3(0.96), 0.55) * (0.93 + 0.1 * cdFbm(p * 3.0)); diffuseColor.rgb = mix(base, base * 0.28 + vec3(0.04), clamp(vena, 0.0, 1.0) * 0.85); }\n';
+    // madera (como sale de verdad el PLA con madera): marrón, con franjas más o menos tostadas capa a capa, veta suave y poro fino
+    if (A.madera) col += ' { float z = vMundo.z; float banda = cdFbm(vec3(z * 0.7, 3.1, 0.0)); float veta = cdRuido(vec3(vMundo.x * 0.5, vMundo.y * 0.5, z * 0.04)); float poro = cdRuido(vMundo * 4.0);'
+      + ' vec3 claro = mix(vec3(0.48, 0.27, 0.12), diffuseColor.rgb, 0.12), osc = vec3(0.2, 0.1, 0.04); diffuseColor.rgb = mix(claro, osc, clamp(banda * 1.25 - 0.35 + veta * 0.3, 0.0, 1.0)) * (0.9 + 0.14 * poro); }\n';
+    // galaxia: el color oscurecido con nubes, y purpurina que brilla según cómo le dé la luz
+    if (A.galaxia) { col += ' { vec2 c = cdCelda(vMundo * 1.6); vec2 c2 = cdCelda(vMundo * 0.7 + 5.0); float fl = max(c.x * step(0.72, c.y), c2.x * step(0.86, c2.y)); diffuseColor.rgb = diffuseColor.rgb * (0.55 + 0.25 * cdFbm(vMundo * 0.08)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), fl * 0.85); }\n';
+      rug += ' { vec2 c = cdCelda(vMundo * 1.6); roughnessFactor = mix(roughnessFactor, 0.08, c.x * step(0.72, c.y)); }\n'; met += ' { vec2 c = cdCelda(vMundo * 1.6); metalnessFactor = mix(metalnessFactor, 1.0, c.x * step(0.72, c.y)); }\n'; }
+    // piedra: motas oscuras y claras, de varios tamaños
+    if (A.piedra) col += ' { vec2 a = cdCelda(vMundo * 2.2), b = cdCelda(vMundo * 4.1 + 2.0); diffuseColor.rgb *= 0.9 + 0.14 * cdFbm(vMundo * 0.2); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.08), a.x * step(0.62, a.y) * 0.8); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92), b.x * step(0.8, b.y) * 0.6); }\n';
+    // fibra de carbono: mate y algo apagado, con un granito fino que brilla poco
+    if (A.carbono) { col += ' { diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.35) * 0.82 * (0.95 + 0.08 * cdRuido(vMundo * 6.0)); }\n'; rug += ' roughnessFactor = clamp(roughnessFactor - 0.25 * step(0.93, cdH(floor(vMundo * 9.0))), 0.0, 1.0);\n'; }
+    // metal cepillado: rayitas finas a lo largo de la pieza
+    if (A.cepillado) rug += ' roughnessFactor = clamp(roughnessFactor + (cdRuido(vec3(vMundo.x * 0.15, vMundo.y * 0.15, vMundo.z * 9.0)) - 0.5) * 0.3, 0.05, 1.0);\n';
+    // mate de verdad: un velo blanquecino en los cantos, como la tiza
+    if (A.tiza) col += ' { float f = pow(1.0 - abs(dot(normalize(vNorMundo), normalize(cameraPosition - vMundo))), 3.0); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.85), f * 0.18); }\n';
+    sh.fragmentShader = GLSL + (c2 ? 'uniform vec3 cdColor2;\n' : '') + sh.fragmentShader
+      .replace('#include <color_fragment>', '#include <color_fragment>\n' + col)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n' + rug)
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n' + met)
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + nor)
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + emi);
+  };
+  M.customProgramCacheKey = () => 'cd18:' + acabado + (capas ? '+capas' : '') + (c2 ? '+c2' : '');
   return M;
 }
+export { material as materialAcabado };
 function geometria(v) {
   const g = new T.BufferGeometry();
   g.setAttribute('position', new T.BufferAttribute(v.pos, 3)); g.setAttribute('normal', new T.BufferAttribute(v.nor, 3)); g.setIndex(new T.BufferAttribute(v.idx, 1));
@@ -60,6 +117,8 @@ export function crearEscena(lienzo, opts = {}) {
   const sol = new T.DirectionalLight(0xffffff, 1.7); sol.position.set(120, -160, 260); sol.castShadow = true; sol.shadow.mapSize.set(2048, 2048); sol.shadow.bias = -0.0004;
   Object.assign(sol.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, near: 10, far: 900 }); esc.add(sol); esc.add(sol.target);
   const rel = new T.DirectionalLight(0xa9b8ff, 0.45); rel.position.set(-200, 160, 90); esc.add(rel);
+  // 18-10-2026 · luz de contorno (de detrás y de arriba): las piezas oscuras —una funda negra— ya no se pierden contra el fondo
+  const contra = new T.DirectionalLight(0xffffff, 0.85); contra.position.set(-140, 240, 230); esc.add(contra);
 
   let raf = 0, vivo = true, alDibujar = null; // (antes que nada: pintaCama() ya pide dibujar)
   let anim = null, t0anim = 0, vuelta = 0; // v20.2: animación y cámara que gira
@@ -67,7 +126,9 @@ export function crearEscena(lienzo, opts = {}) {
   const cama = new T.Group(); esc.add(cama); let lado = opts.cama || 256;
   function pintaCama() {
     cama.clear();
-    const base = new T.Mesh(new T.PlaneGeometry(lado, lado), new T.MeshStandardMaterial({ color: opts.dia ? 0xe9ecf4 : 0x151a2e, roughness: 0.92, metalness: 0 }));
+    // 18-10-2026 · la placa como la de la Bambu (PEI texturizada): un granito fino que se ve al acercarse
+    const mb = new T.MeshStandardMaterial({ color: opts.dia ? 0xe9ecf4 : 0x1a1f33, roughness: 0.88, metalness: 0.05 }); mb.onBeforeCompile = sh => { sh.vertexShader = 'varying vec3 vMundo; varying vec3 vNorMundo;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vMundo = (modelMatrix * vec4(transformed, 1.0)).xyz; vNorMundo = vec3(0.0, 0.0, 1.0);'); sh.fragmentShader = GLSL + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n diffuseColor.rgb *= 0.9 + 0.16 * cdRuido(vMundo * 2.4) + 0.06 * cdRuido(vMundo * 0.08);'); }; mb.customProgramCacheKey = () => 'cdCama';
+    const base = new T.Mesh(new T.PlaneGeometry(lado, lado), mb);
     base.receiveShadow = true; base.position.z = -0.05; cama.add(base);
     const fina = [], gorda = [];
     for (let v = -lado / 2; v <= lado / 2 + 0.01; v += 10) { const L = Math.abs(Math.round(v) % 50) === 0 ? gorda : fina; L.push(v, -lado / 2, 0, v, lado / 2, 0, -lado / 2, v, 0, lado / 2, v, 0); }
@@ -386,8 +447,19 @@ export function crearEscena(lienzo, opts = {}) {
 
   // ---- dibujar (solo cuando hace falta) ----
   function pide() { if (!raf && vivo) raf = requestAnimationFrame(dibuja); }
+  let enVideo = null; // 18-10-2026 · mientras se hace un vídeo fotograma a fotograma, el dibujo «en vivo» espera (si no, se cuela entre fotogramas)
+  function video(on) {
+    if (on) { enVideo = { pr: ren.getPixelRatio(), fondo: ren.getClearColor(new T.Color()).getHex(), alfa: ren.getClearAlpha() }; ren.setClearColor(opts.dia ? 0xeef1f8 : 0x101528, 1); /* (en el vídeo, lo transparente saldría negro: fondo de estudio) */ const W = lienzo.width - (lienzo.width % 2), H = lienzo.height - (lienzo.height % 2); ren.setPixelRatio(1); ren.setSize(W, H, false); cam.aspect = W / H; cam.updateProjectionMatrix(); return { ancho: W, alto: H }; } // (el vídeo H.264 pide ancho y alto pares)
+    if (enVideo) { ren.setPixelRatio(enVideo.pr); ren.setClearColor(enVideo.fondo, enVideo.alfa); enVideo = null; } pide();
+  }
+  // pinta YA la animación «fn» en el segundo t, con la cámara girada «ang» radianes alrededor de lo que mira (no toca la cámara de verdad)
+  function fotograma(fn, t, ang = 0) {
+    const D = fn ? (fn(t) || {}) : {}; [partes, huecos].forEach(G => G.children.forEach(o => { const b = o.userData.base; if (!b) return; const d = D[o.userData.id]; o.matrix.copy(d ? d.clone().multiply(b) : b); })); partes.updateMatrixWorld(true); huecos.updateMatrixWorld(true);
+    const p0 = cam.position.clone(); if (ang) { const v = p0.clone().sub(ctl.target); v.applyAxisAngle(new T.Vector3(0, 0, 1), ang); cam.position.copy(ctl.target).add(v); cam.lookAt(ctl.target); }
+    const mv = marca.visible; marca.visible = false; ren.render(esc, cam); marca.visible = mv; if (ang) { cam.position.copy(p0); cam.lookAt(ctl.target); }
+  }
   function dibuja() {
-    raf = 0; if (!vivo) return;
+    raf = 0; if (!vivo || enVideo) return;
     const w = lienzo.clientWidth || 300, h = lienzo.clientHeight || 200;
     if (lienzo.width !== Math.round(w * ren.getPixelRatio()) || lienzo.height !== Math.round(h * ren.getPixelRatio())) { ren.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
     if (anim) { // v20.2 · ANIMACIÓN: cada pieza = su movimiento × su matriz de reposo
@@ -408,7 +480,7 @@ export function crearEscena(lienzo, opts = {}) {
   dibuja();
   return {
     T, esc, cam, ctl, ponPartes, ponProxies, moverProxy, marcar, flechas, fino, cuerpoEn, puntoEn, medida, planoCorte, marcadores, encuadrar, aPantalla, foto, pide,
-    caraEn, ponCara, construccion, consEn, fantasmas, vistaModo, puntoPlano, ponOpacidad, seccion, animar, animando, giraCamara, grabar, // v20.2
+    caraEn, ponCara, construccion, consEn, fantasmas, vistaModo, puntoPlano, ponOpacidad, seccion, animar, animando, giraCamara, grabar, video, fotograma, // v20.2 · 18-10: vídeo fotograma a fotograma
     previa, previaPon, previaEn, // v30.6
     cuboVistas, get cuboV() { return cuboV; }, // v20.4
     ponHover, ponArista, ponPunto, lienzos, get sobreFlechas() { return !!(tc.object && tc.axis); }, // v30 (como Fusion)
@@ -427,6 +499,7 @@ export function miniatura(vista, color = '#7c6cff', acabado = 'mate', tam = 320,
     const ren = new T.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true }); ren.outputColorSpace = T.SRGBColorSpace; ren.toneMapping = T.ACESFilmicToneMapping;
     const esc = new T.Scene(), pm = new T.PMREMGenerator(ren); esc.environment = pm.fromScene(new T.RoomEnvironment(), 0.04).texture; pm.dispose();
     esc.add(new T.HemisphereLight(0xffffff, 0x333344, 0.6)); const s = new T.DirectionalLight(0xffffff, 1.6); s.position.set(1, -1.4, 2); esc.add(s);
+    const s2 = new T.DirectionalLight(0xffffff, 0.8); s2.position.set(-1, 1.6, 1.4); esc.add(s2); // (18-10: luz de contorno, para los colores oscuros)
     const cam = new T.PerspectiveCamera(30, 1, 0.1, 5000); cam.up.set(0, 0, 1); mini = { c, ren, esc, cam };
   }
   const { ren, esc, cam } = mini; ren.setSize(tam, tam, false);

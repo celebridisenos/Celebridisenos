@@ -35,6 +35,7 @@ import { DISENOS_FUMAR } from './cat_fumar.js'; // 17-10-2026 tarde · fundas de
 import { DISENOS_52 } from './cat_52.js'; // 17-10-2026 · 🛒 más variedad para Cults: cajas, Halloween, bebés, juguetes, ciencia, frikis, casa // 17-10-2026 · 🐉 figuras articuladas que salen ya montadas (dragón, pulpo, pez, lagartija, araña, ajolote)
 import { DISENOS_50 } from './cat_50.js'; // 13-10-2026 · 🎁 diseños nuevos: torre de canicas en zigzag, cuatro en línea, damas, serpiente articulada, deslizante, maquillaje giratorio, estación de carga, riel de pared, caja de engranajes
 import { DISENOS_51 } from './cat_51.js'; // 13-10-2026 · 50.1 (RC, rodamientos y cajas seguras)
+import { DISENOS_1810 } from './cat_1810.js'; // 18-10-2026 · mecanismos que se mueven (Ginebra, biela, leva) y expositor de mecheros
 import { DISENOS_ENGR } from './cat_engranajes.js'; // 14-10-2026 · ⚙️ engranajes para vender: planetario, corazón con nombres, de mesa, llavero, espirógrafo
 import { DISENOS_PRO } from './cat_pro.js'; // v30.7.1 · ⭐ PRO: por piezas, que encajan (lava-pinceles, bote de rosca, escritorio modular, maceta con autorriego)
 import { DISENOS_PACK60 } from './cat_pack60.js'; // v30.7 · 🎁 el pack de 60: velas, lámparas, ratón, hogar, oficina, flores, hormigas, pinceles, papeleras, juegos y empresas
@@ -1243,6 +1244,7 @@ Object.assign(DISENOS, DISENOS_JUEGOS); // v30.3
 Object.assign(DISENOS, DISENOS_50); // 13-10-2026
 Object.assign(DISENOS, DISENOS_51); // 13-10-2026 · 50.1: soporte de motor DC, servo PRO, adaptador de eje 6 → 3/4/5, rueda de drift, rodamiento con soporte, caja de bayoneta, chasis buggy
 Object.assign(DISENOS, DISENOS_ENGR); // 14-10-2026
+Object.assign(DISENOS, DISENOS_1810); // 18-10-2026
 Object.assign(DISENOS, DISENOS_CASA); // v30.3
 Object.assign(DISENOS, DISENOS_NAVIDAD); // v30.4
 Object.assign(DISENOS, DISENOS_REFERENCIAS); // v30.4

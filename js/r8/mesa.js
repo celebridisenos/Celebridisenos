@@ -120,7 +120,9 @@ export function mesa(escena, lienzo, o = {}) {
     centro = guarda; return out;
   }
   return {
-    expande, llenar, get copias() { return inst.length; }, reinicia() { inst = [{ id: 'm0', dx: 0, dy: 0, rot: 0 }]; selI = null; pinta(); },
+    expande, llenar, get copias() { return inst.length; },
+    // 18-10-2026 · una animación hecha para las piezas «de verdad» ({ id: Matrix4 }) → la misma en CADA copia de la cama (las piezas aquí se llaman «id@copia»)
+    anim(fn) { if (!fn) return null; return t => { const D = fn(t) || {}, out = {}; inst.forEach(i => { const Mi = mat(i), Mn = Mi.clone().invert(); Object.entries(D).forEach(([id, M]) => { out[id + '@' + i.id] = Mi.clone().multiply(M).multiply(Mn); }); }); return out; }; }, reinicia() { inst = [{ id: 'm0', dx: 0, dy: 0, rot: 0 }]; selI = null; pinta(); },
     destruir() { vivo = false; escena.ponPartes = orig; bar.remove(); contenedor.removeEventListener('pointerdown', abajo, true); window.removeEventListener('pointermove', mueve); window.removeEventListener('pointerup', arriba); window.removeEventListener('pointercancel', arriba); document.removeEventListener('keydown', tecla); }
   };
 }

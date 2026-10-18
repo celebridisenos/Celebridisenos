@@ -21,6 +21,10 @@ export const ESTILOS_FUNDA = {
   mediaPanal: { t: '◒ Media funda: panal abajo, lisa arriba', p: 'panal', zona: 'abajo' }, mediaRombos: { t: '◒ Media funda: rombos abajo', p: 'rombos', zona: 'abajo' }, franjaOndas: { t: '▬ Franja de ondas en el centro', p: 'ondas', zona: 'franja' }, franjaEstrellas: { t: '▬ Franja de estrellas en el centro', p: 'estrellas', zona: 'franja' },
   nombre: { t: '🔤 Nombre calado', texto: 1 }, nombreGrabado: { t: '🔤 Nombre grabado', texto: 1, grabado: 1 },
   figura: { t: '🦋 Figura calada (emoji)', figura: 1 }, figuraGrabada: { t: '🦋 Figura grabada', figura: 1, grabado: 1 },
+  // 18-10-2026 · seis dibujos nuevos, calados y grabados
+  hojas: { t: '🍃 Hojas en espiga caladas', p: 'hojas' }, hojasGrabado: { t: '🍃 Hojas en espiga grabadas', p: 'hojas', grabado: 1 }, flores: { t: '🌸 Flores caladas', p: 'flores' }, floresGrabado: { t: '🌸 Flores grabadas', p: 'flores', grabado: 1 },
+  gotas: { t: '💧 Gotas caladas', p: 'gotas' }, cruces: { t: '✚ Cruces caladas', p: 'cruces' }, chevron: { t: '⋀ Zigzag calado', p: 'chevron' }, chevronGrabado: { t: '⋀ Zigzag grabado', p: 'chevron', grabado: 1 },
+  degradado: { t: '◐ Lunares en degradado (calados)', p: 'degradado' }, degradadoGrabado: { t: '◐ Lunares en degradado (grabados)', p: 'degradado', grabado: 1 },
   marco: { t: '🔲 Solo marco (bumper)', marco: 1 }, antigolpes: { t: '🛡️ Esquinas antigolpes', golpes: 1 }, ventana: { t: '🪟 Ventana central (ver el logo)', ventana: 1 }
 };
 const r = (w, h, rad) => N.cs([N.ccw(rectR(w, h, rad))], 'Positive');

@@ -127,12 +127,7 @@ export function monta(prenda, C, R, o = {}) {
   const entretela = ip => prenda.tejido !== 'punto' && /^Cinturilla/.test(P[ip].pz.nombre);
   E.forEach((e, q) => { ar[2 * q] = e.i; ar[2 * q + 1] = e.j; arL[q] = G.dist(uvp(uv, e.i), uvp(uv, e.j)); const T = TELAS[P[e.panel].tela], en = entretela(e.panel); arK[q] = Math.min(0.85, 1 - (en ? 0.01 : T.estira) * 0.9); /* (16-10: con la malla fina, 0,97 hacía vibrar los bajos para siempre; lo que no se estira lo asegura el TOPE) */ arT[q] = arL[q] * (1 + (en ? 0.006 : T.tope != null ? T.tope : 0.2)); if (e.op2 != null) F.push([e.op, e.op2, e.panel]); });
   const fl = new Uint32Array(2 * F.length), flL = new Float32Array(F.length), flK = new Float32Array(F.length);
-  // (18-10) el CANTO DE LA CARA de la capucha va vuelto (la jareta del cordón, 3 cm): dos capas de tela, mucho más firme al doblar. Sin esto
-  //  el canto se arrugaba en picos alrededor de la cara. (De una tela doble, la rigidez al doblar es varias veces la de una sola.)
-  const firme = new Uint8Array(N);
-  P.forEach(p => { if (p.pz.nombre !== 'Capucha' || !p.pz.bordes.some(b => b.id === 'cara')) return; const L = Z.bordePolilinea(p.pz, 'cara'), m = Z.margenDe(p.pz, 'cara') || 30;
-    for (let i = 0; i < p.n; i++) { const r = G.distAPolilinea(p.it.M.P[i], L); if ((r && r.d != null ? r.d : r) < m) firme[p.off + i] = 1; } });
-  F.forEach(([a, b, ip], q) => { fl[2 * q] = a; fl[2 * q + 1] = b; flL[q] = G.dist(uvp(uv, a), uvp(uv, b)); const dob = TELAS[P[ip].tela].dobla; flK[q] = entretela(ip) ? Math.max(0.6, dob) : firme[a] && firme[b] ? Math.max(0.5, 4 * dob) : dob; });
+  F.forEach(([a, b, ip], q) => { fl[2 * q] = a; fl[2 * q + 1] = b; flL[q] = G.dist(uvp(uv, a), uvp(uv, b)); const dob = TELAS[P[ip].tela].dobla; flK[q] = entretela(ip) ? Math.max(0.6, dob) : dob; }); // (18-10: un canto de capucha más rígido la dejaba resbalando sobre la frente: probado ×4 y ×2, quitado)
   // UNIONES DE LARGO ALCANCE (16-10): el tope de estirar se cumplía de vecino a vecino, pero en una tira larga los estirones pequeños se
   // SUMABAN (una cinturilla de 71 cm acababa en 79 y la falda resbalaba por la cadera). Cada punto se ata también a otros a ~5 lados de
   // malla en su pieza: entre ellos, como mucho el largo del PATRÓN + lo que da de sí la tela (en 3D, siempre más corto o igual). Lycra, no.

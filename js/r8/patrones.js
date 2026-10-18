@@ -5,7 +5,9 @@
 // jarrones, portavelas, maceteros). «puente» es lo que queda de material entre agujero y agujero.
 import * as N from './nucleo.js';
 
-export const PATRONES = { panal: '⬢ Panal', voronoi: '🕸️ Voronoi (libélula)', circulos: '● Círculos', rombos: '◆ Rombos', estrellas: '★ Estrellas', corazones: '♥ Corazones', triangulos: '▲ Triángulos', ondas: '〰 Ondas', escamas: '🐟 Escamas', rayas: '▤ Rayas', cuadros: '▦ Cuadros' };
+export const PATRONES = { panal: '⬢ Panal', voronoi: '🕸️ Voronoi (libélula)', circulos: '● Círculos', rombos: '◆ Rombos', estrellas: '★ Estrellas', corazones: '♥ Corazones', triangulos: '▲ Triángulos', ondas: '〰 Ondas', escamas: '🐟 Escamas', rayas: '▤ Rayas', cuadros: '▦ Cuadros',
+  // 18-10-2026 · seis nuevos (para vender más fundas, mecheros, lámparas…): hojas en espiga, flores, gotas, cruces, zigzag y lunares en degradado
+  hojas: '🍃 Hojas en espiga', flores: '🌸 Flores', gotas: '💧 Gotas', cruces: '✚ Cruces', chevron: '⋀ Zigzag', degradado: '◐ Lunares en degradado' };
 
 // generador de números «al azar» que siempre da lo mismo con la misma semilla (el diseño no cambia al recalcular)
 export function azar(semilla = 1) { let s = (semilla * 2654435761) >>> 0 || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
@@ -30,6 +32,10 @@ const forma = (tipo, s) => { // un agujero de tamaño «s», centrado
   if (tipo === 'cuadros') return [[-s / 2, -s / 2], [s / 2, -s / 2], [s / 2, s / 2], [-s / 2, s / 2]];
   if (tipo === 'estrellas') return N.estrella2(5, s / 2, s / 2 * 0.45);
   if (tipo === 'corazones') return N.corazon2(s);
+  if (tipo === 'hojas') { const o = [], L = s * 0.62, A = s * 0.2; for (let i = 0; i <= 24; i++) { const t = i / 24 * Math.PI; o.push([Math.cos(t) * L, Math.sin(t) * A]); } for (let i = 1; i < 24; i++) { const t = Math.PI + i / 24 * Math.PI; o.push([Math.cos(t) * L, Math.sin(t) * A]); } return o; } // (una hoja: dos arcos que se juntan en punta)
+  if (tipo === 'flores') { const o = []; for (let i = 0; i < 60; i++) { const t = i / 60 * 2 * Math.PI, r = s / 2 * (0.62 + 0.38 * Math.cos(5 * t)); o.push([r * Math.cos(t + Math.PI / 2), r * Math.sin(t + Math.PI / 2)]); } return o; } // (cinco pétalos)
+  if (tipo === 'gotas') { const o = [], R = s * 0.3, c = -s * 0.18, T = s * 0.5, b = Math.acos(R / (T - c)); for (let i = 0; i <= 40; i++) { const t = (Math.PI / 2 - b) - i / 40 * (2 * Math.PI - 2 * b); o.push([R * Math.cos(t), c + R * Math.sin(t)]); } o.push([0, T]); return o; } // (redonda abajo, en punta arriba)
+  if (tipo === 'cruces') { const a = s / 2, b = s * 0.17; return [[-b, -a], [b, -a], [b, -b], [a, -b], [a, b], [b, b], [b, a], [-b, a], [-b, b], [-a, b], [-a, -b], [-b, -b]]; }
   return N.poligono2(32, s);
 };
 // Los AGUJEROS (CrossSection) de un patrón dentro de un rectángulo w × h. Si «zona» (CrossSection) se da, solo dentro de ella.
@@ -38,11 +44,14 @@ export function agujeros2D(tipo, w, h, celda = 10, puente = 2, semilla = 7) {
   if (tipo === 'voronoi') voronoi(w + celda, h + celda, celda, semilla).forEach(p => { L.push(N.cs([N.ccw(p)], 'Positive').offset(-puente / 2, 'Round', 2, 12)); });
   else if (tipo === 'triangulos') { const a = celda, hh = a * Math.sqrt(3) / 2; for (let j = -Math.ceil(h / hh / 2) - 1; j <= Math.ceil(h / hh / 2) + 1; j++) for (let i = -Math.ceil(w / a) - 1; i <= Math.ceil(w / a) + 1; i++) { const x = i * a / 2, y = j * hh, arriba = (i + j) % 2 === 0;
     const t = arriba ? [[x - a / 2, y - hh / 2], [x + a / 2, y - hh / 2], [x, y + hh / 2]] : [[x - a / 2, y + hh / 2], [x, y - hh / 2], [x + a / 2, y + hh / 2]]; L.push(N.cs([N.ccw(t)], 'Positive').offset(-puente / 2, 'Miter')); } }
-  else if (tipo === 'ondas' || tipo === 'rayas') { const n = Math.ceil(h / celda) + 2; for (let j = -n; j <= n; j++) { const y = j * celda, arr = [], abj = []; for (let x = -w / 2 - celda; x <= w / 2 + celda; x += 1) { const dy = tipo === 'ondas' ? Math.sin(x / celda * Math.PI) * celda * 0.35 : 0; arr.push([x, y + dy + s / 2]); abj.push([x, y + dy - s / 2]); } L.push(N.cs([N.ccw(arr.concat(abj.reverse()))], 'Positive')); } }
+  else if (tipo === 'ondas' || tipo === 'rayas' || tipo === 'chevron') { const n = Math.ceil(h / celda) + 2; for (let j = -n; j <= n; j++) { const y = j * celda, arr = [], abj = []; for (let x = -w / 2 - celda; x <= w / 2 + celda; x += 1) { const dy = tipo === 'ondas' ? Math.sin(x / celda * Math.PI) * celda * 0.35 : tipo === 'chevron' ? (Math.abs(((x / celda) % 2 + 2) % 2 - 1) - 0.5) * celda * 0.8 : 0; arr.push([x, y + dy + s / 2]); abj.push([x, y + dy - s / 2]); } L.push(N.cs([N.ccw(arr.concat(abj.reverse()))], 'Positive')); } }
   else { // rejillas: panal (filas desplazadas), círculos, rombos, estrellas, corazones, cuadros, escamas
     const hex = tipo === 'panal', dx = celda, dy = hex ? celda * 0.866 : tipo === 'escamas' ? celda * 0.8 : celda;
     const ny = Math.ceil(h / dy / 2) + 2, nxx = Math.ceil(w / dx / 2) + 2;
-    for (let j = -ny; j <= ny; j++) for (let i = -nxx; i <= nxx; i++) { const x = i * dx + (j % 2 ? dx / 2 : 0), y = j * dy; const f = forma(tipo, hex ? s / 0.866 : s); L.push(N.cs([N.ccw(f.map(q => [q[0] + x, q[1] + y]))], 'Positive')); }
+    for (let j = -ny; j <= ny; j++) for (let i = -nxx; i <= nxx; i++) { const x = i * dx + (j % 2 ? dx / 2 : 0), y = j * dy;
+      let k = 1; if (tipo === 'degradado') { k = Math.max(0, Math.min(1, 0.5 - y / Math.max(1, h))) * 0.85 + 0.12; if (k * s < 1.2) continue; } // (grandes abajo, pequeños arriba; los diminutos no se imprimen: fuera)
+      let f = forma(tipo === 'degradado' ? 'circulos' : tipo, (hex ? s / 0.866 : s) * k); if (tipo === 'hojas') { const a = ((i + j) % 2 ? 1 : -1) * Math.PI / 4, c = Math.cos(a), sn = Math.sin(a); f = f.map(q => [q[0] * c - q[1] * sn, q[0] * sn + q[1] * c]); }
+      L.push(N.cs([N.ccw(f.map(q => [q[0] + x, q[1] + y]))], 'Positive')); }
   }
   return N.csUnion(L);
 }

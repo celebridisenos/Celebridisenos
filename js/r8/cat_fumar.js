@@ -52,15 +52,16 @@ export function fundaMechero(p, prueba) {
   m = m.add(M().hull([cubo(-lw / 2 + 1, lw / 2 - 1, yC - 0.9, yC + 0.01, z1 - 6, z1 - 3), cubo(-lw / 2 + 1, lw / 2 - 1, yC - 0.01, yC + 0.01, z1 - 9, z1 - 0.5)])); // (rampa a 45° por debajo: sin soportes)
   // el ESTILO en la cara de delante (y < 0) y en los lados
   const yF = -go / 2, ancho = wo - 2 * (r + c + e) + 4, alto = H - 10;
-  if (p.estilo === 'calado' || p.estilo === 'panal') {
-    const huecos = PT.agujeros2D(p.estilo === 'panal' ? 'panal' : 'voronoi', ancho, alto, p.estilo === 'panal' ? 5 : 7, 1.6, 9);
+  const patron = p.estilo === 'calado' ? 'voronoi' : PT.PATRONES[p.estilo] && !['escamas', 'rayas'].includes(p.estilo) ? p.estilo : null; // (18-10-2026: cualquier calado del programa: hojas, flores, gotas, cruces, zigzag…)
+  if (patron) {
+    const huecos = PT.agujeros2D(patron, ancho, alto, patron === 'panal' ? 5 : patron === 'voronoi' ? 7 : 6, 1.6, 9);
     if (huecos && !huecos.isEmpty()) m = m.subtract(enXZ(huecos.translate([0, H / 2]), yF - 1, yF + e + 0.5));
   }
   if (p.estilo === 'escamas') { const L = []; for (let j = 0; j < 30; j++) for (let i = -6; i <= 6; i++) { const x = i * 6 + (j % 2 ? 3 : 0), z = 6 + j * 4.2; if (z > H - 5 || Math.abs(x) > ancho / 2) continue; L.push(CS().circle(3.4, 24).subtract(CS().circle(2.7, 24)).subtract(rr(8, 4, 0, 0, 2)).translate([x, z])); }
     if (L.length) m = m.subtract(enXZ(N.csUnion(L), yF - 1, yF + 0.6)); }
   if (p.estilo === 'rayas') { const L = []; for (let x = -ancho / 2 + 2; x <= ancho / 2 - 2; x += 3) L.push(rr(1.2, alto, 0.5, x, H / 2)); m = m.subtract(enXZ(N.csUnion(L), yF - 1, yF + 0.6)); }
   const t = String(p.texto || '').trim();
-  if (t && p.estilo !== 'calado' && p.estilo !== 'panal') { try { let T = N.centraCS(N.texto2(t, p.fuente || 'gorda', 7)); const b = N.cajaCS(T), k = Math.min(1, (alto - 4) / b.w, (ancho - 4) / b.h); T = T.scale([k, k]).rotate(90).translate([0, H / 2]);
+  if (t && !patron) { try { let T = N.centraCS(N.texto2(t, p.fuente || 'gorda', 7)); const b = N.cajaCS(T), k = Math.min(1, (alto - 4) / b.w, (ancho - 4) / b.h); T = T.scale([k, k]).rotate(90).translate([0, H / 2]);
     m = m.subtract(enXZ(T, yF - 1, yF + 0.7)); } catch (x) { /* sin letras (pruebas sin navegador) */ } }
   // anilla para el mosquetón (en el lado, arriba, a 45°: sin soportes)
   if (p.anilla !== false) { const xA = wo / 2 - 1; m = m.add(M().hull([cubo(xA, xA + 0.5, -3, 3, H - 19, H - 2), cubo(xA, xA + 8, -3, 3, H - 11, H - 2)]).subtract(M().cylinder(10, 1.9, 1.9, 24).rotate([90, 0, 0]).translate([xA + 4.6, 5, H - 6.5]))); } // (agujero de Ø3,8 para la anilla: horizontal y pequeño, sin soportes)
@@ -136,7 +137,7 @@ const huellaDe = m => { const L = [0.3, 0.8, 1.3].map(z => m.slice(z)).filter(s 
 const FUEGO = ' ⚠️ La brasa y la ceniza van SIEMPRE en el vaso de aluminio de una velita de té (Ø 39 × 15 mm): el plástico impreso se ablanda con el calor. Mejor la cabeza en PETG.';
 export const DISENOS_FUMAR = {
   fundaMecheroPro: { cat: 'jovenes', tambien: ['regalos', 'adultos'], e: '🔥', t: 'Funda de mechero (BIC mini, slim, maxi o Clipper)', d: 'Entra de verdad: cada modelo con sus medidas, lengüeta que lo sujeta y estilos (calado, panal, escamas, rayas o con nombre)', uso: 'funcional', color: '#1b1b1f', nuevo: true,
-    campos: [s('modelo', 'Mechero', 'bicMini', Object.entries(MECHEROS).map(([k, B]) => [k, B.t])), s('estilo', 'Estilo', 'calado', [['calado', '🕸️ Calado (voronoi)'], ['panal', '⬢ Panal'], ['escamas', '🐉 Escamas'], ['rayas', '▥ Rayas'], ['liso', 'Lisa, con nombre']]), tx('texto', 'Nombre (en «lisa», escamas o rayas)', '', 'Tu nombre o el de quien la regala'), s('que', 'Qué sacar', 'funda', [['funda', 'La funda'], ['prueba', '🧪 Prueba de encaje (1 cm)'], ['las2', 'Funda + prueba']]),
+    campos: [s('modelo', 'Mechero', 'bicMini', Object.entries(MECHEROS).map(([k, B]) => [k, B.t])), s('estilo', 'Estilo', 'calado', [['calado', '🕸️ Calado (voronoi)'], ['panal', '⬢ Panal'], ['escamas', '🐉 Escamas'], ['rayas', '▥ Rayas'], ['liso', 'Lisa, con nombre'], ['rombos', '◆ Rombos'], ['hojas', '🍃 Hojas en espiga'], ['flores', '🌸 Flores'], ['gotas', '💧 Gotas'], ['cruces', '✚ Cruces'], ['chevron', '⋀ Zigzag'], ['degradado', '◐ Lunares en degradado'], ['estrellas', '★ Estrellas'], ['corazones', '♥ Corazones']]), tx('texto', 'Nombre (en «lisa», escamas o rayas)', '', 'Tu nombre o el de quien la regala'), s('que', 'Qué sacar', 'funda', [['funda', 'La funda'], ['prueba', '🧪 Prueba de encaje (1 cm)'], ['las2', 'Funda + prueba']]),
       n('ancho', 'A medida: ancho', 25, 15, 35, 0.1), n('grueso', 'A medida: grueso', 15, 8, 22, 0.1), n('alto', 'A medida: alto', 80, 50, 100, 1)],
     gen: p => { if (p.que === 'prueba') return fundaMechero(p, true); if (p.que === 'las2') { const a = fundaMechero(p), b = fundaMechero(p, true), ba = N.caja(a); return N.union([a, b.translate([ba.max[0] + 12 - N.caja(b).min[0], 0, 0])]); } return fundaMechero(p); },
     nota: p => { const Q = fundaMedidas(p); return Q.B.t + ': ' + n1(Q.w) + ' × ' + n1(Q.g) + ' mm (la funda deja 0,5 de aire por lado y mide ' + n1(Q.wo) + ' × ' + n1(Q.go) + ' × ' + n1(Q.H) + '; asoma la cabeza del mechero). Se imprime DE PIE, sin soportes: el hueco sale exacto. Imprime antes la 🧪 prueba de 1 cm: tu mechero tiene que entrar sin forzar. La lengüeta de atrás lo sujeta.'; } },

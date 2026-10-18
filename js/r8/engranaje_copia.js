@@ -77,13 +77,17 @@ export function deduce(med) {
   const mejor = unicas[0] || null, seg = unicas[1] || null;
   if (!mejor) return { mejor: null, otras: [], avisos: [{ n: 'error', t: 'Ningún módulo ni paso diametral normalizado explica esas medidas. Revisa los dientes (¿los has contado dos veces?) y el Ø exterior.' }] };
   const tol = conPb ? 0.05 : conW ? 0.06 : 0.08;
-  mejor.confianza = mejor.score < tol && (!seg || seg.score > 2 * mejor.score) ? 'alta' : mejor.score < 2.5 * tol ? 'media' : 'baja';
+  // 18-10-2026 · GEMELOS: dos pasos que se llevan menos de un 1,5 % (32 DP y módulo 0,8; 64 DP y 0,4) casi no se distinguen con el calibre:
+  // con el ruido de la medida, a veces el otro, con algo de desplazamiento, cuadraba mejor y salía con confianza ALTA (1 de cada 200
+  // medidas): con un gemelo cerca no se dice «alta» salvo que el otro quede muy lejos, y se avisa siempre de que hay otra opción
+  const gemela = !!(seg && seg.mn !== mejor.mn && Math.abs(seg.mn - mejor.mn) / mejor.mn < 0.015);
+  mejor.confianza = mejor.score < tol && (!seg || seg.score > (gemela ? 4 : 2) * mejor.score) ? 'alta' : mejor.score < 2.5 * tol ? 'media' : 'baja';
   mejor.alfaSabido = conPb || (med.alfa && med.alfa !== 'auto');
   mejor.texto = (mejor.dp ? mejor.dp + ' DP (módulo ' + f(mejor.mn, 4) + ')' : 'módulo ' + f(mejor.mn, 3)) + ' · ' + f(mejor.alfa, 1) + '°' + (Math.abs(mejor.x) > 0.005 ? ' · desplazamiento ' + f(mejor.x, 3) : '');
   if (mejor.confianza === 'baja') avisos.push({ n: 'aviso', t: 'Las medidas no cuadran del todo con ningún engranaje normalizado (lo más cercano: ' + mejor.texto + '). Puede estar muy gastado o ser a medida: vuelve a medir el Ø exterior en varios sitios y, si puedes, la medida sobre ' + (k || 'k') + ' dientes.' });
   if (!conW) avisos.push({ n: 'aviso', t: 'Sin la «medida sobre ' + kRecomendado(z, mejor.alfa, beta) + ' dientes» la precisión es la del Ø exterior (±0,05 mm como mucho) y el grueso del diente se supone el normal. Para que salga IDÉNTICO, mídela (ver la ayuda) y escríbela.' });
   if (!mejor.alfaSabido) avisos.push({ n: 'aviso', t: 'El ángulo de presión no se puede saber solo con el Ø: se ha puesto ' + f(mejor.alfa, 1) + '° (el más común). Con la medida sobre ' + kRecomendado(z, 20, beta) + ' y sobre ' + (kRecomendado(z, 20, beta) + 1) + ' dientes lo calculo de verdad.' });
-  if (seg && seg.score < 1.5 * mejor.score && seg.mn !== mejor.mn) avisos.push({ n: 'aviso', t: 'Hay otra opción casi igual de buena: ' + (seg.dp ? seg.dp + ' DP' : 'módulo ' + f(seg.mn, 3)) + '. La medida sobre k dientes las distingue.' });
+  if (seg && (seg.score < 1.5 * mejor.score || gemela && seg.score < 4 * mejor.score) && seg.mn !== mejor.mn) avisos.push({ n: 'aviso', t: 'Hay otra opción casi igual de buena: ' + (seg.dp ? seg.dp + ' DP' : 'módulo ' + f(seg.mn, 3)) + '. La medida sobre k dientes las distingue.' });
   if (mejor.errores.da > 0.03 && conW) avisos.push({ n: 'ok', t: 'El Ø exterior medido es ' + f(mejor.errores.da, 2) + ' mm más pequeño que el teórico: la punta está achaflanada o gastada. Se copia el diente por su flanco (cota W), que es lo que engrana.' });
   if (mejor.confianza === 'alta') avisos.push({ n: 'ok', t: 'Identificado con confianza ALTA: ' + mejor.texto + '.' });
   return { mejor, otras: unicas.slice(1, 4), avisos, conW, conPb };

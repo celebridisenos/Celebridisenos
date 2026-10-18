@@ -9,6 +9,7 @@ import * as N from '../r8/nucleo.js';
 import { crearEscena, miniatura, COLORES, ACABADOS } from '../r8/escena3d.js';
 import { MOVILES } from '../r8/moviles.js';
 import { mesa } from '../r8/mesa.js'; // v30: tocar, mover, duplicar y copiar la pieza en la cama
+import * as CA from '../r8/cat_anima.js'; // 18-10-2026 · 🎬 animar cualquier diseño (qué gira, qué orbita, qué se ondula, qué se abre)
 
 const MINIS = new Map(); // miniaturas ya dibujadas (clave → dataURL)
 // v20: las miniaturas se guardan en este aparato (IndexedDB «celebrir8_minis»): la primera vez se dibujan; las siguientes,
@@ -18,7 +19,7 @@ const BDM = 'celebrir8_minis';
 const abreM = () => new Promise((res, rej) => { const r = indexedDB.open(BDM, 1); r.onupgradeneeded = () => r.result.createObjectStore('m'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 async function leeMinis(claves) { try { const db = await abreM(); const out = await Promise.all(claves.map(k => new Promise(res => { const q = db.transaction('m').objectStore('m').get(k); q.onsuccess = () => res([k, q.result]); q.onerror = () => res([k, null]); }))); db.close(); return out; } catch (e) { return []; } }
 async function guardaMini(k, url) { try { const db = await abreM(); await new Promise(res => { const t = db.transaction('m', 'readwrite'); t.objectStore('m').put(url, k); t.oncomplete = res; t.onerror = res; }); db.close(); } catch (e) { } }
-const huella = (K, k, color) => { const g = String(K.DISENOS[k].gen); let x = 0; for (let i = 0; i < g.length; i++) x = (x * 31 + g.charCodeAt(i)) | 0; return 'v20:' + k + ':' + (color || '') + ':' + (x >>> 0).toString(36); };
+const huella = (K, k, color) => { const g = String(K.DISENOS[k].gen); let x = 0; for (let i = 0; i < g.length; i++) x = (x * 31 + g.charCodeAt(i)) | 0; return 'v51:' + k + ':' + (color || '') + ':' + (x >>> 0).toString(36); };
 const C = { cat: '', abierto: null, v: {}, color: {}, acabado: {}, movil: 'iPhone 16', buscar: '' };
 
 export async function montarCatalogo(el, ext = {}) {
@@ -58,6 +59,7 @@ export async function montarCatalogo(el, ext = {}) {
   }
   // ---------- una pieza abierta ----------
   let escena = null, lienzo = null, tic = 0, info = null, MESA = null;
+  let AN = null, VEL = 1; const ANA = new Map(); // 18-10-2026 · 🎬 la animación que se ve y lo que se ha deducido de cada diseño (por sus medidas)
   function abre(k) {
     C.abierto = k; const D = K.DISENOS[k], v = C.v[k] = C.v[k] || K.valores(k);
     rejilla.querySelectorAll('.r8c-tar').forEach(b => b.classList.toggle('on', b.dataset.k === k));
@@ -71,6 +73,10 @@ export async function montarCatalogo(el, ext = {}) {
         campos, h('div.r8c-nota'),
         h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio', title: 'La pieza entera, con sus medidas para seguir cambiándolas' }), ext.irA ? btn('🛡️ ¿Aguanta?', () => aResistencia(k), { cls: 'r8c-fragil', title: 'Dónde se partiría con estas medidas y reforzarla tocando la zona' }) : null, K.PARTES && K.PARTES[k] && ext.alEstudioPiezas ? btn('🧩 Al Estudio por piezas (editar y abrir)', () => alEstudioPiezas(k), { cls: 'r8c-estudio-p', title: 'Cada parte suelta (base, tapa, cajón…): se editan una a una y en 🎬 Animar se abre y se cierra' }) : null),
         h('div.r8e-btns.r8c-manual-f', { hidden: true }, btn('📄 Manual de montaje (para el paquete)', () => manual(k), { cls: 'r8c-manual', title: 'Una hoja A4 con la foto, las piezas y los pasos: se imprime o se guarda en PDF' })),
+        h('div.r8c-anim', h('div.r8c-anim-t', h('b', '🎬 Animación'), h('small.muted', 'para ver cómo es y cómo se mueve')),
+          h('div.r8e-btns', btn('⚙️ Que se mueva', () => anima('mover'), { cls: 'sm r8c-an-mover', title: 'Lo que gira, engrana, orbita, se abre o se ondula, como de verdad' }), btn('🔄 Que gire', () => anima('girar'), { cls: 'sm r8c-an-girar', title: 'Da vueltas para verlo por todos lados' }), btn('💥 Desmontar y montar', () => anima('desmontar'), { cls: 'sm r8c-an-desmontar', title: 'Sus piezas se separan y se vuelven a juntar' }), K.PARTES && K.PARTES[k] ? btn('🚪 Abrir y cerrar', () => anima('abrir'), { cls: 'sm r8c-an-abrir' }) : null),
+          h('div.r8e-btns', h('select.inp.sm.r8c-an-vel', { 'aria-label': 'Velocidad', onchange: e => { VEL = Number(e.target.value) || 1; if (AN && AN.modo !== 'girar') anima(AN.modo); } }, [['0.5', '🐢 Despacio'], ['1', 'Normal'], ['2', '🐇 Deprisa']].map(([v2, t]) => h('option', { value: v2, selected: Number(v2) === VEL }, t))), btn('⏹ Parar', () => pararAnim(), { cls: 'sm ghost r8c-an-parar' }), btn('⏺ Grabar vídeo (8 s)', () => grabarAnim(), { cls: 'sm primary r8c-an-grabar', title: 'Lo que se ve, con la cámara girando despacio: para Instagram, TikTok o Cults' })),
+          h('p.small.r8c-an-que')),
         h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })),
         h('div.r8c-cults', h('b', '🛒 Vender en Cults'), h('span.small.r8c-pvp', cultsLinea(k)),
           CK.esAyuda(k) ? null : h('div.r8e-btns', btn('🛒 Ficha para Cults', () => fichaCults(k), { cls: 'r8c-ficha', title: 'Título, descripción, parámetros, categoría, etiquetas y precio: cada cosa con su botón de copiar y una nota' }), btn('📦 Exportar todo', () => exportar(k), { cls: 'primary r8c-exportar', title: 'Un ZIP con el vídeo, 3 fotos, la ficha, el manual (si lleva) y el ZIP de las piezas para subir a Cults' }))))));
@@ -81,6 +87,7 @@ export async function montarCatalogo(el, ext = {}) {
     genera(true);
   }
   function genera(ya) {
+    if (AN && escena) { escena.animar(null); escena.giraCamara(0); AN = null; pintaAn(); } // (al cambiar algo se vuelve a la pieza quieta)
     clearTimeout(tic); tic = setTimeout(() => {
       const k = C.abierto; if (!k || !escena) return; const D = K.DISENOS[k], v = C.v[k];
       try { const t0 = performance.now(), m = K.genera(k, v), I = N.info(m); const col1 = C.color[k] || D.color || '#7c6cff', aca = C.acabado[k] || D.acabado || 'mate', dc = D.dosColores && D.dosColores(v); let PV = [{ id: k, vista: N.aVista(m), color: col1, acabado: aca }];
@@ -140,7 +147,9 @@ export async function montarCatalogo(el, ext = {}) {
       dentro.push({ nombre: base + '/LEEME.txt', datos: enc.encode([Fi.titulo.en, Fi.titulo.es, '', Fi.descripcion.en, '', '———', '', Fi.descripcion.es, '', '© CelebriDiseños · uso personal: no se permite vender los archivos ni lo impreso sin permiso.'].join('\r\n')) });
       A.push({ nombre: '1_SUBIR_A_CULTS/' + base + '.zip', datos: await datos(zip(dentro)) });
       A.push({ nombre: '2_FICHA_PARA_CULTS.txt', datos: enc.encode(CU.fichaTexto(Fi)) });
-      if (o.video !== false) { paso('Grabando el vídeo (6 s)…'); try { const V = await videoGiro(6); A.push({ nombre: 'VIDEO/' + base + '.' + V.ext, datos: await datos(V.blob) }); } catch (e) { toast('El vídeo no ha podido grabarse (' + (e.message || e) + '): va todo lo demás.', 'warn', 7000); } }
+      if (o.video !== false) { paso('Grabando el vídeo (6 s)…'); try { const V = await videoGiro(6); A.push({ nombre: 'VIDEO/' + base + '.' + V.ext, datos: await datos(V.blob) });
+          try { const X = await analisisDe(k); if (X.hayMovimiento) { paso('Grabando el movimiento (6 s)…'); await anima('mover'); const V2 = (await fotogramas(6, AN && AN.fn, 0.35)) || await grabaLienzo(6, 0.35); A.push({ nombre: 'VIDEO/' + base + '_movimiento.' + V2.ext, datos: await datos(V2.blob) }); pararAnim(); } } catch (e2) { console.warn('vídeo del movimiento', e2); pararAnim(); } // (18-10-2026)
+        } catch (e) { toast('El vídeo no ha podido grabarse (' + (e.message || e) + '): va todo lo demás.', 'warn', 7000); } }
       const todo = zip(A), n = base + '_CULTS.zip';
       window.__r8c = Object.assign(window.__r8c || {}, { exportado: { nombre: n, bytes: todo.size, archivos: A.map(a => a.nombre), dentro: dentro.map(a => a.nombre), precio: Fi.precio, gratis: Fi.gratis } });
       baja(todo, n);
@@ -148,12 +157,74 @@ export async function montarCatalogo(el, ext = {}) {
         h('li', h('b', '1_SUBIR_A_CULTS/' + base + '.zip'), ' → el archivo que subes a Cults TAL CUAL (el STL, el 3MF' + (manualHtml ? ', el manual' : '') + ').'),
         h('li', h('b', '2_FICHA_PARA_CULTS.txt'), ' → título, descripción, parámetros, categoría, etiquetas, precio (' + (Fi.gratis ? 'gratis' : CU.euros(Fi.precio)) + ') y tus notas.'),
         h('li', h('b', 'FOTOS/'), ' → 3 fotos (la 01 es la portada). Si la imprimes, añade una foto tuya: es lo que más vende.'),
-        A.some(a => a.nombre.startsWith('VIDEO/')) ? h('li', h('b', 'VIDEO/'), ' → 6 s girando: para Instagram, TikTok o Wallapop.') : null)), c => [btn('Vale', c, { cls: 'primary' })]);
+        A.some(a => a.nombre.startsWith('VIDEO/')) ? h('li', h('b', 'VIDEO/'), ' → 6 s girando' + (A.some(a => /_movimiento\./.test(a.nombre)) ? ' y 6 s de cómo se mueve' : '') + ': para Instagram, TikTok o Wallapop.') : null)), c => [btn('Vale', c, { cls: 'primary' })]);
     } catch (e) { toast('No he podido exportar: ' + (e.message || e), 'bad', 9000); window.__r8c = Object.assign(window.__r8c || {}, { exportado: { error: e.message || String(e) } }); }
     finally { exportando = false; if (bt) { bt.disabled = false; bt.textContent = '📦 Exportar todo'; } }
   }
+  // ================= 🎬 ANIMACIÓN (la dueña: «no puedo hacer animación desde catálogo, eso lo quiero para ver cada cosa») =================
+  // Lo que se mueve se DEDUCE de las piezas sueltas de cada diseño (r8/cat_anima.js): no hace falta enseñárselo a cada uno.
+  // (si el diseño tiene vista «Montado» —los kits, los engranajes en su placa—, se anima MONTADO: así se ve cómo se mueve de verdad)
+  async function analisisDe(k) {
+    const D = K.DISENOS[k], om = CA.opcionMontado(D), v = Object.assign({}, C.v[k], om ? { [om.k]: om.v } : {}), clave = k + '|' + JSON.stringify(v); if (ANA.has(clave)) return ANA.get(clave);
+    let X; try { const L0 = await CA.montadas(k, Object.assign({}, K.valores ? K.valores(k) : {}, v)); X = N.enAmbito(() => CA.analiza(N, L0 || K.genera(k, v), { pista: CA.PISTAS[k], cat: D.cat })); } finally { N.limpia(); }
+    X.montado = !!om && v[om.k] !== (C.v[k] || {})[om.k]; ANA.set(clave, X); if (ANA.size > 30) ANA.delete(ANA.keys().next().value); return X;
+  }
+  function pintaAn() {
+    const q = detalle.querySelector('.r8c-an-que'); if (q) mount(q, AN ? (AN.modo === 'girar' ? '🔄 Dando vueltas.' : AN.modo === 'desmontar' ? '💥 ' + AN.X.n + ' piezas se separan y se vuelven a juntar.' : AN.modo === 'abrir' ? '🚪 Se abre y se cierra por su bisagra o su cajón.' : '⚙️ ' + (AN.X.notas || []).join('; ') + '.') + (AN && AN.X && AN.X.montado ? ' (Para verlo moverse lo he puesto MONTADO, con todas sus piezas.)' : '') : '');
+    detalle.querySelectorAll('.r8c-anim .r8e-btns button').forEach(b => b.classList.toggle('on', !!AN && b.classList.contains('r8c-an-' + AN.modo)));
+    window.__r8c = Object.assign(window.__r8c || {}, { anim: AN ? { modo: AN.modo, piezas: AN.X ? AN.X.n : null, mov: AN.X ? Object.fromEntries(Object.entries(AN.X.mov || {}).map(([i, m]) => [i, m.tipo])) : null, cadena: AN.X && AN.X.cadena ? AN.X.cadena.orden.length : 0 } : null });
+  }
+  const conMesa = fn => (MESA && MESA.anim ? MESA.anim(fn) : fn); // (la cama del catálogo dibuja cada pieza por copia: «id@copia»)
+  function pararAnim() { if (!escena) return; const cambio = AN && AN.cambio; escena.animar(null); escena.giraCamara(0); AN = null; if (cambio) genera(); pintaAn(); }
+  async function anima(modo) {
+    const k = C.abierto; if (!k || !escena) return; const D = K.DISENOS[k], v = C.v[k], color = C.color[k] || D.color || '#7c6cff', acabado = C.acabado[k] || D.acabado || 'mate';
+    escena.animar(null); escena.giraCamara(0);
+    if (modo === 'girar') { if (AN && AN.cambio) genera(); AN = { modo }; escena.giraCamara(VEL); pintaAn(); return; }
+    const q = detalle.querySelector('.r8c-an-que'); if (q) mount(q, '⏳ Mirando sus piezas…'); await new Promise(r => setTimeout(r, 30));
+    try {
+      if (modo === 'abrir') {
+        const L = N.enAmbito(() => (K.partesDe(k, Object.assign({}, v)) || []).map((x, i) => ({ id: 'pa' + i, vista: N.aVista(N.deSopa(x.sopa)), bisagra: x.bisagra, desliza: x.desliza }))); N.limpia();
+        if (!L.some(x => x.bisagra || x.desliza)) { toast('Este no trae bisagra ni cajón.', 'warn'); return pintaAn(); }
+        escena.ponPartes(L.map(x => ({ id: x.id, vista: x.vista, color, acabado }))); const fn = conMesa(CA.animacionAbrir(L, VEL)); escena.animar(fn); AN = { modo, cambio: true, X: { n: L.length }, fn }; return pintaAn();
+      }
+      const X = await analisisDe(k);
+      if (X.demasiadas) { toast('Tiene ' + X.n + ' trozos sueltos (letras, detalles…): mira «🔄 Que gire».', 'warn', 6000); return pintaAn(); }
+      if (modo === 'mover' && !X.hayMovimiento) { toast('En este diseño no hay piezas que se muevan solas' + (X.n > 1 ? ': mira «💥 Desmontar y montar» o «🔄 Que gire».' : ': mira «🔄 Que gire».'), 'warn', 7000); return pintaAn(); }
+      if (modo === 'desmontar' && X.n < 2) { toast('Es de una sola pieza: no hay nada que desmontar. Mira «🔄 Que gire».', 'warn', 6000); return pintaAn(); }
+      escena.ponPartes(X.piezas.map(p => ({ id: p.id, vista: p.vista, color, acabado }))); const fn = conMesa(CA.animacion(X, modo, VEL)); escena.animar(fn); AN = { modo, cambio: true, X, fn };
+    } catch (e) { toast('No he podido animarlo: ' + (e.message || e), 'bad', 7000); AN = null; }
+    pintaAn();
+  }
+  // ⏺ 8 s de la animación que se esté viendo (o, si no hay ninguna, de lo que mejor lo enseña), con la cámara girando despacio
+  async function grabarAnim() {
+    const k = C.abierto; if (!k || !escena) return; const bt = detalle.querySelector('.r8c-an-grabar'); if (bt) { bt.disabled = true; bt.textContent = '⏺ Grabando…'; }
+    try {
+      if (!AN) { let X = null; try { X = await analisisDe(k); } catch (e) { } await anima(X && X.hayMovimiento ? 'mover' : X && X.n > 1 ? 'desmontar' : 'girar'); }
+      const V = (await fotogramas(8, AN && AN.fn, AN && AN.modo !== 'girar' ? 0.35 : 1)) || await grabaLienzo(8, AN && AN.modo !== 'girar' ? 0.35 : 0), n = (K.DISENOS[k].t || k).replace(/[^\wáéíóúñü ]+/gi, '').trim().replace(/\s+/g, '_').slice(0, 40) + '_' + (AN ? AN.modo : 'giro') + '.' + V.ext;
+      baja(V.blob, n); toast('🎬 Vídeo guardado: ' + n + ' (en Descargas)', 'ok', 7000); window.__r8c = Object.assign(window.__r8c || {}, { video: { nombre: n, bytes: V.blob.size } });
+    } catch (e) { toast('No he podido grabar: ' + (e.message || e), 'bad', 8000); } finally { if (bt) { bt.disabled = false; bt.textContent = '⏺ Grabar vídeo (8 s)'; } }
+  }
+  // 18-10-2026 · VÍDEO FOTOGRAMA A FOTOGRAMA (como el de CelebriDREW): cada fotograma con su hora exacta → suave y entero aunque el
+  // ordenador tarde en pintar (la grabación «en directo» se quedaba sin imágenes con las piezas pesadas). vueltas = lo que gira la cámara.
+  async function fotogramas(dur, fn, vueltas = 0) {
+    let V; try { V = await import('../drew/video_mp4.js'); } catch (e) { return null; } const fps = 30, n = Math.round(dur * fps);
+    escena.animar(null); escena.giraCamara(0); escena.video(true);
+    try { const blob = await V.mp4DeLienzo(lienzo, n, fps, f => escena.fotograma(fn, f / fps, vueltas * 2 * Math.PI * f / n)); return blob ? { blob, ext: 'mp4' } : null; }
+    finally { escena.video(false); if (AN && AN.fn) escena.animar(AN.fn); else if (AN && AN.modo === 'girar') escena.giraCamara(VEL); }
+  }
+  async function grabaLienzo(dur, gira = 0) {
+    if (!window.MediaRecorder || !lienzo.captureStream) throw new Error('este navegador no sabe grabar vídeo');
+    const st = lienzo.captureStream(30), tipo = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(x => MediaRecorder.isTypeSupported(x)) || '';
+    const rec = new MediaRecorder(st, tipo ? { mimeType: tipo, videoBitsPerSecond: 8e6 } : undefined), trozos = [], fin = new Promise(r => { rec.onstop = r; });
+    rec.ondataavailable = e => { if (e.data && e.data.size) trozos.push(e.data); };
+    try { lienzo.scrollIntoView({ block: 'nearest' }); } catch (e) { } // (si la vista queda fuera de la pantalla, el navegador no le pide imágenes)
+    const giraba = AN && AN.modo === 'girar'; if (gira) escena.giraCamara(gira); rec.start(250); const tic2 = setInterval(() => escena.pide(), 30);
+    try { await new Promise(r => setTimeout(r, dur * 1000)); } finally { clearInterval(tic2); rec.stop(); await fin; if (gira && !giraba) escena.giraCamara(0); }
+    const mp4 = /mp4/.test(tipo), blob = new Blob(trozos, { type: mp4 ? 'video/mp4' : 'video/webm' }); if (!blob.size) throw new Error('no ha salido ninguna imagen (¿la vista estaba tapada?)'); return { blob, ext: mp4 ? 'mp4' : 'webm' };
+  }
   // ⏺ 6 s de la pieza girando (lo que se ve en el 3D), en MP4 si el navegador sabe (si no, WebM)
   async function videoGiro(dur) {
+    escena.encuadrar('iso'); const F = await fotogramas(dur, null, 1); if (F) return F; // (18-10-2026: fotograma a fotograma; si no se puede, en directo)
     if (!window.MediaRecorder || !lienzo.captureStream) throw new Error('este navegador no sabe grabar vídeo');
     const st = lienzo.captureStream(30), tipo = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(x => MediaRecorder.isTypeSupported(x)) || '';
     const rec = new MediaRecorder(st, tipo ? { mimeType: tipo, videoBitsPerSecond: 8e6 } : undefined), trozos = [], fin = new Promise(r => { rec.onstop = r; });

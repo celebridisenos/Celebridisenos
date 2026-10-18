@@ -28,6 +28,7 @@ const AYUDA = new Set(['tornillo', 'tuerca', 'inserto', 'iman', 'colgar', 'patro
 const GRATIS = new Set(['pruebaPrecision', 'pruebaRodImpreso', 'plantillaRodamientos']);
 // el precio de los que se salen de su grupo (kits grandes, mecanismos, chasis…)
 const PRECIO = {
+  ruedaGinebra: 2.99, bielaManivela: 2.49, levaCorazon: 1.99, yugoEscoces: 2.49, direccionCoche: 2.99, expositorMecheros: 1.99, // 18-10-2026 · mecanismos que se mueven
   rotulaTimelapse: 3.49, pinzaBobina: 0.99, rackPlacas: 1.49, rodillosBobina: 1.99, gridfinityPro: 1.99, gridfinityPuntas: 1.49, gridfinityBasePro: 0.99, skadisGancho: 0.99, skadisBalda: 1.99, skadisPorta: 1.49, goproTripode: 1.49, goproBrazo: 0.99, aspiradora: 1.49, soporteBalda: 0.99, ganchoPuerta: 1.29, tiburonFlexi: 2.99, serpienteFlexi: 2.99, fundaMecheroPro: 1.49, ceniceroMoai: 2.99, ceniceroVolcan: 2.49, // 17-10-2026 tarde
   dragonFlexi: 3.99, pulpoFlexi: 2.99, pezFlexi: 2.49, lagartijaFlexi: 2.49, aranaFlexi: 2.99, ajoloteFlexi: 2.49, cajaRegalo: 2.49, huevoSorpresa: 1.99, bolaNavidadAbre: 1.99, bolaPremios: 1.99, pastilleroGiratorio: 1.99, cajaGiratoria: 1.99, cajaDientes: 1.99, deckBox: 1.99, fantasmaVela: 1.99, calderoCaramelos: 2.49, lapidaHalloween: 1.49, arbolEspiral: 1.49, cakeTopper: 1.99, placaNacimiento: 2.49, cartelPuerta: 1.99, peanasMiniaturas: 1.49, contadorVida: 1.99, solidosPlatonicos: 2.49, moebius: 1.49, setGeometria: 2.49, bumeran: 1.99, silbato: 0.99, yoyo: 1.49, catapulta: 2.49, huchaRemolino: 3.49, marcapaginas: 1.49, servilleteroCalado: 1.49, estacionEsquejes: 1.99, macetaPared: 1.49, expositorPendientes: 1.99, numeroMesa: 1.49, deshojador: 0.99, exprimidor: 1.99, abrebotellas: 1.49, anilloFidget: 1.99,
   cajaEngranajes: 2.99, mesaEngranajes: 2.49, rodamientoPlanetario: 2.99, corazonEngranajes: 2.49, llaveroEngranajes: 1.99, juegoEngranajesMotor: 1.99, casaMunecas: 4.99, hormiguero: 3.49, hormigaNido: 2.99,
@@ -45,6 +46,13 @@ const PRECIO = {
 };
 // título en inglés · etiquetas propias (se suman a las de su grupo)
 const T = {
+  // 18-10-2026 · mecanismos que se mueven (cada uno con su vídeo del movimiento en «📦 Exportar todo») y el expositor de mecheros
+  ruedaGinebra: ['Geneva Drive Mechanism – Intermittent Motion Desk Toy', 'geneva drive, geneva mechanism, maltese cross, cruz de malta, intermittent motion, desk toy, kinetic'],
+  bielaManivela: ['Crank and Piston Mechanism – How an Engine Works', 'crank slider, piston, connecting rod, biela, engine model, kinetic, desk toy'],
+  levaCorazon: ['Heart Cam and Follower – Uniform Motion Mechanism', 'heart cam, cam follower, leva, uniform motion, kinetic, mechanism'],
+  yugoEscoces: ['Scotch Yoke Mechanism – Perfect Back-and-Forth Motion', 'scotch yoke, yugo escocés, sine motion, reciprocating, kinetic, desk toy'],
+  direccionCoche: ['Rack and Pinion Car Steering with Wheel – STEM Model', 'rack and pinion, car steering, steering wheel, dirección, involute gear, cremallera'],
+  expositorMecheros: ['Lighter Display Stand for Shop Counter – BIC or Clipper', 'lighter display, lighter stand, expositor mecheros, shop display, counter display, bic, clipper'],
   // 17-10-2026 · los nuevos (figuras articuladas, cajas, Halloween, bebés, juguetes, ciencia, frikis, casa)
   dragonFlexi: ['Articulated Dragon with Wings – Print in Place Flexi', 'flexi dragon, articulated dragon, print in place, dragón articulado, fidget toy, dragon'],
   pulpoFlexi: ['Articulated Octopus – Print in Place Flexi Toy', 'flexi octopus, articulated octopus, print in place, pulpo articulado, sea animal, fidget'],

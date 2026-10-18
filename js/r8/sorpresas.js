@@ -7,12 +7,12 @@
 // Todo en este aparato (three.js, MIT, ya viene con CelebriR8). partes = [{ vista: N.aVista(m), color, acabado, nombre }]
 import { h, mount, btn, toast, modal } from '../ui.js';
 import * as T from '../../vendor/three/three_r8.js';
-import { ACABADOS, COLORES } from './escena3d.js';
+import { ACABADOS, COLORES, materialAcabado } from './escena3d.js';
 
 const n1 = x => (Math.round(x * 10) / 10).toLocaleString('es-ES');
 const nombreArchivo = t => String(t || 'pieza').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
 function geometria(v) { const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(v.pos, 3)); g.setAttribute('normal', new T.BufferAttribute(v.nor, 3)); g.setIndex(new T.BufferAttribute(v.idx, 1)); g.computeBoundingBox(); g.computeBoundingSphere(); return g; }
-function material(color, acabado) { const A = ACABADOS[acabado] || ACABADOS.mate; return new T.MeshPhysicalMaterial({ color: new T.Color(color || '#9b8cff'), roughness: A.r, metalness: A.m, clearcoat: A.cc || 0, clearcoatRoughness: 0.25, transparent: !!A.op, opacity: A.op || 1 }); }
+function material(color, acabado) { return materialAcabado(color, acabado); } // (18-10-2026: los mismos acabados que la vista 3D)
 // volumen y superficie de una vista (para los gramos)
 function medidas(partes) {
   let V = 0, S = 0; const b = new T.Box3();

@@ -324,9 +324,22 @@ export function dibujar(P, d, dpi, size, opts) {
   const c = document.createElement('canvas'); c.width = Math.round(s.w / 25.4 * dpi); c.height = Math.round(s.h / 25.4 * dpi);
   const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#000';
   const sx = s.w / (P.w || s.w), sy = s.h / (P.h || s.h);
-  (P.els || []).forEach(e => dibujarPieza(g, e, d || {}, dpi, k, sx, sy, opts));
+  // 18-10-2026: los CÓDIGOS (QR y barras) se dibujan los últimos, con su margen blanco: si al agrandarlos o moverlos les cae encima un texto
+  // o un logo, el código se sigue escaneando (en la mesa del repartidor es lo que tiene que funcionar); el editor avisa de lo que tapan
+  const els = P.els || [];
+  els.filter(e => !esCodigo(e)).concat(els.filter(esCodigo)).forEach(e => dibujarPieza(g, e, d || {}, dpi, k, sx, sy, opts));
   c.__plantilla = P.id || 'nueva';
   return c;
+}
+const esCodigo = e => e.t === 'qr' || e.t === 'barras';
+// la caja que ocupa una pieza en la etiqueta (girada: la caja que la contiene)
+function cajaDe(e) { const a = (Number(e.r) || 0) * Math.PI / 180, c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a)), w = e.w * c + e.h * s, h = e.w * s + e.h * c, cx = e.x + e.w / 2, cy = e.y + e.h / 2; return [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2]; }
+// 18-10-2026 · Lo que queda DEBAJO de un código (un texto o un logo que se monta en el QR o en las barras) → [{ pieza, codigo }]
+export function tapados(P) {
+  const L = (P.els || []).filter(e => !e.oculto), r = [];
+  L.filter(esCodigo).forEach(q => { const [a0, b0, a1, b1] = cajaDe(q);
+    L.filter(e => e.t === 'texto' || e.t === 'logo').forEach(e => { const [c0, d0, c1, d1] = cajaDe(e), w = Math.min(a1, c1) - Math.max(a0, c0), h = Math.min(b1, d1) - Math.max(b0, d0); if (w > 0.5 && h > 0.5) r.push({ pieza: e, codigo: q }); }); });
+  return r;
 }
 // Lo que se sale del área imprimible (margen) o de la etiqueta
 export function fuera(P) {

@@ -827,3 +827,5 @@ html:not([data-modo="dia"]) .r8cj-ok { color: #2fdc72; }
 .r8cj-fc-nota { color: var(--muted); font-size: 12px; line-height: 1.45; background: color-mix(in srgb, #f7d117 10%, transparent); border-radius: 9px; padding: 8px 10px; }
 @media (max-width: 760px) { .r8cj-fc { grid-template-columns: 1fr; } }
 .r8c-cults { margin-top: 10px; padding: 10px; border: 1px dashed var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 6px; } .r8c-cults .r8c-pvp { color: var(--muted); }
+/* 18-10-2026 · 🎬 Animación en la ficha del Catálogo */
+.r8c-anim { margin-top: 10px; padding: 10px; border: 1px solid color-mix(in srgb, var(--a1, #7c6cff) 35%, var(--line)); border-radius: 12px; display: flex; flex-direction: column; gap: 7px; background: color-mix(in srgb, var(--a1, #7c6cff) 6%, transparent); } .r8c-anim-t { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; } .r8c-anim .r8e-btns button.on { outline: 2px solid var(--a1, #7c6cff); outline-offset: 1px; } .r8c-an-que { margin: 0; color: var(--text-2); min-height: 1em; } .r8c-an-vel { width: auto; }

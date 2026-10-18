@@ -48,7 +48,7 @@ export async function abrirEditor(tpl, opts = {}) {
   const borrador = () => { try { if (dirty) localStorage.setItem(BKEY(tpl), JSON.stringify(P)); else localStorage.removeItem(BKEY(tpl)); } catch (e) { } };
   function editar(fn, grupo) {
     const antes = JSON.stringify(P), selAntes = selId; fn(); const despues = JSON.stringify(P);
-    if (selId !== selAntes) lado(); else refrescaNums();
+    if (selId !== selAntes) lado(); else { refrescaNums(); refrescaTapa(); }
     if (antes === despues) return;
     const ahora = Date.now();
     if (!(grupo && grupo === ultGrupo && ahora - ultT < 1500)) { hist.push(antes); if (hist.length > 100) hist.shift(); fut = []; }
@@ -168,7 +168,7 @@ export async function abrirEditor(tpl, opts = {}) {
         const cx = e0.x + e0.w / 2 + gx, cy = e0.y + e0.h / 2 + gy;
         e.w = w; e.h = hh; e.x = r1(cx - w / 2); e.y = r1(cy - hh / 2);
       }
-      pintar(); refrescaNums();
+      pintar(); refrescaNums(); refrescaTapa();
     };
     const soltar = () => {
       ov.removeEventListener('pointermove', mover); ov.removeEventListener('pointerup', soltar); ov.removeEventListener('pointercancel', soltar);
@@ -219,7 +219,19 @@ export async function abrirEditor(tpl, opts = {}) {
     else if (e.t === 'qr') propio = h('div.col', h('p.small', 'El QR lleva el enlace del pedido o del producto: se rellena solo y no se cambia.'), e.w < 15 ? h('p.small.warn-t', '⚠️ Con menos de 15 mm algunos móviles no lo leen bien.') : h('p.small.ok-t', '✅ Buen tamaño para leerlo con el móvil.'));
     else if (e.t === 'barras') propio = ladoBarras(e);
     else if (e.t === 'caja') propio = ladoCaja(e);
-    mount(side, h('div.row', btn('← Todas las piezas', () => { selId = null; pintar(); lado(); }, { cls: 'sm ghost' })), h('h3', ICONO[e.t] + ' ' + etiquetaDe(e)), propio, h('h4', 'Posición y tamaño'), comunes, giros, h('h4', 'Orden'), orden);
+    // 18-10-2026: el QR y las barras se dibujan SIEMPRE encima (para que se escaneen): si tapan algo, se dice aquí qué
+    tapaSitio = h('div.ee-tapa-sitio');
+    mount(side, h('div.row', btn('← Todas las piezas', () => { selId = null; pintar(); lado(); }, { cls: 'sm ghost' })), h('h3', ICONO[e.t] + ' ' + etiquetaDe(e)), propio, tapaSitio, h('h4', 'Posición y tamaño'), comunes, giros, h('h4', 'Orden'), orden);
+    refrescaTapa();
+  }
+  // (se rehace también mientras se mueve o se agranda la pieza: el aviso va al momento)
+  let tapaSitio = null;
+  function refrescaTapa() {
+    const e = pieza(selId); if (!tapaSitio || !e) return;
+    const tp = PL.tapados(P), nomCod = q => q.t === 'qr' ? 'el QR' : 'el código de barras';
+    const tapa = tp.filter(x => x.codigo === e), debajo = tp.filter(x => x.pieza === e);
+    mount(tapaSitio, tapa.length ? h('p.small.warn-t.ee-tapa', '▦ Tapa ' + tapa.slice(0, 3).map(x => '«' + etiquetaDe(x.pieza) + '»').join(', ') + (tapa.length > 3 ? ' y ' + (tapa.length - 3) + ' más' : '') + ': ' + nomCod(e) + ' va siempre encima para que se pueda escanear. Muévelo o hazlo más pequeño si quieres que se vea entero.')
+      : debajo.length ? h('p.small.warn-t.ee-tapa', '▦ Queda debajo de ' + nomCod(debajo[0].codigo) + ' (el código va siempre encima para que se pueda escanear): muévelo si quieres que se vea entero.') : null);
   }
   function ladoDiseno() {
     const nom = inp({ value: P.nombre, maxlength: 50, 'aria-label': 'Nombre del diseño' }); nom.oninput = () => editar(() => { P.nombre = nom.value; }, 'nombre');

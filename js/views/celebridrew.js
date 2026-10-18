@@ -60,10 +60,15 @@ export function render(root) {
   const bTema = btn(temaNoche ? '☀' : '☾', () => { temaNoche = !temaNoche; raiz.classList.toggle('dw-noche', temaNoche); document.body.classList.toggle('dw-noche-on', temaNoche); bTema.querySelector('span').textContent = temaNoche ? '☀' : '☾'; try { localStorage.setItem('cd.drew.tema', temaNoche ? 'noche' : 'dia'); } catch (e) { } }, { cls: 'ghost', title: 'Atelier de día / de noche' });
   // (17-10, iPad) los botones de la cabecera: icono + palabra; si no cabe (iPad, ventana estrecha) queda el icono y la palabra en el título
   let bFacil = null; const bc = (ic, t, fn, o = {}) => { const b = btn('', fn, Object.assign({ cls: 'ghost', title: t }, o)); b.append(h('i.ic', ic), h('span.l', ' ' + t)); return b; };
-  const cab = h('div.dw-cab', h('h1.dw-marca', 'Celebri', h('b', 'DREW'), h('small', 'atelier 3D')), nombre, chipTalla, bDeshacer, bRehacer, h('div.esp'), bTema,
-    (bFacil = bc('🧸', 'Fácil', () => ponFacil(!st.facil), { title: 'Modo fácil: arrastra un modelo al avatar, elige chica o chico, la talla, el color y tus diseños, y exporta' })), bc('📂', 'Mis prendas', () => misPrendas()), bc('＋', 'Nueva', () => nueva()), bc('🎬', 'Vídeo 7 s', () => video7(), { title: 'Un vídeo vertical de 7 segundos de la prenda girando, para redes (V)' }),
-    (() => { const b = btn('', () => exporta('pdf'), { cls: 'primary', title: 'Patrón completo con manual (Ctrl+P)' }); b.append(h('i.ic', '📄'), h('span', ' PDF'), h('span.l', ' para imprimir')); return b; })(),
-    btn('⛶', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Este navegador no deja ponerla a pantalla completa', 'bad')); }, { cls: 'ghost', title: 'Pantalla completa (F11)' }), btn('⌨', () => atajos(), { cls: 'ghost', title: 'Atajos de teclado (?)' }));
+  // 18-10-2026 · ella: «los menús mejor organizados, muy feo». La cabecera va POR GRUPOS, cada uno con su nombre encima: la prenda (nombre, talla,
+  // deshacer) · Modo · Archivo · Exportar · Vista. Los botones son los mismos de siempre (y hacen lo mismo).
+  const grupo = (t, ...L) => h('div.dw-g', { 'data-t': t, role: 'group', 'aria-label': t }, ...L);
+  const cab = h('div.dw-cab', h('h1.dw-marca', 'Celebri', h('b', 'DREW'), h('small', 'atelier 3D')), grupo('Prenda', nombre, chipTalla, bDeshacer, bRehacer), h('div.esp'),
+    grupo('Modo', (bFacil = bc('🧸', 'Fácil', () => ponFacil(!st.facil), { title: 'Modo fácil: arrastra un modelo al avatar, elige chica o chico, la talla, el color y tus diseños, y exporta' }))),
+    grupo('Archivo', bc('📂', 'Mis prendas', () => misPrendas()), bc('＋', 'Nueva', () => nueva())),
+    grupo('Exportar', bc('🎬', 'Vídeo 7 s', () => video7(), { title: 'Un vídeo vertical de 7 segundos de la prenda girando, para redes (V)' }),
+      (() => { const b = btn('', () => exporta('pdf'), { cls: 'primary', title: 'Patrón completo con manual (Ctrl+P)' }); b.append(h('i.ic', '📄'), h('span', ' PDF'), h('span.l', ' para imprimir')); return b; })()),
+    grupo('Vista', bTema, btn('⛶', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Este navegador no deja ponerla a pantalla completa', 'bad')); }, { cls: 'ghost', title: 'Pantalla completa (F11)' }), btn('⌨', () => atajos(), { cls: 'ghost', title: 'Atajos de teclado (?)' })));
   const pestanas = h('div.dw-pest', { role: 'tablist' }), panel = h('div.dw-panel');
   const lado = h('div.dw-lado', pestanas, panel);
   // 3D
@@ -233,17 +238,17 @@ export function render(root) {
     return h('button' + (on ? '.on' : ''), { type: 'button', title: title || txt, 'aria-label': title || txt, onclick: fn }, ic ? h('i', ic) : null, /^\S+$/.test(t) && !/^[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(t) ? h('i', t) : h(ic ? 'span.l' : 'span', txt)); } /* (sin icono, la palabra no se esconde nunca) */
   function pintaBarra3() {
     const b = (t, on, fn, title) => botonBarra(t, on, fn, title);
-    mount(barra3, h('span.tit', '3D'),
+    const g3 = (t, ...L) => h('span.dw-bg', { title: t, role: 'group', 'aria-label': t }, ...L); // (18-10: por grupos: simulación · ver · tela · cámara)
+    mount(barra3, h('span.tit', '3D'), g3('Simulación',
       b(st.pausa ? '▶ Simular' : '⏸ Pausar', st.pausa, () => { st.pausa = !st.pausa; W.postMessage({ tipo: st.pausa ? 'pausa' : 'sigue' }); pintaBarra3(); }, 'Parar o seguir la simulación de la tela'),
-      b('🪡 Vestir de nuevo', false, () => { W.postMessage({ tipo: 'revestir', gen: st.P.prenda ? espera3d() : st.gen }); }, 'Coloca las piezas otra vez alrededor del cuerpo y las cose desde cero'),
-      h('span.sep'),
+      b('🪡 Vestir de nuevo', false, () => { W.postMessage({ tipo: 'revestir', gen: st.P.prenda ? espera3d() : st.gen }); }, 'Coloca las piezas otra vez alrededor del cuerpo y las cose desde cero')), g3('Ver y tocar la tela',
       b('🌡 Ajuste', st.mapa, () => { st.mapa = !st.mapa; leyenda.style.display = st.mapa ? '' : 'none'; W.postMessage({ tipo: 'mapa', si: st.mapa }); if (!st.mapa) { V.actualizaTela(null); Object.entries(coloresPiezas()).forEach(([n, c]) => V.colorTela(c, n)); } else W.postMessage({ tipo: 'sigue' }); pintaBarra3(); }, 'Mapa de ajuste: dónde tira la tela (rojo) y dónde va suelta (verde)'),
       b('✋ Tirar de la tela', st.tirar, () => { st.tirar = !st.tirar; pintaBarra3(); toast(st.tirar ? '✋ Coge la tela con el dedo o el ratón y tira: se estira como la de verdad' : 'Vuelves a girar la vista', 'ok', 4000); }, 'Coger la tela con el dedo o el ratón y estirarla'),
       b('🧍 Avatar', st.verAv, () => { st.verAv = !st.verAv; V.verAvatar(st.verAv); pintaBarra3(); }, 'Ver u ocultar el avatar'),
-      b('↻ Girar', V.gira, () => { V.gira = !V.gira; pintaBarra3(); }, 'Que gire sola, como en un escaparate'),
-      h('span.sep'), b('Frente', false, () => V.vista('frente')), b('Lado', false, () => V.vista('izq')), b('Espalda', false, () => V.vista('espalda')),
+      b('↻ Girar', V.gira, () => { V.gira = !V.gira; pintaBarra3(); }, 'Que gire sola, como en un escaparate')),
+      g3('Cámara', b('Frente', false, () => V.vista('frente')), b('Lado', false, () => V.vista('izq')), b('Espalda', false, () => V.vista('espalda')),
       b('⛶ Grande', st.solo === '3d', () => soloVista('3d'), 'Ver el 3D en grande (el patrón se esconde; vuelve con el mismo botón)'),
-      h('span.sep'), b('📸', false, () => { const u = V.foto(1600, 2000); descarga(dataURLaBlob(u), limpio(st.P.nombre) + '_3d.png'); toast('📸 Foto guardada en Descargas', 'ok'); }, 'Guardar una foto del 3D (PNG)'));
+      b('📸', false, () => { const u = V.foto(1600, 2000); descarga(dataURLaBlob(u), limpio(st.P.nombre) + '_3d.png'); toast('📸 Foto guardada en Descargas', 'ok'); }, 'Guardar una foto del 3D (PNG)')));
   }
   // tocar en el 3D: elegir pieza · con «Tirar», arrastrar la tela
   let tir = null, abajo = null;
@@ -256,12 +261,13 @@ export function render(root) {
   // ---------- la barra del 2D ----------
   function pintaBarra2() {
     const b = (t, modo, title) => botonBarra(t, ctx.modo === modo, () => { ctx.modo = modo; ED.borraMedida(); pintaBarra2(); }, title);
-    mount(barra2, h('span.tit', 'Patrón 2D'), b('↖ Elegir', 'elegir', 'Tocar una pieza la elige; arrastrarla la mueve. Arrastra un punto o un tirador para cambiar la forma'),
+    const g2 = (t, ...L) => h('span.dw-bg', { title: t, role: 'group', 'aria-label': t }, ...L); // (18-10: herramientas · ayudas · vista)
+    mount(barra2, h('span.tit', 'Patrón 2D'), g2('Herramientas', b('↖ Elegir', 'elegir', 'Tocar una pieza la elige; arrastrarla la mueve. Arrastra un punto o un tirador para cambiar la forma'),
       b('＋ Punto', 'anadir', 'Toca un borde de la pieza elegida para poner un punto'), b('－ Punto', 'quitar', 'Toca un punto para quitarlo'),       b('⌒ Curva', 'curva', 'Toca un tramo para pasarlo de recto a curvo (y al revés)'), b('📏 Medir', 'medir', 'Dos toques: la distancia en cm'),
-      b('⊥ Piquete', 'piquete', 'Toca un borde: pone un piquete ahí y su pareja en la pieza con la que se cose (P). Toca uno que ya está para quitarlo'),
-      h('span.sep'), botonBarra('🧲 Imán', !!ctx.iman, iman, 'Imán: al arrastrar, los puntos caen en la cuadrícula de 5 mm (I). Mayús mientras arrastras = recto'), botonBarra('📐 Medidas', !!ctx.cotas, cotas, 'El largo de cada borde escrito en las piezas (K)'),
-      h('span.sep'), botonBarra('⊕ Acercar', false, () => ED.zoom(1 / 1.4), 'Acercar (también: pellizcar con dos dedos o la rueda del ratón)'), botonBarra('⊖ Alejar', false, () => ED.zoom(1.4), 'Alejar'),
-      botonBarra('⤢ Encajar', false, () => (st.sel ? ED.encuadraPieza(st.sel) : ED.encuadra()), 'Encajar: la pieza elegida o, sin elegir, todas (F)'), botonBarra('⛶ Grande', st.solo === '2d', () => soloVista('2d'), 'Ver el patrón en grande (el 3D se esconde; vuelve con el mismo botón)'));
+      b('⊥ Piquete', 'piquete', 'Toca un borde: pone un piquete ahí y su pareja en la pieza con la que se cose (P). Toca uno que ya está para quitarlo')),
+      g2('Ayudas', botonBarra('🧲 Imán', !!ctx.iman, iman, 'Imán: al arrastrar, los puntos caen en la cuadrícula de 5 mm (I). Mayús mientras arrastras = recto'), botonBarra('📐 Medidas', !!ctx.cotas, cotas, 'El largo de cada borde escrito en las piezas (K)')),
+      g2('Vista', botonBarra('⊕ Acercar', false, () => ED.zoom(1 / 1.4), 'Acercar (también: pellizcar con dos dedos o la rueda del ratón)'), botonBarra('⊖ Alejar', false, () => ED.zoom(1.4), 'Alejar'),
+      botonBarra('⤢ Encajar', false, () => (st.sel ? ED.encuadraPieza(st.sel) : ED.encuadra()), 'Encajar: la pieza elegida o, sin elegir, todas (F)'), botonBarra('⛶ Grande', st.solo === '2d', () => soloVista('2d'), 'Ver el patrón en grande (el 3D se esconde; vuelve con el mismo botón)')));
     pintaAyuda2();
   }
 
@@ -411,13 +417,16 @@ export function render(root) {
       if (st.P && (st.pest === 'prenda' || st.pest === 'tela' || st.facil)) pintaPanel(); })(); }
   async function disenoAEstampado(d) { try { anadeEstampado(await MA.aDataUrl(d.ruta), { nombre: d.nombre, que: 'Tu diseño «' + d.nombre + '»' }); } catch (e) { toast('No puedo leer ese diseño: ' + e.message, 'bad', 6000); } }
   function catalogoModelos() {
-    cargaMarca(); const P = st.P, g = st.grupoCat || 'basicos', base = st.marca.base, chico = P.avatar.sexo === 'hombre', L0 = g === 'basicos' ? DISENOS : MA.MODELOS.filter(m => m.g === g), L = L0.filter(m => !(chico && m.para === 'mujer'));
+    cargaMarca(); const P = st.P, g = st.grupoCat || 'basicos', base = st.marca.base, chico = P.avatar.sexo === 'hombre', q = (st.buscaCat || '').trim().toLowerCase();
+    const sinTilde = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // (18-10: el buscador mira en TODOS los grupos)
+    const L0 = q ? DISENOS.concat(MA.MODELOS).filter(m => sinTilde(m.t + ' ' + (m.d || '') + ' ' + (m.g || '')).includes(sinTilde(q))) : g === 'basicos' ? DISENOS : MA.MODELOS.filter(m => m.g === g), L = L0.filter(m => !(chico && m.para === 'mujer'));
     const tarjeta = m => { const b = h('button.dw-modelo' + (P.diseno === m.id ? '.on' : ''), { type: 'button', draggable: 'true', 'data-modelo': m.id, 'data-diseno': m.id, title: (m.d || '') + (m.para ? ' · pensado para mujer' : '') + ' · tócalo o arrástralo al avatar', onclick: () => aplicaDiseno(m),
         ondragstart: e => { e.dataTransfer.setData(TIPO_MODELO, m.id); e.dataTransfer.setData('text/plain', m.t); e.dataTransfer.effectAllowed = 'copy'; document.body.classList.add('dw-arrastrando'); }, ondragend: () => document.body.classList.remove('dw-arrastrando') });
       b.append(base && m.ref ? h('img', { src: MA.urlDe(MA.rutaPlano(base, m.ref)), alt: '', loading: 'lazy', draggable: 'false' }) : h('b.dw-modelo-e', m.e || '👗'), h('span', m.t)); if (m.para) b.append(h('i.dw-modelo-para', { title: 'Pensado para mujer' }, '♀')); return b; }; // (append(null) escribía «null» debajo de cada nombre)
     return [h('h3', '📚 Catálogo de modelos (' + (MA.MODELOS.length + DISENOS.length) + ')'),
       h('div.dw-ayuda', (base ? 'Hechos con tus planos de NOORKO1, en los colores de THE NOORKO. ' : '') + 'Tócalo o ARRÁSTRALO al avatar: sale en 3D a su medida y en su talla (chico o chica: el avatar).'),
-      h('div.dw-chips.dw-grupos', [['basicos', '✨ Básicos']].concat(MA.GRUPOS).map(([k, t]) => h('button.dw-chip' + (g === k ? '.on' : ''), { type: 'button', 'data-grupo': k, onclick: () => { st.grupoCat = k; pintaPanel(); } }, t))),
+      h('div.dw-busca-cat', h('input.inp', { type: 'search', placeholder: '🔎 Buscar: sudadera, crop, falda, vestido…', value: st.buscaCat || '', 'aria-label': 'Buscar modelo', oninput: e => { st.buscaCat = e.target.value; const c = e.target.selectionStart; pintaPanel(); const i = panel.querySelector('.dw-busca-cat input'); if (i) { i.focus(); try { i.setSelectionRange(c, c); } catch (x) { } } } })),
+      q ? h('div.dw-ayuda', L.length ? L.length + ' modelo(s) con «' + st.buscaCat.trim() + '»' : 'Ningún modelo con «' + st.buscaCat.trim() + '»') : h('div.dw-chips.dw-grupos', [['basicos', '✨ Básicos']].concat(MA.GRUPOS).map(([k, t]) => h('button.dw-chip' + (g === k ? '.on' : ''), { type: 'button', 'data-grupo': k, onclick: () => { st.grupoCat = k; pintaPanel(); } }, t))),
       L.length < L0.length ? h('div.dw-ayuda.dw-solo-chica', '♀ ' + (L0.length - L.length) + ' modelo(s) de este grupo son de chica: salen con el avatar de chica.') : null,
       h('div.dw-modelos.dw-disenos', L.map(tarjeta))];
   }
