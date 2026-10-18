@@ -47,7 +47,8 @@ export function render(el, params) {
     mount(listBox, h('div.gallery', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '14px' } }, rows.slice(0, st.limit).map(p => {
       const foto = p.fotoId ? byId('archivos', p.fotoId) : filesOf('productos', p.id).find(a => a.miniatura);
       return h('div.card.click', { style: { padding: 0, overflow: 'hidden' }, onclick: () => go('productos/' + p.id) },
-        h('div', { style: { aspectRatio: '4/3', background: 'var(--surface-2)', display: 'grid', placeItems: 'center', color: 'var(--muted)', position: 'relative' } }, chipsProducto(p, ind), foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover' } }) : icon('cube', 'l')),
+        h('div', { style: { aspectRatio: '4/3', background: 'var(--surface-2)', display: 'grid', placeItems: 'center', color: 'var(--muted)', position: 'relative' } }, chipsProducto(p, ind), foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover' } }) : icon('cube', 'l'),
+          desktop.on ? h('button.prod-bambu', { type: 'button', title: 'Abrir en Bambu Studio (para laminar)', 'aria-label': 'Abrir ' + p.nombre + ' en Bambu Studio', onclick: ev => { ev.stopPropagation(); bambuDeProducto(p); } }, '🖨️') : null),
         h('div', { style: { padding: '10px 12px' } }, h('div.bold.ellipsis', p.nombre), h('div.tiny.muted.ellipsis', (p.sku || p.id) + ' · ' + pretty(p.subcategoria || p.categoria)),
           h('div.row', { style: { marginTop: '6px' } }, pill(pState(p.estado), ST_CLS[pState(p.estado)]), h('span.right', { style: { textAlign: 'right' } }, h('b', p.precio ? eur(p.precio) : ''))), rentaMini(p)));
     })), rows.length > st.limit ? h('div.pager', btn('Mostrar más', () => { st.limit += 120; drawList(); })) : null);
@@ -75,7 +76,7 @@ function productDrawer(id, onClose) {
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
       const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], can('tienda.gestionar') || (p.web && p.web.publicado) ? ['web', '🛍️ Tienda web'] : null, ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
-      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
+      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), desktop.on ? btn('🖨️ Bambu', () => bambuDeProducto(p), { cls: 'sm prod-bambu-cab', title: 'Abrir en Bambu Studio para laminar' }) : null, btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), barra3D(p, closeAll), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Publicado']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
@@ -343,6 +344,31 @@ export async function abrirEnBambu(x) {
     else toast('No encuentro Bambu Studio en este PC. El archivo está en ' + ((r && r.path) || 'Documentos › CelebriDiseños_R8') + '.', 'warn', 9000);
     if (window.__prod3d) window.__prod3d.bambu = r || null;
   } catch (e) { toast('No se pudo abrir en Bambu Studio: ' + (e.message || e), 'bad', 8000); }
+}
+// 17-10-2026 · ella: «en Productos tiene que dar la opción de abrir en Bambu directamente, sí o sí, todos los productos, para poderlos
+// laminar». Botón 🖨️ en CADA tarjeta de la lista y en la cabecera de la ficha: abre su archivo 3D (el 3MF primero: trae colores y
+// ajustes; si no, el STL) en Bambu Studio. Si aún no tiene archivo 3D, se elige o se arrastra ahí mismo: se abre ya en Bambu Studio y
+// además se guarda en el producto, para que la próxima vez se abra directo.
+const primero3MF = (a, b) => (extOf(b) === '3mf') - (extOf(a) === '3mf');
+export async function bambuDeProducto(p) {
+  if (!desktop.on) return toast('«Abrir en Bambu Studio» funciona en el programa del PC (la torre o el portátil).', 'warn', 6000);
+  const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
+  if (subidos.length) return abrirEnBambu({ nombre: subidos[0].nombre, a: subidos[0] });
+  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) return abrirEnBambu({ nombre: L[0].name, ruta: L[0].path }); } catch (e) { /* sin su carpeta: se pide el archivo */ } }
+  const elegir = h('input', { type: 'file', accept: '.stl,.3mf,.obj', hidden: true });
+  let cerrar = () => { };
+  const usa = async f => {
+    if (!f) return; if (!ES_3D(f.name)) return toast('Tiene que ser un archivo STL, 3MF u OBJ.', 'warn', 6000);
+    cerrar(); toast('🖨️ Abriendo «' + f.name + '» en Bambu Studio…', '', 4000);
+    try { const r = await desktop.bambuAbrir(f, f.name); if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio: ya puedes laminar', 'ok', 6000); else toast('No encuentro Bambu Studio en este PC. El archivo está en ' + ((r && r.path) || 'Documentos › CelebriDiseños_R8') + '.', 'warn', 9000); window.__bambuProd = r || null; }
+    catch (e) { toast('No se pudo abrir en Bambu Studio: ' + (e.message || e), 'bad', 8000); }
+    if (can('archivos.subir')) uploadFile(f, { entidad: 'productos', entidadId: p.id }).then(() => toast('📎 Guardado en «' + p.nombre + '»: la próxima vez se abre directo', 'ok', 5000)).catch(e => toast('Abierto, pero no se ha podido guardar en el producto: ' + (e.message || e), 'warn', 8000));
+  };
+  const zona = h('button.bambu-drop', { type: 'button', ondragover: e => { e.preventDefault(); zona.classList.add('on'); }, ondragleave: () => zona.classList.remove('on'), ondrop: e => { e.preventDefault(); zona.classList.remove('on'); usa(e.dataTransfer.files[0]); }, onclick: () => elegir.click() },
+    h('span', '🧊'), h('b', 'Arrastra aquí su STL o 3MF'), h('small', 'o pulsa para elegirlo'));
+  elegir.onchange = () => usa(elegir.files[0]);
+  const md = modal('🖨️ ' + p.nombre + ' · abrir en Bambu Studio', h('div.col', h('p.small', 'Este producto aún no tiene su archivo 3D. Elígelo y lo abro en Bambu Studio para laminarlo; además lo guardo en el producto para la próxima vez.'), zona, elegir), c => [btn('Cancelar', c, { cls: 'ghost' })]);
+  cerrar = md.close;
 }
 async function archivoDe(x) { const datos = x.ruta ? await desktop.file(x.ruta) : await (await fetchFile(x.a)).arrayBuffer(); return new File([datos], x.nombre, { type: 'model/stl' }); }
 // v30.6.1 · la dueña: «cuando subas el STL a un producto y se vea su archivo, poder arrastrar, y abajo abrir en Bambu Studio…

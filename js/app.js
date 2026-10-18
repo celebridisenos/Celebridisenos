@@ -13,6 +13,7 @@ import { desktop } from './desktop.js';
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
 import { menuNav, editarMenu } from './menuorden.js';
+import * as MP from './menu_principal.js'; // 17-10-2026 · 🧭 menú principal nuevo (buscador, grupos por lo que quieres hacer), «← Atrás» y la ruta arriba
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
 import { startChat, CHAT } from './chat.js';
@@ -143,8 +144,10 @@ async function route() {
   if (name === 'q' && params[0] === 'mesa') return go({ escanear: 'escanear/camara', empaquetar: 'embalaje', hoy: 'hoy' }[params[1]] || 'inicio'); // v12.2: QR de la mesa de trabajo
   if (name === 'q' && params[0] === 'prueba') { toast('✅ Este QR se ha leído bien: puntos de ' + (params[1] || '?') + ' px. Anota el más pequeño que te funcione.', 'ok', 9000); return go('inicio'); } // v12.10: hoja «Prueba de QR»
   if (name === 'q') { const T = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes', factura: 'facturas', stock: 'stock', caja: 'stock', presupuesto: 'presupuestos' }; const t = T[params[0]]; return go(t ? t + '/' + encodeURIComponent(params[1] || '') : 'inicio'); }
+  if (name === 'menu') { if (pila.length) { history.back(); setTimeout(abrirMenu, 60); } else { go(PORTADA()); setTimeout(abrirMenu, 60); } return; } // (17-10: #/menu = el menú principal encima de la pantalla)
   const def = NAV.find(n => n.k === name);
   if (!VIEWS[name]) return go('inicio');
+  { const dir = location.hash; if (pila[pila.length - 1] !== dir) { if (pila.length > 1 && pila[pila.length - 2] === dir) pila.pop(); else pila.push(dir); } } MP.recuerda(name); /* (17-10) por dónde va, para «← Atrás» */
   embalajeReal(); // v20.2: cada pantalla se pinta ya con el coste real del embalaje
   buildShell();
   navActual = name; refreshShell(); // v16: si su grupo está plegado, el apartado abierto se enseña igualmente (y su grupo se abre)
@@ -204,7 +207,13 @@ function precalentar() {
 // ---------- v10: menú lateral y cuenta ----------
 function openNav() { document.body.classList.add('nav-open'); }
 export function closeNav() { document.body.classList.remove('nav-open'); }
-function toggleNav() {
+// (17-10) el ☰ abre el MENÚ PRINCIPAL (menu_principal.js) en todas las caras; el cajón de antes es la «Lista clásica»
+export function abrirMenu() {
+  if (!shell || !shell.lista) return; const hora = new Date().getHours(), saludo = (hora < 14 ? 'Buenos días' : hora < 21 ? 'Buenas tardes' : 'Buenas noches') + (S.me && S.me.nombre ? ', ' + String(S.me.nombre).split(' ')[0] : '') + ' · elige a dónde vas o búscalo';
+  MP.abre({ lista: shell.lista.filter(n => !n.sep), counts: shell.counts || {}, ir: go, buscarEnTodo: q => palette(q), clasico: () => toggleNavClasico(), actual: navActual, saludo });
+}
+function toggleNav() { closeNav(); abrirMenu(); }
+function toggleNavClasico() {
   if (es50()) return abrirTodo(); // (cara «CelebriDiseños»: el ☰ abre el lanzador con todas las secciones)
   if (document.body.classList.contains('nav-pinned') && matchMedia('(min-width: 900px)').matches) return pinNav(false);
   document.body.classList.toggle('nav-open');
@@ -222,7 +231,7 @@ function abrirTodo() {
   if (g.items.length) grupos.push(g);
   lanzador({ grupos, ir: go, buscarEnTodo: q => palette(q) });
 }
-document.addEventListener('keydown', e => { if (e.ctrlKey && e.code === 'Space' && es50() && S.me && shell) { e.preventDefault(); abrirTodo(); } });
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.code === 'Space' && S.me && shell) { e.preventDefault(); abrirMenu(); } }); // (17-10: Ctrl + espacio = el menú principal, en todas las caras)
 function accountMenu(anchor) {
   const old = document.querySelector('.acct-menu'); if (old) { old.remove(); return; }
   const r = anchor.getBoundingClientRect();
@@ -271,8 +280,11 @@ function buildShell() {
   const meDot = h('span.st-dot.on');
   const meBtn = h('button.me-chip', { title: 'Tu cuenta', 'aria-label': 'Tu cuenta', onclick: e => accountMenu(e.currentTarget) });
   const quick = h('nav.quickbar', { 'aria-label': 'Acceso rápido' }); // v11.5: lo que más se usa, a un clic desde cualquier pantalla
+  const miga = h('nav.miga', { 'aria-label': 'Dónde estás' }); // 17-10: «Menú › Grupo › Sección»
   const topbar = h('header.topbar',
-    h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú', 'aria-label': 'Abrir menú' }, icon('menu')),
+    h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú principal', 'aria-label': 'Abrir el menú principal' }, icon('menu')),
+    h('button.btn.ghost.icon.atras-btn', { onclick: () => atras(), title: 'Atrás (vuelve a donde estabas; si no, al menú principal)', 'aria-label': 'Atrás' }, icon('left')),
+    miga,
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
     quick,
     h('div.right.row', syncEl, selectorTema(), botonModo(), actB, botonRegalo(), chatB, bell, meBtn));
@@ -285,10 +297,17 @@ function buildShell() {
   mount(app, root);
   sidebar.addEventListener('click', e => { if (e.target.closest('a') && !document.body.classList.contains('nav-pinned')) closeNav(); });
   try { if (localStorage.getItem('cd.navFijo') === '1') document.body.classList.add('nav-pinned'); } catch (e) { }
-  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar, meBtn, meDot, quick, rail };
+  shell = { root, nav, sidebar, syncEl, bell, chatB, banner, content, tabbar, meBtn, meDot, quick, rail, miga };
   refreshShell();
 }
-function markNav(name) { if (!shell) return; marcaRail(shell.rail, name); shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); if (shell.quick) shell.quick.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
+// (17-10) «← Atrás»: a la pantalla de antes si la hay dentro del programa; si no, el MENÚ PRINCIPAL (ella: «siempre una flecha para atrás,
+// siempre me vuelva al menú principal»). La ruta de arriba: «Menú › Grupo › Sección» (tocar «Menú» lo abre).
+const pila = [];
+export function atras() { if (document.querySelector('.mp')) return; if (pila.length > 1) { pila.pop(); history.back(); } else abrirMenu(); }
+function pintaMiga(name) { if (!shell || !shell.miga) return; const def = NAV.find(n => n.k === name), g = MP.grupoDe(name), t = def ? def.t.replace(/\s*[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?/gu, '') : name;
+  mount(shell.miga, h('button.miga-menu', { type: 'button', onclick: () => abrirMenu(), title: 'Abrir el menú principal' }, 'Menú'), g ? [h('span.miga-sep', '›'), h('button.miga-g', { type: 'button', onclick: () => abrirMenu(), title: 'Ver ' + g.t }, g.t)] : null, h('span.miga-sep', '›'), h('b.miga-s', t)); }
+document.addEventListener('keydown', e => { if (e.altKey && e.key === 'ArrowLeft' && S.me && shell) { e.preventDefault(); atras(); } }); // (Alt + ← = Atrás)
+function markNav(name) { if (!shell) return; pintaMiga(name); marcaRail(shell.rail, name); shell.nav.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); if (shell.quick) shell.quick.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); shell.tabbar.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.k === name)); }
 
 // v11.1: decisiones pendientes de CelebryNova en el menú (solo en el PC y para quien lo administra)
 let novaTimer = null;
@@ -365,7 +384,7 @@ function refreshShell() {
   // v13.10: el administrador ordena y oculta los apartados del menú a su gusto (para todo el equipo)
   const lista = menuNav(NAV).filter(n => n.sep || visible(n)).filter((n, i, a) => !(n.sep && (!a[i + 1] || a[i + 1].sep)));
   shell.lista = lista; shell.counts = counts;
-  pintaRail(shell.rail, { visibles: new Set(lista.filter(n => !n.sep).map(n => n.k).concat(es18() ? ['puente'] : [])), counts, abrirTodo, logo: S.cfg && S.cfg.empresa && S.cfg.empresa.logo });
+  pintaRail(shell.rail, { visibles: new Set(lista.filter(n => !n.sep).map(n => n.k).concat(es18() ? ['puente'] : [])), counts, abrirTodo: () => abrirMenu(), logo: S.cfg && S.cfg.empresa && S.cfg.empresa.logo });
   // v16: grupos plegables. Un grupo cerrado enseña la suma de sus avisos; el apartado en el que estás nunca se esconde.
   const cerr = navCerrados(); let grupo = '';
   const sumas = {}; lista.forEach(n => { if (n.sep) grupo = n.t || ''; else if (grupo && counts[n.k]) sumas[grupo] = (sumas[grupo] || 0) + counts[n.k]; }); grupo = '';

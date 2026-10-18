@@ -36,12 +36,42 @@ function esquinasBajo(M, F, B, alto) {
 // el vértice de más giro de una polilínea (para la punta del hombro)
 function codo(P, desde = 1, hasta) { hasta = hasta == null ? P.length - 1 : hasta; let mejor = null; for (let i = Math.max(1, desde); i < Math.min(P.length - 1, hasta); i++) { const a = G.norma(G.sub(P[i], P[i - 1])), b = G.norma(G.sub(P[i + 1], P[i])), ang = Math.acos(Math.max(-1, Math.min(1, G.punto(a, b)))) * 180 / Math.PI; if (!mejor || ang > mejor.ang) mejor = { i, ang, p: P[i] }; } return mejor; }
 
+// (17-10) ¿asoma una CAPUCHA por encima de los hombros? T = la línea de arriba; xs = el eje; pecho = ancho en la axila (px). Hay capucha si lo de
+// arriba en el centro sube más de un 12 % del alto sobre los hombros y, a media altura, mide entre el 20 y el 90 % del pecho (un cuello alto
+// sube mucho menos). El CUELLO EN EL HOMBRO queda debajo de la capucha: se toma la LÍNEA DEL HOMBRO justo fuera de la capucha, se prolonga hacia
+// dentro y el cuello cae en ella a 1/1,3 de lo que se abre la capucha (tumbada, la capucha se ensancha ~1,3 veces el cuello al que va cosida).
+// → { izq, der, yTop, alto, xj } | null
+export const CAPUCHA_ABRE = 1.3;
+function capuchaDe(T, xs, pecho, alto) {
+  const v = x => T[Math.round(x)], cen = [-0.08, -0.04, 0, 0.04, 0.08].map(f => v(xs + f * pecho)).filter(isFinite); if (!cen.length) return null;
+  const yTop = Math.min(...cen), hom = s => mediana([0.34, 0.38, 0.42].map(f => v(xs + s * f * pecho))), yHom = Math.max(hom(-1), hom(1));
+  if (!isFinite(yHom) || yHom - yTop < 0.12 * alto) return null;
+  const yMid = yTop + 0.5 * (yHom - yTop); let a = Math.round(xs), b = a; while (isFinite(T[a - 1]) && T[a - 1] < yMid) a--; while (isFinite(T[b + 1]) && T[b + 1] < yMid) b++;
+  const anc = (b - a) / pecho; if (anc < 0.2 || anc > 0.9) return null;
+  const yUmbral = yHom - 0.3 * (yHom - yTop), tol = Math.max(2, 0.012 * alto);
+  const lado = s => {
+    // 1) lo que seguro es capucha (bien por encima de los hombros) y 2) la línea del hombro justo fuera (mínimos cuadrados en un 9 % del pecho)
+    let x0 = Math.round(xs); while (isFinite(T[x0 + s]) && T[x0 + s] < yUmbral) x0 += s;
+    const P = []; for (let x = x0 + s * Math.round(0.04 * pecho); s < 0 ? x >= x0 - 0.13 * pecho : x <= x0 + 0.13 * pecho; x += s) if (isFinite(T[x])) P.push([x, T[x]]);
+    if (P.length < 4) return null; const n = P.length, mx = P.reduce((q, p) => q + p[0], 0) / n, my = P.reduce((q, p) => q + p[1], 0) / n; let sxy = 0, sxx = 0; P.forEach(([x, y]) => { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; });
+    let m = sxx ? sxy / sxx : 0, linea = x => my + m * (x - mx);
+    { const Q = P.filter(([x, y]) => y >= linea(x) - tol); if (Q.length >= 4 && Q.length < P.length) { const n2 = Q.length, ax = Q.reduce((q, p) => q + p[0], 0) / n2, ay = Q.reduce((q, p) => q + p[1], 0) / n2; let a1 = 0, a2 = 0; Q.forEach(([x, y]) => { a1 += (x - ax) * (y - ay); a2 += (x - ax) ** 2; }); m = a2 ? a1 / a2 : 0; linea = x => ay + m * (x - ax); } } /* (otra pasada sin lo que aún era capucha) */
+    // 3) dónde se junta la capucha con esa línea (lo último, hacia fuera, que queda por encima de ella) y 4) el cuello, en la línea, a 1/1,3
+    let xj = x0, fuera = 0; for (let x = x0; s < 0 ? x >= x0 - 0.13 * pecho : x <= x0 + 0.13 * pecho; x += s) { if (!isFinite(T[x])) continue; if (T[x] < linea(x) - tol) { xj = x; fuera = 0; } else if (++fuera > 3) break; }
+    const xc = Math.round(xs + (xj - xs) / CAPUCHA_ABRE); return { x: xc, y: linea(xc), xj };
+  };
+  const izq = lado(-1), der = lado(1); if (!izq || !der) return null;
+  return { izq, der, yTop, alto: (izq.y + der.y) / 2 - yTop };
+}
 export function rasgosArriba(M) {
   const S = simetria(M), xs = S.x, { B, F } = filas(M, Math.round(xs)), alto = B.h, avisos = [], P = {}, med = {}, extra = {};
   const banda = (f0, f1) => { const out = []; for (let y = Math.round(B.y1 - f1 * alto); y <= Math.round(B.y1 - f0 * alto); y++) if (F[y]) out.push(F[y].cw); return out; };
   const base = mediana(banda(0.04, 0.25)), hem = mediana(banda(0.005, 0.03));
   // la AXILA: subiendo desde abajo, la primera fila cuyo tramo central se ensancha de golpe (manga pegada)
-  let yAx = null; for (let y = Math.round(B.y1 - 0.05 * alto); y > B.y0 + 0.08 * alto; y--) { const f = F[y]; if (f && f.cw > base * 1.25 && f.e && f.cw >= 0.93 * (f.e[1] - f.e[0] + 1)) { yAx = y; break; } }
+  // (17-10) o se ensancha algo menos (+6 %) pero JUSTO DEBAJO las mangas iban SEPARADAS a los dos lados: mangas que caen junto al cuerpo
+  // (maniquí invisible, foto de producto), que a la altura de la axila apenas ensanchan la fila
+  const separadas = y => { const f = F[y]; if (!f || !f.c) return false; const i = f.R.indexOf(f.c); return i > 0 && i < f.R.length - 1; };
+  let yAx = null; for (let y = Math.round(B.y1 - 0.05 * alto); y > B.y0 + 0.08 * alto; y--) { const f = F[y]; if (f && f.e && f.cw >= 0.93 * (f.e[1] - f.e[0] + 1) && (f.cw > base * 1.25 || (f.cw > base * 1.06 && separadas(y + 2) && separadas(y + 4)))) { yAx = y; break; } }
   let mangas = 'si'; if (yAx == null) { // sin salto: o no tiene mangas, o están pegadas al cuerpo
     let y2 = null; for (let y = Math.round(B.y1 - 0.4 * alto); y > B.y0; y--) { const f = F[y]; if (f && f.cw < base * 0.9) { y2 = y; break; } }
     if (y2 != null) { yAx = y2; mangas = 'sin'; avisos.push('No veo mangas separadas del cuerpo: parece SIN MANGAS (si las tiene pegadas al cuerpo, sepáralas en la foto o marca la axila a mano).');
@@ -61,25 +91,32 @@ export function rasgosArriba(M) {
   // el CUELLO: los dos puntos más altos a los lados del centro
   const T = arriba(M, B), lado = (s) => { let mejor = null; const x0 = Math.round(xs + s * 0.03 * pecho), x1 = Math.round(xs + s * 0.48 * pecho);
     for (let x = x0; s < 0 ? x >= x1 : x <= x1; x += s) { if (!isFinite(T[x])) continue; if (!mejor || T[x] < mejor.y - 0.5) mejor = { x, y: T[x] }; } return mejor; };
-  const hl = lado(-1), hr = lado(1);
+  let hl = lado(-1), hr = lado(1);
   if (!hl || !hr) { avisos.push('No encuentro el cuello.'); return { tipo: 'arriba', puntos: P, medidas: med, extra, avisos, B, xs, sim: S.iou }; }
-  P.cuelloIzq = { x: hl.x, y: hl.y, conf: 0.75 }; P.cuelloDer = { x: hr.x, y: hr.y, conf: 0.75 };
-  const yH = (hl.y + hr.y) / 2, yC = T[Math.round(xs)];
-  P.escote = { x: xs, y: yC, conf: 0.7 };
+  // (17-10) la CAPUCHA: en una sudadera con capucha (plana o en maniquí invisible) la capucha asoma por encima de los hombros, en el centro, y
+  // «los puntos más altos junto al centro» caían en su coronilla: el largo salía con la capucha dentro (10–30 cm de más). Si la hay, el cuello
+  // en el hombro es donde la capucha se junta con la línea del hombro, y lo que asoma es su alto.
+  const cap = capuchaDe(T, xs, pecho, alto);
+  if (cap) { hl = cap.izq; hr = cap.der; extra.capucha = true; P.capucha = { x: xs, y: cap.yTop, conf: 0.5 }; }
+  P.cuelloIzq = { x: hl.x, y: hl.y, conf: cap ? 0.6 : 0.75 }; P.cuelloDer = { x: hr.x, y: hr.y, conf: cap ? 0.6 : 0.75 };
+  const yH = (hl.y + hr.y) / 2, yC = cap ? yH : T[Math.round(xs)];
+  P.escote = { x: xs, y: yC, conf: cap ? 0.2 : 0.7 }; /* (con capucha el escote no se ve: la capucha lo tapa) */
   // ¿pico o redondo? lo que se aparta la curva del cuello de su cuerda
   const dev = (h) => { let m = 0; const a = [h.x, h.y], b = [xs, yC], L = G.dist(a, b) || 1; for (let x = Math.min(h.x, xs); x <= Math.max(h.x, xs); x++) if (isFinite(T[x])) m = Math.max(m, G.distAPolilinea([x, T[x]], [a, b]).d); return m / L; };
-  const desv = (dev(hl) + dev(hr)) / 2; extra.escote = yC - yH < 0.01 * alto ? 'alto' : desv < 0.07 ? 'pico' : 'redondo';
+  const desv = cap ? 0 : (dev(hl) + dev(hr)) / 2; extra.escote = cap ? 'capucha' : yC - yH < 0.01 * alto ? 'alto' : desv < 0.07 ? 'pico' : 'redondo';
   // la PUNTA DEL HOMBRO: el codo de la línea de arriba entre el cuello y el final de la manga
   const sp = (h, s) => { const L = []; for (let x = h.x; s < 0 ? x >= B.x0 : x <= B.x1; x += s) if (isFinite(T[x])) L.push([x, T[x]]); if (L.length < 6) return null;
     const R = G.simplifica(L, Math.max(1.5, 0.008 * alto)), c = codo(R, 1, Math.max(2, R.length - 1)); return c ? { x: c.p[0], y: c.p[1], ang: c.ang } : null; };
-  const sl = sp(hl, -1), sr = sp(hr, 1);
+  const fuera = Math.round(2 + 0.012 * pecho), sl = sp(cap ? { x: cap.izq.xj - fuera, y: hl.y } : hl, -1), sr = sp(cap ? { x: cap.der.xj + fuera, y: hr.y } : hr, 1); /* (con capucha, la punta del hombro se busca desde donde acaba la capucha) */
   if (sl && sr) { const cf = Math.min(mangas === 'si' ? 0.9 : mangas === 'sin' ? 0.65 : 0.5, Math.min(sl.ang, sr.ang) / 25); /* (sin mangas, el codo cae donde el hombro pasa a la sisa: algo menos fiable) */ P.hombroIzq = { x: sl.x, y: sl.y, conf: cf }; P.hombroDer = { x: sr.x, y: sr.y, conf: cf }; if (cf < 0.35) avisos.push('La punta del hombro no se ve clara (la costura del hombro no marca codo): revísala.'); }
   // las MANGAS: la boca es el lado del contorno, en la punta de la manga, más atravesado a su eje
   const C = contorno(M), Cs = G.simplifica(C.concat([C[0]]), Math.max(1.5, 0.006 * Math.max(B.w, alto)));
   const manga = (s) => { const ax = s < 0 ? P.axilaIzq : P.axilaDer, hm = s < 0 ? P.hombroIzq : P.hombroDer; if (!hm || mangas !== 'si') return null;
     const punta = s < 0 ? B.x0 : B.x1, lim = ax.x + s * 0.25 * Math.abs(ax.x - punta), mid = [(hm.x + ax.x) / 2, (hm.y + ax.y) / 2];
     const zona = []; for (let i = 0; i < Cs.length - 1; i++) { const a = Cs[i], b = Cs[i + 1]; if ((s < 0 ? Math.min(a[0], b[0]) < lim : Math.max(a[0], b[0]) > lim)) zona.push([a, b, i]); } // (los lados que llegan a la punta de la manga)
-    if (!zona.length) return null; const ext = zona.flat().reduce((m, p) => (s < 0 ? p[0] < m[0] : p[0] > m[0]) ? p : m), eje = G.norma(G.sub(ext, mid)), perp = [-eje[1], eje[0]];
+    // (17-10) la punta de la manga = lo MÁS LEJOS de la punta del hombro (antes, lo más hacia fuera): igual en una manga abierta en cruz que en una
+    // que CAE (maniquí invisible, foto de producto), donde lo más hacia fuera es el codo y la boca está abajo
+    if (!zona.length) return null; const ref = [hm.x, hm.y], ext = zona.flatMap(z => [z[0], z[1]]).reduce((m, p) => (G.dist(p, ref) > G.dist(m, ref) ? p : m)), eje = G.norma(G.sub(ext, mid)), perp = [-eje[1], eje[0]];
     if (ext[0] <= 1 || ext[0] >= M.w - 2 || ext[1] <= 1 || ext[1] >= M.h - 2 || tocaTapa(M, ext)) return { cortada: true }; /* (16-10: la manga se sale de la foto o queda debajo del folio: no se mide con ella) */
     let mejor = null; zona.forEach(([a, b, i]) => { const d = G.sub(b, a), L = Math.hypot(d[0], d[1]), cr = Math.abs(G.punto(G.norma(d), perp)), lejos = G.punto(G.sub(G.lerp(a, b, 0.5), mid), eje); const v = L * cr * cr * (lejos > 0 ? 1 : 0); if (!mejor || v > mejor.v) mejor = { a, b, v, L, i }; });
     // (16-10) las esquinas de la boca, donde se CRUZAN las rectas de los lados de la manga con la de la boca: el recorte redondea las esquinas
@@ -97,8 +134,9 @@ export function rasgosArriba(M) {
   med.pecho = H(pecho, mangas === 'si' ? 0.8 : mangas === 'sin' ? 0.65 : 0.45, 'ancho de axila a axila (plana: × 2)', { plano: true }); /* (16-10: sin mangas, con la axila donde entra la sisa, es fiable) */
   med.largo = V(B.y1 - yH, 0.8, 'del cuello en el hombro al bajo');
   med.bajo = H(hem, 0.8, 'ancho del bajo (plana: × 2)', { plano: true });
-  med.cuello = H(hr.x - hl.x, 0.7, 'de cuello a cuello por arriba');
-  med.bajadaDel = V(Math.max(0, yC - yH), 0.6, 'del cuello en el hombro al centro del escote');
+  med.cuello = H(hr.x - hl.x, cap ? 0.5 : 0.7, cap ? 'de cuello a cuello, donde la capucha se junta con el hombro (confírmalo)' : 'de cuello a cuello por arriba');
+  if (!cap) med.bajadaDel = V(Math.max(0, yC - yH), 0.6, 'del cuello en el hombro al centro del escote');
+  else med.altoCapucha = V(cap.alto, 0.45, 'lo que asoma la capucha por encima del cuello en el hombro (tumbada, parte queda doblada detrás: confírmalo)');
   med.sisa = V(yAx - yH, mangas === 'si' ? 0.65 : mangas === 'sin' ? 0.6 : 0.4, 'del cuello en el hombro a la axila, en vertical');
   if (P.hombroIzq) { med.hombros = H(P.hombroDer.x - P.hombroIzq.x, P.hombroIzq.conf, 'de punta a punta del hombro'); med.caida = V(((P.hombroIzq.y + P.hombroDer.y) / 2) - yH, P.hombroIzq.conf * 0.8, 'lo que baja el hombro desde el cuello'); }
   const mm = [ml, mr].filter(Boolean);

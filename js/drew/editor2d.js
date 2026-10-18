@@ -59,6 +59,9 @@ export function editor2d(cont, ctx) {
       pz.internas.forEach(i => { if (i.tipo === 'boton') g.append(el('circle', { cx: i.pts[0][0], cy: i.pts[0][1], r: 4, class: 'dw-int' })); else g.append(el('path', { d: camino(i.pts, false), class: 'dw-int ' + i.tipo, 'pointer-events': 'none' })); });
       pz.piquetes.forEach(q => { const Q = Z.piqueteEn(pz, q); if (!Q) return; const m = Z.margenDe(pz, q.borde) || 5; [((q.n || 1) === 2 ? [-1.5, 1.5] : [0])].flat().forEach(o => { const b = G.suma(Q.p, G.esc(Q.tg, o)); g.append(el('path', { d: camino([G.suma(b, G.esc(Q.fuera, m)), G.suma(b, G.esc(Q.fuera, Math.max(0, m - 6)))], false), class: 'dw-piq' })); }); });
       if (pz.corte.doblez) { const L = Z.bordePolilinea(pz, pz.corte.doblez); g.append(el('path', { d: camino(L, false), class: 'dw-dob', 'pointer-events': 'none' })); }
+      // (17-10) los ESTAMPADOS de esta pieza: la imagen en su sitio (centro x desde el centro de la pieza, y desde el bajo), recortada a la pieza
+      (ctx.estampados || []).filter(E => E.url && (E.pieza === pz.nombre || pz.nombre.startsWith(E.pieza + ' ('))).forEach((E, k) => { const id = 'dwest_' + pz.id + '_' + k;
+        g.append(el('clipPath', { id }, el('path', { d: camino(Z.contorno(pz)) })), el('g', { 'clip-path': 'url(#' + id + ')', class: 'dw-est-2d', 'pointer-events': 'none' }, el('image', { href: E.url, x: E.x - E.w / 2, y: -(E.y + E.h / 2), width: E.w, height: E.h, transform: 'scale(1 -1)', opacity: 0.92, preserveAspectRatio: 'none' }))); });
       // los bordes (para elegirlos) y, en la elegida, sus tramos, puntos y tiradores
       pz.bordes.forEach(B => { const L = Z.bordePolilinea(pz, B.id); g.append(el('path', { d: camino(L, false), class: 'dw-borde' + (sel.borde === B.id && elegida ? ' on' : '') + ' t-' + B.tipo, 'data-pieza': pz.id, 'data-borde': B.id, 'data-que': 'borde', 'stroke-width': Math.max(1.5, (T ? 18 : 7) * s) })); });
       if (elegida) {

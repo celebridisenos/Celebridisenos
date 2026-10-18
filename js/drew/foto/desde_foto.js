@@ -44,13 +44,14 @@ export async function analizaFoto(E, o = {}) {
   FP.T = await analiza(prep.img, { lado, categoria: o.categoria, origen: 'foto enderezada con un folio A4', tapas: [prep.tapa], segmentaIA: o.segmentaIA ? () => o.segmentaIA(prep.img, lado) : null, iaVision: o.iaVision || null });
   return termina(FP);
 }
-async function termina(FP) {
+// (17-10) también la usa la FOTO DE PRODUCTO (foto/producto.js): FP.reglas(FP) da la escala (sin folio) y FP.trasRasgos(FP) añade lo suyo
+export async function termina(FP) {
   const T = FP.T, S = T.etapas.SEGMENTACION; FP.k = S && S.datos ? S.datos.k : null; FP.sil = null; FP.vista = {};
   if (!FP.k || !T.etapas.RASGOS || !T.etapas.RASGOS.datos) return FP;
-  FP.R0 = T.etapas.RASGOS.datos = tapadas(FP, T.etapas.RASGOS.datos); ponVista(FP, FP.R0); FP.avisos = avisosFolio(FP); await sigue(FP); return FP;
+  FP.R0 = T.etapas.RASGOS.datos = tapadas(FP, T.etapas.RASGOS.datos); if (FP.trasRasgos) FP.R0 = T.etapas.RASGOS.datos = FP.trasRasgos(FP, FP.R0); ponVista(FP, FP.R0); FP.avisos = avisosFolio(FP).concat(FP.avisosPropios || []); await sigue(FP); return FP;
 }
 const ponVista = (FP, R) => { FP.vista = {}; Object.entries(R.puntos).forEach(([n, q]) => { if (q && isFinite(q.x) && isFinite(q.y)) FP.vista[n] = [q.x / FP.k, q.y / FP.k]; }); };
-async function sigue(FP) { const T = FP.T; TARDE.forEach(k => { delete T.etapas[k]; }); await continua(T, reglasFolio(FP.E, FP.k), { categoria: FP.categoria || undefined }); }
+export async function sigue(FP) { const T = FP.T; TARDE.forEach(k => { delete T.etapas[k]; }); await continua(T, FP.reglas ? FP.reglas(FP) : reglasFolio(FP.E, FP.k), { categoria: FP.categoria || undefined }); if (FP.trasEscala) FP.trasEscala(FP); }
 // las medidas con algún punto pegado a lo TAPADO (el folio) no se ven enteras: pasan a «por confirmar» y se dice por qué
 function tapadas(FP, R) {
   const M = FP.T.etapas.SEGMENTACION.mascara, t = (M.tapas || [])[0]; if (!t) return R; const cerca = q => q && q.x >= t[0] - 6 && q.x <= t[2] + 6 && q.y >= t[1] - 6 && q.y <= t[3] + 6, med = Object.assign({}, R.medidas); let n = 0;
@@ -59,7 +60,7 @@ function tapadas(FP, R) {
 }
 // ¿la prenda toca el folio? (al taparlo se le habría comido un trozo)
 function avisosFolio(FP) {
-  const M = FP.T.etapas.SEGMENTACION.mascara, k = FP.k, t = FP.prep.tapa.map(v => Math.round(v * k)), out = []; let toca = 0, n = 0;
+  if (!FP.prep) return []; /* (17-10: la foto de producto no lleva folio) */ const M = FP.T.etapas.SEGMENTACION.mascara, k = FP.k, t = FP.prep.tapa.map(v => Math.round(v * k)), out = []; let toca = 0, n = 0;
   const mira = (x, y) => { if (x < 0 || y < 0 || x >= M.w || y >= M.h) return; n++; if (M.m[y * M.w + x]) toca++; };
   for (let x = t[0]; x <= t[2]; x++) { mira(x, t[1] - 2); mira(x, t[3] + 2); } for (let y = t[1]; y <= t[3]; y++) { mira(t[0] - 2, y); mira(t[2] + 2, y); }
   if (n && toca > 0.04 * n) out.push('La prenda toca el folio: el trozo que queda debajo del papel no se ve. Mejor otra foto con el folio separado unos centímetros.');
@@ -82,7 +83,7 @@ export const enVivo = (FP, nombre) => dibujo(FP, conPuntos(FP, [nombre]));
 // la persona dice qué prenda es: puntos nuevos para esa familia con la MISMA silueta (no se recorta otra vez)
 export async function cambiaCategoria(FP, cat) {
   FP.categoria = cat; FP.movidos = new Set(); FP.confirmadas = new Set(); await rehazRasgos(FP.T, cat);
-  const R = FP.T.etapas.RASGOS; if (!R || !R.datos) { FP.vista = {}; return FP; } FP.R0 = R.datos = tapadas(FP, R.datos); ponVista(FP, FP.R0); await sigue(FP); return FP;
+  const R = FP.T.etapas.RASGOS; if (!R || !R.datos) { FP.vista = {}; return FP; } FP.R0 = R.datos = tapadas(FP, R.datos); if (FP.trasRasgos) FP.R0 = R.datos = FP.trasRasgos(FP, FP.R0); ponVista(FP, FP.R0); await sigue(FP); return FP;
 }
 // volver a los puntos que puso la máquina
 export async function puntosMaquina(FP) { FP.T.etapas.RASGOS.datos = FP.R0; ponVista(FP, FP.R0); FP.movidos = new Set(); await sigue(FP); return FP; }

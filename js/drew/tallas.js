@@ -34,10 +34,28 @@ export function medidasPrenda(k, cuerpo, o = {}) {
     return { pecho: mm(c.pecho + h.pecho), cintura: mm(c.cintura + h.cintura), cadera: mm(c.cadera + h.cadera), espalda: mm(c.espalda), hombros: mm(c.hombros), cuello: mm(c.cuello / Math.PI + 4.5),
       bajadaDel: mm(o.escote === 'pico' ? 18 : 9), bajadaEsp: mm(2), sisa: mm(c.pecho / 8 + 9 + h.sisa), caida: mm(4.5), alturaPecho: mm(c.espalda * 0.62), separacion: mm(c.pecho * 0.205),
       pinzaPecho: mm(Math.max(1.5, Math.min(8, 0.4 * dif - 1.7))), altoCadera: mm(20), largo: mm(o.largo || 58), vuelo: 0, manga: mm(o.manga === 'larga' ? c.brazo + 1 : 18), biceps: mm(c.biceps + h.biceps), boca: mm(o.manga === 'larga' ? c.muneca + 8 : c.biceps + h.biceps - 3) }; }
-  if (k === 'pantalon') return { cintura: mm(c.cintura + h.cintura), cadera: mm(c.cadera + h.cadera), tiro: mm(c.tiro + h.tiro), altoCadera: mm(19), largo: mm(o.largo || c.entrepierna + c.tiro + h.tiro - 2), rodilla: mm(c.rodilla + h.rodilla), bajo: mm(o.bajo || Math.max(36, c.rodilla * 0.95)), cinturilla: mm(4) };
+  if (k === 'pantalon') return { cintura: mm(c.cintura + h.cintura), cadera: mm(c.cadera + h.cadera), tiro: mm(c.tiro + h.tiro), altoCadera: mm(19), largo: mm(o.largo || c.entrepierna + c.tiro - 2) /* (18-10: el bajo a 2 cm del suelo con cualquier ajuste; sumando la holgura del tiro, el baggy llegaba 2 cm POR DEBAJO del suelo, se amontonaba encima de los pies y los dedos atravesaban la tela) */, rodilla: mm(c.rodilla + h.rodilla), bajo: mm(o.bajo || Math.max(36, c.rodilla * 0.95)), cinturilla: mm(4) };
   throw new Error('No hay tallas para «' + k + '».');
 }
 // gradar: genera la prenda en cada talla de la tabla → [{ talla, prenda, error? }]
 export function grada(genera, k, tabla, opciones, o = {}) {
   return tabla.tallas.map(T => { try { const P = genera(k, medidasPrenda(k, T.v, Object.assign({}, o, { manga: opciones && opciones.mangaTipo })), opciones); P.piezas.forEach(p => { p.talla = T.t; }); return { talla: T.t, prenda: P }; } catch (e) { return { talla: T.t, error: e.message }; } });
 }
+// 17-10-2026 · 📏 LA TALLA APROXIMADA de la prenda acabada (ella: «tiene que decir la talla aprox. del proyecto final o poner la talla»).
+// A lo que mide la PRENDA se le quita la holgura del ajuste elegido → el CUERPO al que le va → la talla de la tabla en la que cae (los
+// límites, a mitad de camino entre una talla y la siguiente). Arriba manda el pecho; en falda y pantalón, la cadera.
+// → { t: 'M', tabla: 'mujer', clave: 'pecho', cuerpo (cm), desde, hasta (cm del cuerpo que le van), fuera: '' | 'menos' | 'mas' }
+export const CLAVE_TALLA = k => (k === 'falda' || k === 'pantalon' ? 'cadera' : 'pecho');
+export function tallaAprox(k, medidasMM, ajuste = 'normal', sexo = 'mujer') {
+  const clave = CLAVE_TALLA(k), tabla = TABLAS[sexo] ? sexo : 'mujer', L = TABLAS[tabla].tallas, h = ((HOLG[k] || {})[ajuste] || {})[clave] || 0;
+  const v = medidasMM && medidasMM[clave]; const prenda = v == null ? null : (typeof v === 'object' ? v.v : v) / 10;
+  if (!(prenda > 0)) return null;
+  const cuerpo = Math.round((prenda - h) * 10) / 10, val = L.map(T => T.v[clave]);
+  const lim = i => (i <= 0 ? val[0] - (val[1] - val[0]) / 2 : i >= L.length ? val[L.length - 1] + (val[L.length - 1] - val[L.length - 2]) / 2 : (val[i - 1] + val[i]) / 2);
+  let i = 0; while (i < L.length - 1 && cuerpo >= lim(i + 1)) i++;
+  const fuera = cuerpo < lim(0) ? 'menos' : cuerpo > lim(L.length) ? 'mas' : '';
+  return { t: L[i].t, tabla, clave, prenda: Math.round(prenda * 10) / 10, cuerpo, desde: Math.round(lim(i) * 10) / 10, hasta: Math.round(lim(i + 1) * 10) / 10, fuera };
+}
+// el texto corto para la pantalla y los PDF: «M», «≈ M» (cuando no es exactamente una talla de la tabla), «XS o menos», «XXL o más»
+export const textoTalla = (A, exacta) => !A ? '' : (exacta ? '' : '≈ ') + A.t + (A.fuera === 'menos' ? ' o menos' : A.fuera === 'mas' ? ' o más' : '');
+

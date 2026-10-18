@@ -29,6 +29,7 @@ const ARRIBA = {
   caida: { usa: ['cuelloIzq', 'cuelloDer', 'hombroIzq', 'hombroDer'], vec: P => vt(cuello(P).y, med(P.hombroIzq, P.hombroDer).y), linea: P => vertical(P.hombroDer.x, cuello(P).y, med(P.hombroIzq, P.hombroDer).y) },
   manga: { usa: ['hombroIzq', 'mangaIzq', 'hombroDer', 'mangaDer'], vec: P => mangaVec(P, 'hombro', 'manga'), linea: P => { const s = lados(P, 'hombro', 'manga')[0]; return s ? recta(P['hombro' + s], P['manga' + s]) : null; } },
   boca: { usa: ['mangaIzq', 'bocaIzq', 'mangaDer', 'bocaDer'], vec: P => mangaVec(P, 'manga', 'boca'), linea: P => { const s = lados(P, 'manga', 'boca')[0]; return s ? recta(P['manga' + s], P['boca' + s]) : null; } },
+  altoCapucha: { usa: ['cuelloIzq', 'cuelloDer', 'capucha'], vec: P => vt(cuello(P).y, P.capucha.y), linea: P => vertical(P.capucha.x, P.capucha.y, cuello(P).y) }, // (17-10)
   biceps: { usa: ['axilaIzq', 'hombroIzq', 'mangaIzq', 'axilaDer', 'hombroDer', 'mangaDer'], vec: P => { const L = lados(P, 'axila', 'hombro', 'manga'); return L.length ? [media(L, s => biceps(P, s).d), 0] : null; },
     linea: P => { const s = lados(P, 'axila', 'hombro', 'manga')[0]; return s ? [xy(P['axila' + s]), biceps(P, s).p] : null; } },
 };
@@ -61,14 +62,14 @@ export const DEF = {
   }),
 };
 // los nombres que se enseñan (izquierda y derecha tal como se ven en la FOTO)
-export const NOMBRES = { axilaIzq: 'Axila (izquierda)', axilaDer: 'Axila (derecha)', cuelloIzq: 'Cuello en el hombro (izq.)', cuelloDer: 'Cuello en el hombro (der.)', escote: 'Centro del escote',
+export const NOMBRES = { axilaIzq: 'Axila (izquierda)', axilaDer: 'Axila (derecha)', cuelloIzq: 'Cuello en el hombro (izq.)', cuelloDer: 'Cuello en el hombro (der.)', escote: 'Centro del escote', capucha: 'Lo más alto de la capucha',
   hombroIzq: 'Punta del hombro (izq.)', hombroDer: 'Punta del hombro (der.)', mangaIzq: 'Final de la manga, arriba (izq.)', mangaDer: 'Final de la manga, arriba (der.)', bocaIzq: 'Final de la manga, abajo (izq.)', bocaDer: 'Final de la manga, abajo (der.)',
   bajoIzq: 'Bajo (izquierda)', bajoDer: 'Bajo (derecha)', cinturaIzq: 'Cintura (izquierda)', cinturaDer: 'Cintura (derecha)', cadera: 'Cadera (izquierda)', caderaIzq: 'Cadera (izquierda)', caderaDer: 'Cadera (derecha)', entrepierna: 'Entrepierna',
   bajoIzqF: 'Bajo pierna izq. (fuera)', bajoIzqD: 'Bajo pierna izq. (dentro)', bajoDerD: 'Bajo pierna der. (dentro)', bajoDerF: 'Bajo pierna der. (fuera)',
   rodillaIzqF: 'Rodilla izq. (fuera)', rodillaIzqD: 'Rodilla izq. (dentro)', rodillaDerD: 'Rodilla der. (dentro)', rodillaDerF: 'Rodilla der. (fuera)' };
 // el nombre corto de cada medida para escribirlo en la foto
 export const CORTO = { pecho: 'Pecho', largo: 'Largo', bajo: 'Bajo', cuello: 'Cuello', bajadaDel: 'Escote', sisa: 'Sisa', hombros: 'Hombros', caida: 'Caída', manga: 'Manga', boca: 'Boca', biceps: 'Manga (ancho)',
-  cintura: 'Cintura', cadera: 'Cadera', tiro: 'Tiro', altoCadera: 'Alto cadera', rodilla: 'Rodilla', bajoPlano: 'Bajo', talle: 'Talle' };
+  cintura: 'Cintura', cadera: 'Cadera', tiro: 'Tiro', altoCadera: 'Alto cadera', rodilla: 'Rodilla', bajoPlano: 'Bajo', talle: 'Talle', altoCapucha: 'Capucha' };
 export const familiaDe = R => (R.tipo === 'pantalon' ? 'pantalon' : R.tipo === 'falda' ? 'falda' : R.tipo === 'vestido' ? 'vestido' : 'arriba');
 const defs = R => DEF[familiaDe(R)];
 

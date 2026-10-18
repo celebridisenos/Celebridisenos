@@ -57,7 +57,32 @@ Encargo y estado: sección «👗 EN CURSO (16-10-2026)» al principio de `00_SI
   ficha: tocar un borde lo elige y se MUEVE ENTERO (`desplazaBorde` + `parejasDe`, «lo mismo en su pareja»); ficha encogible (▾);
   biblioteca plegable (`cd.drew.plegado`); ⛶ Grande en cada barra (`.dw-vistas.solo2d/.solo3d`). Prueba: `node test/e2e_drew_tablet.js`.
 
+- 17-10 (noche, sesión 8ec1777e desde el editor de vídeo) · lo del ENCARGO_17-10-2026 (00_SISTEMA):
+  · 📸 COPIA EXACTA desde una FOTO DE PRODUCTO (fondo blanco/liso): `foto/producto.js` (`fondoLiso`, `analizaProducto`, `ponEscala`, `aProyecto`,
+    `textoEscala`) sobre la cadena de siempre (`desde_foto.js`: ahora acepta `FP.reglas` / `FP.trasRasgos` / `FP.trasEscala` y exporta `termina`,
+    `sigue`). Escala: el AVATAR (su pecho o cadera con la holgura) o UNA medida de la TABLA DE TALLAS. Saca también COLOR, alto de CINTURA y PUÑOS
+    (el escalón de luz/textura), CREMALLERA (raya del centro) y el ESTAMPADO del pecho (RGBA con fondo transparente; colocación `yc` = cm bajo el
+    cuello en el hombro, como en una ficha técnica). En `inspira_ui.js`, si el fondo es liso, sale el panel `.dw-prod` (y lo de la IA, plegado).
+    `rasgos.js`: CAPUCHA (`capuchaDe`: el cuello en el hombro se toma en la línea del hombro prolongada, a 1/1,3 de lo que abre la capucha;
+    `altoCapucha`), mangas que CAEN (la punta = lo más lejos del hombro; la axila también con +6 % si debajo iban separadas).
+  · 🖼 ESTAMPADOS: `P.estampados` [{ id, img (en P.imagenes), pieza, x, yc, w, h, nombre }] → `vista3d.ponEstampados` (una malla que comparte la
+    geometría de la pieza, UV = mm de la pieza) y el 2D (`editor2d.js`, recortado a la pieza). En Tela: imagen o LETRAS, mover, tamaño, quitar.
+  · 👥 `cuerpos.js`: BIBLIOTECA DE CUERPOS (10), PELO esculpido (`vista3d.ponPelo`, sobre `cabezaDe` la malla), y `leeAvs` (avatar de CLO .avs:
+    altura, pecho, cintura, cadera A CONFIRMAR; `desdeConfirmadas`). El músculo llega a MakeHuman (`tela_worker` → `MH.construye(…, { musculo })`).
+  · 🧩 `bloques/sudadera.js` POR PIEZAS (`OPC_SUDADERA`: cuelloTipo, cierre, puno, bajo, bolsillo) + `piezas_ui.js` (tarjetas que se arrastran,
+    `TIPO_ARRASTRE`, la cremallera pintada en el 3D con `adornos`). La cremallera es un «cierre» (`costuraEspejo` con `cierre: true`): en el 3D
+    queda cerrada y en el manual tiene su paso (`montaje.js`).
+  · 🏭 `ficha_pdf.js`: FICHA TÉCNICA PARA FÁBRICA (tech pack, PDF apaisado, la estructura de NOORKO1/TECHPACKS): `gradua` (por diferencia de
+    los cuerpos de la tabla), `materiales`, `detalles`, `pdfFicha`. En Exportar, con marca, referencia y colección.
+- 17-10 · Arreglos del 3D que había que saber: `tela.js colocacion` va por NOMBRE de pieza — «Delantero (dos piezas)» y «Cuello alto» no
+  estaban (la sudadera con cremallera se caía); los anillos cortados en dos llevan `mitad`; el canguro se coloca a la altura que marca el patrón
+  (antes, en el borde de abajo: sin cintura temblaba sin parar). `celebridrew.js regenera`: si cambian las piezas o cómo se cortan, se cose DESDE
+  CERO (heredar la posición de la anterior dejaba la nueva abierta y «cayendo»).
+
 ## Cosas que NO hay que romper (aprendidas a golpes)
+- 17-10: los nombres de clase NUEVOS se miran antes en drew.css: `dw-cuerpo`, `dw-est` y `dw-mini` YA EXISTÍAN (contenedor principal, píldora
+  del pie, botón de la ficha) y un estilo nuevo con ese nombre rompió la pantalla entera. Los de hoy: `dw-cbib`, `dw-estam`, `dw-ptile`, `dw-prod`.
+- Los «sin pantalla» no ven si una prenda está PUESTA: `drew_sudadera_piezas.mjs` mira además que el delantero siga en los hombros y delante.
 - 2D con el dedo: las herramientas de TOCAR (punto, quitar, curva, piquete, medir) van en `toca()` al LEVANTAR; si se ejecutan al bajar el
   dedo, apoyar el segundo dedo para acercar pone puntos sin querer. Al llegar el segundo dedo, `deshaz()` devuelve lo que se arrastraba.
 - El WebKit de Playwright en Windows deja en blanco CUALQUIER lienzo WebGL que cambie de tamaño (comprobado con un cubo): no es fallo nuestro;
@@ -88,6 +113,11 @@ Encargo y estado: sección «👗 EN CURSO (16-10-2026)» al principio de `00_SI
   y en `views/celebridrew.js` `deImagen` (la prenda nueva) + `bannerImagen`. Varillas: `bloques/vestido.js` (opción) + `montaje.js` (`varillas`).
 
 ## Pruebas
+- 17-10: `test/unit/drew_producto.mjs` (26: fotos de producto sintéticas de `drew_producto_fotos.mjs`; tabla de tallas < 1 cm, proporciones con el
+  avatar, capucha, cintura, puños, logo, cremallera, mangas que caen, pantalón) · `test/e2e_drew_producto.js` (12, con el programa) ·
+  `test/unit/drew_cuerpos.mjs` (17) · `test/unit/drew_sudadera_piezas.mjs` (216 combinaciones + 5 cosidas y PUESTAS en 3D) ·
+  `test/e2e_drew_sudadera_piezas.js` (tocar y ARRASTRAR piezas) · `test/unit/drew_ficha_pdf.mjs` (13). Fotos de producto de prueba:
+  `node tools/drew_foto/fotos_producto.mjs` → `test/fixtures/drew_*_producto.png`.
 - `test/unit/drew_inspira.mjs` (16-10) · lectura de la IA (inglés, sinónimos, dudas, caja), diseño (vestido de corsé con varillas, top con
   capucha → sudadera, falda plisada → evasé avisando), ≤ 3 preguntas, medidas en el avatar MakeHuman (midi, crop, ¾, tirantes, vuelo de la
   silueta) y patrón validado con sus canales de varilla (21 pruebas, ~20 s).

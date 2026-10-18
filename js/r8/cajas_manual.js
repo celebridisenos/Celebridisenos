@@ -7,7 +7,7 @@ import * as CP from './cajas_pro.js';
 
 const n1 = x => (Math.round(x * 10) / 10).toLocaleString('es-ES');
 // el nombre «de catálogo» de cada pieza suelta (las llaves y las ruedas se cuentan juntas)
-const grupo = nombre => /^Llave/.test(nombre) ? 'Llave' : /^Rueda/.test(nombre) ? 'Rueda con números' : /^Cubeta/.test(nombre) ? 'Cubeta' : nombre.replace(/\s*\(.*\)\s*$/, '');
+const grupo = nombre => /^Llave/.test(nombre) ? 'Llave' : /^Rueda/.test(nombre) ? 'Rueda con números' : /^Cubeta/.test(nombre) ? 'Cubeta' : /^Disco/.test(nombre) ? 'Disco de la cerradura' : /^Separador/.test(nombre) ? 'Separador' : nombre.replace(/\s*\(.*\)\s*$/, '');
 
 export function manualCaja(C) {
   if (CJ.CE.es(C)) return CJ.CE.manual(C); // 14-10 (tarde): las cajas enigma traen el suyo (y la solución, aparte)
@@ -15,7 +15,7 @@ export function manualCaja(C) {
   // ---- qué viene en el paquete ----
   const cuenta = new Map();
   CJ.piezasDe(C).forEach(p => { const k = grupo(p.nombre); cuenta.set(k, (cuenta.get(k) || 0) + 1); });
-  const nota = { Caja: 'el cuerpo', Tapa: C.tapa === 'corredera' ? 'corredera' : '', Llave: hay('llave').map(e => 'código ' + CP.llaveCodigo(e.p.codigo)).join(', '), 'Rueda con números': 'del 0 al 9' };
+  const nota = { Caja: 'el cuerpo', Tapa: C.tapa === 'corredera' ? 'corredera' : '', Llave: hay('llave').map(e => 'código ' + CP.llaveCodigo(e.p.codigo)).join(', '), 'Rueda con números': 'del 0 al 9', 'Disco de la cerradura': 'del 1 al 5 (con sus puntitos)', Separador: 'van entre los discos' };
   const piezas = [...cuenta.entries()].map(([k, n]) => [k, n, nota[k] || '']);
   const pasos = [], consejos = [], cuidados = [];
   let herramientas = 'Ninguna: se monta con las manos.';
@@ -24,9 +24,12 @@ export function manualCaja(C) {
   if (bis.length && C.tapa === 'bisagraFil') { pasos.push('Pon la tapa en su sitio y mete por cada bisagra un trozo de filamento de 1,75 mm, 1 mm más largo que la bisagra. Calienta un poco las puntas para que no se salga.'); herramientas = 'Un trozo de filamento de 1,75 mm por bisagra y un mechero para las puntas.'; }
   if (bis.length && C.tapa === 'bisagraTor') { const tor = bis.map(e => ([16, 20, 25, 30, 35, 40, 45, 50, 60].filter(l => l <= e.p.largo - 1.7).pop() || 16)); pasos.push('Pon la tapa en su sitio y mete por cada bisagra un tornillo M3 de ' + [...new Set(tor)].join(' o ') + ' mm. Enróscalo en el último nudo sin apretar de más: la tapa tiene que girar suave.'); herramientas = 'Un destornillador pequeño y ' + bis.length + ' tornillo' + (bis.length > 1 ? 's' : '') + ' M3 de esa medida (se compran en cualquier ferretería).'; }
   if (C.tapa === 'corredera' && !hay('gravedad').length) pasos.push('La tapa entra por la derecha: deslízala por sus ranuras hasta el fondo.');
+  // 17-10-2026 · la cerradura de discos: se monta con la llave puesta (cada disco solo entra en su postura)
   hay('llave').forEach(e => {
-    pasos.push('Mete el bombín desde fuera por el agujero de la cerradura, hasta que su pestaña toque la pared.');
-    pasos.push('Por dentro, encaja la cuña en el hexágono del bombín apretando, con la llave DE PIE: la cuña tiene que quedar hacia abajo y hacia el lado del gancho de la tapa.');
+    pasos.push('Cerradura (1/4): mete la barra en la ranura de abajo del bombín y la llave por delante, hasta el tope.');
+    pasos.push('Cerradura (2/4): por detrás, ensarta en la llave, en orden: disco 1 (un puntito), un separador (su pestaña arriba, en la ranura), disco 2, separador… hasta el disco 5. Cada disco solo entra en una postura: la de la llave.');
+    pasos.push('Cerradura (3/4): cierra el bombín con el tapón (pestaña arriba) apretando hasta oír «clic». Saca la llave.');
+    pasos.push('Cerradura (4/4): mete el bombín desde fuera por su agujero, con la barra abajo (en la ranura de la caja), hasta que la pestaña toque la pared. Por dentro, encaja la cuña a presión en el hexágono del tapón: hacia abajo y hacia el lado del gancho de la tapa.');
   });
   hay('combinacion').forEach(e => { const cod = String(e.p.codigo || '').replace(/\D/g, '');
     pasos.push('Coloca cada rueda entre sus orejetas, con los números hacia fuera, y gíralas hasta la combinación ' + cod + ' frente a la flecha.');
@@ -42,7 +45,7 @@ export function manualCaja(C) {
   if (hay('puerta').length) pasos.push('Engancha la puerta en su eje apretando sus clips hasta oír «clic».');
   hay('colgar').forEach(e => pasos.push('Para colgarla: pon dos tornillos en la pared separados ' + n1(e.p.sep > 0 ? e.p.sep : C.L / 2) + ' mm, con la cabeza 3 mm fuera; mete las cabezas por los agujeros redondos y baja la caja.'));
   // ---- uso ----
-  hay('llave').forEach(() => pasos.push('Para CERRAR: con la llave tumbada, baja la tapa y gira la llave hasta ponerla de pie. Para ABRIR: gírala hasta tumbarla y sube la tapa.'));
+  hay('llave').forEach(() => pasos.push('Para ABRIR: mete la llave y gírala algo más de media vuelta, hasta el tope (solo gira hacia un lado), y sube la tapa. Para CERRAR: baja la tapa y vuelve a girar la llave hasta el principio; la llave solo sale en esa postura.'));
   hay('combinacion').forEach(e => pasos.push('Para ABRIR: pon la combinación frente a la flecha y tira del pomo (unos 6 mm). Para CERRAR: baja la tapa, empuja el pomo hasta el fondo y desordena las ruedas.'));
   hay('gravedad').forEach(() => pasos.push('Para ABRIR: pon la caja boca abajo y desliza la tapa hacia la derecha. De pie no se abre.'));
   if (hay('iman').length) pasos.push('Se cierra sola con los imanes: para abrir, levanta la tapa por delante.');
@@ -51,7 +54,7 @@ export function manualCaja(C) {
   if (C.tapa === 'presion') pasos.push('La tapa entra a presión: apriétala por los bordes para cerrar y tira de ella hacia arriba para abrir.');
   if (!pasos.length) pasos.push('Viene montada: solo tienes que abrirla y usarla.');
   // ---- consejos y cuidados ----
-  if (hay('llave').length) consejos.push('Guarda la llave de repuesto en otro sitio.');
+  if (hay('llave').length) { consejos.push('Guarda la llave de repuesto en otro sitio.'); consejos.push('Código de la llave: ' + hay('llave').map(e => CP.llaveCodigo(e.p.codigo)).join(' y ') + '. Guárdalo: con él se hace otra llave igual (sin él, ninguna otra abre).'); }
   if (hay('combinacion').length) consejos.push('Apunta la combinación en un sitio seguro.');
   if (hay('gravedad').length || C.estilo === 'libro') consejos.push('Es una caja discreta: no cuentes el truco 😉');
   if (C.estilo === 'libro') consejos.push('Queda mejor en una estantería, entre libros de verdad.');

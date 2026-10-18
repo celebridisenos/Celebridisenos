@@ -19,13 +19,17 @@ const CAT = {
   halloween: ['home', 1.79, 'halloween, spooky, decoración'], bebes: ['home', 1.79, 'baby, bebé, baptism, bautizo'], canicas: ['game', 2.49, 'marble run, canicas, marble, juego'],
   ciencia: ['various', 2.49, 'science, ciencia, education, stem'], frikis: ['game', 1.99, 'tabletop, rpg, dnd, rol'], oficina: ['home', 1.79, 'office, oficina, desk organizer, escritorio'],
   juguetes: ['game', 3.99, 'model kit, maqueta, kit, toy'], flores: ['home', 1.49, 'flower, flor, gift, regalo'], empresas: ['home', 1.99, 'business, negocio, restaurant, hostelería'],
-  kits: ['game', 0.99, 'card kit, kids craft, manualidad, niños']
+  kits: ['game', 0.99, 'card kit, kids craft, manualidad, niños'],
+  compatibles: ['tools', 1.49, 'compatible, replacement part, spare part, repuesto, parametric'], // 17-10-2026
+  impresora3d: ['tools', 1.49, '3d printer accessory, bambu lab, a1 mini, a1, p1p, upgrade'] // 17-10-2026 noche
 };
 // los que NO son para vender (ayudas para diseñar: se restan o se añaden a otra pieza) y los que van GRATIS
 const AYUDA = new Set(['tornillo', 'tuerca', 'inserto', 'iman', 'colgar', 'patronHuecos', 'anilla', 'rodamiento', 'roscaBote']);
 const GRATIS = new Set(['pruebaPrecision', 'pruebaRodImpreso', 'plantillaRodamientos']);
 // el precio de los que se salen de su grupo (kits grandes, mecanismos, chasis…)
 const PRECIO = {
+  rotulaTimelapse: 3.49, pinzaBobina: 0.99, rackPlacas: 1.49, rodillosBobina: 1.99, gridfinityPro: 1.99, gridfinityPuntas: 1.49, gridfinityBasePro: 0.99, skadisGancho: 0.99, skadisBalda: 1.99, skadisPorta: 1.49, goproTripode: 1.49, goproBrazo: 0.99, aspiradora: 1.49, soporteBalda: 0.99, ganchoPuerta: 1.29, tiburonFlexi: 2.99, serpienteFlexi: 2.99, fundaMecheroPro: 1.49, ceniceroMoai: 2.99, ceniceroVolcan: 2.49, // 17-10-2026 tarde
+  dragonFlexi: 3.99, pulpoFlexi: 2.99, pezFlexi: 2.49, lagartijaFlexi: 2.49, aranaFlexi: 2.99, ajoloteFlexi: 2.49, cajaRegalo: 2.49, huevoSorpresa: 1.99, bolaNavidadAbre: 1.99, bolaPremios: 1.99, pastilleroGiratorio: 1.99, cajaGiratoria: 1.99, cajaDientes: 1.99, deckBox: 1.99, fantasmaVela: 1.99, calderoCaramelos: 2.49, lapidaHalloween: 1.49, arbolEspiral: 1.49, cakeTopper: 1.99, placaNacimiento: 2.49, cartelPuerta: 1.99, peanasMiniaturas: 1.49, contadorVida: 1.99, solidosPlatonicos: 2.49, moebius: 1.49, setGeometria: 2.49, bumeran: 1.99, silbato: 0.99, yoyo: 1.49, catapulta: 2.49, huchaRemolino: 3.49, marcapaginas: 1.49, servilleteroCalado: 1.49, estacionEsquejes: 1.99, macetaPared: 1.49, expositorPendientes: 1.99, numeroMesa: 1.49, deshojador: 0.99, exprimidor: 1.99, abrebotellas: 1.49, anilloFidget: 1.99,
   cajaEngranajes: 2.99, mesaEngranajes: 2.49, rodamientoPlanetario: 2.99, corazonEngranajes: 2.49, llaveroEngranajes: 1.99, juegoEngranajesMotor: 1.99, casaMunecas: 4.99, hormiguero: 3.49, hormigaNido: 2.99,
   calendarioAdviento: 3.99, cajoneraDoble: 2.99, bicicletaKit: 4.99, motoKit: 4.99, miniTaladro: 5.99, pieDeRey: 4.99, chasisBuggy: 5.99, chasisBanera: 4.99, chasisDoble: 4.99, chasisCrawler: 4.99,
   esquinaDel: 3.49, esquinaTras: 3.49, diferencial: 2.99, reductora: 2.99, difRectos: 2.99, spool: 1.99, cardan: 2.49, torreCanicas: 2.99, torreZigzag: 2.99, cuatroEnLinea: 2.99, damas: 1.99,
@@ -41,9 +45,58 @@ const PRECIO = {
 };
 // título en inglés · etiquetas propias (se suman a las de su grupo)
 const T = {
+  // 17-10-2026 · los nuevos (figuras articuladas, cajas, Halloween, bebés, juguetes, ciencia, frikis, casa)
+  dragonFlexi: ['Articulated Dragon with Wings – Print in Place Flexi', 'flexi dragon, articulated dragon, print in place, dragón articulado, fidget toy, dragon'],
+  pulpoFlexi: ['Articulated Octopus – Print in Place Flexi Toy', 'flexi octopus, articulated octopus, print in place, pulpo articulado, sea animal, fidget'],
+  pezFlexi: ['Articulated Fish or Fish Skeleton – Print in Place', 'flexi fish, articulated fish, fish skeleton, print in place, pez articulado, fidget'],
+  lagartijaFlexi: ['Articulated Gecko – Print in Place Flexi Lizard', 'flexi gecko, articulated lizard, print in place, lagartija, reptile, fidget'],
+  aranaFlexi: ['Articulated Spider – Print in Place Halloween Flexi', 'flexi spider, articulated spider, halloween, print in place, araña articulada, spooky'],
+  ajoloteFlexi: ['Articulated Axolotl – Cute Print in Place Flexi', 'flexi axolotl, axolotl, ajolote, articulated, print in place, kawaii'],
+  cajaRegalo: ['Gift Box with Bow – Lid Fits Over the Top', 'gift box, caja regalo, present box, bow, lazo, birthday, christmas gift'],
+  huevoSorpresa: ['Surprise Egg Box – Two Halves that Click Shut', 'surprise egg, easter egg, huevo sorpresa, money gift, proposal, regalo'],
+  bolaNavidadAbre: ['Openable Christmas Ornament – Gift Inside', 'christmas ornament, bola navidad, openable ornament, money gift, gift card, xmas'],
+  bolaPremios: ['Treat Ball for Small Dogs and Cats', 'treat ball, dog toy, cat toy, pelota premios, treat dispenser, pet'],
+  pastilleroGiratorio: ['Rotating Weekly Pill Box – 7 Days', 'pill box, pastillero, pill organizer, weekly, rotating, medicine'],
+  cajaGiratoria: ['Swivel Lid Box with Click – Engraved Name', 'swivel box, rotating lid, caja tapa giratoria, storage box, personalized, gift box'],
+  cajaDientes: ['Baby Tooth Box – Tooth Fairy Keepsake', 'tooth box, tooth fairy, caja dientes de leche, ratoncito pérez, keepsake, kids'],
+  deckBox: ['Deck Box for Sleeved Cards – Telescoping Lid', 'deck box, card box, tcg, trading cards, caja cartas, sleeves, tabletop'],
+  fantasmaVela: ['Ghost Tea Light Holder – Halloween LED Lantern', 'ghost, fantasma, halloween, tea light, led candle, cute ghost, spooky decor'],
+  calderoCaramelos: ['Witch Cauldron Candy Bowl with Handle', 'cauldron, caldero, halloween, candy bowl, witch, trick or treat'],
+  lapidaHalloween: ['Halloween Tombstone with Custom Name', 'tombstone, lápida, halloween, rip, graveyard, personalized'],
+  arbolEspiral: ['Spiral Christmas Tree – Vase Mode', 'christmas tree, árbol navidad, spiral tree, vase mode, xmas decor, led'],
+  cakeTopper: ['Custom Cake Topper – Name or Phrase in One Piece', 'cake topper, personalized, birthday, wedding, baptism, comunión, tarta'],
+  placaNacimiento: ['Baby Birth Announcement Plaque – Name, Date, Weight', 'birth announcement, baby plaque, placa nacimiento, newborn, nursery, personalized'],
+  cartelPuerta: ['Kids Door Name Sign – Cloud, Star or Rainbow', 'door sign, name sign, cartel puerta, kids room, nursery, rainbow'],
+  peanasMiniaturas: ['Textured Miniature Bases 25–50 mm, Magnet Ready', 'miniature bases, wargaming, tabletop rpg, peanas, textured bases, dungeon'],
+  contadorVida: ['Life Counter 00–99 with Click Dials', 'life counter, card games, tcg, contador vidas, dial, tabletop'],
+  solidosPlatonicos: ['Platonic Solids Set with Labeled Stand', 'platonic solids, geometry, math, education, sólidos platónicos, stem, classroom'],
+  moebius: ['Möbius Strip Sculpture', 'mobius strip, möbius, math art, topology, sculpture, desk decor'],
+  setGeometria: ['School Geometry Set – Ruler, Set Squares, Protractor', 'geometry set, ruler, protractor, set square, escuadra, cartabón, school'],
+  bumeran: ['Indoor Boomerang – 3 Blades, Right or Left Handed', 'boomerang, bumerán, indoor boomerang, flying toy, kids'],
+  silbato: ['Keychain Whistle – Chamber Whistle', 'whistle, silbato, keychain, emergency whistle, sports, llavero'],
+  yoyo: ['Threaded Yo-Yo with Coin Weights', 'yoyo, yo-yo, yoyó, classic toy, kids, coin weight'],
+  catapulta: ['Desk Catapult with Rubber Band', 'catapult, catapulta, desk toy, office toy, physics, kids'],
+  huchaRemolino: ['Coin Vortex Bank – Gravity Well Spiral Funnel', 'coin funnel, vortex bank, hucha, money box, gravity well, spiral'],
+  marcapaginas: ['Custom Bookmark with Cut-out Pattern and Name', 'bookmark, marcapáginas, personalized, voronoi, book lover, gift'],
+  servilleteroCalado: ['Napkin Holder with Cut-out Pattern', 'napkin holder, servilletero, kitchen, table decor, honeycomb'],
+  estacionEsquejes: ['Plant Propagation Station for Test Tubes', 'propagation station, test tube, plant cuttings, esquejes, hydroponic, plant lover'],
+  macetaPared: ['Wall Planter – Half Hexagon, Round or Faceted', 'wall planter, maceta pared, hexagon planter, wall decor, cachepot'],
+  expositorPendientes: ['Earring Display Stand – Tree or Frame', 'earring display, expositor pendientes, jewelry stand, market stall, shop display'],
+  numeroMesa: ['Table Number Sign for Weddings and Restaurants', 'table number, wedding, número mesa, restaurant, event decor, sign'],
+  deshojador: ['Herb Stripper – 9 Hole Sizes', 'herb stripper, kitchen tool, deshojador, kale, rosemary, cooking'],
+  exprimidor: ['Citrus Juicer with Cup – Lemon Squeezer', 'citrus juicer, exprimidor, lemon squeezer, kitchen, juice'],
+  abrebotellas: ['Coin Bottle Opener Keychain', 'bottle opener, abrebotellas, keychain, coin, llavero, gift'],
+  anilloFidget: ['Spinner Ring – Print in Place Fidget Ring', 'spinner ring, fidget ring, anillo antiestrés, print in place, ring'],
   macetaAnimal: ['Cute Animal Planter – Cat, Bear, Bunny or Frog', 'animal planter, succulent pot, cat planter'], figuraInflada: ['Puffy Inflated Emoji Figure', 'inflated, puffy, emoji, balloon'],
   nubeEstante: ['Cloud Wall Shelf for Kids Room', 'cloud shelf, estante nube, nursery, wall shelf'], conejoLapicero: ['Pen Holder with Ears – Bunny, Cat or Bear', 'pen holder, lapicero, bunny, desk'],
   setaLampara: ['Mushroom LED Tea Light Lamp', 'mushroom lamp, seta, tea light, night light'], cajaCorazon: ['Heart Box with Fitted Lid', 'heart box, caja corazón, valentine, gift box'],
+  gridfinityPro: ['Gridfinity Bin PRO – Stacking Lip, Scoop, Label, Dividers', 'gridfinity, bin, stacking lip, scoop, label, 42mm, organizer'], gridfinityPuntas: ['Gridfinity 1/4" Hex Bit Holder', 'gridfinity, bit holder, hex bits, screwdriver bits, porta puntas'], gridfinityBasePro: ['Gridfinity Baseplate – Official Profile', 'gridfinity, baseplate, drawer, cajón'],
+  skadisGancho: ['IKEA SKÅDIS Hook – Secure, No Wobble', 'skadis, ikea, pegboard hook, gancho, tablero'], skadisBalda: ['IKEA SKÅDIS Shelf with Clips', 'skadis, ikea, pegboard shelf, balda, organizer'], skadisPorta: ['IKEA SKÅDIS Tool Holder – Screwdrivers, Pens', 'skadis, ikea, tool holder, screwdriver holder, pegboard'],
+  goproTripode: ['GoPro to Tripod 1/4" Adapter (captive nut)', 'gopro, tripod adapter, 1/4-20, mount, adaptador trípode'], goproBrazo: ['GoPro Extension Arm 3-2 Fingers', 'gopro, extension arm, mount, brazo'],
+  aspiradora: ['Vacuum Hose Adapter – Custom Diameters (32/35 mm)', 'vacuum adapter, adaptador aspiradora, hose adapter, 32mm, 35mm'], soporteBalda: ['Shelf Support Pin 5 mm (also 6 / 6.35)', 'shelf pin, soporte balda, shelf support, furniture spare part'], ganchoPuerta: ['Over the Door Hook – Custom Door Thickness', 'over door hook, gancho puerta, towel hook, coat hook'],
+  tiburonFlexi: ['Articulated Shark – Print in Place Flexi', 'flexi shark, articulated, print in place, tiburón, fidget'], serpienteFlexi: ['Articulated Cobra Snake – Print in Place Flexi', 'flexi snake, cobra, articulated, print in place, serpiente'],
+  rotulaTimelapse: ['Timelapse Ball Head Stand – Phone, GoPro & 1/4" Camera (Bambu A1 mini, P1P)', 'timelapse, phone holder, gopro mount, ball head, camera mount, bambu lab, a1 mini'], pinzaBobina: ['Bird Filament Clip – Holds the Filament End on the Spool', 'filament clip, spool clip, bird, bambu, filament holder'], rackPlacas: ['Build Plate Rack – A1 mini (180) and A1 / P1P (256)', 'build plate holder, bambu lab, a1 mini, p1p, pei plate, rack'], rodillosBobina: ['Spool Roller Holder with Filament Guide (Bambu A1 mini, A1, P1P, Dry Box)', 'spool holder, spool roller, filament, bambu lab, a1 mini, dry box, external spool'],
+  fundaMecheroPro: ['Lighter Case – BIC Mini, Slim, Maxi or Clipper (fits for real)', 'lighter case, bic mini, clipper, funda mechero, voronoi'], ceniceroMoai: ['Moai Ashtray – Smoke Comes Out of His Mouth', 'moai, ashtray, cenicero, smoke, easter island, tealight cup'], ceniceroVolcan: ['Volcano Ashtray – Smoke from the Crater', 'volcano, ashtray, cenicero, smoke, lava'],
   gridfinityCaja: ['Gridfinity Bin – Custom Size', 'gridfinity, bin, 42mm, cubeta'], gridfinityBase: ['Gridfinity Baseplate – Custom Size', 'gridfinity, baseplate, drawer, cajón'],
   cajonOrganizador: ['Custom Drawer Organizer with Dividers', 'drawer organizer, organizador cajón, dividers, separadores'], portaboligrafos: ['Pen Holder – Round or Hexagonal Pattern', 'pen holder, portabolígrafos, pencil cup, desk'],
   organizadorCables: ['Desk Edge Cable Comb', 'cable management, cable comb, peine cables, desk'], bandejaLlaves: ['Catch-All Key Tray', 'key tray, vaciabolsillos, valet tray, ring dish'],

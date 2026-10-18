@@ -2235,3 +2235,48 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .dv-seo[open] .inp, .dv-seo[open] textarea { margin-top: 4px; }
 .dv-est { margin: 0; font-weight: 600; }
 @media (max-width: 620px) { .dv-it { grid-template-columns: 64px minmax(0, 1fr); } .dv-foto { width: 64px; height: 64px; } }
+/* 17-10-2026 · 🖨️ Abrir en Bambu Studio desde la lista de productos (y el recuadro para soltar su STL/3MF) */
+.prod-bambu { position: absolute; right: 8px; bottom: 8px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(15, 17, 22, .72); color: #fff; font-size: 19px; line-height: 40px; text-align: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, .25); transition: transform .12s; }
+.prod-bambu:hover { transform: scale(1.08); background: rgba(15, 17, 22, .9); }
+.bambu-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; border: 2px dashed var(--line); border-radius: 16px; background: var(--surface-2); color: var(--text); cursor: pointer; width: 100%; }
+.bambu-drop span { font-size: 34px; } .bambu-drop.on { border-color: var(--accent, #7c6cff); background: var(--surface-3); }
+
+/* ===== 17-10-2026 · 🧭 MENÚ PRINCIPAL (menu_principal.js), «← Atrás» y la ruta de arriba ===== */
+.atras-btn { flex: none; }
+.miga { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 0 1 auto; max-width: 34vw; white-space: nowrap; font-size: 13px; color: var(--muted, #6b6475); }
+.miga button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 3px 6px; border-radius: 8px; }
+.miga button:hover { background: color-mix(in srgb, var(--brand, #8b5cf6) 12%, transparent); color: var(--text, #1d1a22); }
+.miga .miga-menu { font-weight: 700; color: var(--brand, #8b5cf6); }
+.miga .miga-s { color: var(--text, #1d1a22); overflow: hidden; text-overflow: ellipsis; }
+.miga .miga-sep { opacity: .5; }
+@media (max-width: 1280px) { .miga .miga-g, .miga .miga-g + .miga-sep { display: none; } }
+@media (max-width: 900px) { .miga { display: none; } }
+.mp { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: start center; overflow: auto; padding: 24px 16px 40px; background: color-mix(in srgb, #0d0b12 46%, transparent); backdrop-filter: blur(14px) saturate(1.2); animation: mpEntra .18s ease-out; }
+@keyframes mpEntra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.mp-caja { width: min(1180px, 100%); background: var(--surface, #fff); color: var(--text, #1d1a22); border-radius: 26px; box-shadow: 0 30px 80px rgba(0, 0, 0, .28); padding: 22px 24px 26px; border: 1px solid var(--line, #e7e3ec); }
+.mp-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mp-cab h2 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
+.mp-cab small { color: var(--muted, #6b6475); font-size: 13.5px; }
+.mp-cab-d { display: flex; gap: 8px; align-items: center; }
+.mp-x, .mp-lista { border: 1px solid var(--line, #e7e3ec); background: var(--surface-2, #f7f5fa); color: var(--text, #1d1a22); border-radius: 12px; height: 38px; padding: 0 14px; font: inherit; font-size: 14px; cursor: pointer; }
+.mp-x { width: 38px; padding: 0; font-size: 16px; }
+.mp-busca { display: block; width: 100%; margin: 16px 0 14px; height: 54px; border-radius: 16px; border: 2px solid color-mix(in srgb, var(--brand, #8b5cf6) 45%, var(--line, #e7e3ec)); background: var(--surface-2, #f7f5fa) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' stroke='%238b5cf6' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='7'/%3E%3Cpath d='M15.5 15.5 20 20'/%3E%3C/svg%3E") no-repeat 16px center; padding: 0 16px 0 48px; font: inherit; font-size: 17px; color: var(--text, #1d1a22); outline: none; }
+.mp-busca:focus { border-color: var(--brand, #8b5cf6); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand, #8b5cf6) 18%, transparent); }
+.mp-rec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; font-size: 13px; color: var(--muted, #6b6475); }
+.mp-chip { border: 1px solid var(--line, #e7e3ec); background: var(--surface, #fff); border-radius: 99px; padding: 6px 12px; font: inherit; font-size: 13.5px; color: var(--text, #1d1a22); cursor: pointer; }
+.mp-chip:hover { border-color: var(--brand, #8b5cf6); }
+.mp-gs { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.mp-g { border-radius: 18px; background: color-mix(in srgb, var(--mp-c, #8b5cf6) 6%, var(--surface, #fff)); border: 1px solid color-mix(in srgb, var(--mp-c, #8b5cf6) 22%, var(--line, #e7e3ec)); padding: 12px; }
+.mp-g h3 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; color: color-mix(in srgb, var(--mp-c, #8b5cf6) 70%, var(--text, #1d1a22)); }
+.mp-ts { display: grid; gap: 6px; }
+.mp-t { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; text-align: left; width: 100%; border: 1px solid transparent; background: var(--surface, #fff); border-radius: 13px; padding: 8px 10px; cursor: pointer; font: inherit; color: var(--text, #1d1a22); box-shadow: 0 1px 0 rgba(0, 0, 0, .03); transition: transform .08s, border-color .12s; }
+.mp-t:hover, .mp-t:focus-visible { border-color: var(--mp-c, #8b5cf6); transform: translateY(-1px); outline: none; }
+.mp-t.on { border-color: var(--mp-c, #8b5cf6); background: color-mix(in srgb, var(--mp-c, #8b5cf6) 10%, var(--surface, #fff)); }
+.mp-t-e { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 21px; background: color-mix(in srgb, var(--mp-c, #8b5cf6) 14%, transparent); }
+.mp-t-x { display: grid; min-width: 0; }
+.mp-t-x b { font-size: 15px; }
+.mp-t-x small { font-size: 12.5px; color: var(--muted, #6b6475); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-t-n { font-style: normal; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; background: #ef4444; color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.mp-todo { margin-top: 10px; border: 1px dashed var(--line-2, #d9d3e0); background: transparent; border-radius: 12px; padding: 10px 12px; font: inherit; cursor: pointer; color: var(--brand, #8b5cf6); font-weight: 600; }
+@media (max-width: 700px) { .mp { padding: 0; } .mp-caja { border-radius: 0; min-height: 100%; padding: 16px; } .mp-gs { grid-template-columns: 1fr; } }
+@media (pointer: coarse) { .mp-t { padding: 11px 12px; } .mp-x { width: 44px; height: 44px; } }

@@ -53,13 +53,19 @@ export function render(el, params) {
     if (feed.firstChild && !feed.firstChild.dataset) feed.textContent = '';
     nodes.forEach((node, i) => { if (feed.children[i] !== node) feed.insertBefore(node, feed.children[i] || null); });
     while (feed.children.length > nodes.length) feed.lastChild.remove();
+    // (18-10) el comentario resaltado SIGUE resaltado sus 3,5 s aunque la noticia se vuelva a dibujar (la sincronización llega enseguida y
+    //  la dibujaba de nuevo sin el resaltado: se veía un parpadeo o nada)
+    if (st.hl && Date.now() < st.hl.hasta) { const c = feed.querySelector('[data-c="' + st.hl.c + '"]'); if (c) c.classList.add('hl'); }
     if (st.focus) {
       const x = feed.querySelector('[data-id="' + st.focus + '"]');
       const cm = st.comment && x ? x.querySelector('[data-c="' + st.comment + '"]') : null;
-      if (x) (cm || x).scrollIntoView({ behavior: 'smooth', block: 'center' });
-      else toast2('Esta noticia ya no existe o no tienes permiso para verla.', 'warn');
-      if (cm) { cm.classList.add('hl'); setTimeout(() => cm.classList.remove('hl'), 3500); }
-      st.focus = ''; st.comment = '';
+      // (18-10) al abrir un aviso, la noticia o su comentario pueden no haber llegado todavía (llegan con la sincronización un momento
+      //  después): se ESPERA hasta 15 s en vez de gastar el aviso al primer dibujo (salía «ya no existe» y no se resaltaba el comentario)
+      const falta = !x || (st.comment && !cm), tarde = Date.now() - (st.desde || 0) > 15000;
+      if (x && (!falta || tarde || !st.visto)) { (cm || x).scrollIntoView({ behavior: 'smooth', block: 'center' }); st.visto = true; }
+      if (cm) { cm.classList.add('hl'); st.hl = { c: st.comment, hasta: Date.now() + 3500 }; setTimeout(() => { const c = feed.querySelector('.comment.hl'); if (c) c.classList.remove('hl'); }, 3600); }
+      if (!falta || tarde) { if (!x) toast2('Esta noticia ya no existe o no tienes permiso para verla.', 'warn'); st.focus = ''; st.comment = ''; st.visto = false; }
+      else if (!st.reintento) st.reintento = setTimeout(() => { st.reintento = null; if (feed.isConnected) drawFeed(); }, 15500);
     }
   }
   function applyParams(p) {
@@ -68,7 +74,7 @@ export function render(el, params) {
     if (id === 'actualidad' || id === 'equipo') { ponTab(id); return; }
     if (id && tab !== 'equipo') ponTab('equipo'); // un enlace a una noticia del equipo
     if (id === 'nueva') { history.replaceState(null, '', '#/noticias'); postForm(); }
-    else if (id) { st.focus = id; st.comment = ps[1] || ''; }
+    else if (id) { st.focus = id; st.comment = ps[1] || ''; st.desde = Date.now(); st.visto = false; }
     drawFeed();
   }
   applyParams(params);

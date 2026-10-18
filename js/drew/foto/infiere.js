@@ -10,7 +10,7 @@ import { aMm } from './escala.js';
 // qué medida de la plantilla sale de qué medida de la foto (y si es plana: × 2 para el contorno)
 export const MAPA = {
   camiseta: { pecho: 'pecho', largo: 'largo', bajo: 'bajo', cuello: 'cuello', bajadaDel: 'bajadaDel', sisa: 'sisa', hombros: 'hombros', caida: 'caida', manga: 'manga', boca: 'boca', biceps: 'biceps' },
-  sudadera: { pecho: 'pecho', largo: 'largo', cuello: 'cuello', bajadaDel: 'bajadaDel', sisa: 'sisa', hombros: 'hombros', caida: 'caida', manga: 'manga', boca: 'boca', biceps: 'biceps' },
+  sudadera: { pecho: 'pecho', largo: 'largo', cuello: 'cuello', bajadaDel: 'bajadaDel', sisa: 'sisa', hombros: 'hombros', caida: 'caida', manga: 'manga', boca: 'boca', biceps: 'biceps', altoCapucha: 'altoCapucha', alturaCintura: 'alturaCintura', alturaPuno: 'alturaPuno' }, // (17-10: la capucha que asoma; puños y cintura de la foto de producto)
   pantalon: { cintura: 'cintura', cadera: 'cadera', tiro: 'tiro', altoCadera: 'altoCadera', largo: 'largo', rodilla: 'rodilla', bajo: 'bajo' },
   falda: { cintura: 'cintura', cadera: 'cadera', altoCadera: 'altoCadera', largo: 'largo' },
   // (16-10) el vestido: el cuerpo como una prenda de arriba y la falda como una falda (largo = de la cintura al bajo)

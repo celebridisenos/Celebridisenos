@@ -28,6 +28,11 @@ import { DISENOS_CHASIS, ponTrapecio } from './cat_chasis.js'; // v30.5 · 🏎�
 import { DISENOS_KITS } from './cat_kits.js'; // v30.5 · 🚲 kits de dos ruedas (bici y moto)
 import { DISENOS_TALADRO } from './cat_taladro.js'; // v30.5 · 🔩 mini taladro de columna y portarrollos 1:12
 import { DISENOS_TARJETAS } from './cat_tarjetas.js'; // v40.1 · 🧩 tarjetas-kit para niños (avión, dinosaurio, peonza, cohete, coche, árbol)
+import { DISENOS_ARTICULADOS } from './articulados.js';
+import { DISENOS_COMPAT } from './cat_compat.js';
+import { DISENOS_BAMBU } from './cat_bambu.js'; // 17-10-2026 noche · para tus Bambu: rótula de cámara con peana escultórica (móvil, GoPro, 1/4"), pinza de bobina pájaro y soporte de placas
+import { DISENOS_FUMAR } from './cat_fumar.js'; // 17-10-2026 tarde · fundas de mechero que entran (BIC mini/slim/maxi, Clipper) y ceniceros artísticos (el humo sale por la boca) // 17-10-2026 tarde · repuestos y compatibles con medidas de verdad (Gridfinity, SKÅDIS, GoPro, aspiradora…)
+import { DISENOS_52 } from './cat_52.js'; // 17-10-2026 · 🛒 más variedad para Cults: cajas, Halloween, bebés, juguetes, ciencia, frikis, casa // 17-10-2026 · 🐉 figuras articuladas que salen ya montadas (dragón, pulpo, pez, lagartija, araña, ajolote)
 import { DISENOS_50 } from './cat_50.js'; // 13-10-2026 · 🎁 diseños nuevos: torre de canicas en zigzag, cuatro en línea, damas, serpiente articulada, deslizante, maquillaje giratorio, estación de carga, riel de pared, caja de engranajes
 import { DISENOS_51 } from './cat_51.js'; // 13-10-2026 · 50.1 (RC, rodamientos y cajas seguras)
 import { DISENOS_ENGR } from './cat_engranajes.js'; // 14-10-2026 · ⚙️ engranajes para vender: planetario, corazón con nombres, de mesa, llavero, espirógrafo
@@ -41,7 +46,7 @@ import { DISENOS_NAVIDAD } from './cat_navidad.js'; // v30.4 · 🎄 pueblo navi
 import { DISENOS_PREMIUM } from './catalogo_premium.js'; // v20.4: miniaturas, jarrones de lujo, esculturas de equilibrio, tornillos, autorriego // v20.2: spool, diferencial de rectos, accesorios y repuestos (con su prueba de encaje)
 import { asiento, plantilla, medidasRod, OPS_RODAMIENTOS, APRETES, n2 as n2r, ajusteParaDiseno, OPS_AJUSTE, textoAjuste } from './rodamientos.js'; // v20.2: rodamientos que funcionan en plástico
 
-export const CATEGORIAS = [['', '✨ Todo'], ['pro', '⭐ PRO: por piezas, que encajan'], ['kits', '🧩 Tarjetas-kit para niños'], ['pack60', '🎁 Pack de 60 (nuevo)'], ['ninos', '🧸 Niños'], ['juguetes', '🚲 Juguetes para montar'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
+export const CATEGORIAS = [['', '✨ Todo'], ['pro', '⭐ PRO: por piezas, que encajan'], ['compatibles', '🔧 Repuestos y compatibles'], ['impresora3d', '🖨️ Para tu impresora 3D'], ['kits', '🧩 Tarjetas-kit para niños'], ['pack60', '🎁 Pack de 60 (nuevo)'], ['ninos', '🧸 Niños'], ['juguetes', '🚲 Juguetes para montar'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
   ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['oficina', '🖥️ Oficina'], ['empresas', '💼 Empresas y hostelería'], ['flores', '🌷 Flores'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas y hormigas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas y casa de muñecas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
 const n = (k, t, v, min, max, paso = 0.5, u = 'mm') => ({ k, t, v, min, max, paso, u });
 const s = (k, t, v, ops) => ({ k, t, v, ops });
@@ -1251,6 +1256,13 @@ Object.assign(DISENOS, DISENOS_MAS); // v30.6
 Object.assign(DISENOS, DISENOS_PACK60); // v30.7
 Object.assign(DISENOS, DISENOS_PRO); // v30.7.1
 Object.assign(DISENOS, DISENOS_TARJETAS); // v40.1
+Object.assign(DISENOS, DISENOS_ARTICULADOS); // 17-10-2026
+Object.assign(DISENOS, DISENOS_52); Object.assign(DISENOS, DISENOS_COMPAT); Object.assign(DISENOS, DISENOS_FUMAR); Object.assign(DISENOS, DISENOS_BAMBU);
+// 17-10-2026 tarde · ella: «diseños vendibles de verdad, no chapuzas». Fuera del catálogo (el código se queda): el bumerán plano (sin perfil
+// de ala no vuelve), el silbato (no se puede saber si pita sin imprimirlo), el exprimidor (el plástico impreso no es apto para alimentos),
+// la estación de esquejes, la maceta de pared lisa, la hucha remolino, la banda de Möbius y el huevo y la bola de Navidad lisos.
+export const RETIRADOS = ['bumeran', 'silbato', 'exprimidor', 'estacionEsquejes', 'macetaPared', 'huchaRemolino', 'moebius', 'huevoSorpresa', 'bolaNavidadAbre', 'gridfinityCaja', 'gridfinityBase']; // (las Gridfinity antiguas: sin labio y la base con el perfil al revés → las sustituyen las PRO)
+RETIRADOS.forEach(k => { delete DISENOS[k]; }); // 17-10-2026
 // v30.6 · «AL ESTUDIO POR PIEZAS»: los diseños de varias partes dan cada una suelta, montadas en su sitio y con cómo se mueven
 // (bisagra: { o, dir, ang } · desliza: { dir, d }), para editarlas una a una y abrirlas en 🎬 Animar
 export const PARTES = Object.assign({}, PARTES_UTILES, PARTES_MAS);

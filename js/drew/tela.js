@@ -42,14 +42,20 @@ export const telaPorDefecto = prenda => (prenda.tejido === 'punto' ? (prenda.blo
 function colocacion(k, pz, prenda) {
   const n = pz.nombre, M = (prenda.bloque && prenda.bloque.medidas) || {};
   if (k === 'camiseta' || k === 'sudadera') {
-    if (n === 'Delantero') return { zona: 'tronco', cara: 'delante', ancla: 'hombro' };
+    // (17-10) el delantero EN DOS PIEZAS (cremallera) también va delante y colgado del hombro (antes caía «por defecto» a la altura del pecho y la
+    //  sudadera con cremallera se caía); el CUELLO ALTO es un anillo en el cuello como la tira; los anillos cortados en dos, cada mitad a su lado
+    const partida = !pz.corte.doblez && !!pz.corte.espejo && (pz.corte.n || 1) === 2;
+    if (n === 'Delantero' || /^Delantero \(/.test(n)) return { zona: 'tronco', cara: 'delante', ancla: 'hombro' };
     if (n === 'Espalda') return { zona: 'tronco', cara: 'detras', ancla: 'hombro' };
     if (n === 'Manga') return { zona: 'brazo' };
-    if (n === 'Tira del cuello') return { zona: 'anillo', en: 'cuello', baja: [M.bajadaDel || 80, M.bajadaEsp || 20] };
+    if (n === 'Tira del cuello' || n === 'Cuello alto') return { zona: 'anillo', en: 'cuello', baja: [n === 'Cuello alto' ? Math.min(M.bajadaDel || 80, 45) : (M.bajadaDel || 80), M.bajadaEsp || 20], mitad: partida };
     if (n === 'Capucha') return { zona: 'cabeza' };
     if (n === 'Puño') return { zona: 'anillo', en: 'muneca' };
-    if (n === 'Cintura') return { zona: 'anillo', en: 'bajo', largo: M.largo };
-    if (n === 'Bolsillo canguro') return { zona: 'aplicado', sobre: 'Delantero', dy: 0 };
+    if (n === 'Cintura') return { zona: 'anillo', en: 'bajo', largo: M.largo, mitad: partida };
+    // (17-10) el canguro, a la ALTURA que marca el patrón en el delantero (antes, siempre pegado al borde de abajo: sin cintura elástica quedaba
+    //  sobre el bajo suelto y la prenda temblaba sin parar de colocarse)
+    if (n === 'Bolsillo canguro') { const del = (prenda.piezas || []).find(p => /^Delantero/.test(p.nombre)), it = del && del.internas.find(i => i.tipo === 'bolsillo'), y0 = it ? Math.min(...it.pts.map(q => q[1])) : 0;
+      return { zona: 'aplicado', sobre: 'Delantero', dy: it ? Math.max(0, y0 - Math.min(...Object.values(del.puntos).map(q => q.y))) : 0 }; }
   }
   if (k === 'falda') {
     if (n === 'Delantero') return { zona: 'tronco', cara: 'delante', ancla: 'cintura' };
@@ -121,7 +127,12 @@ export function monta(prenda, C, R, o = {}) {
   const entretela = ip => prenda.tejido !== 'punto' && /^Cinturilla/.test(P[ip].pz.nombre);
   E.forEach((e, q) => { ar[2 * q] = e.i; ar[2 * q + 1] = e.j; arL[q] = G.dist(uvp(uv, e.i), uvp(uv, e.j)); const T = TELAS[P[e.panel].tela], en = entretela(e.panel); arK[q] = Math.min(0.85, 1 - (en ? 0.01 : T.estira) * 0.9); /* (16-10: con la malla fina, 0,97 hacía vibrar los bajos para siempre; lo que no se estira lo asegura el TOPE) */ arT[q] = arL[q] * (1 + (en ? 0.006 : T.tope != null ? T.tope : 0.2)); if (e.op2 != null) F.push([e.op, e.op2, e.panel]); });
   const fl = new Uint32Array(2 * F.length), flL = new Float32Array(F.length), flK = new Float32Array(F.length);
-  F.forEach(([a, b, ip], q) => { fl[2 * q] = a; fl[2 * q + 1] = b; flL[q] = G.dist(uvp(uv, a), uvp(uv, b)); flK[q] = entretela(ip) ? Math.max(0.6, TELAS[P[ip].tela].dobla) : TELAS[P[ip].tela].dobla; });
+  // (18-10) el CANTO DE LA CARA de la capucha va vuelto (la jareta del cordón, 3 cm): dos capas de tela, mucho más firme al doblar. Sin esto
+  //  el canto se arrugaba en picos alrededor de la cara. (De una tela doble, la rigidez al doblar es varias veces la de una sola.)
+  const firme = new Uint8Array(N);
+  P.forEach(p => { if (p.pz.nombre !== 'Capucha' || !p.pz.bordes.some(b => b.id === 'cara')) return; const L = Z.bordePolilinea(p.pz, 'cara'), m = Z.margenDe(p.pz, 'cara') || 30;
+    for (let i = 0; i < p.n; i++) { const r = G.distAPolilinea(p.it.M.P[i], L); if ((r && r.d != null ? r.d : r) < m) firme[p.off + i] = 1; } });
+  F.forEach(([a, b, ip], q) => { fl[2 * q] = a; fl[2 * q + 1] = b; flL[q] = G.dist(uvp(uv, a), uvp(uv, b)); const dob = TELAS[P[ip].tela].dobla; flK[q] = entretela(ip) ? Math.max(0.6, dob) : firme[a] && firme[b] ? Math.max(0.5, 4 * dob) : dob; });
   // UNIONES DE LARGO ALCANCE (16-10): el tope de estirar se cumplía de vecino a vecino, pero en una tira larga los estirones pequeños se
   // SUMABAN (una cinturilla de 71 cm acababa en 79 y la falda resbalaba por la cadera). Cada punto se ata también a otros a ~5 lados de
   // malla en su pieza: entre ellos, como mucho el largo del PATRÓN + lo que da de sí la tela (en 3D, siempre más corto o igual). Lycra, no.
@@ -154,14 +165,17 @@ export function monta(prenda, C, R, o = {}) {
     Object.values(g).forEach(L => { for (let q = 0; q + 1 < L.length; q += 2) { const a = L[q].pata === 0 ? L[q] : L[q + 1], b = L[q].pata === 0 ? L[q + 1] : L[q]; const ia = a.idx, ib = b.idx.slice().reverse(); if (ia.length !== ib.length) continue; const c0 = pares.length / 2; ia.forEach((x, j) => { if (x !== ib[j]) pares.push(x, ib[j]); }); cos3.push({ id: 'pinza', n: 'Pinza de ' + p.pz.nombre, lado: p.lado, desde: c0, hasta: pares.length / 2 }); } }); });
   // 6) lo APLICADO (bolsillo): sus orillas pespunteadas se pegan al triángulo de su pieza que está debajo, en el mismo sitio del patrón
   const pegados = [];
-  P.filter(p => p.col.zona === 'aplicado').forEach(p => { const base = P.find(q => q.pz.nombre === p.col.sobre && (q.copia === 'e' || q.lado === p.lado)); if (!base) { avisos.push(p.pz.nombre + ': no encuentro «' + p.col.sobre + '» para pegarlo.'); return; }
+  P.filter(p => p.col.zona === 'aplicado').forEach(p => { const base = P.find(q => (q.pz.nombre === p.col.sobre || q.pz.nombre.startsWith(p.col.sobre + ' (')) && (q.copia === 'e' || q.lado === p.lado)); if (!base) { avisos.push(p.pz.nombre + ': no encuentro «' + p.col.sobre + '» para pegarlo.'); return; }
     orillas.filter(x => x.panel === p && x.borde && (Z.bordePorId(p.pz, x.borde) || {}).tipo === 'aplicado').forEach(x => x.idx.forEach(g => { const q = [uv[2 * g] + p.desplaza[0], uv[2 * g + 1] + p.desplaza[1]], hit = enTriangulo(base, uv, q); if (hit) pegados.push(g, hit[0], hit[1], hit[2], hit[3], hit[4], hit[5]); })); });
   // ABROCHADO: en las piezas en dos mitades con «solapa» (cinturilla con botón), lo que sobresale del centro (u < 0) va pegado encima
   // de la otra mitad, en el mismo sitio del patrón (como con el botón cerrado)
   P.filter(p => p.copia === 'o' && p.pz.bordes.some(b => b.id === 'solapa')).forEach(p => { const m = P.find(q => q.pz === p.pz && q.copia === 'm'); if (!m) return;
     for (let i = 0; i < p.n; i++) { const g = p.off + i; if (uv[2 * g] > -0.5) continue; const hit = enTriangulo(m, uv, [uv[2 * g], uv[2 * g + 1]]); if (hit) pegados.push(g, hit[0], hit[1], hit[2], hit[3], hit[4], hit[5]); }
     for (let i = 0; i < m.n; i++) { const g = m.off + i; if (uv[2 * g] < 0.5) continue; const hit = enTriangulo(p, uv, [uv[2 * g], uv[2 * g + 1]]); if (hit) pegados.push(g, hit[0], hit[1], hit[2], hit[3], hit[4], hit[5]); } }); // (y la de debajo, por dentro)
-  return { P, N, pos, prev: new Float32Array(pos), vel: new Float32Array(3 * N), uv, w, panelDe, tri: new Uint32Array(tri), ar, arL, arK, arT, fl, flL, flK, lr: new Uint32Array(lr), lrT: new Float32Array(lrT), pares: new Uint32Array(pares), cos3, pegados: new Float64Array(pegados), avisos, h, C, R, k };
+  // (18-10) la CAPUCHA choca también con el PELO (Rp: el cuerpo con el pelo); el resto de la prenda, solo con el cuerpo: la coleta o la melena
+  //  caen por ENCIMA del cuello de una camiseta, como de verdad, pero dentro de una capucha puesta
+  const conPelo = o.Rp ? new Uint8Array(N) : null; if (conPelo) P.forEach(p => { if (p.col && p.col.zona === 'cabeza') conPelo.fill(1, p.off, p.off + p.n); });
+  return { Rp: o.Rp || null, conPelo, P, N, pos, prev: new Float32Array(pos), vel: new Float32Array(3 * N), uv, w, panelDe, tri: new Uint32Array(tri), ar, arL, arK, arT, fl, flL, flK, lr: new Uint32Array(lr), lrT: new Float32Array(lrT), pares: new Uint32Array(pares), cos3, pegados: new Float64Array(pegados), avisos, h, C, R, k };
 }
 const uvp = (uv, i) => [uv[2 * i], uv[2 * i + 1]];
 function enTriangulo(p, uv, q) { for (const [a, b, c] of p.tri) { const A = uvp(uv, a), B = uvp(uv, b), Cc = uvp(uv, c), d = G.cruz(G.sub(B, A), G.sub(Cc, A)); if (Math.abs(d) < 1e-9) continue;
@@ -186,15 +200,15 @@ function colocaPanel(p, ctx) {
   let f, lado; // f: (u, v) del patrón original → [x, y, z] de la copia ORIGINAL · lado: 'I' (+X) | 'D' (−X) (en una entera: el de su mitad +u)
   if (col.zona === 'tronco' || col.zona === 'aplicado') {
     let ref = col, dv = 0;
-    if (col.zona === 'aplicado') { const base = ctx.piezas.find(q => q.pz.nombre === col.sobre); ref = base ? base.col : { cara: 'delante', ancla: 'hombro' }; const bc = base ? G.caja(base.M.P.slice(0, base.M.nb)) : caja; dv = bc.y0 + (col.dy || 0) - caja.y0; p.desplaza = [0, dv]; p.vTop = bc.y1; }
+    if (col.zona === 'aplicado') { const base = ctx.piezas.find(q => q.pz.nombre === col.sobre || q.pz.nombre.startsWith(col.sobre + ' (')); ref = base ? base.col : { cara: 'delante', ancla: 'hombro' }; const bc = base ? G.caja(base.M.P.slice(0, base.M.nb)) : caja; dv = bc.y0 + (col.dy || 0) - caja.y0; p.desplaza = [0, dv]; p.vTop = bc.y1; }
     const yTop = ref.ancla === 'cintura' ? N.cintura + 15 : ref.ancla === 'hombro' ? yHombroCuello : N.pecho, vTop = col.zona === 'aplicado' ? p.vTop : caja.y1, sg = ref.cara === 'detras' ? -1 : 1, extra = col.zona === 'aplicado' ? 6 : 0;
     f = (u, v) => { const y = yTop - (vTop - (v + dv)), E = elipse(y); if (extra) { E.A += extra; E.B += extra; } const [x, z] = envuelve(E, u); return [sg * x, y, E.c + sg * z]; };
     p.fuera = ([x, y, z]) => [x, 0, z - C.secc(y).c];
     lado = sg > 0 ? 'I' : 'D'; // la copia original (+u) de un delantero cae a +X; la de una espalda, a −X
   } else if (col.zona === 'brazo') {
-    const B = C.brazos.find(b => b.sg === -1), d = B.d, { o, fr } = ejesBrazo(d), Rs = Math.max(caja.w / (2 * Math.PI) + 14, C.rB * 1.15 + 18), vTop = caja.y1, t0 = -0.35 * Rs;
-    f = (u, v) => { const t = t0 + (vTop - v), a = u / Rs, c = Math.cos(a), s = Math.sin(a); return [0, 1, 2].map(k => B.J[k] + d[k] * t + Rs * (c * o[k] + s * fr[k])); };
-    p.fuera = ([x, y, z]) => { const v = [x - B.J[0], y - B.J[1], z - B.J[2]], k = v[0] * d[0] + v[1] * d[1] + v[2] * d[2]; return [v[0] - d[0] * k, v[1] - d[1] * k, v[2] - d[2] * k]; };
+    const B = C.brazos.find(b => b.sg === -1), E = ejeBrazo(B), Rs = Math.max(caja.w / (2 * Math.PI) + 14, C.rB * 1.15 + 18), vTop = caja.y1, t0 = -0.35 * Rs;
+    f = (u, v) => { const F = E.en(t0 + (vTop - v)), a = u / Rs, c = Math.cos(a), s = Math.sin(a); return [0, 1, 2].map(k => F.c[k] + Rs * (c * F.o[k] + s * F.fr[k])); };
+    p.fuera = E.fuera;
     lado = 'D'; p.Rs = Rs; p.t0 = t0; p.vTop = vTop;
   } else if (col.zona === 'pierna') {
     const sgC = col.cara === 'detras' ? -1 : 1, pierna = C.piernas.find(L => L.sg === (sgC > 0 ? -1 : 1));
@@ -206,10 +220,10 @@ function colocaPanel(p, ctx) {
     p.fuera = ([x, y, z]) => { const sm = mezcla(y), [legX, legZ] = ejePierna(pierna, y); return [x - legX * sm, 0, z - C.secc(y).c * (1 - sm) - legZ * sm]; };
     lado = pierna.sg > 0 ? 'I' : 'D';
   } else if (col.zona === 'anillo' && col.en === 'muneca') {
-    const B = C.brazos.find(b => b.sg === -1), d = B.d, man = ctx.piezas.find(q => q.pz.nombre === 'Manga'), mc = man ? G.caja(man.M.P.slice(0, man.M.nb)) : { w: 380, h: 500 }, Rs = Math.max(mc.w / (2 * Math.PI) + 14, C.rB * 1.15 + 18), t1 = -0.35 * Rs + mc.h;
-    const { o, fr } = ejesBrazo(d), R = Math.max(caja.w / (2 * Math.PI), C.rW + 12);
-    f = (u, v) => { const a = (u - (caja.x0 + caja.x1) / 2) / caja.w * 2 * Math.PI, t = t1 + (v - caja.y0) + 6, c = Math.cos(a), s = Math.sin(a); return [0, 1, 2].map(k => B.J[k] + d[k] * t + R * (c * o[k] + s * fr[k])); };
-    p.fuera = ([x, y, z]) => { const v = [x - B.J[0], y - B.J[1], z - B.J[2]], k = v[0] * d[0] + v[1] * d[1] + v[2] * d[2]; return [v[0] - d[0] * k, v[1] - d[1] * k, v[2] - d[2] * k]; };
+    const B = C.brazos.find(b => b.sg === -1), E = ejeBrazo(B), man = ctx.piezas.find(q => q.pz.nombre === 'Manga'), mc = man ? G.caja(man.M.P.slice(0, man.M.nb)) : { w: 380, h: 500 }, Rs = Math.max(mc.w / (2 * Math.PI) + 14, C.rB * 1.15 + 18), t1 = -0.35 * Rs + mc.h;
+    const R = Math.max(caja.w / (2 * Math.PI), C.rW + 12);
+    f = (u, v) => { const a = (u - (caja.x0 + caja.x1) / 2) / caja.w * 2 * Math.PI, F = E.en(t1 + (v - caja.y0) + 6), c = Math.cos(a), s = Math.sin(a); return [0, 1, 2].map(k => F.c[k] + R * (c * F.o[k] + s * F.fr[k])); };
+    p.fuera = E.fuera;
     lado = 'D';
   } else if (col.zona === 'anillo') {
     // cuello (el delantero más bajo, como el escote) · cintura (sube desde la costura) · bajo (cuelga desde la costura)
@@ -237,13 +251,37 @@ function colocaPanel(p, ctx) {
 }
 // los ejes de un brazo: «o» = hacia fuera y arriba (perpendicular al brazo), «fr» = hacia delante (+Z)
 function ejesBrazo(d) { const up = [0, 1, 0], k = d[1], o = G3.norma([up[0] - k * d[0], up[1] - k * d[1], up[2] - k * d[2]]); let fr = G3.norma(G3.cruz(d, o)); if (fr[2] < 0) fr = fr.map(x => -x); return { o, fr }; }
+// (18-10) el EJE del brazo por donde va la manga: hombro → CODO → muñeca. El maniquí tiene el codo doblado (el antebrazo va hacia delante) y
+// la manga se ponía como un tubo RECTO del hombro a la mano: el codo quedaba a 12 cm de ese eje, el brazo atravesaba el tubo y, al soltarla,
+// la tela salía por arriba: la manga encima del brazo como una cinta y la piel al aire por debajo (con las costuras cerradas). Ahora la
+// manga sigue el brazo: recta antes del hombro y pasada la muñeca, con el codo redondeado, y sus ejes giran lo justo (el tubo no se retuerce).
+// en(t) → { c: punto del eje a t mm del hombro (medido por el eje), o, fr } · fuera(p) → de dónde a dónde mira p desde el eje
+export function ejeBrazo(B) {
+  const J = B.J, W = B.W, E0 = B.E, resta = G3.resta, suma = (a, b, k) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k], lar = a => Math.hypot(a[0], a[1], a[2]);
+  const recto = !E0 || lar(resta(E0, J)) < 30 || lar(resta(W, E0)) < 30, d1 = recto ? B.d : G3.norma(resta(E0, J)), d2 = recto ? B.d : G3.norma(resta(W, E0));
+  const L1 = recto ? 0 : lar(resta(E0, J)), L2 = recto ? lar(resta(W, J)) : lar(resta(W, E0)), b = recto ? 0 : Math.min(0.4 * L1, 0.4 * L2, 90), PA = 700;
+  const P = [], paso = 4;
+  for (let s = -PA; s < L1 - b; s += paso) P.push(suma(J, d1, s)); // (del hombro hacia el codo, y antes del hombro)
+  if (!recto) { const A = suma(E0, d1, -b), Cc = suma(E0, d2, b); for (let k = 0; k <= 24; k++) { const t = k / 24, m = 1 - t; P.push([0, 1, 2].map(q => m * m * A[q] + 2 * m * t * E0[q] + t * t * Cc[q])); } }
+  const B0 = recto ? J : suma(E0, d2, b), L3 = recto ? L2 : L2 - b; for (let s = paso; s < L3 + PA; s += paso) P.push(suma(B0, d2, s));
+  const S = [0]; for (let i = 1; i < P.length; i++) S.push(S[i - 1] + lar(resta(P[i], P[i - 1])));
+  const s0 = PA; // (el hombro está a 700 mm del principio)
+  const T = P.map((_, i) => G3.norma(resta(P[Math.min(P.length - 1, i + 1)], P[Math.max(0, i - 1)])));
+  const O = [], FR = []; let { o, fr } = ejesBrazo(T[0]);
+  for (let i = 0; i < P.length; i++) { const t = T[i]; o = G3.norma(suma(o, t, -(o[0] * t[0] + o[1] * t[1] + o[2] * t[2]))); let f2 = suma(fr, t, -(fr[0] * t[0] + fr[1] * t[1] + fr[2] * t[2])); f2 = suma(f2, o, -(f2[0] * o[0] + f2[1] * o[1] + f2[2] * o[2])); fr = G3.norma(f2); O.push(o); FR.push(fr); }
+  const en = t => { const s = s0 + t; let i = 0, j = S.length - 1; if (s <= S[0]) j = 1; else if (s >= S[j]) i = j - 1; else { while (j - i > 1) { const m = (i + j) >> 1; if (S[m] <= s) i = m; else j = m; } }
+    i = Math.min(i, S.length - 2); j = i + 1; const w = (s - S[i]) / ((S[j] - S[i]) || 1), mez = (a, c) => [a[0] + (c[0] - a[0]) * w, a[1] + (c[1] - a[1]) * w, a[2] + (c[2] - a[2]) * w];
+    return { c: mez(P[i], P[j]), o: G3.norma(mez(O[i], O[j])), fr: G3.norma(mez(FR[i], FR[j])) }; };
+  const fuera = q => { let m = Infinity, k = 0; for (let i = 0; i < P.length; i += 3) { const dd = (q[0] - P[i][0]) ** 2 + (q[1] - P[i][1]) ** 2 + (q[2] - P[i][2]) ** 2; if (dd < m) { m = dd; k = i; } } const v = resta(q, P[k]), t = T[k], kk = v[0] * t[0] + v[1] * t[1] + v[2] * t[2]; return suma(v, t, -kk); };
+  return { en, fuera, puntos: P };
+}
 // el eje de una pierna a la altura y (cadera → rodilla → tobillo): [x, z]
 function ejePierna(L, y) { const P = [L.Hj, L.Ki, L.An]; if (y >= P[0][1]) return [P[0][0], P[0][2]]; for (let i = 0; i < 2; i++) { const a = P[i], b = P[i + 1]; if (y >= b[1]) { const t = (a[1] - y) / (a[1] - b[1]); return [a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t]; } } return [P[2][0], P[2][2]]; }
 const G3 = { resta: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], cruz: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], norma: a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; } };
 
 // ---------- el SIMULADOR ----------
 export function simulador(S, o = {}) {
-  const N = S.N, pos = S.pos, prev = S.prev, vel = S.vel, w = S.w, R = S.R, g = -9810, tmp = [0, 0, 0, 0], grosor = o.grosor || 2.5, contacto = new Uint8Array(N);
+  const N = S.N, pos = S.pos, prev = S.prev, vel = S.vel, w = S.w, R = S.R, Rp = S.Rp || S.R, conPelo = S.conPelo, RG = i => (conPelo && conPelo[i] ? Rp : R), g = -9810, tmp = [0, 0, 0, 0], grosor = o.grosor || 2.5, contacto = new Uint8Array(N);
   const roce = new Float32Array(N); S.P.forEach(p => { for (let i = 0; i < p.n; i++) roce[p.off + i] = TELAS[p.tela].roce; });
   let t = 0, cosido = 0, arrastre = null, viento = 0, tCaer = null, cuadro = 0;
   const ITER = o.iter || 3, VMAX = 4000, OMEGA = o.omega || 1.7, SEPA = o.sepa || 4; // (3 pasadas con sobre-relajación 1,7: medido, el pantalón se queda donde el cuerpo mide lo que su cintura) // mm/s: tope (una tela de verdad no sale disparada)
@@ -296,7 +334,7 @@ export function simulador(S, o = {}) {
   function cuerpo(soloCerca) { const n = soloCerca ? nCerca : N; if (!soloCerca) nCerca = 0;
     for (let q = 0; q < n; q++) { const i = soloCerca ? cerca[q] : q; if (!soloCerca) contacto[i] = 0; if (!w[i]) continue; const x = pos[3 * i], y = pos[3 * i + 1], z = pos[3 * i + 2];
     if (y < 1) { pos[3 * i + 1] = 1; contacto[i] = 1; }
-    muestra(R, x, y, z, tmp); if (!soloCerca && (tmp[0] < grosor + 12 || enCostura[i] || pegado[i])) cerca[nCerca++] = i; /* (los de costura y los pegados, siempre: al cerrarse saltan) */
+    muestra(RG(i), x, y, z, tmp); if (!soloCerca && (tmp[0] < grosor + 12 || enCostura[i] || pegado[i])) cerca[nCerca++] = i; /* (los de costura y los pegados, siempre: al cerrarse saltan) */
     if (tmp[0] < grosor) { const e = grosor - tmp[0]; pos[3 * i] += tmp[1] * e; pos[3 * i + 1] += tmp[2] * e; pos[3 * i + 2] += tmp[3] * e; contacto[i] = 1; apr[i] += e; } } }
   function paso(dt = 1 / 60, sub = 10) {
     const hs = dt / sub;
@@ -322,12 +360,12 @@ export function simulador(S, o = {}) {
       cuerpo(); if (tCaer != null) for (let it = 0; it < ITER; it++) { tope(it < ITER - 1 ? OMEGA : 1); cose(1e9); remata(); cuerpo(true); } // (el hilo y la tela no dan más de sí: varias pasadas con el cuerpo)
       // ROZAMIENTO de verdad (Coulomb, 16-10): lo que aprieta contra el cuerpo se queda AGARRADO (si lo que resbala en este subpaso es menos
       // que roce × lo que aprieta) y si no, resbala frenado. Antes solo se frenaba un poco: lo ajustado (cinturillas) caía como por un tobogán
-      if (agarra) for (let i = 0; i < N; i++) { if (!apr[i]) continue; const k = 3 * i; muestra(R, pos[k], pos[k + 1], pos[k + 2], tmp);
+      if (agarra) for (let i = 0; i < N; i++) { if (!apr[i]) continue; const k = 3 * i; muestra(RG(i), pos[k], pos[k + 1], pos[k + 2], tmp);
         const dx = pos[k] - prev[k], dy = pos[k + 1] - prev[k + 1], dz = pos[k + 2] - prev[k + 2], dn = dx * tmp[1] + dy * tmp[2] + dz * tmp[3], tx = dx - tmp[1] * dn, ty = dy - tmp[2] * dn, tz = dz - tmp[3] * dn, tl = Math.hypot(tx, ty, tz), mu = roce[i];
         if (tl > 1e-9) { const c = tl <= mu * apr[i] ? 1 : mu * 0.8 * apr[i] / tl; pos[k] -= tx * c; pos[k + 1] -= ty * c; pos[k + 2] -= tz * c; } }
       for (let i = 0; i < N; i++) { const k = 3 * i; vel[k] = (pos[k] - prev[k]) / hs; vel[k + 1] = (pos[k + 1] - prev[k + 1]) / hs; vel[k + 2] = (pos[k + 2] - prev[k + 2]) / hs;
         if (contacto[i]) { // roce con la piel: frena lo que resbala
-          muestra(R, pos[k], pos[k + 1], pos[k + 2], tmp); const vn = vel[k] * tmp[1] + vel[k + 1] * tmp[2] + vel[k + 2] * tmp[3], f = 1 - roce[i] * 0.35;
+          muestra(RG(i), pos[k], pos[k + 1], pos[k + 2], tmp); const vn = vel[k] * tmp[1] + vel[k + 1] * tmp[2] + vel[k + 2] * tmp[3], f = 1 - roce[i] * 0.35;
           vel[k] = (vel[k] - tmp[1] * vn) * f + tmp[1] * Math.max(0, vn); vel[k + 1] = (vel[k + 1] - tmp[2] * vn) * f + tmp[2] * Math.max(0, vn); vel[k + 2] = (vel[k + 2] - tmp[3] * vn) * f + tmp[3] * Math.max(0, vn); } }
       t += hs;
     }
@@ -340,7 +378,7 @@ export function simulador(S, o = {}) {
     // cuánto queda ABIERTA cada costura (mm) y cuánto se estira la tela (por punto)
     abiertas() { return S.cos3.map(c => { let m = 0; for (let q = c.desde; q < c.hasta; q++) { const i = S.pares[2 * q], j = S.pares[2 * q + 1]; m = Math.max(m, Math.hypot(pos[3 * i] - pos[3 * j], pos[3 * i + 1] - pos[3 * j + 1], pos[3 * i + 2] - pos[3 * j + 2])); } return { n: c.n, lado: c.lado, max: m }; }); },
     estira(out) { out = out || new Float32Array(N); const cnt = new Float32Array(N); out.fill(0); for (let q = 0, n = S.arL.length; q < n; q++) { const i = S.ar[2 * q], j = S.ar[2 * q + 1], d = Math.hypot(pos[3 * j] - pos[3 * i], pos[3 * j + 1] - pos[3 * i + 1], pos[3 * j + 2] - pos[3 * i + 2]), e = d / S.arL[q] - 1; out[i] += e; out[j] += e; cnt[i]++; cnt[j]++; } for (let i = 0; i < N; i++) out[i] = cnt[i] ? out[i] / cnt[i] : 0; return out; },
-    dentro() { let m = Infinity, n = 0; for (let i = 0; i < N; i++) { muestra(R, pos[3 * i], pos[3 * i + 1], pos[3 * i + 2], tmp); if (tmp[0] < m) m = tmp[0]; if (tmp[0] < -2) n++; } return { min: m, n }; },
+    dentro() { let m = Infinity, n = 0; for (let i = 0; i < N; i++) { muestra(RG(i), pos[3 * i], pos[3 * i + 1], pos[3 * i + 2], tmp); if (tmp[0] < m) m = tmp[0]; if (tmp[0] < -2) n++; } return { min: m, n }; },
     sano() { for (let i = 0; i < 3 * N; i++) if (!isFinite(pos[i])) return false; return true; },
   };
 }

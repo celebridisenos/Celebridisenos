@@ -15,14 +15,23 @@ import * as I from './foto/inspira.js';
 import * as V from './foto/vision.js';
 import * as SAM from './foto/sam.js';
 import * as BL from './bloques/index.js';
+import * as PR from './foto/producto.js'; // 17-10: 📸 COPIA EXACTA desde una foto de producto con fondo liso
+import * as DF from './foto/desde_foto.js';
 
 const MAXL = 1600, CIAN = 'rgba(0,205,230,', ROSA = '#c25d74';
 let ultima = null; // la última imagen de esta sesión (para volver a abrirla): { url, L, sil }
 export const ultimaImagen = () => ultima;
 
-// o = { crear(D, L) → { ok, error }, listo() → true si el avatar ya está (para medir los largos en él) }
+// o = { crear(D, L) → { ok, error }, listo() → true si el avatar ya está (para medir los largos en él),
+//       crearExacta(A) → { ok, error } (17-10: la prenda COPIADA de una foto de producto), cuerpo(k, ajuste) → medidas de esa prenda en el avatar }
+// (17-10) Ella: «no copia exactamente lo que pido; solo subir fotos con fondo blanco del producto». Si la foto tiene el fondo LISO (blanco, gris…),
+// la ventana entra en «📸 COPIA EXACTA»: la prenda se recorta al píxel (sin IA), se mide ENTERA (foto/producto.js) y se dibujan sus medidas
+// encima; el tamaño sale del avatar (su pecho o cadera con la holgura elegida, todo lo demás en las proporciones de la foto) o de UNA medida de
+// la tabla de tallas de la tienda. Trae también capucha, cremallera, puños, cintura, el ESTAMPADO del pecho y el color. La IA sigue mirando
+// detrás (bolsillos, qué prenda es) y sus pistas se enseñan; la forma ya no depende de ella.
 export function abre(o, archivo) {
-  const S = { im: null, url: null, L: I.lee(null), sil: null, mk: null, ia: 'sin', iaMs: 0, iaT0: 0, iaMod: null, iaErr: '', sam: 'sin', samErr: '', puntos: [], etiq: [], ab: null, reloj: null, clave: '', vistas: [] };
+  const S = { im: null, url: null, L: I.lee(null), sil: null, mk: null, ia: 'sin', iaMs: 0, iaT0: 0, iaMod: null, iaErr: '', sam: 'sin', samErr: '', puntos: [], etiq: [], ab: null, reloj: null, clave: '', vistas: [],
+    prod: null /* (17-10) la copia exacta: { estado, FP, fondo, escala: { modo, ajuste, k, mm, contorno }, error } */ };
   ['categoria', 'largo', 'manga', 'escote', 'ajuste', 'falda', 'cierre', 'varillas', 'tirantes', 'capucha', 'bolsillos'].forEach(c => { S.L.campos[c] = { v: null, ia: false, duda: true }; });
   S.L.campos.varillas.v = 'no'; S.L.campos.tirantes.v = 'no'; S.L.campos.capucha.v = 'no'; S.L.campos.cierre.v = null;
   const lienzo = h('canvas.dw-insp-img'), caja = h('div.dw-insp-caja', lienzo), lado = h('div.dw-cal-lado.dw-insp-lado');
@@ -45,8 +54,35 @@ export function abre(o, archivo) {
       const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, hh); g.drawImage(im, 0, 0, w, hh);
       S.im = { c, w, h: hh }; S.url = u; S.vistas = []; S.clave = f.name + ':' + f.size + ':' + Date.now(); S.mk = null; S.sil = null; S.sam = 'sin'; S.puntos = []; S.etiq = []; SAM.olvida();
       Object.values(S.L.campos).forEach(x => { if (x.ia) Object.assign(x, { v: null, ia: false, duda: true }); }); S.L.caja = null; S.L.detalles = []; S.L.notas = ''; S.L.confianza = 0;
-      dibuja(); pinta(); mira(); }
+      S.prod = null; const datos = g.getImageData(0, 0, w, hh).data, F = PR.fondoLiso({ w, h: hh, d: datos });
+      dibuja(); pinta(); if (F.liso) copia(F, { w, h: hh, d: datos }); mira(); }
     catch (e) { toast(e.message, 'bad'); }
+  }
+  // ---------- 📸 la COPIA EXACTA (foto de producto con fondo liso) ----------
+  const famDe = FP => PR.familiaDe(FP.T.etapas.RASGOS.datos);
+  const catDe = FP => (FP.T.etapas.CLASIFICACION && FP.T.etapas.CLASIFICACION.datos && FP.T.etapas.CLASIFICACION.datos.categoria) || 'camiseta';
+  const kDe = FP => (BL.POR_CATEGORIA[FP.categoria || catDe(FP)] || ['camiseta'])[0];
+  // la escala que toca: la del avatar (su prenda con la holgura) o la medida de la tabla
+  function escalaDe(FP) { const e = S.prod.escala; if (e.modo === 'tabla') return e.mm > 0 ? { modo: 'tabla', k: e.k, mm: e.mm, contorno: !!e.contorno } : null;
+    let M = null; try { M = o.cuerpo ? o.cuerpo(kDe(FP), e.ajuste) : null; } catch (x) { M = null; } if (!M) return null; return { modo: 'avatar', pecho: M.pecho, cadera: M.cadera, ajuste: e.ajuste }; }
+  async function copia(F, img) {
+    S.prod = { estado: 'midiendo', fondo: F, img, escala: (S.prod && S.prod.escala) || { modo: 'avatar', ajuste: 'normal', k: null, mm: 0, contorno: false } }; pinta(); const yo = S.prod;
+    try { await new Promise(r => setTimeout(r, 30)); const FP = await PR.analizaProducto(img, {}); if (S.prod !== yo) return; yo.FP = FP;
+      if (!FP.T.etapas.RASGOS || !FP.T.etapas.RASGOS.datos) throw new Error(DF.motivo(FP.T) || 'No encuentro la prenda en la foto.');
+      await PR.ponEscala(FP, escalaDe(FP)); yo.estado = 'lista'; }
+    catch (e) { yo.estado = 'error'; yo.error = e.message; }
+    if (S.prod === yo) { dibuja(); pinta(); }
+  }
+  async function reEscala() { const P = S.prod; if (!P || !P.FP) return; await PR.ponEscala(P.FP, escalaDe(P.FP)); dibuja(); pinta(); }
+  async function otraPrenda(cat) { const P = S.prod; if (!P || !P.FP) return; P.estado = 'midiendo'; pinta(); try { await DF.cambiaCategoria(P.FP, cat); await PR.ponEscala(P.FP, escalaDe(P.FP)); P.estado = 'lista'; } catch (e) { P.estado = 'error'; P.error = e.message; } dibuja(); pinta(); }
+  function creaExacta() {
+    const P = S.prod; if (!P || !P.FP) return; if (o.listo && !o.listo()) return toast('Espera un momento: el avatar se está preparando.', 'bad');
+    let A; try { A = PR.aProyecto(P.FP); } catch (e) { return toast(e.message, 'bad', 9000); }
+    // lo que la IA ha visto y la foto no puede medir (bolsillos, cierre), si lo ha visto
+    const c = k => S.L.campos[k] && S.L.campos[k].v; if (A.k === 'sudadera') { if (c('cierre') === 'cremallera_delante') A.opciones.cierre = 'cremallera'; if (c('bolsillos') === '0') A.opciones.bolsillo = 'no'; }
+    if (A.estampado) { const E = A.estampado, cv = document.createElement('canvas'); cv.width = E.pw; cv.height = E.ph; cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(E.rgba), E.pw, E.ph), 0, 0); A.estampado = Object.assign({}, E, { url: cv.toDataURL('image/png'), rgba: null }); }
+    const R = o.crearExacta(A); if (R && R.ok === false) return toast(R.error || 'No se ha podido crear el patrón.', 'bad', 9000);
+    ultima = { url: S.url, L: S.L, sil: S.sil, FP: P.FP }; toast('📸 ' + A.nombre + ': cosiéndose en tu avatar…', 'ok', 5000); m.close();
   }
   // ---------- la IA de visión (en el PC) ----------
   async function mira() {
@@ -65,7 +101,7 @@ export function abre(o, archivo) {
       Object.assign(S.L, { caja: N.caja, detalles: N.detalles, notas: N.notas, confianza: N.confianza, modelo: N.modelo });
       S.vistas = S.vistas.filter(c => S.L.campos[c] && S.L.campos[c].toco); // (las preguntas de antes de leerla, fuera, salvo las ya contestadas)
       S.ia = 'lista'; S.iaMs = R.ms; S.iaMod = R; clearInterval(S.reloj); dibuja(); pinta();
-      if (necesitaSilueta() && SAM.disponible() && S.sam === 'sin') recorta();
+      if (!S.prod && necesitaSilueta() && SAM.disponible() && S.sam === 'sin') recorta(); /* (17-10: con la copia exacta la silueta ya está, sin SAM) */
     } catch (e) { if (ab.signal.aborted) return; S.ia = 'no'; S.iaErr = e.message; clearInterval(S.reloj); pinta(); }
   }
   // ---------- la silueta con SAM 2 (en su hilo) ----------
@@ -90,6 +126,14 @@ export function abre(o, archivo) {
     if (S.mk) { const { w, h: hh, m: M } = S.mk, c = document.createElement('canvas'); c.width = w; c.height = hh; const cg = c.getContext('2d'), id = cg.createImageData(w, hh);
       for (let i = 0; i < M.length; i++) if (M[i]) { id.data[4 * i] = 0; id.data[4 * i + 1] = 205; id.data[4 * i + 2] = 230; id.data[4 * i + 3] = 80; }
       cg.putImageData(id, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(c, 0, 0, S.im.w, S.im.h); }
+    if (S.prod && S.prod.FP && S.prod.estado === 'lista') { const Dd = DF.dibujo(S.prod.FP), E = S.prod.FP.E, lw = Math.max(2, S.im.w / 380), fs = Math.max(13, Math.round(S.im.w / 55));
+      if (Dd) { g.save(); g.lineWidth = lw; g.strokeStyle = 'rgba(25,170,110,0.95)'; g.beginPath(); Dd.silueta.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke();
+        g.font = '700 ' + fs + 'px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        Dd.lineas.forEach(l => { g.strokeStyle = 'rgba(194,93,116,0.95)'; g.setLineDash([lw * 3, lw * 2]); g.beginPath(); g.moveTo(l.a[0], l.a[1]); g.lineTo(l.b[0], l.b[1]); g.stroke(); g.setLineDash([]);
+          if (l.mm) { const t = l.t + ' ' + (l.mm * (l.plano ? 2 : 1) / 10).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' cm', x = (l.a[0] + l.b[0]) / 2, y = (l.a[1] + l.b[1]) / 2, wt = g.measureText(t).width + fs * 0.8;
+            g.fillStyle = 'rgba(255,255,255,0.92)'; g.fillRect(x - wt / 2, y - fs * 0.75, wt, fs * 1.5); g.fillStyle = '#7a2e44'; g.fillText(t, x, y); } });
+        Object.values(Dd.puntos).forEach(([x, y]) => { g.beginPath(); g.arc(x, y, lw * 2.2, 0, 7); g.fillStyle = '#19aa6e'; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = lw * 0.8; g.stroke(); }); g.restore(); }
+      return; }
     if (S.L.caja) { const [a, b, c2, d] = S.L.caja; g.save(); g.setLineDash([14, 10]); g.lineWidth = Math.max(2, S.im.w / 400); g.strokeStyle = ROSA; g.strokeRect(a * S.im.w, b * S.im.h, (c2 - a) * S.im.w, (d - b) * S.im.h); g.restore(); }
     S.puntos.forEach((p, i) => { g.beginPath(); g.arc(p[0] / S.im.w * lienzo.width, p[1] / S.im.h * lienzo.height, Math.max(6, S.im.w / 120), 0, 7); g.fillStyle = S.etiq[i] ? CIAN + '1)' : ROSA; g.fill(); g.lineWidth = 2; g.strokeStyle = '#fff'; g.stroke(); });
   }
@@ -103,7 +147,42 @@ export function abre(o, archivo) {
       : S.ia === 'lista' ? [h('b', '✔ La IA ' + (S.iaMod && S.iaMod.pc ? 'del PC del taller ' : '') + 'ha leído la prenda (' + Math.round(S.iaMs / 1000) + ' s)'), h('div', (S.L.notas ? '«' + S.L.notas + '» ' : '') + 'Confirma lo de abajo con un toque y crea el patrón.'), S.iaMod && !S.iaMod.comercial ? h('div.dw-ojo', '⚠ Ha contestado ' + S.iaMod.t + ' (' + S.iaMod.licencia + '). Para vender, instala la que sí se puede usar (qwen3-vl:4b).') : null]
       : [h('b', 'La IA de visión no está en este aparato'), h('div', 'Dímelo tú con unos toques (abajo). En el PC del taller lo lee sola. (' + S.iaErr + ')')]).filter(Boolean));
   }
+  // el panel de la COPIA EXACTA (17-10)
+  const AJUSTES = [['ajustada', 'Ceñida'], ['normal', 'Normal'], ['holgada', 'Holgada'], ['oversize', 'Oversize']], CATS = [['camiseta', 'Camiseta'], ['sudadera', 'Sudadera'], ['vestido', 'Vestido'], ['falda', 'Falda'], ['pantalon', 'Pantalón']];
+  function panelProducto() {
+    const P = S.prod, cm = v => (v / 10).toLocaleString('es-ES', { maximumFractionDigits: 1 });
+    if (P.estado === 'midiendo') return h('div.dw-prod', h('h4', '📸 Copia exacta'), h('div.dw-ayuda', 'Fondo liso: recorto la prenda al píxel y la mido entera… (unos segundos)'));
+    if (P.estado === 'error') return h('div.dw-prod.dw-ojo', h('h4', '📸 Copia exacta'), h('div.dw-ayuda', 'No he podido medirla: ' + P.error + ' Puedes seguir con lo que lea la IA (abajo).'));
+    const FP = P.FP, Rz = DF.resumen(FP), fam = famDe(FP), X = FP.extra || {}, esc = P.escala, cat = FP.categoria || catDe(FP), iaCat = S.L.campos.categoria && S.L.campos.categoria.ia ? S.L.campos.categoria.v : null;
+    const ICO = { observado: '👁', mano: '✋', confirmada: '✔', inferido: '💭', confirmar: '⚠' }, hay = Rz.k && !Rz.falta;
+    const tabla = PR.TABLA[fam] || [], kT = esc.k && tabla.some(x => x[0] === esc.k) ? esc.k : (tabla[0] || [])[0];
+    const vista = [X.color ? h('span.dw-prod-tag', h('i', { style: { background: X.color } }), 'Color ' + X.color) : null, Rz.k === 'sudadera' || (FP.T.etapas.RASGOS.datos.extra || {}).capucha ? h('span.dw-prod-tag', '🧢 Capucha') : null,
+      X.cremallera ? h('span.dw-prod-tag', '🤐 Cremallera delante') : null, X.puno ? h('span.dw-prod-tag', '⭕ Puños de punto') : null, X.cintura ? h('span.dw-prod-tag', '〰 Cintura de punto') : null,
+      X.estampado ? h('span.dw-prod-tag', '🖼 Estampado del pecho (se estampa en el delantero)') : null].filter(Boolean);
+    return h('div.dw-prod', h('h4', '📸 Copia exacta de la foto de producto'), h('div.dw-ayuda', 'Fondo ' + (P.fondo.blanco ? 'blanco' : 'liso') + ': la he recortado al píxel y he medido su forma entera (las rayas de la foto). Así el patrón COPIA esta prenda: sus proporciones, sus largos, su manga.'),
+      h('div.dw-prod-g', h('b', 'Qué prenda es'), h('div.dw-chips', CATS.map(([k, t]) => h('button.dw-chip' + (cat === k ? '.on' : ''), { type: 'button', 'data-prod-cat': k, onclick: () => { if (k !== cat) otraPrenda(k); } }, t))),
+        iaCat && iaCat !== cat && CATS.some(c => c[0] === iaCat) ? h('small.dw-insp-ia', '🤖 la IA dice: ' + I.nombreDe('categoria', iaCat) + ' ', h('a', { href: '#', onclick: e => { e.preventDefault(); otraPrenda(iaCat); } }, 'usar eso')) : null),
+      h('div.dw-prod-g', h('b', 'Tamaño'), h('div.dw-chips', h('button.dw-chip' + (esc.modo === 'avatar' ? '.on' : ''), { type: 'button', 'data-prod-escala': 'avatar', onclick: () => { esc.modo = 'avatar'; reEscala(); } }, '🧍 A la talla de mi avatar'), h('button.dw-chip' + (esc.modo === 'tabla' ? '.on' : ''), { type: 'button', 'data-prod-escala': 'tabla', onclick: () => { esc.modo = 'tabla'; esc.k = kT; pinta(); } }, '📏 Con la tabla de tallas')),
+        esc.modo === 'avatar' ? h('div.dw-chips', AJUSTES.map(([k, t]) => h('button.dw-chip' + (esc.ajuste === k ? '.on' : ''), { type: 'button', 'data-prod-ajuste': k, onclick: () => { esc.ajuste = k; reEscala(); } }, t)))
+          : h('div.dw-prod-tabla', h('select.dw-sel', { 'data-prod-tk': '1', onchange: e => { esc.k = e.target.value; if (esc.mm > 0) reEscala(); else pinta(); } }, tabla.map(([k, t]) => h('option', { value: k, selected: k === kT }, t))),
+            h('span.dw-num', h('input', { type: 'number', step: 0.5, min: 5, placeholder: 'cm', 'data-prod-mm': '1', value: esc.mm ? esc.mm / 10 : '', onchange: e => { const v = Number(String(e.target.value).replace(',', '.')); esc.k = esc.k || kT; esc.mm = v > 0 ? v * 10 : 0; reEscala(); } }), h('span.u', 'cm')),
+            PR.ES_ANCHO[kT] ? h('label.dw-ayuda', h('input', { type: 'checkbox', checked: !!esc.contorno, onchange: e => { esc.contorno = e.target.checked; if (esc.mm > 0) reEscala(); } }), ' la tabla da el contorno (la vuelta entera), no el ancho plano') : null),
+        h('small.dw-ayuda', DF.motivo(FP.T) ? '⚠ ' + (esc.modo === 'tabla' && !(esc.mm > 0) ? 'Escribe la medida de la tabla.' : DF.motivo(FP.T)) : PR.textoEscala(FP))),
+      vista.length ? h('div.dw-prod-g', h('b', 'Lo que he visto'), h('div.dw-prod-tags', vista)) : null,
+      hay ? h('div.dw-prod-g', h('b', Rz.t + ' · ' + (Rz.valida || '')), h('ul.dw-prod-med', Rz.filas.filter(f => f.ver !== 'inferido').map(f => h('li', { 'data-medida': f.k, title: f.como || '' }, h('span', ICO[f.ver] || '·'), ' ' + f.t + ': ', h('b', cm(f.v) + ' cm'), f.ver === 'confirmar' ? h('small', ' (revísala luego en la ficha)') : null))),
+        h('small.dw-ayuda', '👁 medida en la foto · ⚠ medida pero poco segura · lo que no se ve (la espalda, el fondo de la capucha…) lo pone la plantilla.')) : null,
+      DF.avisos(FP).filter(a => !/Revisa antes/.test(a)).slice(0, 3).map(a => h('div.dw-ayuda.dw-ojo', a)),
+      btn('👗 Crear el patrón COPIADO', creaExacta, { cls: 'primary dw-prod-crear', disabled: !hay, title: 'Una prenda nueva en el 3D y el 2D con la forma de la foto' }));
+  }
   function pinta() {
+    if (S.prod) { pintaProd(); return; }
+    pintaNormal();
+  }
+  // (17-10) con la copia exacta: su panel arriba y, plegado debajo, lo de siempre (solo lo que lee la IA, en la forma de la plantilla)
+  function pintaProd() { pintaNormal(); const resto = [...lado.childNodes].filter(n => !n.classList || !n.classList.contains('dw-cal-pasos'));
+    const det = h('details.dw-prod-ia', h('summary', 'Sin copiar la forma: solo lo que lee la IA (la plantilla a tu medida)')); resto.slice(2).forEach(n => det.append(n));
+    lado.replaceChildren(...resto.slice(0, 2), panelProducto(), det); }
+  function pintaNormal() {
     pintaEstado(); const D = I.diseno(S.L, S.sil), L = S.L, nombre = c => (I.CAMPOS.find(x => x[0] === c) || [, c])[1];
     const chips = (c, ops) => h('div.dw-chips', ops.map(([v, t]) => h('button.dw-chip' + (L.campos[c] && L.campos[c].v === v ? '.on' : ''), { type: 'button', 'data-campo': c, 'data-valor': v, onclick: () => { I.cambia(L, c, v); L.campos[c].toco = true; dibuja(); pinta(); if (c === 'falda' || c === 'categoria') { if (necesitaSilueta() && !S.mk && S.im && S.sam === 'sin') recorta(); } } }, t)));
     const deIA = c => L.campos[c] && L.campos[c].ia && L.campos[c].v != null ? h('small.dw-insp-ia', '🤖 la IA dice: ' + I.nombreDe(c, L.campos[c].v)) : null;

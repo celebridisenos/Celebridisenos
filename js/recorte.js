@@ -37,18 +37,47 @@ export function detectarEtiqueta(src) {
     comps.push({ x0: bx0, y0: by0, x1: bx1, y1: by1, n });
   }
   // 3) ¿tiene código de barras o QR? → muchas filas seguidas casi iguales y con muchos cambios blanco/negro
+  // (17-10-2026: también con las barras tumbadas, si la etiqueta va girada en el folio)
   const codigo = b => {
-    let racha = 0, mejor = 0, prev = null;
-    for (let y = b.y0; y <= b.y1; y++) {
-      let tr = 0; const fila = osc.subarray(y * W + b.x0, y * W + b.x1 + 1);
-      for (let x = 1; x < fila.length; x++) if (fila[x] !== fila[x - 1]) tr++;
-      let dif = 0; if (prev) for (let x = 0; x < fila.length; x++) if (fila[x] !== prev[x]) dif++;
-      if (tr >= 24 && prev && dif <= fila.length * 0.06) { racha++; if (racha > mejor) mejor = racha; } else racha = 0;
-      prev = fila;
-    }
-    return mejor;
+    const enFilas = (n0, n1, m0, m1, px) => {
+      let racha = 0, mejor = 0, prev = null;
+      for (let a = n0; a <= n1; a++) {
+        const fila = new Uint8Array(m1 - m0 + 1); for (let c = m0; c <= m1; c++) fila[c - m0] = px(a, c);
+        let tr = 0; for (let x = 1; x < fila.length; x++) if (fila[x] !== fila[x - 1]) tr++;
+        let dif = 0; if (prev) for (let x = 0; x < fila.length; x++) if (fila[x] !== prev[x]) dif++;
+        if (tr >= 24 && prev && dif <= fila.length * 0.06) { racha++; if (racha > mejor) mejor = racha; } else racha = 0;
+        prev = fila;
+      }
+      return mejor;
+    };
+    return Math.max(enFilas(b.y0, b.y1, b.x0, b.x1, (y, x) => osc[y * W + x]), enFilas(b.x0, b.x1, b.y0, b.y1, (x, y) => osc[y * W + x]));
   };
   const area = b => (b.x1 - b.x0 + 1) * (b.y1 - b.y0 + 1), pagina = W * H;
+  const pad = Math.round(W * 0.008);
+  const devuelve = u => { const rx0 = Math.max(0, u.x0 - pad), ry0 = Math.max(0, u.y0 - pad), rx1 = Math.min(W - 1, u.x1 + pad), ry1 = Math.min(H - 1, u.y1 + pad); return { x: rx0 / W, y: ry0 / H, w: (rx1 - rx0 + 1) / W, h: (ry1 - ry0 + 1) / H }; };
+  // 17-10-2026 · 0) primero, el MARCO: si la etiqueta va dentro de un rectángulo (lo normal en las de folio A4), es ese rectángulo, con
+  // su código de barras o QR dentro. Antes la tinta «engordada» unía el marco con la raya de cortar y el recibo de debajo, y como
+  // eso ocupaba casi todo, se daba por buena la página entera (la etiqueta salía pequeña, con las instrucciones).
+  const marco = (() => {
+    const fino = new Uint8Array(W * H); // (la tinta engordada 1 punto: une los trocitos de una raya fina)
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; fino[i] = osc[i] | osc[i - 1] | osc[i + 1] | osc[i - W] | osc[i + W]; }
+    const visto = new Uint8Array(W * H), cand = [];
+    for (let i = 0; i < W * H; i++) {
+      if (!fino[i] || visto[i]) continue;
+      let qa = 0, qb = 0; cola[qb++] = i; visto[i] = 1; let bx0 = W, by0 = H, bx1 = 0, by1 = 0;
+      while (qa < qb) { const j = cola[qa++], x = j % W, y = (j / W) | 0; if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y;
+        for (const v of [j - 1, j + 1, j - W, j + W]) if (v >= 0 && v < W * H && fino[v] && !visto[v] && Math.abs((v % W) - x) <= 1) { visto[v] = 1; cola[qb++] = v; } }
+      const b = { x0: bx0, y0: by0, x1: bx1, y1: by1 }, bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+      if (area(b) < pagina * 0.03 || area(b) > pagina * 0.8 || bw < W * 0.15 || bh < H * 0.1) continue;
+      // ¿sus cuatro lados son raya oscura (casi entera)?
+      const lado = (horiz, fija) => { let n = 0, t = 0; const a0 = horiz ? bx0 : by0, a1 = horiz ? bx1 : by1; for (let a = a0; a <= a1; a++) { t++; let hay = 0; for (let e = -2; e <= 2 && !hay; e++) { const f = fija + e; if (f < 0 || f >= (horiz ? H : W)) continue; hay = horiz ? fino[f * W + a] : fino[a * W + f]; } n += hay; } return n / t; };
+      if (Math.min(lado(true, by0 + 1), lado(true, by1 - 1), lado(false, bx0 + 1), lado(false, bx1 - 1)) < 0.85) continue;
+      cand.push(b);
+    }
+    const conCod = cand.filter(b => codigo(b) >= 10).sort((a, b) => area(b) - area(a));
+    return conCod[0] || null;
+  })();
+  if (marco) { const contenido = (x1 - x0 + 1) * (y1 - y0 + 1); return area(marco) > contenido * 0.9 ? null : devuelve(marco); }
   const conCodigo = comps.filter(b => area(b) > pagina * 0.004).map(b => Object.assign(b, { cod: codigo(b) })).filter(b => b.cod >= 10);
   if (!conCodigo.length) return null;
   // la mancha con código más grande (si hay marco, el marco engloba toda la etiqueta)
@@ -70,9 +99,7 @@ export function detectarEtiqueta(src) {
   }
   const contenido = (x1 - x0 + 1) * (y1 - y0 + 1);
   if (area(u) > contenido * 0.88) return null; // la etiqueta ya es todo lo que hay: no hace falta recortar
-  const pad = Math.round(W * 0.008);
-  const rx0 = Math.max(0, u.x0 - pad), ry0 = Math.max(0, u.y0 - pad), rx1 = Math.min(W - 1, u.x1 + pad), ry1 = Math.min(H - 1, u.y1 + pad);
-  return { x: rx0 / W, y: ry0 / H, w: (rx1 - rx0 + 1) / W, h: (ry1 - ry0 + 1) / H };
+  return devuelve(u);
 }
 
 // Aplica un recorte guardado ({x,y,w,h,giro}) a la página

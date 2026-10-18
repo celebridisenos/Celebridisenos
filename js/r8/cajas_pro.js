@@ -11,6 +11,8 @@
 // z = v (altura). «dentro» y la tapa, en las del mundo (caja centrada, X = largo, Y = ancho, Z = alto).
 import * as N from './nucleo.js';
 import { ENCAJES } from './motor.js';
+import * as CD from './cerradura_discos.js'; // 17-10-2026 · la cerradura de discos (la de llave, nueva)
+export { CD };
 
 const M = () => N.MF();
 const segs = d => Math.max(24, Math.min(96, Math.round(d * 3 + 16)));
@@ -78,29 +80,28 @@ export function combRueda(C, e, k, ver, conCifras = true) {
 // girar «a» grados en NUESTRO sentido (de fuera hacia arriba) alrededor del eje x
 function girox(a) { const t = a * Math.PI / 180, co = Math.cos(t), s = Math.sin(t); return [1, 0, 0, 0, 0, co, -s, 0, 0, s, co, 0, 0, 0, 0, 1]; }
 
-// ======================= 🔑 CERRADURA CON SU LLAVE =======================
-// Un BOMBÍN impreso (cilindro con pestaña por fuera) atraviesa la pared; por dentro lleva una LEVA encajada en su hexágono. La leva es
-// una CUÑA (un cuarto de círculo de radio RL). De la tapa cuelga un GANCHO (una placa por detrás de la leva con un diente que se mete
-// por debajo de la cuña). «Cerrado» (la llave de pie): la cuña está encima del diente; al tirar de la tapa, el diente empuja el BORDE
-// REDONDO de la cuña, y como ese borde es un arco con centro en el eje, el empuje pasa por el eje y NO la hace girar (14-10-2026: la
-// primera versión tenía un brazo recto y el propio tirón de la tapa lo giraba hasta abrirla). Con la llave, un cuarto de vuelta: la
-// cuña pasa al otro lado del eje, el diente queda libre y la tapa se abre. Para cerrar: llave tumbada, bajar la tapa y llave de pie.
-// La llave entra solo si su perfil coincide con la ranura del bombín (código de 3 letras, ver abajo).
-// El diente se imprime sin soportes (la tapa va boca abajo): arriba es plano solo 2 mm y luego baja a 45°.
-export const LLAVE = { RP: 6, RF: 8.5, FL: 2, BOSS: 6, HEX: 7, RL: 16, T0: 10, T1: 15, GRUESO: 5, BAJO: 13, HOL: 0.5, PLACA: 3.5, DIENTE: 3, PLANO: 2 };
+// ======================= 🔑 CERRADURA CON SU LLAVE (17-10-2026: DE DISCOS · ver cerradura_discos.js) =======================
+// Ella: «el mecanismo es muy simple y fácil de abrir, eso no es vendible; piensa otra estrategia y llave». El bombín de antes (14-10) llevaba
+// guardas y lo giraba cualquier cosa plana. Ahora es una cerradura de 5 DISCOS con su muesca y una BARRA lateral: solo SU llave junta las
+// 5 muescas debajo de la barra (1.320 llaves distintas); con otra llave, con un destornillador o sin llave, el bombín no gira.
+// Por dentro sigue la LEVA de siempre: una CUÑA (un cuarto de círculo de radio RL) encajada en el hexágono del bombín. De la tapa cuelga un
+// GANCHO (una placa por detrás de la leva con un diente que se mete por debajo de la cuña). «Cerrado»: la cuña está encima del diente; al
+// tirar de la tapa, el diente empuja el BORDE REDONDO de la cuña (el empuje pasa por el eje y NO la hace girar). Con su llave, algo más de
+// media vuelta (a ~115° se juntan las muescas y luego el bombín gira su cuarto de vuelta): la cuña pasa al otro lado del eje y la tapa se
+// abre. El diente se imprime sin soportes (la tapa va boca abajo): arriba es plano solo 2 mm y luego baja a 45°.
+export const LLAVE = { RF: CD.DD.RF, RT: CD.DD.RT, HEX: CD.DD.HEX, RL: 16, T0: 13, T1: 17.5, GRUESO: CD.DD.GRUESO, BAJO: 15, HOL: 0.5, PLACA: 3.5, DIENTE: 3, PLANO: 2 };
+// (17-10: el gancho, de 13 a 17,5 mm del eje: fuera del refuerzo del bombín (12,5), que es más grande; al abrir la tapa ya no lo roza)
 // el lado del diente: en la cara derecha va al revés (al abrirse, la tapa se mueve hacia delante: el gancho se ALEJA del bombín)
 export const llaveLado = cara => (cara === 'der' ? -1 : 1);
-// código: 3 letras, una por guarda (de abajo arriba): N = sin guarda, C = guarda corta (0,8 mm), L = guarda larga (1,3 mm). La ranura del
-// bombín lleva las GUARDAS y la llave, las MUESCAS: una llave sin muescas (o con muescas más cortas) no entra.
-export const llaveCodigo = c => { const s = String(c || 'LCL').toUpperCase().replace(/[^NCL]/g, ''); return (s + 'NNN').slice(0, 3); };
-const GUARDA = { N: 0, C: 0.8, L: 1.3 };
+// el código: 5 cifras del 0 al 4 (un corte por disco), con algún 0 y algún 4. Los de antes (3 letras) se pasan solos a uno válido.
+export const llaveCodigo = c => CD.codigo(c);
 export function llaveMedidas(C, e) {
-  const K = LLAVE, pr = C.pared, ZK = C.H - llaveBajo(C), yLeva0 = pr + K.BOSS + 0.5, yLeva1 = yLeva0 + K.GRUESO, yP0 = yLeva1 + 0.6;
+  const K = LLAVE, ZK = C.H - llaveBajo(C), yLeva0 = CD.ZH + 0.5, yLeva1 = yLeva0 + K.GRUESO, yP0 = yLeva1 + 0.6;
   const zD1 = ZK - Math.sqrt(K.RL * K.RL - K.T0 * K.T0) - K.HOL; // lo de arriba del diente: HOL por debajo del arco de la cuña
   return { ZK, yLeva0, yLeva1, yP0, yP1: yP0 + K.PLACA, zD1, zD0: zD1 - K.DIENTE, s: llaveLado(e.cara), codigo: llaveCodigo(e.p.codigo) };
 }
 // lo que baja el eje del bombín desde arriba: con tapa a presión, más (su labio entra en la caja y no puede pisar el refuerzo del bombín)
-export const llaveBajo = C => (C.tapa === 'presion' ? Math.max(LLAVE.BAJO, (C.labio || 5) + LLAVE.RF + 1 + 1.5) : LLAVE.BAJO);
+export const llaveBajo = C => (C.tapa === 'presion' ? Math.max(LLAVE.BAJO, (C.labio || 5) + LLAVE.RT + 1.5) : LLAVE.BAJO);
 // el gancho de la tapa (en la cara): la placa por detrás de la leva y el diente con su rampa a 45° (y, z)
 export function llaveGancho(C, e) {
   const K = LLAVE, Q = llaveMedidas(C, e), H = C.H, a = e.u + Q.s * K.T0, b = e.u + Q.s * K.T1, x0 = Math.min(a, b), x1 = Math.max(a, b);
@@ -108,20 +109,10 @@ export function llaveGancho(C, e) {
   const diente = perfilX([[Q.yP0 + 0.01, Q.zD1], [Q.yP0 - K.PLANO, Q.zD1], [Q.yP0 - K.PLANO - K.DIENTE, Q.zD0], [Q.yP0 + 0.01, Q.zD0]], x0, x1);
   return placa.add(diente);
 }
-// el perfil de la ranura (en u-z, centrado): un rectángulo de 2,4 × 8 y las muescas del código
-export function llavePerfil(codigo, encoge = 0) {
-  let s = N.CSX().square([2.4 - 2 * encoge, 8 - 2 * encoge], true);
-  [-2.5, 0, 2.5].forEach((zz, i) => { const b = GUARDA[codigo[i]] || 0; if (b > 0) s = s.subtract(N.CSX().square([b + 2 * encoge + 0.02, 1.6 + 2 * encoge], true).translate([1.2 - (b + 2 * encoge) / 2 + 0.01, zz])); });
-  return s;
-}
+// las piezas de la cerradura de discos, en su cara (a = grados que ha girado esa pieza en el sentido de abrir)
 const extY = (cs, y0, y1) => cs.extrude(y1 - y0).transform([1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, y0, 0, 1]); // perfil en (x, z) estirado a lo largo de y
-// el bombín (en la cara; eje a lo largo de y, por u = e.u, z = ZK)
-export function llaveBombin(C, e) {
-  const K = LLAVE, Q = llaveMedidas(C, e), pr = C.pared, yFin = pr + K.BOSS + 0.5;
-  let b = cilY(K.RF, -K.FL - 0.1, -0.1).add(cilY(K.RP, -0.11, yFin)).add(extY(N.cs([N.poligono2(6, K.HEX / Math.cos(Math.PI / 6), 0)], 'Positive'), yFin - 0.01, yFin + K.GRUESO));
-  b = b.subtract(extY(llavePerfil(Q.codigo, 0), -K.FL - 1.1, pr + 3.5)); // la ranura, hasta 3,5 mm dentro de la pared (la pestaña, a 0,1 de la pared: gira sin rozar)
-  return b.translate([e.u, 0, Q.ZK]);
-}
+export const enLaCara = (C, e, m, a = 0) => CD.enCaja(m, llaveLado(e.cara), e.u, C.H - llaveBajo(C), a);
+export const llaveBombin = (C, e, a = 0) => enLaCara(C, e, CD.bombin(), a);
 // la leva: cerrada = la cuña abajo hacia el diente (abajo a la derecha si s = 1); abierta = un cuarto de vuelta, abajo al otro lado.
 // «ang» (0 = cerrada … 90 = abierta) para comprobar que gira sin rozar.
 export function llaveLeva(C, e, cerrada = true, ang = null) {
@@ -135,19 +126,13 @@ export function llaveLeva(C, e, cerrada = true, ang = null) {
 // lo que ocupa la cerradura POR DENTRO (en el mundo): para que no se le pongan separadores ni cosas encima
 export function llaveSitio(C, e, F) {
   const K = LLAVE, P = [];
-  [-1, 1].forEach(a => [0, 1].forEach(b => { const uu = e.u + a * (K.RL + 1), yy = b * (C.pared + K.BOSS + 0.5 + K.GRUESO + 0.6 + K.PLACA + 1);
+  [-1, 1].forEach(a => [0, 1].forEach(b => { const uu = e.u + a * (K.RL + 1), yy = b * (CD.ZH + 0.5 + K.GRUESO + 0.6 + K.PLACA + 1);
     P.push([0, 1].map(k => F.o[k] + F.eu[k] * uu - F.n[k] * yy)); }));
   return { x0: Math.min(...P.map(p => p[0])), x1: Math.max(...P.map(p => p[0])), y0: Math.min(...P.map(p => p[1])), y1: Math.max(...P.map(p => p[1])) };
 }
-// la LLAVE (para imprimir tumbada; y en su sitio, metida, para comprobar)
-// la llave a lo largo de +y (la hoja de 0 a su largo; el tope y la cabeza, por detrás): para meterla, se mueve a la boca del bombín
-export function llaveLlave(C, codigo) {
-  const K = LLAVE, pr = C.pared, lHoja = K.FL + pr + 3.5 - 0.6;
-  const hoja = extY(llavePerfil(llaveCodigo(codigo), 0.22), 0, lHoja), tope = cubo(-1.2, 1.2, -1.2, 0.01, -5, 5);
-  const cab = cilX(11, -1.2, 1.2, -12, 0).subtract(cilX(3.2, -2, 2, -17, 0)); // la cabeza (plana, como la hoja) con su agujero para la anilla
-  return hoja.add(tope).add(cab);
-}
-export const llaveMetida = (C, e, codigo) => llaveLlave(C, codigo).translate([e.u, -LLAVE.FL - 0.11, llaveMedidas(C, e).ZK]);
+// la LLAVE (en coordenadas de eje; para imprimir, CD.paraImprimir.llave) y la llave METIDA en su cerradura, girada κ grados
+export const llaveLlave = (C, codigo) => CD.llave(llaveCodigo(codigo));
+export const llaveMetida = (C, e, codigo, kappa = 0) => enLaCara(C, e, CD.llave(llaveCodigo(codigo)), kappa);
 
 // ======================= 🤫 CIERRE SECRETO POR GRAVEDAD (con tapa corredera) =======================
 // Dentro, una columnita con un agujero arriba; en la tapa, encima, un pomo hueco. Un PASADOR suelto cae por su peso: con la caja de pie,
@@ -165,7 +150,7 @@ const altoPila = k => PILAS[k].h;
 const LADOS = ['frente', 'atras', 'izq', 'der'];
 export const TIPOS_PRO = {
   combinacion: { e: '🔢', t: 'Combinación', d: 'Ruedas con números: con la combinación buena sale el pestillo y se abre', caras: ['frente', 'izq', 'der'], junta: 1, grupo: 'cerrar', p: { codigo: '427' }, campos: [['codigo', 'Combinación (2 a 4 cifras)', 'txt']] },
-  llave: { e: '🔑', t: 'Cerradura con llave', d: 'Bombín y su llave impresos: un cuarto de vuelta y la tapa no se abre', caras: ['frente', 'izq', 'der'], junta: 1, grupo: 'cerrar', p: { codigo: 'LCL', llaves: 2 }, campos: [['codigo', 'Código de la llave (3 letras: N, C o L)', 'txt'], ['llaves', 'Llaves (copias iguales)', 1, 3, 1]] }, // (14-10: ella, «tenías que haber hecho la llave»: de serie salen 2)
+  llave: { e: '🔑', t: 'Cerradura con llave', d: 'Cerradura de 5 discos y sus llaves, todo impreso: 1.320 llaves distintas; no se abre con otra llave ni con un destornillador', caras: ['frente', 'izq', 'der'], junta: 1, grupo: 'cerrar', p: { codigo: '04213', llaves: 2 }, campos: [['codigo', 'Código de la llave (5 cifras del 0 al 4, con algún 0 y algún 4)', 'txt'], ['llaves', 'Llaves (copias iguales)', 1, 3, 1]] }, // (14-10: ella, «tenías que haber hecho la llave»: de serie salen 2)
   gravedad: { e: '🤫', t: 'Cierre secreto', d: 'Solo con tapa corredera: de pie no se abre; boca abajo, la tapa corre', caras: ['dentro'], grupo: 'cerrar', p: {}, campos: [] },
   cajon: { e: '🗃️', t: 'Cajón', d: 'Un cajón abajo, con su estante encima', caras: ['frente'], grupo: 'abrir', p: { alto: 22, ancho: 0 }, campos: [['alto', 'Alto del cajón', 12, 80, 1], ['ancho', 'Ancho (0 = todo lo que cabe)', 0, 240, 1]] },
   bandeja: { e: '🧺', t: 'Bandeja que se saca', d: 'Una bandeja arriba que apoya en unos rebordes', caras: ['dentro'], grupo: 'dentro', p: { prof: 18, cols: 2 }, campos: [['prof', 'Hondo de la bandeja', 10, 60, 1], ['cols', 'Compartimentos', 1, 6, 1]] },
@@ -216,11 +201,14 @@ export function zonaPro(C, tipo, cara, u, v, p, idIgnora, ctx) {
       if (C.tapa === 'corredera') return no('Con la tapa corredera no va: ponle una tapa de bisagra o a presión.');
       if (cara === 'atras' && C.tapa !== 'presion') return no('Detrás van las bisagras.');
       if (pr < 2.4) return no('Con paredes de menos de 2,4 mm el bombín no se sujeta bien: súbelas a 3.');
-      if (!/[CL]/.test(llaveCodigo(p.codigo))) return no('El código necesita al menos una C o una L (si no, entra cualquier llave).');
+      if (/^\d{5}$/.test(String(p.codigo || '').trim()) && !CD.codigoValido(String(p.codigo).trim())) return no('El código son 5 cifras del 0 al 4 con, al menos, un 0 y un 4 (por ejemplo 04213): así ninguna otra llave abre.');
       if (Math.abs(u) + K.RF + 1 > uso || Math.abs(u) + K.RL + 3 > (cara === 'frente' || cara === 'atras' ? LI : WI) / 2) return no('Muy cerca de la esquina: la cuña de la leva necesita sitio por dentro. Muévela hacia el centro.');
       const hondo = llaveBajo(C) + K.RL + 1.5; if (H - hondo < A.piso + 1) return no('La caja es muy baja para la cerradura: necesita ' + n1(hondo + A.piso + 1) + ' mm de alto (por dentro, la cuña baja ' + n1(hondo) + ' mm).');
       const dentro = C.els.find(x => x.id !== idIgnora && ['bandeja', 'cubetas', 'rejilla', 'pilas'].includes(x.tipo)); if (dentro) return no('La cuña de la leva gira por dentro, junto a la pared, y chocaría con ' + nombre(dentro) + '.');
       if (ctx.marco) { const B = llaveSitio(C, { u, p }, ctx.marco(cara)), sep = C.els.find(x => x.id !== idIgnora && x.tipo === 'separador' && (x.p.dir === 'x' ? x.v > B.y0 - 1.5 && x.v < B.y1 + 1.5 : x.u > B.x0 - 1.5 && x.u < B.x1 + 1.5)); if (sep) return no('Ahí por dentro hay un separador: la leva chocaría con él. Mueve la cerradura o el separador.'); }
+      // 17-10-2026 · de delante a atrás tiene que caber la cerradura entera (bombín, leva y el gancho de la tapa detrás)
+      { const Q = llaveMedidas(C, { u, p, cara }), fondo = cara === 'frente' || cara === 'atras' ? C.W : C.L, hace = Math.ceil(Q.yP1 + 1 + pr);
+        if (fondo < hace) return no('La caja es poco honda para la cerradura (de la pared de la llave a la de enfrente): hazla de ' + hace + ' mm o más.'); }
       // con bisagra, al abrirse, la tapa va hacia DELANTE: el diente (lo más bajo del gancho) no puede rozar la pared de delante
       if (cara === 'frente' && C.tapa !== 'presion' && ctx.Rk) { const Q = llaveMedidas(C, { u, p, cara }), roza = W => { const yh = W / 2 + ctx.Rk, y0 = -W / 2 + Q.yP0 - K.PLANO - K.DIENTE; return yh - Math.hypot(yh - y0, H - Q.zD0) < -W / 2 + pr + 0.4; };
         if (roza(C.W)) { let w = Math.ceil(C.W); while (w < 400 && roza(w)) w++; return no('La caja es poco honda (de delante a atrás) para la cerradura: al abrir, su gancho rozaría la pared. Hazla de ' + w + ' mm de ancho o más, o ponla en un lado.'); } }
@@ -341,18 +329,23 @@ export function construyePro(X) {
         break;
       }
       case 'llave': {
-        const K = LLAVE, Q = llaveMedidas(C, e), ZK = Q.ZK, u = e.u;
-        // el agujero del bombín en la pared y el refuerzo por dentro (con su escuadra a 45°)
-        const boss = M().hull([cilY(K.RF + 1, pr - 0.01, pr + K.BOSS, u, ZK), cubo(u - K.RF - 1, u + K.RF + 1, pr - 0.01, pr, ZK - K.RF - 1 - K.BOSS, ZK)]);
-        masC.push(enF(boss, e.cara)); menosC.push(enF(cilY(K.RP + 0.3, -1, pr + K.BOSS + 1, u, ZK), e.cara));
+        const Q = llaveMedidas(C, e), cod = Q.codigo, PI = CD.paraImprimir, en = (m, a) => enF(enLaCara(C, e, m, a), e.cara);
+        // 17-10-2026 · la caja: el refuerzo alrededor del bombín (con su escuadra a 45°), el tope de fuera, y el agujero con la ranura de la barra
+        const { boss, tope } = CD.cajaMas(pr);
+        masC.push(en(boss), en(tope)); menosC.push(en(CD.cajaMenos()));
         // el GANCHO de la tapa: placa por detrás de la leva (fuera de su giro) con el diente que se mete por debajo de la cuña
         masT.push(enF(llaveGancho(C, e), e.cara));
-        const bombin = llaveBombin(C, e), leva = llaveLeva(C, e, true), llave = llaveLlave(C, Q.codigo);
-        sueltas.push({ id: 'bombin:' + e.id, nombre: 'Bombín', m: enF(bombin, e.cara), imprimir: N.aLaCama(bombin.translate([-u, 0, -ZK]).rotate([90, 0, 0])), con: null, nota: 'de pie, sobre su pestaña · se mete desde fuera' });
-        sueltas.push({ id: 'leva:' + e.id, nombre: 'Leva (la cuña)', m: enF(leva, e.cara), imprimir: N.aLaCama(leva.translate([-u, -Q.yLeva0, -ZK]).rotate([90, 0, 0])), con: null, nota: 'tumbada · por dentro, a presión en el hexágono del bombín, con la llave DE PIE y la cuña hacia abajo, del lado del gancho' });
+        const pieza = (id, nombre, m, imprimir, nota, tapaColor) => sueltas.push({ id: id + ':' + e.id, nombre, m, imprimir, con: null, nota, tapaColor: !!tapaColor });
+        pieza('bombin', 'Bombín', en(CD.bombin()), PI.bombin(), 'de pie, sobre su pestaña · se mete desde fuera, con su ranura (la de la barra) hacia abajo');
+        for (let k = 0; k < CD.DD.N; k++) pieza('disco' + k, 'Disco ' + (k + 1) + ' (' + (k + 1) + (k ? ' puntitos' : ' puntito') + ')', en(CD.disco(cod, k)), PI.disco(cod, k), 'plano · van en orden: el 1 delante (junto a la llave)');
+        for (let k = 0; k < CD.DD.N - 1; k++) pieza('sep' + k, 'Separador ' + (k + 1), en(CD.separador(k)), PI.separador(k), 'plano · uno entre cada dos discos, con su pestaña arriba');
+        pieza('barra', 'Barra de la cerradura', en(CD.barra(false)), PI.barra(), 'de lado · va en la ranura de abajo del bombín');
+        pieza('tapon', 'Tapón del bombín', en(CD.tapon()), PI.tapon(), 'de pie, con el hexágono arriba · cierra el bombín por detrás con «clic»');
+        const leva = llaveLeva(C, e, true);
+        pieza('leva', 'Leva (la cuña)', enF(leva, e.cara), N.aLaCama(leva.translate([-e.u, -Q.yLeva0, -Q.ZK]).rotate([90, 0, 0])), 'tumbada · por dentro, a presión en el hexágono del tapón, con la llave fuera y la cuña hacia abajo, del lado del gancho');
         const nLl = Math.max(1, Math.min(3, Math.round(Number(p.llaves) || 2)));
-        sueltas.push({ id: 'llave:' + e.id, nombre: 'Llave' + (nLl > 1 ? ' 1' : '') + ' (' + Q.codigo + ')', m: enF(llaveMetida(C, e, Q.codigo), e.cara), /* (metida en su cerradura: se ve y gira en la animación) */ imprimir: N.aLaCama(llave.rotate([0, -90, 0])), con: null, nota: 'tumbada · llave de pie = cerrado; un cuarto de vuelta (tumbada) = abierto', tapaColor: true });
-        for (let k = 1; k < nLl; k++) sueltas.push({ id: 'llave' + k + ':' + e.id, nombre: 'Llave ' + (k + 1) + ' (copia, ' + Q.codigo + ')', m: null, imprimir: N.aLaCama(llave.rotate([0, -90, 0])), con: null, nota: 'igual que la primera: la de repuesto', tapaColor: true });
+        pieza('llave', 'Llave' + (nLl > 1 ? ' 1' : '') + ' (' + cod + ')', en(CD.llave(cod)), PI.llave(cod), 'tumbada, sobre su cara plana · para abrir, algo más de media vuelta hasta el tope', true);
+        for (let k = 1; k < nLl; k++) pieza('llave' + k, 'Llave ' + (k + 1) + ' (copia, ' + cod + ')', null, PI.llave(cod), 'igual que la primera: la de repuesto', true);
         mec.push({ tipo: 'llave', e, cara: e.cara, F: F(e.cara), Q });
         break;
       }
@@ -532,19 +525,24 @@ export function compruebaPro(C, G, ayuda) {
         if (a1 >= 90 || a1 === -1) ok('Con el pestillo fuera, la tapa se abre', a1 === -1 ? 'Tapa a presión: se quita.' : 'Hasta ' + a1 + '°.'); else mal('Con el pestillo fuera, la tapa solo se abre ' + a1 + '°', 'Algo choca con la orejeta de la tapa.');
       }
       if (Mc.tipo === 'llave') {
-        const e = Mc.e, F = Mc.F, Q = Mc.Q, lc = enCara(llaveLeva(C, e, true), F), la = enCara(llaveLeva(C, e, false), F), bo = enCara(llaveBombin(C, e), F);
+        const e = Mc.e, F = Mc.F, Q = Mc.Q, cod = Q.codigo, en = m => enCara(enLaCara(C, e, m), F), lc = enCara(llaveLeva(C, e, true), F), la = enCara(llaveLeva(C, e, false), F);
+        const bo = en(N.union([CD.bombin(), CD.tapon(), CD.barra(false)].concat(Array.from({ length: CD.DD.N }, (_, k) => CD.disco(cod, k)), Array.from({ length: CD.DD.N - 1 }, (_, k) => CD.separador(k)))));
         const vB = toque(bo, G.cuerpo), vL = toque(lc, G.cuerpo) + toque(la, G.cuerpo);
-        if (vB < 0.05 && vL < 0.05) ok('El bombín gira en su agujero y la leva no roza la caja', 'Con 0,3 mm de aire.'); else mal('El bombín o la leva rozan la caja', (vB + vL).toFixed(2) + ' mm³.');
+        if (vB < 0.05 && vL < 0.05) ok('El bombín (con sus discos) cabe en su agujero y la leva no roza la caja', 'La barra va en su ranura; el bombín gira con 0,25 mm de aire.'); else mal('El bombín o la leva rozan la caja', (vB + vL).toFixed(2) + ' mm³.');
         const vT = toque(G.tapa, lc) + toque(G.tapa, la) + toque(G.tapa, bo);
         if (vT < 0.05) ok('Cerrada, el gancho de la tapa queda debajo de la cuña sin tocarla', 'Con ' + n1(LLAVE.HOL) + ' mm de aire.'); else mal('Cerrada, el gancho de la tapa se pisa con la leva', vT.toFixed(2) + ' mm³.');
         let roza = 0, donde = 0; for (let a = 10; a < 90; a += 10) { const lm = enCara(llaveLeva(C, e, true, a), F), v = toque(lm, G.cuerpo) + toque(lm, G.tapa); if (v > 0.05 && !donde) donde = a; roza += v; }
-        if (roza < 0.05) ok('Con la tapa cerrada, la llave gira de «cerrado» a «abierto» sin rozar', 'Comprobado de 10 en 10 grados: la cuña pasa por debajo del eje sin tocar el gancho.'); else mal('Al girar la llave, la cuña roza a los ' + donde + '°', roza.toFixed(2) + ' mm³.');
+        if (roza < 0.05) ok('Con la tapa cerrada, la leva gira de «cerrado» a «abierto» sin rozar', 'Comprobado de 10 en 10 grados: la cuña pasa por debajo del eje sin tocar el gancho.'); else mal('Al girar la llave, la cuña roza a los ' + donde + '°', roza.toFixed(2) + ' mm³.');
         const a0 = abreTapa([lc, bo]), a1 = abreTapa([la, bo]);
-        if (a0 <= 5) ok('Con la llave de pie («cerrado»), la tapa no se abre', 'El diente empuja el borde redondo de la cuña: el empuje pasa por el eje y no la hace girar.'); else mal('Con la llave en «cerrado», la tapa se abre ' + a0 + '°', '');
-        if (a1 >= 90 || a1 === -1) ok('Con la llave tumbada («abierto»), la tapa se abre', a1 === -1 ? '' : 'Hasta ' + a1 + '°, sin que el gancho roce la pared.'); else mal('Con la llave en «abierto», la tapa solo se abre ' + a1 + '°', 'El gancho roza al abrir.');
-        const metida = cod => enCara(llaveMetida(C, e, cod), F), i0 = Q.codigo.search(/[CL]/), otro = i0 < 0 ? 'LLL' : Q.codigo.slice(0, i0) + 'N' + Q.codigo.slice(i0 + 1);
-        const vk = toque(metida(Q.codigo), bo), vo = toque(metida(otro), bo);
-        if (vk < 0.05 && vo > 0.05) ok('Su llave entra y otra no', 'Una llave con otro código (' + otro + ') choca con la ranura.'); else mal('La llave no casa con su bombín', vk.toFixed(2) + ' / ' + vo.toFixed(2) + ' mm³.');
+        if (a0 <= 5) ok('Cerrada con llave, la tapa no se abre', 'El diente empuja el borde redondo de la cuña: el empuje pasa por el eje y no la hace girar.'); else mal('Cerrada con llave, la tapa se abre ' + a0 + '°', '');
+        if (a1 >= 90 || a1 === -1) ok('Abierta con la llave, la tapa se abre', a1 === -1 ? '' : 'Hasta ' + a1 + '°, sin que el gancho roce la pared.'); else mal('Abierta con la llave, la tapa solo se abre ' + a1 + '°', 'El gancho roza al abrir.');
+        // los discos: con SU llave se juntan las muescas (la barra entra); con otra (un corte distinto) o con un destornillador, la barra choca
+        const discos = (llaveCod, kap) => N.union(Array.from({ length: CD.DD.N }, (_, k) => { const a = CD.giroDisco(llaveCod, k, kap); return a ? CD.disco(cod, k).rotate([0, 0, -a]) : CD.disco(cod, k); }));
+        const barra = CD.barra(true), entra = (lcod, kap) => toque(barra, discos(lcod, kap));
+        const i0 = cod.search(/[1-3]/) >= 0 ? cod.search(/[1-3]/) : 0, otra = cod.slice(0, i0) + (Number(cod[i0]) + (cod[i0] === '4' ? -1 : 1)) + cod.slice(i0 + 1);
+        const vk = entra(cod, CD.KF), vo = Math.min(...[-22.5, 0, 22.5].map(d => entra(otra, CD.KF + d))), vd = Math.min(...[CD.KF - 45, CD.KF, CD.KF + 45].map(k => entra('00000', k)));
+        if (vk < 0.05 && vo > 0.3 && vd > 0.3) ok('Su llave abre; otra llave o un destornillador, no', 'Con su llave (' + cod + ') las 5 muescas se juntan y la barra entra; con otra (' + otra + ') o con un destornillador, la barra choca. Hay 1.320 llaves distintas.');
+        else mal('La cerradura de discos no casa con su llave', vk.toFixed(2) + ' / ' + vo.toFixed(2) + ' / ' + vd.toFixed(2) + ' mm³.');
       }
       if (Mc.tipo === 'gravedad') {
         const pin = G.sueltas.find(s => s.id === 'pasador:' + Mc.e.id).m, tapa = G.tapa, corre = d => tapa.translate([d, 0, 0]);

@@ -168,6 +168,9 @@ export function startAutoPrint() {
       if (tomadas.length) {
         AUTO.rapidas = (AUTO.rapidas || 0) + tomadas.length; AUTO.activo = true; AUTO.ultimo = Date.now(); if (r.directo) AUTO.directas = (AUTO.directas || 0) + tomadas.length;
         tomadas.forEach(x => { if (x.directo) EN_CURSO.set(x.impresion.id, Date.now()); upsertLocal('impresiones', x.directo ? Object.assign({}, x.impresion, { estado: 'Enviando' }) : x.impresion); }); emit();
+        // 17-10-2026 · las de un mismo paquete, juntas y en orden: la de envío y, justo detrás, la de soporte (ella: «para tenerlas juntas»)
+        const ordenT = { oficial: 0, propia: 1, paquete: 2, gracias: 3 }, grupoT = x => { const o = byId('pedidos', x.impresion.pedidoId); return (o && E.principalDe(o) || {}).id || x.impresion.pedidoId; };
+        tomadas.sort((a, b) => String(grupoT(a)).localeCompare(String(grupoT(b))) || (ordenT[a.impresion.tipo] ?? 9) - (ordenT[b.impresion.tipo] ?? 9));
         for (const x of tomadas) {
           let o = byId('pedidos', x.impresion.pedidoId);
           if (!o) { await pull(); o = byId('pedidos', x.impresion.pedidoId); } // un pedido recién creado en otro aparato

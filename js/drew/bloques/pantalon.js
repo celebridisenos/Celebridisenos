@@ -23,7 +23,7 @@ export const MEDIDAS_PANTALON = [
 // una pierna (delantero o espalda); o.d = bajada del tiro; o.dz = altura extra del costado en la cintura
 function pierna(M, esp, o = {}) {
   const H = M.cadera, W = M.cintura, hw = H / 4 + (esp ? 10 : -10), ext = esp ? H / 8 - 5 : H / 16, tot = hw + ext, xs = -tot / 2, xc = tot / 2, xcf = xc - ext;
-  const yh = M.tiro - M.altoCadera, yb = -(M.largo - M.tiro), yk = yb / 2 + 50, kq = (M.rodilla / 2 + (esp ? 10 : -10)) / 2, bq = (M.bajo / 2 + (esp ? 10 : -10)) / 2, d = o.d || 0;
+  const yh = M.tiro - M.altoCadera, yb = -(M.largo - M.tiro), yk = yb / 2 + 50, ab = o.ab || 0, kq = (M.rodilla / 2 + (esp ? 10 : -10)) / 2 + ab / 2, bq = (M.bajo / 2 + (esp ? 10 : -10)) / 2 + ab, d = o.d || 0; // (ab: SHORTS, ver genera)
   const B = Z.constructor(esp ? 'Espalda' : 'Delantero', { corte: { n: 2, espejo: true, doblez: null } }), p = B.p;
   // el centro en la cintura (detrás, inclinado) y lo que mide la cintura que va a la cinturilla
   const cw = esp ? [xcf - 30, M.tiro + 25] : [xcf - 10, M.tiro], wq = W / 4 + (esp ? -5 : 5), ysw = M.tiro + (o.dz || 0);
@@ -60,11 +60,14 @@ export const PANTALON = { k: 'pantalon', e: '👖', t: 'Pantalón', categoria: '
     if (M.largo < M.tiro + 100) mal('Muy corto: del tiro al bajo quedan menos de 10 cm.');
     const del = pierna(M, false), Le = largo(del, 'entrepierna'), Lc = largo(del, 'costado');
     // la bajada del tiro de atrás que iguala la entrepierna; luego la altura del costado que iguala los costados
-    const dB = resuelve(d => largo(pierna(M, true, { d }), 'entrepierna'), Le, -20, 60);
+    let dB = resuelve(d => largo(pierna(M, true, { d }), 'entrepierna'), Le, -20, 60), ab = 0;
+    // 17-10-2026 · SHORTS: con la pierna corta, bajar el tiro de atrás no basta para igualar la entrepierna (la de atrás es más ancha); se
+    // hace como en un short de verdad: el bajo de atrás se abre un poco hacia la entrepierna, con 1 cm de bajada del tiro de atrás
+    if (dB == null && M.largo - M.tiro < 420) { const a = resuelve(x => largo(pierna(M, true, { d: 10, ab: x }), 'entrepierna'), Le, -150, 150); if (a != null) { dB = 10; ab = a; } }
     if (dB == null) mal('No consigo que la entrepierna de atrás mida lo mismo que la de delante con estas medidas (rodilla o bajo muy distintos de la cadera).');
-    const dz = resuelve(z => largo(pierna(M, true, { d: dB, dz: z }), 'costado'), Lc, -25, 25);
+    const dz = resuelve(z => largo(pierna(M, true, { d: dB, dz: z, ab }), 'costado'), Lc, -25, 25);
     if (dz == null) mal('No consigo que los costados midan lo mismo con estas medidas.');
-    const esp = pierna(M, true, { d: dB, dz });
+    const esp = pierna(M, true, { d: dB, dz, ab });
     const Ld = largo(del, 'cintura'), Lb = largo(esp, 'cintura'), w = M.cinturilla, sol = 35;
     const C = Z.constructor('Cinturilla (mitad)', { corte: { n: 2, espejo: true, doblez: null } }), p = C.p;
     p('o', 0, 0, 'Centro delantero'); p('s', Ld, 0, 'Costado'); p('cb', Ld + Lb, 0, 'Centro espalda'); p('cbt', Ld + Lb, 2 * w); p('ot', -sol, 2 * w); p('ox', -sol, 0, 'Solapa');

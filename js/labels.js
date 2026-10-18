@@ -253,7 +253,31 @@ export function loadLogo() {
 export function resetLogo() { logoP = null; }
 function line(g, x1, y1, x2, y2, w) { g.lineWidth = w; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
 
+// 17-10-2026 · EN LA TÉRMICA (la impresora de etiquetas, 203 ppp) cada punto es negro o blanco. Si le llega gris (el borde suavizado
+// de las letras, las barras de un PDF reducido) su controlador lo salpica de puntitos y las barras salen borrosas: en el punto de
+// entrega pueden no leerlas. Por eso se le manda YA en negro puro (letras y barras nítidas) y solo las fotos (el logo) con trama fina.
+const BN = ['oficial', 'envio', 'paquete', 'paquete150', 'producto', 'almacen', 'qr', 'mesa'];
+export const esTermica = dpi => dpi > 0 && dpi <= 210;
 export function draw(tpl, d, dpi, size) {
+  const c = dibuja(tpl, d, dpi, size);
+  return esTermica(dpi) && BN.includes(tpl) && !(d && (d.__inner || d.__transparente || d.__color)) ? aNegro(c) : c;
+}
+// Negro o blanco (umbral a la mitad); dentro de las zonas de foto (c.__fotos: [x, y, w, h] en px), trama de Floyd–Steinberg
+export function aNegro(c) {
+  if (!c || c.__bn) return c;
+  const W = c.width, H = c.height, g = c.getContext('2d', { willReadFrequently: true }), im = g.getImageData(0, 0, W, H), p = im.data;
+  const foto = new Uint8Array(W * H);
+  (c.__fotos || []).forEach(([x, y, w, h]) => { const x0 = Math.max(0, Math.round(x)), x1 = Math.min(W, Math.round(x + w)); for (let j = Math.max(0, Math.round(y)); j < Math.min(H, Math.round(y + h)); j++) foto.fill(1, j * W + x0, j * W + x1); });
+  const L = new Float32Array(W * H);
+  for (let i = 0, q = 0; i < W * H; i++, q += 4) { const a = p[q + 3] / 255; L[i] = (0.299 * p[q] + 0.587 * p[q + 1] + 0.114 * p[q + 2]) * a + 255 * (1 - a); }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, v = L[i], n = v < 128 ? 0 : 255;
+    if (foto[i]) { const e = v - n, rep = (j, f) => { if (foto[j]) L[j] += e * f; }; if (x + 1 < W) rep(i + 1, 7 / 16); if (y + 1 < H) { if (x > 0) rep(i + W - 1, 3 / 16); rep(i + W, 5 / 16); if (x + 1 < W) rep(i + W + 1, 1 / 16); } }
+    const q = i * 4; p[q] = p[q + 1] = p[q + 2] = n; p[q + 3] = 255;
+  }
+  g.putImageData(im, 0, 0); c.__bn = true; return c;
+}
+function dibuja(tpl, d, dpi, size) {
   // v13.5: forma de la plantilla (o la que venga en los datos). El contenido se dibuja en el hueco seguro de la forma.
   const forma = d && d.__inner ? 'rect' : (d && SHAPES[d.forma] ? d.forma : formaDe(tpl));
   if (forma !== 'rect' && SHAPED.includes(tpl)) return shapeCanvas(tpl, forma, Object.assign({ contorno: contornoOn() }, d), dpi, size || TEMPLATES[tpl]);
@@ -312,7 +336,7 @@ export function draw(tpl, d, dpi, size) {
   } else if (tpl === 'oficial') {
     // la etiqueta oficial ya viene dibujada (de su PDF o imagen): se coloca entera, sin deformarla
     const src = d.canvas;
-    if (src) { const sc = Math.min(c.width / src.width, c.height / src.height), w = src.width * sc, hh = src.height * sc; g.drawImage(src, (c.width - w) / 2, (c.height - hh) / 2, w, hh); }
+    if (src) { const sc = Math.min(c.width / src.width, c.height / src.height), w = src.width * sc, hh = src.height * sc; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(src, (c.width - w) / 2, (c.height - hh) / 2, w, hh); } // (17-10: reducida con calidad alta: barras parejas)
     else T('Falta la etiqueta oficial', m, m, W - 2 * m, 12, 700, 2);
   } else if (tpl === 'paquete') {
     // v17.3: también en la pequeña va el «¡Gracias!» (lo pidió la dueña: QR + gracias + identificación del paquete, siempre)
@@ -329,9 +353,10 @@ export function draw(tpl, d, dpi, size) {
     g.textAlign = 'left';
   } else if (tpl === 'paquete150') {
     // ── mitad de arriba: GRACIAS (logo, título, texto y firma, ajustados al hueco) ──
-    const mid = H * 0.41, cw = W - 2 * m - 4;
+    // (17-10: con varias cosas dentro o con nota, la mitad de arriba cede un poco de sitio a la de abajo)
+    const mid = H * ((d.lineas || []).length > 2 || d.nota ? 0.36 : 0.41), cw = W - 2 * m - 4;
     let y = m + 1;
-    if (d.logoImg && d.logoImg.width) { const lh = 13, lw = Math.min(cw, d.logoImg.width / d.logoImg.height * lh); g.drawImage(d.logoImg, ((W - lw) / 2) * k, y * k, lw * k, (lw / (d.logoImg.width / d.logoImg.height)) * k); y += lw / (d.logoImg.width / d.logoImg.height) + 2; }
+    if (d.logoImg && d.logoImg.width) { const lh = 13, lw = Math.min(cw, d.logoImg.width / d.logoImg.height * lh), lh2 = lw / (d.logoImg.width / d.logoImg.height); g.drawImage(d.logoImg, ((W - lw) / 2) * k, y * k, lw * k, lh2 * k); (c.__fotos = c.__fotos || []).push([((W - lw) / 2) * k, y * k, lw * k, lh2 * k]); y += lh2 + 2; }
     const gd = Object.assign({ titulo: '¡Gracias!', texto: '', firma: '' }, d.gracias || {});
     let sz = 1.9; for (; sz > 0.6; sz -= 0.05) { if (centered(g, F, k, gd, y, cw, W, sz, true) <= mid - 4) break; }
     const alto = centered(g, F, k, gd, y, cw, W, sz, true) - y; centered(g, F, k, gd, y + Math.max(0, (mid - 2 - y - alto) / 2), cw, W, sz, false);
@@ -339,7 +364,11 @@ export function draw(tpl, d, dpi, size) {
     // ── mitad de abajo: SOLO para el equipo ──
     let yb = mid + 3;
     g.fillRect(m * k, yb * k, (W - 2 * m) * k, 10 * k); g.fillStyle = '#fff';
-    g.font = F(d.conjunto ? 13 : 16, 800); g.fillText(fit(g, (d.conjunto ? 'ENVÍO CONJUNTO Nº ' : 'PEDIDO Nº ') + (d.numero || ''), (W - 2 * m - 4) * k), (m + 2) * k, (yb + 2) * k);
+    // 17-10 · la CUENTA (o la plataforma) va en la barra negra, a la derecha: antes era la última fila al lado del QR y se montaba
+    // encima de la raya y de «Qué va dentro»
+    const donde = d.cuenta || d.canal || '', wDonde = donde ? (g.font = F(7.5, 700), Math.min(36, g.measureText(donde).width / k + 0.5)) : 0;
+    g.font = F(d.conjunto ? 13 : 16, 800); g.fillText(fit(g, (d.conjunto ? 'ENVÍO CONJUNTO Nº ' : 'PEDIDO Nº ') + (d.numero || ''), (W - 2 * m - 4 - (wDonde ? wDonde + 3 : 0)) * k), (m + 2) * k, (yb + 2) * k);
+    if (donde) { g.textAlign = 'right'; g.font = F(5.5, 600); g.fillText(d.cuenta ? 'CUENTA' : 'PLATAFORMA', (W - m - 2) * k, (yb + 1.6) * k); g.font = F(7.5, 700); g.fillText(fit(g, donde, 36 * k), (W - m - 2) * k, (yb + 4.4) * k); g.textAlign = 'left'; }
     g.fillStyle = '#000'; yb += 12;
     // v30.6.1 · DÓNDE SE LLEVA, bien grande (InPost, Vinted Go, SEUR…) y su nº de seguimiento
     const D0 = d.destino && d.destino.t ? d.destino : null;
@@ -347,20 +376,31 @@ export function draw(tpl, d, dpi, size) {
       g.font = F(15, 800); g.fillText(fit(g, String(D0.t).toUpperCase(), (W - 2 * m - 22) * k), (m + 20) * k, (yb + 1.6) * k); yb += hb + 1.5; }
     const qs = D0 ? 37 : 42; qr(g, d.qr, m * k, yb * k, qs * k);
     const xr = m + qs + 3, wr = W - xr - m;
+    // las filas al lado del QR: si no caben en su alto, se aprietan un poco (nunca se montan sobre lo de abajo)
+    const filas = [['Código', d.codigo, 10, 800], ['Cliente', d.cliente, 10, 700], ['Enviar antes de', d.limite, 11, 800],
+      D0 ? ['Seguimiento', D0.seguimiento || d.seguimiento, 9, 800] : ['Transporte', [d.transportista, d.seguimiento].filter(Boolean).join(' · '), 8.5, 700]].filter(f => f[1]);
+    const lineasDe = (v, pt, wt, ancho, max) => { g.font = F(pt, wt); return Math.min(max, wrap(g, v, ancho * k).length); };
+    const altoFilas = s => filas.reduce((a, [, v, pt, wt]) => a + 2.8 + lineasDe(v, pt * s, wt, wr, 2) * pt * s * 0.3528 * 1.2 + 1.6 * s, 0);
+    let sf = 1; while (sf > 0.7 && altoFilas(sf) > qs - 1) sf -= 0.05;
     let yr = yb + 1;
-    const fila = (et, v, pt, wt) => { if (!v) return; g.font = F(6.5, 600); g.fillText(et.toUpperCase(), xr * k, yr * k); yr += 2.8; yr = T(v, xr, yr, wr, pt || 10, wt || 700, 2) + 1.6; };
-    fila('Código', d.codigo, 10, 800);
-    fila('Cliente', d.cliente);
-    fila('Enviar antes de', d.limite, 11, 800);
-    if (D0) fila('Seguimiento', D0.seguimiento || d.seguimiento, 9, 800); else fila('Transporte', [d.transportista, d.seguimiento].filter(Boolean).join(' · '), 8.5, 700);
-    if (d.cuenta) fila('Vendido en la cuenta', d.cuenta, 10, 800); else fila('Plataforma', d.canal, 9, 600); // v14.1: varias cuentas de Vinted/Wallapop
-    yb += qs + 2;
+    filas.forEach(([et, v, pt, wt]) => { g.font = F(6.5, 600); g.fillText(et.toUpperCase(), xr * k, yr * k); yr += 2.8; yr = T(v, xr, yr, wr, pt * sf, wt, 2) + 1.6 * sf; });
+    const finFilas = yr; yb = Math.max(yb + qs, yr) + 2; const raya = yb;
     line(g, m * k, yb * k, (W - m) * k, yb * k, 0.3 * k); yb += 1.8;
     g.font = F(6.5, 600); g.fillText('QUÉ VA DENTRO', m * k, yb * k); yb += 3;
-    const ls = (d.lineas || []).slice(0, 5);
-    ls.forEach((l, i) => { if (yb < H - 12) yb = T('☐ ' + l, m, yb, W - 2 * m, ls.length > 3 ? 9 : 10.5, 700, i === ls.length - 1 ? 2 : 1) + 0.6; });
-    if ((d.lineas || []).length > 5) yb = T('… y ' + (d.lineas.length - 5) + ' más', m, yb, W - 2 * m, 8, 600, 1);
-    if (d.nota && yb < H - 9) T('📝 ' + d.nota, m, yb + 0.8, W - 2 * m, 8, 500, 2);
+    // lo que va dentro, con su casilla dibujada (para ir marcando), lo más grande que quepa (de 13 a 8 pt)
+    const todas = d.lineas || [], ls = todas.slice(0, 5), pie = H - m - 4.5, tx = m + 5, tw = W - tx - m;
+    const altoNota = d.nota ? lineasDe(d.nota, 8.5, 600, W - 2 * m - 15, 3) * 8.5 * 0.3528 * 1.2 + 2.4 : 0;
+    const altoLs = pt => ls.reduce((a, l) => a + lineasDe(l, pt, 700, tw, 2) * pt * 0.3528 * 1.2 + 0.8, 0) + (todas.length > 5 ? 4 : 0);
+    const hueco = pie - yb - (altoNota ? altoNota + 1.5 : 0), unaLinea = pt => ls.every(l => lineasDe(l, pt, 700, tw, 9) === 1);
+    let pl = 13; while (pl > 9.5 && (altoLs(pl) > hueco || !unaLinea(pl))) pl -= 0.5; // (si se puede, cada cosa en una sola línea)
+    if (altoLs(pl) > hueco || !unaLinea(pl)) { pl = 13; while (pl > 8 && altoLs(pl) > hueco) pl -= 0.5; }
+    ls.forEach(l => { const sq = Math.min(3.6, pl * 0.3528 * 0.95); g.lineWidth = 0.35 * k; g.strokeRect((m + 0.4) * k, (yb + pl * 0.3528 * 0.15) * k, sq * k, sq * k); yb = T(l, tx, yb, tw, pl, 700, 2) + 0.8; });
+    if (todas.length > 5) yb = T('… y ' + (todas.length - 5) + ' más', tx, yb, tw, 8, 600, 1) + 0.6;
+    // la NOTA en su recuadro (antes llevaba un emoji 📝 que en la térmica no salía)
+    if (d.nota) { const ny = Math.min(yb + 1.2, pie - altoNota); g.lineWidth = 0.4 * k; g.strokeRect(m * k, ny * k, (W - 2 * m) * k, altoNota * k);
+      g.fillRect(m * k, ny * k, 12 * k, 4.2 * k); g.fillStyle = '#fff'; g.font = F(6.5, 800); g.fillText('NOTA', (m + 1.6) * k, (ny + 1) * k); g.fillStyle = '#000';
+      T(d.nota, m + 14, ny + 1.1, W - 2 * m - 15, 8.5, 600, 3); yb = ny + altoNota; }
+    c.__medidas = { finFilas, raya, finDentro: yb, pie, letra: pl }; // (para las pruebas: nada se monta)
     g.textAlign = 'center'; g.font = F(6, 500); g.fillText('Uso interno · la dirección va en la etiqueta de la plataforma', (W / 2) * k, (H - m - 1.5) * k); g.textAlign = 'left';
   } else if (tpl === 'gracias') {
     let y = m - 0.5;
