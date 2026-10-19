@@ -61,6 +61,7 @@ function colocacion(k, pz, prenda) {
     if (n === 'Delantero') return { zona: 'tronco', cara: 'delante', ancla: 'cintura' };
     if (n === 'Espalda') return { zona: 'tronco', cara: 'detras', ancla: 'cintura' };
     if (n === 'Cinturilla') return { zona: 'anillo', en: 'cintura' };
+    if (n === 'Volante') return { zona: 'anillo', en: 'cuelga', largo: (pz.meta && pz.meta.cuelga) || M.largo }; // (18-10: el volante, colgando del bajo de la falda)
   }
   if (k === 'vestido') {
     if (n === 'Cuerpo delantero') return { zona: 'tronco', cara: 'delante', ancla: 'hombro' };
@@ -68,6 +69,7 @@ function colocacion(k, pz, prenda) {
     if (n === 'Falda delantera') return { zona: 'tronco', cara: 'delante', ancla: 'cintura' };
     if (n === 'Falda espalda') return { zona: 'tronco', cara: 'detras', ancla: 'cintura' };
     if (n === 'Manga') return { zona: 'brazo' };
+    if (n === 'Volante') return { zona: 'anillo', en: 'cuelga', largo: (pz.meta && pz.meta.cuelga) || M.largo };
   }
   if (k === 'pantalon') {
     if (n === 'Delantero') return { zona: 'pierna', cara: 'delante' };
@@ -222,9 +224,9 @@ function colocaPanel(p, ctx) {
     lado = 'D';
   } else if (col.zona === 'anillo') {
     // cuello (el delantero más bajo, como el escote) · cintura (sube desde la costura) · bajo (cuelga desde la costura)
-    const yc = col.en === 'cuello' ? yHombroCuello - 6 : col.en === 'cintura' ? N.cintura + 15 : yHombroCuello - (col.largo || 650) - 6;
+    const yc = col.en === 'cuello' ? yHombroCuello - 6 : col.en === 'cintura' ? N.cintura + 15 : col.en === 'cuelga' ? N.cintura - (col.largo || 550) - 6 : yHombroCuello - (col.largo || 650) - 6;
     const q = C.secc(Math.max(N.entrepierna + 10, Math.min(N.hombro - 10, yc))), cz = col.en === 'cuello' ? -12 * C.s : q.c, Lw = col.mitad ? 2 * caja.w : caja.w, R0 = Lw / (2 * Math.PI);
-    const R = Math.max(R0, col.en === 'cuello' ? C.rN + 8 : radioTronco(yc) - 28), bd = col.baja || [0, 0], sube = col.en === 'bajo' ? -1 : 1;
+    const R = Math.max(R0, col.en === 'cuello' ? C.rN + 8 : radioTronco(yc) - 28), bd = col.baja || [0, 0], sube = col.en === 'bajo' || col.en === 'cuelga' ? -1 : 1;
     f = (u, v) => { const a = u / R, baj = col.en === 'cuello' ? (bd[0] * (1 + Math.cos(a)) / 2 + bd[1] * (1 - Math.cos(a)) / 2) * 0.85 : 0; return [R * Math.sin(a), yc - baj + sube * (v - caja.y0), cz + R * Math.cos(a)]; };
     p.fuera = ([x, y, z]) => [x, 0, z - cz];
     lado = 'I'; // la mitad +u (o la copia original de una cinturilla en dos mitades) va a +X

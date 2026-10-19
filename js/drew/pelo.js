@@ -17,6 +17,16 @@ export const LINEA = { corto: f => (f >= 0 ? 86 - 28 * f : 86 + 16 * -f), mono: 
   melena: f => (f > 0.55 ? 118 - 60 * (f - 0.55) / 0.45 : f >= 0 ? 122 : 122 + 12 * -f) };
 // cuánto más grande que la cabeza es el casquete
 export const grosorPelo = E => (E === 'corto' ? 1.045 : 1.07);
+// (18-10) en la LÍNEA DEL PELO el casquete baja hasta la piel (los últimos 10°): si no, el borde se veía como un gorro de natación de 5 mm.
+// Devuelve por cuánto multiplicar el grosor en ese punto (th = grados desde la coronilla; f = 1 delante … −1 detrás). En la melena, solo
+// en la cara (por detrás y a los lados lo de abajo son las puntas, que cuelgan sueltas).
+// (18-10) el COGOTE: la cabeza de MakeHuman sale por detrás hasta un 8 % fuera del elipsoide (th ≈ 55°, f ≈ −0,9) y asomaba piel entre el pelo
+// corto. El pelo, ahí, más hueco (lo mismo para verlo y para la tela).
+export const bultoNuca = (th, f) => 1 + 0.06 * Math.exp(-(((th - 57) / 20) ** 2)) * Math.max(0, -f) ** 1.5;
+export function bordePelo(E, th, f) {
+  const lim = LINEA[E] || LINEA.corto, g = grosorPelo(E), d = lim(f) - th, w = E === 'melena' ? Math.max(0, Math.min(1, (f - 0.45) / 0.2)) : 1;
+  if (d >= 10 || !w) return 1; const t = Math.max(0, d) / 10, s = t * t * (3 - 2 * t), k = (1.012 + (g - 1.012) * s) / g; return 1 - w * (1 - k);
+}
 // la melena cae recta: lo de abajo se separa algo más de la cabeza (volumen) y baja un poco (en la esfera unidad, antes de escalar)
 export function deformaMelena(x, y, z) { if (y >= 0) return [x, y, z]; const t = Math.min(1, -y); return [x * (1 + 0.18 * t), y * 1.15, z * (1 + 0.08 * t)]; }
 // las piezas sueltas, en mm desde el centro de la cabeza: bolas (c, radio, escala) y la coleta (un huso que cae hacia la espalda)
@@ -49,7 +59,7 @@ export function distPelo(E, cab) {
     // el casquete es el elipsoide cortado por la línea del pelo: dentro del corte, la distancia al elipsoide; por debajo de la línea, hasta su
     // BORDE (sin el salto de «no hay pelo»: en la nuca y en la melena el borde queda separado de la piel y la tela se colaba por ahí)
     const k = Math.hypot(u, v, w); let d = -rmin;
-    if (k > 1e-6) { const th = Math.acos(Math.max(-1, Math.min(1, v / k))) * 180 / Math.PI, f = w / Math.max(1e-6, Math.hypot(u, w)), dr = (k - 1) * rmin, da = (th - lim(f)) * Math.PI / 180 * rmin * Math.max(k, 0.3);
+    if (k > 1e-6) { const th = Math.acos(Math.max(-1, Math.min(1, v / k))) * 180 / Math.PI, f = w / Math.max(1e-6, Math.hypot(u, w)), dr = (k / bultoNuca(th, f) - 1) * rmin, da = (th - lim(f)) * Math.PI / 180 * rmin * Math.max(k, 0.3);
       d = da <= 0 ? dr : dr <= 0 ? da : Math.hypot(dr, da); }
     X.forEach(P => { const q = [x - cx - P.c[0], y - cy - P.c[1], z - cz - P.c[2]];
       d = Math.min(d, P.tipo === 'bola' ? dElipsoide(q[0], q[1], q[2], P.rad * P.s[0], P.rad * P.s[1], P.rad * P.s[2]) : conoR(P.a, P.b, P.ra, P.rb, [x - cx, y - cy, z - cz])); });
@@ -62,8 +72,8 @@ export function puntosPelo(E, cab, paso = 4) {
   const g = grosorPelo(E), lim = LINEA[E] || LINEA.corto, out = [], [cx, cy, cz] = cab.c;
   for (let th = 0; th <= 180; th += paso) for (let ph = 0; ph < 360; ph += th === 0 ? 360 : paso) {
     const st = Math.sin(th * Math.PI / 180); let x = st * Math.sin(ph * Math.PI / 180), y = Math.cos(th * Math.PI / 180), z = st * Math.cos(ph * Math.PI / 180);
-    const f = z / Math.max(1e-6, Math.hypot(x, z)); if (th > lim(f)) continue; if (E === 'melena') [x, y, z] = deformaMelena(x, y, z);
-    out.push([cx + x * cab.r[0] * g, cy + y * cab.r[1] * g, cz + z * cab.r[2] * g]); }
+    const f = z / Math.max(1e-6, Math.hypot(x, z)); if (th > lim(f)) continue; const b = bultoNuca(th, f); if (E === 'melena') [x, y, z] = deformaMelena(x, y, z);
+    out.push([cx + x * cab.r[0] * g * b, cy + y * cab.r[1] * g * b, cz + z * cab.r[2] * g * b]); }
   extras(E, cab.r).forEach(P => {
     if (P.tipo === 'bola') { for (let th = 0; th <= 180; th += 12) for (let ph = 0; ph < 360; ph += 12) { const st = Math.sin(th * Math.PI / 180); out.push([cx + P.c[0] + P.rad * P.s[0] * st * Math.sin(ph * Math.PI / 180), cy + P.c[1] + P.rad * P.s[1] * Math.cos(th * Math.PI / 180), cz + P.c[2] + P.rad * P.s[2] * st * Math.cos(ph * Math.PI / 180)]); } }
     else for (let t = 0; t <= 1.0001; t += 0.1) { const rr = P.ra + (P.rb - P.ra) * t, a = [P.a[0] + (P.b[0] - P.a[0]) * t, P.a[1] + (P.b[1] - P.a[1]) * t, P.a[2] + (P.b[2] - P.a[2]) * t];

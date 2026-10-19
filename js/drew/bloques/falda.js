@@ -6,7 +6,7 @@
 // llevaba 3 cm de solapa en la punta, y al cortarla al doblez salían DOS solapas, una en cada extremo: sobraban 3 cm y en 3D se abría).
 import * as G from '../geom.js';
 import * as Z from '../pieza.js';
-import { mal, costura, costuraEspejo, med, opc, compruebaMedidas, largo } from './comun.js';
+import { mal, costura, costuraEspejo, med, opc, compruebaMedidas, largo, volante } from './comun.js';
 
 export const MEDIDAS_FALDA = [
   med('cintura', 'Contorno de cintura (de la prenda)', 720, 500, 1300),
@@ -41,12 +41,15 @@ export function mitad(M, esp) {
   return B.pz;
 }
 
-export const FALDA = { k: 'falda', e: '👗', t: 'Falda', categoria: 'falda', tejido: 'plano', medidas: MEDIDAS_FALDA, opciones: [opc('forma', 'Forma', 'recta', [['recta', 'Recta (de tubo)'], ['evase', 'Evasé (vuelo en el bajo)']])],
+export const FALDA = { k: 'falda', e: '👗', t: 'Falda', categoria: 'falda', tejido: 'plano', medidas: MEDIDAS_FALDA, opciones: [opc('forma', 'Forma', 'recta', [['recta', 'Recta (de tubo)'], ['evase', 'Evasé (vuelo en el bajo)']]), opc('bajo', 'Bajo', 'dobladillo', [['dobladillo', 'Dobladillo'], ['volante', 'Con volante']])],
   genera(M0, O = {}) {
     const M = Object.assign({}, M0); if (O.forma === 'evase' && !(M.vuelo > 0)) M.vuelo = 60; if (O.forma === 'recta') M.vuelo = Math.min(M.vuelo || 0, 0);
     compruebaMedidas(this, M);
     if (M.largo < M.altoCadera + 50) mal('La falda tiene que llegar por lo menos 5 cm por debajo de la cadera.');
-    const del = mitad(M, false), esp = mitad(M, true), Ld = largo(del, 'cintura'), Le = largo(esp, 'cintura'), w = M.cinturilla;
+    // (18-10) con VOLANTE: la falda acaba antes (el volante pone el resto del largo)
+    // (si la falda es CORTA y no se le puede quitar el largo del volante sin quedar por encima de la cadera, el volante la ALARGA: se dice)
+    const conVol = O.bajo === 'volante', altVol = conVol ? Math.min(140, Math.max(60, Math.round(M.largo * 0.18))) : 0, quita = conVol ? Math.max(0, Math.min(altVol, M.largo - M.altoCadera - 50)) : 0;
+    const Mf = Object.assign({}, M, { largo: M.largo - quita }), del = mitad(Mf, false), esp = mitad(Mf, true), Ld = largo(del, 'cintura'), Le = largo(esp, 'cintura'), w = M.cinturilla;
     const piezas = [del, esp], costuras = [costura('costado', 'Costados', del, 'costado', esp, 'costado'), costuraEspejo('centroEsp', 'Centro espalda (cremallera)', esp, 'centro')];
     const B = Z.constructor('Cinturilla', { corte: { n: 1, espejo: false, doblez: 'cf' } }), p = B.p;
     p('o', 0, 0, 'Centro delantero'); p('s', Ld, 0, 'Costado'); p('cb', Ld + Le, 0, 'Centro espalda'); p('cbt', Ld + Le, 2 * w); p('ot', 0, 2 * w);
@@ -59,5 +62,8 @@ export const FALDA = { k: 'falda', e: '👗', t: 'Falda', categoria: 'falda', te
     costuras.push(costura('cinDel', 'Cinturilla con la cintura delantera', del, 'cintura', B.pz, 'del', { inv: true }), costura('cinEsp', 'Cinturilla con la cintura de la espalda', esp, 'cintura', B.pz, 'esp', {}),
       Object.assign(costuraEspejo('cinCB', 'Corchete de la cinturilla', B.pz, 'punta'), { cierre: true })); // (en 3D, cerrada como con el corchete puesto; no es una costura)
     B.pz.piquetes = []; // (el del costado coincide con la esquina entre los dos bordes)
+    if (conVol) { const fr = 1.35, Bd = largo(del, 'bajo'), Be = largo(esp, 'bajo'), v = volante(Bd, Be, altVol, fr, Mf.largo); [del, esp].forEach(z => { z.bordes.find(x => x.id === 'bajo').tipo = 'costura'; z.margen.borde.bajo = 10; });
+      if (quita < altVol) v.meta.notas.push('La falda es corta: el volante la alarga ' + G.cm(altVol - quita) + ' cm (para no subir el bajo por encima de la cadera).');
+      piezas.push(v); costuras.push(costura('volDel', 'Volante con el bajo delantero', del, 'bajo', v, 'del', { ratio: fr }), costura('volEsp', 'Volante con el bajo de la espalda', esp, 'bajo', v, 'esp', { ratio: fr, inv: true }), costuraEspejo('volCB', 'Centro espalda del volante', v, 'cb')); }
     return { piezas, costuras, avisos: [] };
   } };

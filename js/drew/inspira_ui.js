@@ -17,6 +17,8 @@ import * as SAM from './foto/sam.js';
 import * as BL from './bloques/index.js';
 import * as PR from './foto/producto.js'; // 17-10: 📸 COPIA EXACTA desde una foto de producto con fondo liso
 import * as DF from './foto/desde_foto.js';
+import * as PU from './patron_img_ui.js'; // 18-10: 📐 si la imagen es un PATRÓN (piezas dibujadas), su panel
+import * as TF from './foto/tela_foto.js'; // 18-10: 🧵 la tela de la foto (cuadros, rayas, estampado)
 
 const MAXL = 1600, CIAN = 'rgba(0,205,230,', ROSA = '#c25d74';
 let ultima = null; // la última imagen de esta sesión (para volver a abrirla): { url, L, sil }
@@ -31,18 +33,20 @@ export const ultimaImagen = () => ultima;
 // detrás (bolsillos, qué prenda es) y sus pistas se enseñan; la forma ya no depende de ella.
 export function abre(o, archivo) {
   const S = { im: null, url: null, L: I.lee(null), sil: null, mk: null, ia: 'sin', iaMs: 0, iaT0: 0, iaMod: null, iaErr: '', sam: 'sin', samErr: '', puntos: [], etiq: [], ab: null, reloj: null, clave: '', vistas: [],
-    prod: null /* (17-10) la copia exacta: { estado, FP, fondo, escala: { modo, ajuste, k, mm, contorno }, error } */ };
+    prod: null /* (17-10) la copia exacta: { estado, FP, fondo, escala: { modo, ajuste, k, mm, contorno }, error } */, pat: null /* (18-10) el patrón de la imagen (patron_img_ui.js) */, noPat: false };
   ['categoria', 'largo', 'manga', 'escote', 'ajuste', 'falda', 'cierre', 'varillas', 'tirantes', 'capucha', 'bolsillos'].forEach(c => { S.L.campos[c] = { v: null, ia: false, duda: true }; });
   S.L.campos.varillas.v = 'no'; S.L.campos.tirantes.v = 'no'; S.L.campos.capucha.v = 'no'; S.L.campos.cierre.v = null;
   const lienzo = h('canvas.dw-insp-img'), caja = h('div.dw-insp-caja', lienzo), lado = h('div.dw-cal-lado.dw-insp-lado');
-  const m = modal('🌐 Diseñar desde una imagen', h('div.dw-cal.dw-insp', lado, caja), null, { size: 'full', onclose: () => { cierra(); } });
+  const m = modal(o.modoPatron ? '📐 Patrón desde una imagen' : '🌐 Diseñar desde una imagen', h('div.dw-cal.dw-insp', lado, caja), null, { size: 'full', onclose: () => { cierra(); } });
   m.el.classList.add('dw-cal-m');
   const elegir = () => { const i = h('input', { type: 'file', accept: 'image/*', style: { display: 'none' }, onchange: e => { const f = e.target.files[0]; if (f) carga(f); i.remove(); } }); document.body.append(i); i.click(); };
   const pega = e => { const it = [...((e.clipboardData && e.clipboardData.items) || [])].find(x => /^image\//.test(x.type)); if (!it) return; e.preventDefault(); carga(it.getAsFile()); };
   document.addEventListener('paste', pega);
+  V.calienta(); // (18-10: la IA se sube a memoria ya, mientras se elige la foto: ~9 s menos de espera)
   caja.addEventListener('dragover', e => { e.preventDefault(); caja.classList.add('soltar'); }); caja.addEventListener('dragleave', () => caja.classList.remove('soltar'));
   caja.addEventListener('drop', e => { e.preventDefault(); caja.classList.remove('soltar'); const f = [...(e.dataTransfer.files || [])].find(x => /^image\//.test(x.type)); if (f) carga(f); });
   lienzo.addEventListener('pointerdown', e => { if (!S.im) return; const r = lienzo.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * lienzo.width, y = (e.clientY - r.top) / r.height * lienzo.height;
+    if (S.pat) { PU.toca(S.pat, x / lienzo.width * S.im.w, y / lienzo.height * S.im.h); if (S.pat.escala.modo === 'tuya' && S.pat.escala.puntos.length === 2 && S.pat.escala.cm > 0) rehacePat(); dibuja(); pinta(); return; }
     S.puntos.push([x / lienzo.width * S.im.w, y / lienzo.height * S.im.h]); S.etiq.push(e.shiftKey || e.button === 2 ? 0 : 1); recorta(); });
   lienzo.addEventListener('contextmenu', e => e.preventDefault());
   function cierra() { document.removeEventListener('paste', pega); if (S.ab) S.ab.abort(); clearInterval(S.reloj); }
@@ -52,12 +56,27 @@ export function abre(o, archivo) {
     try { const u = URL.createObjectURL(f), im = await new Promise((res, rej) => { const x = new Image(); x.onload = () => res(x); x.onerror = () => rej(new Error('No se puede leer esa imagen.')); x.src = u; });
       const k = Math.min(1, MAXL / Math.max(im.naturalWidth, im.naturalHeight)), w = Math.round(im.naturalWidth * k), hh = Math.round(im.naturalHeight * k), c = document.createElement('canvas'); c.width = w; c.height = hh;
       const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, hh); g.drawImage(im, 0, 0, w, hh);
-      S.im = { c, w, h: hh }; S.url = u; S.vistas = []; S.clave = f.name + ':' + f.size + ':' + Date.now(); S.mk = null; S.sil = null; S.sam = 'sin'; S.puntos = []; S.etiq = []; SAM.olvida();
+      S.im = { c, w, h: hh }; S.url = u; S.vistas = []; S.clave = f.name + ':' + f.size + ':' + Date.now(); S.mk = null; S.sil = null; S.sam = 'sin'; S.puntos = []; S.etiq = []; S.tela = null; S.usarTela = null; SAM.olvida(); S.L.foto = null;
       Object.values(S.L.campos).forEach(x => { if (x.ia) Object.assign(x, { v: null, ia: false, duda: true }); }); S.L.caja = null; S.L.detalles = []; S.L.notas = ''; S.L.confianza = 0;
-      S.prod = null; const datos = g.getImageData(0, 0, w, hh).data, F = PR.fondoLiso({ w, h: hh, d: datos });
+      S.prod = null; S.pat = null; S.noPat = false; const datos = g.getImageData(0, 0, w, hh).data;
+      // (18-10) ¿es un PATRÓN? (piezas dibujadas en papel): entonces su panel, sin IA ni copia de producto (no hacen falta y tardan)
+      try { S.pat = PU.detecta({ w, h: hh, d: datos }, ctxPat); } catch (e) { S.pat = null; }
+      if (S.pat) { dibuja(); pinta(); afinaPat(); return; }
+      if (o.modoPatron) toast('No encuentro un patrón en esta imagen (piezas con su línea cerrada en papel claro): la miro como una prenda.', 'bad', 7000);
+      const F = PR.fondoLiso({ w, h: hh, d: datos });
       dibuja(); pinta(); if (F.liso) copia(F, { w, h: hh, d: datos }); mira(); }
     catch (e) { toast(e.message, 'bad'); }
   }
+  // ---------- 📐 el PATRÓN de la imagen (18-10) ----------
+  const ctxPat = { cuerpo: k => { try { return o.cuerpo ? o.cuerpo(k, 'normal') : null; } catch (e) { return null; } } };
+  function afinaPat() { const pat = S.pat; if (!pat) return; PU.afina(pat, () => { if (S.pat === pat) pinta(); }).then(() => { if (S.pat === pat) { dibuja(); pinta(); } }); }
+  function rehacePat() { if (!S.pat) return; PU.calcula(S.pat, ctxPat); afinaPat(); }
+  const handPat = { ponTipo: (i, k) => { S.pat.tipos[i] = k; rehacePat(); dibuja(); pinta(); }, escala: md => { S.pat.escala.modo = md; if (md === 'avatar') { S.pat.escala.puntos = []; } rehacePat(); dibuja(); pinta(); },
+    cm: v => { S.pat.escala.cm = v > 0 ? v : null; rehacePat(); dibuja(); pinta(); }, otraRaya: () => { S.pat.escala.puntos = []; dibuja(); pinta(); },
+    crear: () => { if (o.listo && !o.listo()) return toast('Espera un momento: el avatar se está preparando.', 'bad'); if (!o.crearPatron) return toast('Esta ventana no puede crear la prenda.', 'bad');
+      let A; try { A = PU.aProyecto(S.pat); } catch (e) { return toast(e.message, 'bad', 9000); } const R = o.crearPatron(A); if (R && R.ok === false) return toast(R.error || 'No se ha podido crear la prenda.', 'bad', 9000);
+      toast('📐 ' + A.nombre + ': cosiéndose en tu avatar…', 'ok', 5000); m.close(); } };
+  function noEsPatron() { const im = S.im; S.pat = null; S.noPat = true; if (!im) return; const g = im.c.getContext('2d'), datos = g.getImageData(0, 0, im.w, im.h).data, F = PR.fondoLiso({ w: im.w, h: im.h, d: datos }); dibuja(); pinta(); if (F.liso) copia(F, { w: im.w, h: im.h, d: datos }); mira(); }
   // ---------- 📸 la COPIA EXACTA (foto de producto con fondo liso) ----------
   const famDe = FP => PR.familiaDe(FP.T.etapas.RASGOS.datos);
   const catDe = FP => (FP.T.etapas.CLASIFICACION && FP.T.etapas.CLASIFICACION.datos && FP.T.etapas.CLASIFICACION.datos.categoria) || 'camiseta';
@@ -98,10 +117,10 @@ export function abre(o, archivo) {
       const N = I.lee(R.j, { modelo: R.modelo });
       // lo que ella ya ha contestado MANDA; lo demás, lo que dice la IA
       Object.entries(N.campos).forEach(([c, x]) => { const y = S.L.campos[c]; if (y && y.ia === false && y.toco) return; S.L.campos[c] = x; });
-      Object.assign(S.L, { caja: N.caja, detalles: N.detalles, notas: N.notas, confianza: N.confianza, modelo: N.modelo });
+      Object.assign(S.L, { caja: N.caja, detalles: N.detalles, notas: N.notas, confianza: N.confianza, modelo: N.modelo, foto: N.foto });
       S.vistas = S.vistas.filter(c => S.L.campos[c] && S.L.campos[c].toco); // (las preguntas de antes de leerla, fuera, salvo las ya contestadas)
       S.ia = 'lista'; S.iaMs = R.ms; S.iaMod = R; clearInterval(S.reloj); dibuja(); pinta();
-      if (!S.prod && necesitaSilueta() && SAM.disponible() && S.sam === 'sin') recorta(); /* (17-10: con la copia exacta la silueta ya está, sin SAM) */
+      if (!S.prod && SAM.disponible() && S.sam === 'sin') recorta(); /* (18-10: siempre —no solo con faldas—: con la prenda recortada salen su color y su TELA; con la copia exacta la silueta ya está) */
     } catch (e) { if (ab.signal.aborted) return; S.ia = 'no'; S.iaErr = e.message; clearInterval(S.reloj); pinta(); }
   }
   // ---------- la silueta con SAM 2 (en su hilo) ----------
@@ -115,14 +134,23 @@ export function abre(o, archivo) {
       // en el centro del recuadro, arriba y abajo (16-10: con el recuadro solo, recortaba los brazos del maniquí en vez del vestido)
       const auto = !S.puntos.length && cj ? [[(cj[0] + cj[2]) / 2, cj[1] + 0.35 * (cj[3] - cj[1])], [(cj[0] + cj[2]) / 2, cj[1] + 0.72 * (cj[3] - cj[1])]] : null;
       const R = await SAM.recorta({ puntos: auto || S.puntos, etiquetas: auto ? [1, 1] : S.etiq, caja: cj }), w2 = Math.min(480, W), h2 = Math.round(H * w2 / W);
-      S.mk = SAM.aMascara(R, w2, h2); S.sil = I.silueta(S.mk); S.sam = S.sil ? 'lista' : 'mal'; S.samIou = R.iou; }
+      S.mk = SAM.aMascara(R, w2, h2); S.sil = I.silueta(S.mk); S.sam = S.sil || S.mk ? 'lista' : 'mal'; S.samIou = R.iou; telaDe(); }
     catch (e) { S.sam = 'error'; S.samErr = e.message; }
     dibuja(); pinta();
+  }
+  // (18-10) 🧵 la TELA de la prenda recortada: lisa (su color) o con DIBUJO (cuadros, rayas…: la pieza que se repite, a su tamaño en el avatar)
+  function telaDe() {
+    S.tela = null; if (!S.im || !S.mk) return; try { const g = S.im.c.getContext('2d'), img = { w: S.im.w, h: S.im.h, d: g.getImageData(0, 0, S.im.w, S.im.h).data };
+      const D = I.diseno(S.L, S.sil); let ancho = null; try { const M = o.cuerpo ? o.cuerpo(D.k, D.ajuste || 'normal') : null; ancho = M && (M.pecho || M.cadera) ? (M.pecho || M.cadera) / 2 : null; } catch (e) { }
+      const T = TF.telaDeFoto(img, S.mk, { mmPorPx: TF.mmPorPxDe(S.mk, ancho, S.im.w / S.mk.w) }); if (!T) return;
+      if (!T.liso) { const c = document.createElement('canvas'); c.width = T.tile.w; c.height = T.tile.h; c.getContext('2d').putImageData(new ImageData(T.tile.d, T.tile.w, T.tile.h), 0, 0); T.url = c.toDataURL('image/jpeg', 0.9); }
+      S.tela = T; if (S.usarTela == null) S.usarTela = !T.liso; } catch (e) { S.tela = null; }
   }
   // ---------- el dibujo: la imagen, el recuadro de la IA y la silueta recortada ----------
   function dibuja() {
     if (!S.im) { lienzo.width = 10; lienzo.height = 10; return; }
     lienzo.width = S.im.w; lienzo.height = S.im.h; const g = lienzo.getContext('2d'); g.drawImage(S.im.c, 0, 0);
+    if (S.pat) { PU.dibuja(g, S.pat, S.im.w, S.im.h); return; }
     if (S.mk) { const { w, h: hh, m: M } = S.mk, c = document.createElement('canvas'); c.width = w; c.height = hh; const cg = c.getContext('2d'), id = cg.createImageData(w, hh);
       for (let i = 0; i < M.length; i++) if (M[i]) { id.data[4 * i] = 0; id.data[4 * i + 1] = 205; id.data[4 * i + 2] = 230; id.data[4 * i + 3] = 80; }
       cg.putImageData(id, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(c, 0, 0, S.im.w, S.im.h); }
@@ -142,11 +170,14 @@ export function abre(o, archivo) {
   function pintaEstado() {
     const s = Math.round((Date.now() - S.iaT0) / 1000);
     estado.replaceChildren(...(S.ia === 'sin' ? [h('b', '1 · La imagen'), h('div', 'Elige la foto de la prenda que has visto, o pégala: en internet, clic derecho en la foto → «Copiar imagen» y aquí Ctrl+V.')]
-      : S.ia === 'mirando' ? [h('b', '🤖 La IA del PC está mirando la prenda… ' + s + ' s'), h('div', 'Tarda 1–2 minutos. Mientras, puedes ir contestando abajo: lo que elijas tú manda.')]
+      : S.ia === 'mirando' ? [h('b', '🤖 La IA del PC está mirando la prenda… ' + s + ' s'), barra(s), h('div', 'Mientras, puedes ir contestando abajo: lo que elijas tú manda (la IA rellena solo lo que no hayas tocado).')]
       : S.ia === 'pc' ? [h('b', '🖥️ Se la he mandado al PC del taller… ' + s + ' s'), h('div', (S.iaPc || '') + ' Tarda 2–3 minutos (el PC tiene que estar encendido con el programa abierto). Mientras, puedes ir contestando abajo: lo que elijas tú manda.')]
-      : S.ia === 'lista' ? [h('b', '✔ La IA ' + (S.iaMod && S.iaMod.pc ? 'del PC del taller ' : '') + 'ha leído la prenda (' + Math.round(S.iaMs / 1000) + ' s)'), h('div', (S.L.notas ? '«' + S.L.notas + '» ' : '') + 'Confirma lo de abajo con un toque y crea el patrón.'), S.iaMod && !S.iaMod.comercial ? h('div.dw-ojo', '⚠ Ha contestado ' + S.iaMod.t + ' (' + S.iaMod.licencia + '). Para vender, instala la que sí se puede usar (qwen3-vl:4b).') : null]
+      : S.ia === 'lista' ? [h('b', '✔ La IA ' + (S.iaMod && S.iaMod.pc ? 'del PC del taller ' : '') + 'ha leído la prenda (' + (S.iaMod && S.iaMod.guardada ? 'ya la había mirado: al momento' : Math.round(S.iaMs / 1000) + ' s') + ')'), h('div', (S.L.notas ? '«' + S.L.notas + '» ' : '') + 'Confirma lo de abajo con un toque y crea el patrón.'), S.iaMod && !S.iaMod.comercial ? h('div.dw-ojo', '⚠ Ha contestado ' + S.iaMod.t + ' (' + S.iaMod.licencia + '). Para vender, instala la que sí se puede usar (qwen3-vl:4b).') : null]
       : [h('b', 'La IA de visión no está en este aparato'), h('div', 'Dímelo tú con unos toques (abajo). En el PC del taller lo lee sola. (' + S.iaErr + ')')]).filter(Boolean));
   }
+  // (18-10) cuánto falta, con lo que tardó DE VERDAD en este PC las veces anteriores (la primera vez, lo medido en la torre)
+  function barra(s) { const T = Math.max(5, Math.round(V.tiempoEsperado() / 1000)), f = Math.min(0.97, s / T), q = Math.max(0, T - s);
+    return h('div.dw-insp-barra', { title: 'Lo que suele tardar en este PC: ' + T + ' s' }, h('i', { style: { width: Math.round(f * 100) + '%' } }), h('span', q > 0 ? 'faltan ~' + q + ' s' : 'ya casi…')); }
   // el panel de la COPIA EXACTA (17-10)
   const AJUSTES = [['ajustada', 'Ceñida'], ['normal', 'Normal'], ['holgada', 'Holgada'], ['oversize', 'Oversize']], CATS = [['camiseta', 'Camiseta'], ['sudadera', 'Sudadera'], ['vestido', 'Vestido'], ['falda', 'Falda'], ['pantalon', 'Pantalón']];
   function panelProducto() {
@@ -175,6 +206,8 @@ export function abre(o, archivo) {
       btn('👗 Crear el patrón COPIADO', creaExacta, { cls: 'primary dw-prod-crear', disabled: !hay, title: 'Una prenda nueva en el 3D y el 2D con la forma de la foto' }));
   }
   function pinta() {
+    if (S.pat) { lado.replaceChildren(h('div.dw-cal-pasos', ['La imagen', 'Las piezas', 'Prenda'].map((t, i) => h('span' + (i === (S.pat.af ? 2 : 1) ? '.on' : ''), h('b', String(i + 1)), t))),
+      PU.panel(S.pat, handPat), h('div.dw-insp-botones', btn('🖼 Otra imagen…', elegir, { cls: 'ghost' }), btn('No es un patrón: mírala como una prenda', noEsPatron, { cls: 'ghost dw-pat-no' }))); return; }
     if (S.prod) { pintaProd(); return; }
     pintaNormal();
   }
@@ -182,29 +215,54 @@ export function abre(o, archivo) {
   function pintaProd() { pintaNormal(); const resto = [...lado.childNodes].filter(n => !n.classList || !n.classList.contains('dw-cal-pasos'));
     const det = h('details.dw-prod-ia', h('summary', 'Sin copiar la forma: solo lo que lee la IA (la plantilla a tu medida)')); resto.slice(2).forEach(n => det.append(n));
     lado.replaceChildren(...resto.slice(0, 2), panelProducto(), det); }
+  // (18-10) 📋 qué fotos sirven (y qué hace con cada una)
+  const GUIA = h('details.dw-insp-guia', h('summary', '📋 Qué fotos sirven'), h('ul',
+    h('li', h('b', 'Mejor: '), 'la prenda entera, de frente, de pie, sin taparla con los brazos ni el bolso, y con luz.'),
+    h('li', h('b', 'Fondo blanco o liso '), '(foto de producto): copia EXACTA de su forma.'),
+    h('li', h('b', 'Prenda plana con un folio A4 al lado: '), 'medidas reales (pestaña 📷 Foto).'),
+    h('li', h('b', 'Un patrón '), '(piezas dibujadas o escaneadas): «📐 Patrón desde una imagen».'),
+    h('li', h('b', 'Persona sentada, de lado, con capas o un dibujo: '), 'sirve, pero confirma el largo y el ajuste (te lo digo).')));
+  function avisosFoto() {
+    const F = S.L.foto || {}, A = [];
+    if (F.tipo === 'patron') A.push(['📐', 'Parece un patrón dibujado: «📐 Patrón desde una imagen» saca sus piezas y medidas.']);
+    if (F.tipo === 'dibujo') A.push(['✏️', 'Es un dibujo: sus proporciones son de ilustración; los largos se ponen en tu avatar.']);
+    if (F.sentada) A.push(['🪑', 'Está sentada: el largo y el ajuste pueden engañar; confírmalos abajo.']);
+    if (F.espejo) A.push(['🪞', 'Selfie de espejo: la foto va al revés (para el patrón, da igual).']);
+    if (F.tapada) A.push(['✋', 'Algo tapa parte de la prenda: lo que no se ve lo pone la plantilla.']);
+    if (F.cortada) A.push(['✂', 'La foto corta la prenda: no se ve dónde acaba; confirma el largo.']);
+    if (S.im && Math.max(S.im.w, S.im.h) < 500) A.push(['🔍', 'La foto es pequeña: los detalles pueden no verse.']);
+    if (F.otras && F.otras.length) A.push(['👀', 'También veo: ' + F.otras.join(', ') + '. Si quieres hacer otra, tócala en la foto y elige abajo qué prenda es.']);
+    return A.length ? h('div.dw-insp-avisos', A.map(([e, t]) => h('div', h('span', e), ' ' + t))) : null;
+  }
   function pintaNormal() {
     pintaEstado(); const D = I.diseno(S.L, S.sil), L = S.L, nombre = c => (I.CAMPOS.find(x => x[0] === c) || [, c])[1];
-    const chips = (c, ops) => h('div.dw-chips', ops.map(([v, t]) => h('button.dw-chip' + (L.campos[c] && L.campos[c].v === v ? '.on' : ''), { type: 'button', 'data-campo': c, 'data-valor': v, onclick: () => { I.cambia(L, c, v); L.campos[c].toco = true; dibuja(); pinta(); if (c === 'falda' || c === 'categoria') { if (necesitaSilueta() && !S.mk && S.im && S.sam === 'sin') recorta(); } } }, t)));
-    const deIA = c => L.campos[c] && L.campos[c].ia && L.campos[c].v != null ? h('small.dw-insp-ia', '🤖 la IA dice: ' + I.nombreDe(c, L.campos[c].v)) : null;
-    const opsDe = c => c === 'falda' ? I.VALORES.falda : c === 'categoria' ? I.VALORES.categoria : I.VALORES[c] || [];
-    // (las preguntas que ya salieron se quedan a la vista con lo que contestó; las nuevas se añaden; como mucho 3 + la que haga falta)
+    const SN = [['no', 'No'], ['si', 'Sí']], opsDe = c => ['varillas', 'tirantes', 'capucha'].includes(c) ? SN : I.VALORES[c] || [];
+    const chips = (c, ops) => h('div.dw-chips', ops.map(([v, t]) => h('button.dw-chip' + (L.campos[c] && L.campos[c].v === v ? '.on' : ''), { type: 'button', 'data-campo': c, 'data-valor': v, onclick: () => { I.cambia(L, c, v); L.campos[c].toco = true; dibuja(); pinta(); if ((c === 'falda' || c === 'categoria') && !S.prod && SAM.disponible() && S.sam === 'sin' && necesitaSilueta()) recorta(); } }, t)));
+    const deIA = c => L.campos[c] && L.campos[c].ia && L.campos[c].v != null ? h('small.dw-insp-ia', '🤖 la IA dice: ' + I.nombreDe(c, L.campos[c].v) + (L.campos[c].duda ? ' (no está segura)' : '')) : null;
+    // lo que hay que CONFIRMAR (lo que la IA duda y lo que suele fallar: el largo y la falda), arriba
     (D.preguntas.length || S.ia === 'lista' ? D.preguntas : ['categoria', 'largo']).forEach(c => { if (!S.vistas.includes(c)) S.vistas.push(c); });
-    const pregs = S.vistas, faltan = D.preguntas.filter(c => !(L.campos[c] && L.campos[c].toco));
-    const resto = I.CAMPOS.map(([c]) => c).filter(c => !pregs.includes(c));
-    const sel = c => h('select.dw-sel', { 'data-campo': c, onchange: e => { I.cambia(L, c, e.target.value || null); L.campos[c].toco = true; dibuja(); pinta(); } }, [h('option', { value: '' }, '—')].concat(opsDe(c).map(([v, t]) => h('option', { value: v, selected: L.campos[c] && L.campos[c].v === v }, t))));
-    const silTxt = !D.vuelo ? null : S.sil ? '✂ Vuelo de la falda: medido en la silueta (el bajo ' + S.sil.vueloRel.toFixed(2).replace('.', ',') + ' × la cadera).' : S.sam === 'mirando' ? '✂ Recortando la prenda para medir su vuelo… (la primera vez, unos segundos)' : S.sam === 'error' ? '✂ No se ha podido recortar (' + S.samErr + '): el vuelo queda supuesto.' : '✂ Vuelo supuesto: toca la prenda en la foto para medirlo de su silueta.';
+    const pregs = S.vistas, faltan = D.preguntas.filter(c => !(L.campos[c] && L.campos[c].toco)), toca = I.TOCA[D.k] || I.CAMPOS.map(x => x[0]);
+    // la FICHA entera, por partes: todo lo que cambia el patrón de esta prenda
+    const ficha = I.FICHA.map(([t, cs]) => [t, cs.filter(c => toca.includes(c) && !pregs.includes(c))]).filter(([, cs]) => cs.length);
+    const silTxt = !D.vuelo ? null : S.sil ? '✂ Vuelo de la falda: medido en la silueta (el bajo ' + S.sil.vueloRel.toFixed(2).replace('.', ',') + ' × la cadera).' : S.sam === 'mirando' ? '✂ Recortando la prenda para medir su vuelo… (la primera vez, unos segundos)' : S.sam === 'error' ? '✂ No se ha podido recortar (' + S.samErr + '): el vuelo sale normal.' : S.sam === 'toca' ? '✂ Toca la prenda en la imagen para recortarla y medir su vuelo.' : null;
+    const T = S.tela, telaBox = T ? h('div.dw-insp-tela', T.liso ? h('i', { style: { background: T.color } }) : h('img', { src: T.url, alt: 'Tela de la foto' }),
+      h('div', h('b', T.liso ? '🧵 Tela lisa, color ' + T.color : '🧵 La tela de la foto' + (T.mm ? ' (cada cuadro ~' + Math.round(T.mm / 10) + ' cm)' : '')),
+        !T.liso ? h('label.dw-ayuda', h('input', { type: 'checkbox', checked: S.usarTela !== false, 'data-usar-tela': '1', onchange: e => { S.usarTela = e.target.checked; } }), ' Ponerla en el 3D (su dibujo, a su tamaño)') : h('div.dw-ayuda', 'Se pone su color.'))) : null;
     lado.replaceChildren(
       h('div.dw-cal-pasos', ['La imagen', 'Confirma', 'Patrón'].map((t, i) => h('span' + (i === (S.im ? (faltan.length ? 1 : 2) : 0) ? '.on' : ''), h('b', String(i + 1)), t))),
       estado,
       h('div.dw-insp-botones', btn(S.im ? '🖼 Otra imagen…' : '🖼 Elegir la imagen…', elegir, { cls: S.im ? 'ghost' : 'primary' }), S.im && S.ia === 'no' ? btn('🤖 Probar otra vez la IA', mira, { cls: 'ghost' }) : null),
-      S.im ? h('div.dw-insp-preg', h('h4', faltan.length ? (faltan.length === 1 ? 'Confírmame 1 cosa' : 'Confírmame ' + faltan.length + ' cosas') : '✔ Todo confirmado'),
-        pregs.map(c => h('div.dw-insp-p', h('label', nombre(c)), deIA(c), chips(c, opsDe(c))))) : null,
-      S.im ? h('details.dw-insp-todo', h('summary', 'Todo lo que ha leído (cámbialo si quieres)'), h('div.dw-insp-rej', resto.map(c => h('div.dw-fila', h('label', nombre(c), L.campos[c] && L.campos[c].ia ? h('small', ' 🤖') : L.campos[c] && L.campos[c].toco ? h('small', ' ✋') : null), sel(c)))),
-        L.detalles.length ? h('div.dw-ayuda', 'Detalles que ve: ' + L.detalles.join(', ') + '.') : null) : null,
+      S.im ? null : GUIA, S.im ? avisosFoto() : null,
+      S.im ? h('div.dw-insp-preg', h('h4', faltan.length ? (faltan.length === 1 ? 'Confírmame 1 cosa' : 'Confírmame ' + faltan.length + ' cosas') : '✔ Lo importante, confirmado'),
+        pregs.map(c => h('div.dw-insp-p' + (faltan.includes(c) ? '.dw-insp-duda' : ''), h('label', nombre(c)), deIA(c), chips(c, opsDe(c))))) : null,
+      S.im ? h('details.dw-insp-ficha', { open: true }, h('summary', '🧵 La ficha de la prenda (cómo acaba: cuello, mangas, puños, bajo, cierre…)'),
+        ficha.map(([t, cs]) => h('div.dw-insp-grupo', h('h5', t), cs.map(c => h('div.dw-insp-p', h('label', nombre(c), L.campos[c] && L.campos[c].toco ? h('small', ' ✋') : null), deIA(c), chips(c, opsDe(c)))))),
+        telaBox, L.detalles.length ? h('div.dw-ayuda', 'Detalles que ve: ' + L.detalles.join(', ') + '.') : null) : null,
       S.im ? h('div.dw-insp-plan', h('h4', '👗 ' + D.nombre), h('div.dw-ayuda', 'Plantilla ' + BL.BLOQUES[D.k].t.toLowerCase() + ' · ajuste ' + D.ajuste + (D.largo ? ' · bajo: ' + I.nombreDe('largo', D.largo).toLowerCase() : '') + ' · a la medida de tu avatar.'),
         D.hace.length ? h('ul.dw-insp-si', D.hace.map(t => h('li', t))) : null, silTxt ? h('div.dw-ayuda', silTxt) : null,
         D.noHace.length ? [h('div.dw-ayuda.dw-ojo', 'Lo que el patrón todavía NO hace (no se inventa):'), h('ul.dw-insp-no', D.noHace.map(t => h('li', t)))] : null,
         btn('👗 Crear el patrón en mi avatar', () => crea(D), { cls: 'primary dw-insp-crear', title: 'Una prenda nueva en el 3D y el 2D, a la medida del avatar' })) : null,
+      S.im ? GUIA : null,
       h('div.dw-ayuda', 'La imagen no sale de este aparato: la mira la IA de tu PC. Lo que la IA no ve seguro te lo pregunta; lo que el patrón aún no sabe hacer, te lo dice.'));
   }
   // el COLOR de la prenda: la media de lo recortado (o del centro del recuadro de la IA), sin los brillos ni las sombras más fuertes
@@ -222,7 +280,8 @@ export function abre(o, archivo) {
     const faltan = ['categoria', 'largo'].filter(c => !S.L.campos[c] || S.L.campos[c].v == null);
     if (faltan.length) return toast('Dime antes: ' + faltan.map(c => (I.CAMPOS.find(x => x[0] === c) || [, c])[1].toLowerCase()).join(' y ') + '.', 'bad');
     if (o.listo && !o.listo()) return toast('Espera un momento: el avatar se está preparando (para medir los largos en su cuerpo).', 'bad');
-    const R = o.crear(D, S.L, { color: colorDe() }); if (R && R.ok === false) return toast(R.error || 'No se ha podido crear el patrón.', 'bad', 9000);
+    const T = S.tela, telaFoto = T && !T.liso && S.usarTela !== false && T.url ? { url: T.url, mm: T.mm || 150, que: (S.L.campos.tela && S.L.campos.tela.v) || 'dibujo' } : null;
+    const R = o.crear(D, S.L, { color: (T && T.liso && T.color) || colorDe(), telaFoto }); if (R && R.ok === false) return toast(R.error || 'No se ha podido crear el patrón.', 'bad', 9000);
     ultima = { url: S.url, L: S.L, sil: S.sil }; toast('👗 ' + D.nombre + ': cosiéndose en tu avatar…', 'ok', 5000); m.close();
   }
   dibuja(); pinta(); if (archivo) carga(archivo);

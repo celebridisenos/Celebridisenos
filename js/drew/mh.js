@@ -160,6 +160,9 @@ function deMalla(D, pos, m, sexo) {
 }
 
 // ---------- la MALLA que se ve (con sus normales suaves) ----------
+// (18-10) dónde está cada ARTICULACIÓN en este cuerpo (ojos, párpados, boca, cabeza, columna, hombros, codos, manos, caderas, rodillas, tobillos,
+// pies…): la media de sus puntos (como hace MakeHuman) → { nombre: [x, y, z] } en mm
+export function juntasDe(D, pos) { const o = {}; Object.entries(D.info.juntas).forEach(([k, L]) => { o[k] = centro(pos, L); }); return o; }
 export function malla(C) {
   const P = C.pos, T = C.tris, N = new Float32Array(P.length);
   for (let q = 0; q < T.length; q += 3) { const a = 3 * T[q], b = 3 * T[q + 1], c = 3 * T[q + 2], ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2], nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;

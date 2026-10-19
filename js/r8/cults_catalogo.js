@@ -29,6 +29,11 @@ const GRATIS = new Set(['pruebaPrecision', 'pruebaRodImpreso', 'plantillaRodamie
 // el precio de los que se salen de su grupo (kits grandes, mecanismos, chasis…)
 const PRECIO = {
   ruedaGinebra: 2.99, bielaManivela: 2.49, levaCorazon: 1.99, yugoEscoces: 2.49, direccionCoche: 2.99, expositorMecheros: 1.99, // 18-10-2026 · mecanismos que se mueven
+  hormigueroTorre: 4.99, // 18-10-2026 (noche) · hormiguero en torre (kits inicio, grande, premium)
+  biciPro: 6.99, // 19-10-2026 · bicicleta PRO por piezas (4 estilos)
+  motoPro: 7.99, // 19-10-2026 · moto PRO con motor N20
+  cocheDrift: 9.99, // 19-10-2026 · coche RC de drift: el kit entero
+  organizadorCilindros: 3.99, // 19-10-2026 · caja organizadora de alojamientos
   rotulaTimelapse: 3.49, pinzaBobina: 0.99, rackPlacas: 1.49, rodillosBobina: 1.99, gridfinityPro: 1.99, gridfinityPuntas: 1.49, gridfinityBasePro: 0.99, skadisGancho: 0.99, skadisBalda: 1.99, skadisPorta: 1.49, goproTripode: 1.49, goproBrazo: 0.99, aspiradora: 1.49, soporteBalda: 0.99, ganchoPuerta: 1.29, tiburonFlexi: 2.99, serpienteFlexi: 2.99, fundaMecheroPro: 1.49, ceniceroMoai: 2.99, ceniceroVolcan: 2.49, // 17-10-2026 tarde
   dragonFlexi: 3.99, pulpoFlexi: 2.99, pezFlexi: 2.49, lagartijaFlexi: 2.49, aranaFlexi: 2.99, ajoloteFlexi: 2.49, cajaRegalo: 2.49, huevoSorpresa: 1.99, bolaNavidadAbre: 1.99, bolaPremios: 1.99, pastilleroGiratorio: 1.99, cajaGiratoria: 1.99, cajaDientes: 1.99, deckBox: 1.99, fantasmaVela: 1.99, calderoCaramelos: 2.49, lapidaHalloween: 1.49, arbolEspiral: 1.49, cakeTopper: 1.99, placaNacimiento: 2.49, cartelPuerta: 1.99, peanasMiniaturas: 1.49, contadorVida: 1.99, solidosPlatonicos: 2.49, moebius: 1.49, setGeometria: 2.49, bumeran: 1.99, silbato: 0.99, yoyo: 1.49, catapulta: 2.49, huchaRemolino: 3.49, marcapaginas: 1.49, servilleteroCalado: 1.49, estacionEsquejes: 1.99, macetaPared: 1.49, expositorPendientes: 1.99, numeroMesa: 1.49, deshojador: 0.99, exprimidor: 1.99, abrebotellas: 1.49, anilloFidget: 1.99,
   cajaEngranajes: 2.99, mesaEngranajes: 2.49, rodamientoPlanetario: 2.99, corazonEngranajes: 2.49, llaveroEngranajes: 1.99, juegoEngranajesMotor: 1.99, casaMunecas: 4.99, hormiguero: 3.49, hormigaNido: 2.99,
@@ -47,6 +52,11 @@ const PRECIO = {
 // título en inglés · etiquetas propias (se suman a las de su grupo)
 const T = {
   // 18-10-2026 · mecanismos que se mueven (cada uno con su vídeo del movimiento en «📦 Exportar todo») y el expositor de mecheros
+  hormigueroTorre: ['Vertical Ant Farm Tower – Stackable Formicarium with Outworld', 'ant farm, formicarium, ant nest, vertical, stackable, outworld, hormiguero, colonia, science kit, STEM'],
+  organizadorCilindros: ['Custom Holder Organizer – 4-in-1 Hair Dryer Brush, Cordless Drill & Bits', 'organizer, hair dryer holder, airwrap organizer, drill holder, bit holder, tool caddy, custom organizer, organizador'],
+  cocheDrift: ['RC Drift Car Kit 1/16 – Ackermann Steering, 9:1 Gearbox, Spool, Drift Wheels', 'rc drift car, rc kit, 3d printed rc, 1/16 drift, sg90 steering, 370 motor, spool, drift tires, chassis, ackermann'],
+  motoPro: ['Motorized Motorcycle Kit – N20 Motor, Real Chain, Suspension, Disc Brakes', 'motorcycle model, motorbike kit, n20 motor, working chain, sprocket, swingarm, tpu, naked bike, motocross, moto, maqueta'],
+  biciPro: ['Working Bicycle Model Kit – Real Chain, Steering, Disc Brakes, 4 Styles', 'bicycle model, bike kit, working chain, sprocket, TPU chain, disc brake, steering fork, mtb, road bike, bmx, bicicleta, maqueta'],
   ruedaGinebra: ['Geneva Drive Mechanism – Intermittent Motion Desk Toy', 'geneva drive, geneva mechanism, maltese cross, cruz de malta, intermittent motion, desk toy, kinetic'],
   bielaManivela: ['Crank and Piston Mechanism – How an Engine Works', 'crank slider, piston, connecting rod, biela, engine model, kinetic, desk toy'],
   levaCorazon: ['Heart Cam and Follower – Uniform Motion Mechanism', 'heart cam, cam follower, leva, uniform motion, kinetic, mechanism'],

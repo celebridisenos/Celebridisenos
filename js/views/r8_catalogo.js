@@ -59,7 +59,7 @@ export async function montarCatalogo(el, ext = {}) {
   }
   // ---------- una pieza abierta ----------
   let escena = null, lienzo = null, tic = 0, info = null, MESA = null;
-  let AN = null, VEL = 1; const ANA = new Map(); // 18-10-2026 · 🎬 la animación que se ve y lo que se ha deducido de cada diseño (por sus medidas)
+  let TAM0 = 0, AN = null, VEL = 1; const ANA = new Map(); // 18-10-2026 · 🎬 la animación que se ve y lo que se ha deducido de cada diseño (por sus medidas)
   function abre(k) {
     C.abierto = k; const D = K.DISENOS[k], v = C.v[k] = C.v[k] || K.valores(k);
     rejilla.querySelectorAll('.r8c-tar').forEach(b => b.classList.toggle('on', b.dataset.k === k));
@@ -92,7 +92,7 @@ export async function montarCatalogo(el, ext = {}) {
       const k = C.abierto; if (!k || !escena) return; const D = K.DISENOS[k], v = C.v[k];
       try { const t0 = performance.now(), m = K.genera(k, v), I = N.info(m); const col1 = C.color[k] || D.color || '#7c6cff', aca = C.acabado[k] || D.acabado || 'mate', dc = D.dosColores && D.dosColores(v); let PV = [{ id: k, vista: N.aVista(m), color: col1, acabado: aca }];
         if (dc) { try { const [sube, baja] = m.splitByPlane([0, 0, 1], N.caja(m).min[2] + dc.z); if (!sube.isEmpty() && !baja.isEmpty()) PV = [{ id: k, vista: N.aVista(baja), color: col1, acabado: aca }, { id: k + '_2', vista: N.aVista(sube), color: dc.color, acabado: aca }]; } catch (x) { console.warn('dos colores', x); } } // v30.2: el QR en negro sobre blanco (como saldrá con la pausa)
-        escena.ponPartes(PV); if (ya) escena.encuadrar('iso');
+        escena.ponPartes(PV); { const t = Math.max(...I.dims), cambia = TAM0 && (t > TAM0 * 1.4 || t < TAM0 / 1.4); if (ya || cambia) escena.encuadrar('iso'); TAM0 = t; } // (19-10: si pasa a ser mucho más grande o más pequeña —«Verlo montado»—, la cámara se recoloca para verla entera)
         mount(info, h('span', I.dims.map(x => (Math.round(x * 10) / 10).toLocaleString('es-ES')).join(' × ') + ' mm'), h('span', Math.round(I.vol / 1000) + ' cm³'), h('span', Math.round(performance.now() - t0) + ' ms'));
         const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, D.soportes ? h('p.r8e-nota.r8c-sopn', '🌲 Lleva soportes (por su forma: asa, orejas, gancho…). Al prepararla para tu Bambu salen marcados los de árbol, que se quitan fácil.') : null, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null);
         window.__r8c = { k, dims: I.dims.map(x => Math.round(x * 10) / 10), vol: I.vol, piezas: m.decompose().length, valores: Object.assign({}, v) };

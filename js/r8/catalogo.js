@@ -35,6 +35,11 @@ import { DISENOS_FUMAR } from './cat_fumar.js'; // 17-10-2026 tarde · fundas de
 import { DISENOS_52 } from './cat_52.js'; // 17-10-2026 · 🛒 más variedad para Cults: cajas, Halloween, bebés, juguetes, ciencia, frikis, casa // 17-10-2026 · 🐉 figuras articuladas que salen ya montadas (dragón, pulpo, pez, lagartija, araña, ajolote)
 import { DISENOS_50 } from './cat_50.js'; // 13-10-2026 · 🎁 diseños nuevos: torre de canicas en zigzag, cuatro en línea, damas, serpiente articulada, deslizante, maquillaje giratorio, estación de carga, riel de pared, caja de engranajes
 import { DISENOS_51 } from './cat_51.js'; // 13-10-2026 · 50.1 (RC, rodamientos y cajas seguras)
+import { DISENOS_HORMIGAS } from './cat_hormigas.js'; // 18-10-2026 (noche) · 🐜 hormiguero en torre: módulos que se apilan, zona de comida, humedad, kits
+import { DISENOS_BICI } from './cat_bici.js'; // 19-10-2026 · 🚲 bicicleta PRO por piezas: cadena que engrana, dirección, frenos de disco, 4 estilos
+import { DISENOS_MOTO } from './cat_moto.js'; // 19-10-2026 · 🏍️ moto PRO por piezas con motor N20, piñón, cadena y corona
+import { DISENOS_COCHE_RC } from './cat_rc.js'; // 19-10-2026 · 🏎️ coche RC de drift por piezas: dirección, caja de cambios, ruedas de drift
+import { DISENOS_ORGANIZA } from './cat_organiza.js'; // 19-10-2026 · 🧰 caja organizadora de alojamientos (secador 4 en 1, taladro, a medida)
 import { DISENOS_1810 } from './cat_1810.js'; // 18-10-2026 · mecanismos que se mueven (Ginebra, biela, leva) y expositor de mecheros
 import { DISENOS_ENGR } from './cat_engranajes.js'; // 14-10-2026 · ⚙️ engranajes para vender: planetario, corazón con nombres, de mesa, llavero, espirógrafo
 import { DISENOS_PRO } from './cat_pro.js'; // v30.7.1 · ⭐ PRO: por piezas, que encajan (lava-pinceles, bote de rosca, escritorio modular, maceta con autorriego)
@@ -1245,6 +1250,11 @@ Object.assign(DISENOS, DISENOS_50); // 13-10-2026
 Object.assign(DISENOS, DISENOS_51); // 13-10-2026 · 50.1: soporte de motor DC, servo PRO, adaptador de eje 6 → 3/4/5, rueda de drift, rodamiento con soporte, caja de bayoneta, chasis buggy
 Object.assign(DISENOS, DISENOS_ENGR); // 14-10-2026
 Object.assign(DISENOS, DISENOS_1810); // 18-10-2026
+Object.assign(DISENOS, DISENOS_HORMIGAS); // 18-10-2026 (noche)
+Object.assign(DISENOS, DISENOS_BICI); // 19-10-2026
+Object.assign(DISENOS, DISENOS_MOTO); // 19-10-2026
+Object.assign(DISENOS, DISENOS_COCHE_RC); // 19-10-2026
+Object.assign(DISENOS, DISENOS_ORGANIZA); // 19-10-2026
 Object.assign(DISENOS, DISENOS_CASA); // v30.3
 Object.assign(DISENOS, DISENOS_NAVIDAD); // v30.4
 Object.assign(DISENOS, DISENOS_REFERENCIAS); // v30.4

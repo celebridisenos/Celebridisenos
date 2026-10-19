@@ -20,7 +20,9 @@ import { DISENOS, precio, eur, PRECIO_TELA, POR_DEFECTO } from '../drew/disenos.
 import { TIPOS as TIPOS_COSTURA, tipoDe, edicionesTipo, pasos as pasosMontaje } from '../drew/montaje.js'; // 16-10: el tipo de cada costura (cambia sus márgenes y sale en el PDF)
 import * as IU from '../drew/inspira_ui.js'; import * as INS from '../drew/foto/inspira.js'; // 16-10: 🌐 diseñar desde una imagen (internet, revista…)
 import * as CUE from '../drew/cuerpos.js';
+import * as HU from '../drew/humano.js'; // 18-10: 🧑 avatares humanos (ojos, tonos de piel)
 import * as MI from '../drew/manual_ia.js'; import { desktop } from '../desktop.js'; // 17-10 noche: 🤖 el manual fácil (con la IA del PC o sin ella) y la exportación completa en una carpeta
+import * as MU from '../drew/marca_ui.js'; // 18-10: 🏷️ la pestaña «Mi marca» (todo lo de NOORKO1, con un toque)
 import * as MA from '../drew/marca.js'; // 17-10 noche: 🏷️ su marca THE NOORKO (paleta, medidas de estampado, sus diseños) y el 📚 catálogo de modelos hecho con sus planos
 import * as PZU from '../drew/piezas_ui.js'; // 17-10: 🧩 monta tu sudadera (piezas que se arrastran) y la cremallera pintada en el 3D // 17-10: biblioteca de cuerpos (mujeres y hombres), pelo y el avatar de CLO (.avs)
 import * as CU from '../drew/calibra_ui.js'; import { impresora as impresoraCalibrada, pct } from '../drew/calibra.js'; // 16-10: pestaña 📷 Foto (guía, medir con un folio A4, calibrar la impresora)
@@ -34,7 +36,7 @@ const limpio = s => String(s || 'prenda').normalize('NFD').replace(/[̀-ͯ]/g, '
 function proyectoNuevo(k = 'camiseta') {
   const P = PR.nuevo(BL.BLOQUES[k].t);
   Object.assign(P, { k, opciones: BL.opcionesPorDefecto(k), ajuste: 'normal', autoAjuste: true, porPlantilla: {},
-    avatar: { sexo: 'mujer', via: 'talla', talla: 'M', med: desdeTabla('mujer', TA.TABLAS.mujer.tallas.find(t => t.t === 'M').v), piel: 'maniqui' },
+    avatar: { sexo: 'mujer', via: 'talla', talla: 'M', med: desdeTabla('mujer', TA.TABLAS.mujer.tallas.find(t => t.t === 'M').v), piel: 'beige', ojos: 'marron', peloColor: '#3b2a20' }, /* (18-10: avatares HUMANOS por defecto: piel, ojos y pelo; el maniquí sigue en «Aspecto») */
     tela: { def: null, color: COLOR_DE[k] || '#5f7ea8', porPieza: {} }, disp: {} });
   return P;
 }
@@ -66,7 +68,7 @@ export function render(root) {
   const cab = h('div.dw-cab', h('h1.dw-marca', 'Celebri', h('b', 'DREW'), h('small', 'atelier 3D')), grupo('Prenda', nombre, chipTalla, bDeshacer, bRehacer), h('div.esp'),
     grupo('Modo', (bFacil = bc('🧸', 'Fácil', () => ponFacil(!st.facil), { title: 'Modo fácil: arrastra un modelo al avatar, elige chica o chico, la talla, el color y tus diseños, y exporta' }))),
     grupo('Archivo', bc('📂', 'Mis prendas', () => misPrendas()), bc('＋', 'Nueva', () => nueva())),
-    grupo('Exportar', bc('🎬', 'Vídeo 7 s', () => video7(), { title: 'Un vídeo vertical de 7 segundos de la prenda girando, para redes (V)' }),
+    grupo('Exportar', bc('🎬', 'Vídeo 7 s', () => video7(), { title: 'Un vídeo vertical de 7 segundos de la prenda girando, para redes (V)' }), bc('🚶‍♀️', 'Vídeo pasarela', () => video7('pasarela'), { title: 'Un vídeo vertical de la modelo desfilando con tu prenda: sale, desfila, posa, se gira y vuelve' }),
       (() => { const b = btn('', () => exporta('pdf'), { cls: 'primary', title: 'Patrón completo con manual (Ctrl+P)' }); b.append(h('i.ic', '📄'), h('span', ' PDF'), h('span.l', ' para imprimir')); return b; })()),
     grupo('Vista', bTema, btn('⛶', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Este navegador no deja ponerla a pantalla completa', 'bad')); }, { cls: 'ghost', title: 'Pantalla completa (F11)' }), btn('⌨', () => atajos(), { cls: 'ghost', title: 'Atajos de teclado (?)' })));
   const pestanas = h('div.dw-pest', { role: 'tablist' }), panel = h('div.dw-panel');
@@ -110,13 +112,13 @@ export function render(root) {
   const W = new Worker(new URL('../drew/tela_worker.js', import.meta.url), { type: 'module' });
   W.onerror = e => { aviso3.textContent = '⚠️ La simulación 3D no ha podido arrancar: ' + (e.message || 'error'); };
   W.onmessage = e => { const m = e.data; if (!st.vivo) return;
-    if (m.tipo === 'avatar') { V.ponAvatar({ H: m.H }, m.malla); st.med3d = { medido: m.medido, objetivo: m.objetivo, desvio: m.desvio, ms: m.ms, premium: m.premium, fuera: m.fuera }; if (m.aviso) toast(m.aviso, 'bad', 8000); st.niveles = m.niveles; st.avatarOk = true; V.piel(st.P.avatar.piel); V.ponPelo(CUE.peinadoDe(st.P.avatar), st.P.avatar.peloColor || 'igual'); V.verAvatar(st.verAv);
+    if (m.tipo === 'avatar') { V.ponAvatar({ H: m.H, juntas: m.juntas }, m.malla); st.med3d = { medido: m.medido, objetivo: m.objetivo, desvio: m.desvio, ms: m.ms, premium: m.premium, fuera: m.fuera }; if (m.aviso) toast(m.aviso, 'bad', 8000); st.niveles = m.niveles; st.avatarOk = true; V.ponPelo(CUE.peinadoDe(st.P.avatar), st.P.avatar.peloColor || 'igual'); V.piel(st.P.avatar.piel); V.ojos(st.P.avatar.ojos || 'marron'); V.verAvatar(st.verAv);
       aviso3.textContent = 'Avatar listo (' + (m.ms / 1000).toFixed(1) + ' s). Cosiendo la prenda…'; if (st.P.autoAjuste) { ajustaAlAvatar(); regenera(true); } else mandaPrenda(true); if (st.pest === 'avatar' || st.facil) pintaPanel(); }
     else if (m.tipo === 'modelo') { st.topo = m.topo; st.Sv = { P: m.topo.P.map(p => ({ off: p.off, n: p.n, tri: p.tri, tela: p.tela, pz: { nombre: p.nombre } })), uv: m.topo.uv, pos: new Float32Array(m.pos), pares: m.topo.pares };
-      V.ponTela(st.Sv, { colores: coloresPiezas(), estampados: estampadosVista() }); V.actualizaTela(null); V.resalta(st.sel); if (m.topo.avisos.length) console.warn('CelebriDREW 3D:', m.topo.avisos); if (m.gen === undefined || m.gen === st.gen) st.espera3d = false; /* (solo la prenda del último encargo) */ st.cosida = false; st.quieta = false; pintaPie(); }
+      V.ponTela(st.Sv, { colores: coloresPiezas(), estampados: estampadosVista(), telaFoto: telaFotoVista() }); V.actualizaTela(null); V.resalta(st.sel); if (m.topo.avisos.length) console.warn('CelebriDREW 3D:', m.topo.avisos); if (m.gen === undefined || m.gen === st.gen) st.espera3d = false; /* (solo la prenda del último encargo) */ st.cosida = false; st.quieta = false; pintaPie(); }
     // (16-10, iPad: mientras el hilo no ha montado la prenda nueva —espera3d—, lo que aún llegue de la anterior NO cuenta como «colocada»:
     //  al crear el vestido desde una imagen, el pie decía «✔ colocada» con la camiseta de antes mientras el avatar se ajustaba)
-    else if (m.tipo === 'pos') { if (st.Sv) { st.Sv.pos.set(m.pos); V.actualizaTela(st.mapa ? (m.estira || undefined) : undefined); } if (!st.espera3d) { st.cosida = m.cosida; st.quieta = m.quieta; } W.postMessage({ tipo: 'listo' }); if (m.quieta) pintaPie(); }
+    else if (m.tipo === 'pos') { if (st.Sv && !V.enPasarela) { st.Sv.pos.set(m.pos); /* (desfilando, la tela la mueve la pasarela) */ V.actualizaTela(st.mapa ? (m.estira || undefined) : undefined); } if (!st.espera3d) { st.cosida = m.cosida; st.quieta = m.quieta; } W.postMessage({ tipo: 'listo' }); if (m.quieta) pintaPie(); }
     else if (m.tipo === 'estado') { if (!st.espera3d) { st.est3d = m; st.cosida = m.cosida; st.quieta = !!m.quieta; } pintaPie(); }
     else if (m.tipo === 'error') { st.espera3d = false; toast((m.drew ? '' : 'Simulación: ') + m.msg, 'bad', 8000); aviso3.textContent = '⚠️ ' + m.msg; }
   };
@@ -196,6 +198,8 @@ export function render(root) {
   // (17-10) 🖼 ESTAMPADOS: imágenes (con transparencia) o letras encima de una pieza: { id, img (en P.imagenes: así el deshacer no carga con
   // ellas), pieza, x (mm desde el centro), y (mm desde el bajo), w, h, nombre }. Se ven en el 3D (vista3d.ponEstampados), en el 2D y en el PDF.
   // Moverlos o cambiarles el tamaño NO vuelve a coser la prenda (solo se repinta).
+  // (18-10) 🧵 la tela de la foto (la de «Desde una imagen»): su imagen y lo que mide de verdad un cuadro
+  function telaFotoVista() { const f = st.P && st.P.tela && st.P.tela.foto; if (!f) return null; const i = (st.P.imagenes || []).find(q => q.id === f.img); return i && i.datos ? { url: i.datos, tile: f.mm || 150 } : null; }
   function estUrl(E) { const i = ((st.P && st.P.imagenes) || []).find(q => q.id === E.img); return i && i.datos; }
   // (la altura se guarda como en una ficha técnica: «yc» = cuánto queda el CENTRO por debajo del cuello en el hombro de la pieza; para pintar, y desde el bajo)
   function topePieza(nombre) { const pz = ((st.P && st.P.prenda && st.P.prenda.piezas) || []).find(p => p.nombre === nombre || p.nombre.startsWith(nombre + ' (')); if (!pz) return null; const q = pz.puntos && pz.puntos.hps; return q ? q.y : Z.caja(pz).y1; }
@@ -245,10 +249,21 @@ export function render(root) {
       b('🌡 Ajuste', st.mapa, () => { st.mapa = !st.mapa; leyenda.style.display = st.mapa ? '' : 'none'; W.postMessage({ tipo: 'mapa', si: st.mapa }); if (!st.mapa) { V.actualizaTela(null); Object.entries(coloresPiezas()).forEach(([n, c]) => V.colorTela(c, n)); } else W.postMessage({ tipo: 'sigue' }); pintaBarra3(); }, 'Mapa de ajuste: dónde tira la tela (rojo) y dónde va suelta (verde)'),
       b('✋ Tirar de la tela', st.tirar, () => { st.tirar = !st.tirar; pintaBarra3(); toast(st.tirar ? '✋ Coge la tela con el dedo o el ratón y tira: se estira como la de verdad' : 'Vuelves a girar la vista', 'ok', 4000); }, 'Coger la tela con el dedo o el ratón y estirarla'),
       b('🧍 Avatar', st.verAv, () => { st.verAv = !st.verAv; V.verAvatar(st.verAv); pintaBarra3(); }, 'Ver u ocultar el avatar'),
-      b('↻ Girar', V.gira, () => { V.gira = !V.gira; pintaBarra3(); }, 'Que gire sola, como en un escaparate')),
+      b('↻ Girar', V.gira, () => { V.gira = !V.gira; pintaBarra3(); }, 'Que gire sola, como en un escaparate'),
+      b('🚶‍♀️ Pasarela', V.enPasarela, () => pasarela(), 'La modelo desfila con tu prenda, como en una pasarela: sale, posa, se gira y vuelve (los botones de cámara la siguen desde delante, de lado o de espaldas)')),
       g3('Cámara', b('Frente', false, () => V.vista('frente')), b('Lado', false, () => V.vista('izq')), b('Espalda', false, () => V.vista('espalda')),
       b('⛶ Grande', st.solo === '3d', () => soloVista('3d'), 'Ver el 3D en grande (el patrón se esconde; vuelve con el mismo botón)'),
       b('📸', false, () => { const u = V.foto(1600, 2000); descarga(dataURLaBlob(u), limpio(st.P.nombre) + '_3d.png'); toast('📸 Foto guardada en Descargas', 'ok'); }, 'Guardar una foto del 3D (PNG)')));
+  }
+  // 🚶‍♀️ PASARELA (18-10, ella: «los avatares deben poderse en animación, como modelos modelando, estilo pasarela»): la modelo desfila con la
+  // prenda tal como está cosida (la simulación se para mientras y sigue al acabar)
+  function pasarela() {
+    if (V.enPasarela) { V.pasarela(false); if (st.pausaPas) { st.pausaPas = false; st.pausa = false; W.postMessage({ tipo: 'sigue' }); } pintaBarra3(); return; }
+    if (!st.avatarOk) return toast('Espera a que salga el avatar', 'bad');
+    if (!st.pausa) { st.pausa = true; st.pausaPas = true; W.postMessage({ tipo: 'pausa' }); }
+    if (!st.verAv) { st.verAv = true; V.verAvatar(true); }
+    if (!V.pasarela(true)) { toast('No se pudo empezar el desfile', 'bad'); return; }
+    toast('🚶‍♀️ Desfilando con tu prenda. «Frente», «Lado» y «Espalda» cambian la cámara; toca otra vez «Pasarela» para parar', 'ok', 6000); pintaBarra3();
   }
   // tocar en el 3D: elegir pieza · con «Tirar», arrastrar la tela
   let tir = null, abajo = null;
@@ -327,11 +342,11 @@ export function render(root) {
   }
 
   // ---------- la biblioteca (izquierda) ----------
-  const PEST = [['prenda', '👗', 'Prenda'], ['avatar', '🧍', 'Avatar'], ['tela', '🧵', 'Tela'], ['foto', '📷', 'Foto'], ['exportar', '⬇', 'Exportar']];
+  const PEST = [['prenda', '👗', 'Prenda'], ['avatar', '🧍', 'Avatar'], ['tela', '🧵', 'Tela'], ['marca', '🏷️', 'Mi marca'], ['foto', '📷', 'Foto'], ['exportar', '⬇', 'Exportar']];
   function pintaPestanas() { if (st.facil) return mount(pestanas, h('button.on', { type: 'button', role: 'tab', 'aria-selected': 'true', title: 'Modo fácil' }, h('b', '🧸'), 'Fácil'), h('button.dw-facil-salir', { type: 'button', title: 'Volver al modo completo (con el patrón 2D y todas las herramientas)', onclick: () => ponFacil(false) }, h('b', '🧑‍🎨'), 'Completo'));
     mount(pestanas, PEST.map(([k, e, t]) => h('button' + (st.pest === k && !st.plegado ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': st.pest === k ? 'true' : 'false', onclick: () => { st.pest = k; if (st.plegado) plega(false); pintaPestanas(); pintaPanel(); } }, h('b', e), t)),
     h('button.dw-plegar', { type: 'button', title: st.plegado ? 'Abrir la biblioteca' : 'Plegar la biblioteca: más sitio para el 3D y el patrón', 'aria-label': st.plegado ? 'Abrir la biblioteca' : 'Plegar la biblioteca', onclick: () => plega(!st.plegado) }, h('b', st.plegado ? '»' : '«'), st.plegado ? 'Abrir' : 'Plegar')); }
-  function pintaPanel() { if (st.facil) return mount(panel, panelFacil()); const f = { prenda: panelPrenda, avatar: panelAvatar, tela: panelTela, foto: panelFoto, exportar: panelExportar }[st.pest]; mount(panel, f()); }
+  function pintaPanel() { if (st.facil) return mount(panel, panelFacil()); const f = { prenda: panelPrenda, avatar: panelAvatar, tela: panelTela, marca: panelMarca, foto: panelFoto, exportar: panelExportar }[st.pest] || panelPrenda; mount(panel, f()); }
   const irA = k => { st.pest = k; pintaPestanas(); pintaPanel(); };
   // 📷 FOTO (drew/calibra_ui.js): qué foto sirve, MEDIR con una foto calibrada con un folio A4 (y llevar la medida a la prenda), calibrar la IMPRESORA
   function panelFoto() { return CU.panelFoto(opFoto()); }
@@ -363,13 +378,23 @@ export function render(root) {
     const X = INS.medidas(D, P.avatar.med, st.niveles, M);
     Object.entries(X).forEach(([k, v]) => { P.medidas[k] = { v, origen: 'usuario', confianza: 0.6, imagen: true, como: 'De la imagen, en el cuerpo de tu avatar (cámbialo si la quieres distinta)' }; });
     if (extra.color && /^#[0-9a-f]{6}$/i.test(extra.color)) P.tela.color = extra.color; // (la tela, del color de la prenda de la foto)
+    if (extra.telaFoto && extra.telaFoto.url) { const id = 'im' + Date.now().toString(36) + 't'; P.imagenes = (P.imagenes || []).concat([{ id, datos: extra.telaFoto.url, tipo: 'tela' }]); P.tela.foto = { img: id, mm: extra.telaFoto.mm || 150, que: extra.telaFoto.que || 'dibujo' }; }
     abre(P); st.pest = 'prenda'; pintaPestanas(); pintaPanel(); setTimeout(() => ED.encuadra(), 60);
     return st.errorPrenda ? { ok: false, error: st.errorPrenda } : { ok: true, valida: st.V ? ESTADOS[st.V.estado].t : null };
   }
   // (17-10) + la COPIA EXACTA de una foto de producto: crea la prenda como «desde una foto» (con su color y su estampado); cuerpo(k, ajuste) = las
   // medidas de esa prenda en el avatar con esa holgura (de ahí sale la escala «a mi talla»)
-  const desdeImagen = () => IU.abre({ crear: deImagen, listo: () => !!st.niveles, crearExacta: A => deFoto(A),
-    cuerpo: (k, ajuste) => TA.medidasPrenda(k, cuerpoParaPrenda(st.P.avatar.med, st.niveles), { ajuste, manga: 'larga' }) });
+  const opImagen = extra => Object.assign({ crear: deImagen, listo: () => !!st.niveles, crearExacta: A => deFoto(A), crearPatron: A => dePatron(A),
+    cuerpo: (k, ajuste) => TA.medidasPrenda(k, cuerpoParaPrenda(st.P.avatar.med, st.niveles), { ajuste, manga: 'larga' }) }, extra || {});
+  const desdeImagen = () => IU.abre(opImagen());
+  const desdePatron = () => IU.abre(opImagen({ modoPatron: true })); // (18-10) 📐 la imagen de un PATRÓN → la prenda
+  // (18-10) 📐 la prenda de un PATRÓN en imagen: plantilla + opciones + las MEDIDAS del patrón (las suyas: no se cambian al cambiar el avatar)
+  function dePatron(A) {
+    if (!st.niveles) return { ok: false, error: 'El avatar aún se está preparando: espera un momento.' };
+    const P = proyectoNuevo(A.k); P.avatar = JSON.parse(JSON.stringify(st.P.avatar)); Object.assign(P, { k: A.k, opciones: Object.assign(BL.opcionesPorDefecto(A.k), A.opciones), autoAjuste: false, medidas: JSON.parse(JSON.stringify(A.medidas)), dePatron: A.dePatron, diseno: null });
+    P.nombre = A.nombre; abre(P); st.pest = 'prenda'; pintaPestanas(); pintaPanel(); setTimeout(() => ED.encuadra(), 60);
+    return st.errorPrenda ? { ok: false, error: st.errorPrenda } : { ok: true, valida: st.V ? ESTADOS[st.V.estado].t : null };
+  }
   const opFoto = () => ({ descarga, repinta: () => { if (st.pest === 'foto') pintaPanel(); }, crearPatron: deFoto, desdeImagen, esDeFoto: id => !!(st.P && st.P.deFoto && st.P.deFoto.id === id),
     medidas: () => { const D = st.P && BL.BLOQUES[st.P.k]; return D ? { t: D.t, lista: D.medidas.map(m => ({ k: m.k, t: m.t, min: m.min, max: m.max })) } : null; },
     ponMedida: (k, mm) => { const D = BL.BLOQUES[st.P.k], m = D && D.medidas.find(x => x.k === k), v = Math.round(mm); if (!m) return { ok: false, error: 'Esa medida no es de esta prenda.' };
@@ -377,13 +402,16 @@ export function render(root) {
       cambia(m.t + ' (de la foto)', () => { st.P.medidas[k] = { v, origen: 'usuario', confianza: 1, foto: true }; }); return { ok: true }; } });
   const ORIG = { usuario: 'tuya', ia: 'foto', calculada: 'avatar', plantilla: 'plantilla', verificada: 'comprobada' };
   // (16-10) la etiqueta de una medida: las de la foto dicen si se VIERON, se SUPUSIERON (no se ven) o hay que CONFIRMARLAS (se confirma tocándola)
-  const etiqueta = x => x.imagen ? ['ia', '🌐 imagen'] : x.foto && x.origen === 'ia' && x.estado === 'confirmar' ? ['confirmar', '⚠ confirmar'] : x.foto && x.estado === 'inferido' && x.origen === 'plantilla' ? ['supuesta', '💭 supuesta'] : x.foto && x.mano ? ['ia', '✋ foto'] : x.foto ? [x.origen === 'usuario' ? 'usuario' : 'ia', '📷 foto'] : [x.origen, ORIG[x.origen] || x.origen];
+  const etiqueta = x => x.patron ? ['usuario', '📐 patrón'] : x.imagen ? ['ia', '🌐 imagen'] : x.foto && x.origen === 'ia' && x.estado === 'confirmar' ? ['confirmar', '⚠ confirmar'] : x.foto && x.estado === 'inferido' && x.origen === 'plantilla' ? ['supuesta', '💭 supuesta'] : x.foto && x.mano ? ['ia', '✋ foto'] : x.foto ? [x.origen === 'usuario' ? 'usuario' : 'ia', '📷 foto'] : [x.origen, ORIG[x.origen] || x.origen];
   function bannerFoto() {
     const P = st.P, d = P.deFoto; if (!d) return null; const L = Object.values(P.medidas || {}), n = f => L.filter(f).length, conf = n(x => x.foto && x.estado === 'confirmar' && x.origen === 'ia'), U = CU.ultimaFoto();
     return h('div.dw-defoto', h('b', '📷 Patrón sacado de una foto'), h('span', [n(x => x.foto && x.origen !== 'plantilla') + ' medidas de la foto', n(x => x.foto && x.origen === 'plantilla') + ' supuestas', conf ? conf + ' por confirmar ⚠' : ''].filter(Boolean).join(' · ') + ' · recorte ' + (/^ia/.test(d.recorte || '') ? 'con IA' : 'por colores')),
       conf ? h('small', 'Lo marcado ⚠ se ha medido pero no es fiable: mira la foto y toca «⚠ confirmar» si está bien, o escribe tu medida.') : null,
       U && U.FP && U.FP.id === d.id ? h('a', { href: '#', onclick: e => { e.preventDefault(); CU.calibrador(null, opFoto(), 'patron'); } }, 'Ver la foto y sus puntos') : null);
   }
+  function bannerPatron() { const d = st.P.dePatron; if (!d) return null;
+    return h('div.dw-defoto', h('b', '📐 Hecha con un patrón (imagen)'), h('span', (d.parecido != null ? 'Rediseñada: se parece un ' + Math.round(d.parecido * 100) + ' % (' + (d.porPieza || []).map(q => q.t + ' ' + Math.round(q.v * 100) + ' %').join(' · ') + ')' : 'Medidas del patrón') + ' · tamaño ' + (d.escala === 'tuya' ? 'con tu medida' : 'a la talla de tu avatar') + '.'),
+      h('small', 'Las medidas «📐 patrón» son las del dibujo: cámbialas o mueve sus puntos en el 2D para seguir trabajándola.')); }
   function bannerImagen() { const d = st.P.deImagen; if (!d) return null;
     return h('div.dw-defoto', h('b', '🌐 Diseñada desde una imagen'), h('span', (d.modelo ? 'Leída por la IA del PC (' + d.modelo + ')' : 'Contada por ti') + ' · las medidas «🌐 imagen» salen de la foto en el cuerpo de tu avatar.'),
       d.noHace && d.noHace.length ? h('small', 'Todavía no lo hace el patrón: ' + d.noHace.join(' · ')) : null); }
@@ -414,7 +442,17 @@ export function render(root) {
   function modeloPorId(id) { return MA.MODELOS.find(m => m.id === id) || DISENOS.find(d => d.id === id) || null; }
   function cargaMarca() { if (st.marca.mirada) return; st.marca.mirada = true;
     (async () => { const b = await MA.carpeta(); st.marca.base = (await MA.existe(b)) ? b : null; if (st.marca.base) { try { st.marca.disenos = await MA.imagenes(st.marca.base, ['DISEÑOS', 'LOGO'], 60); } catch (e) { st.marca.disenos = []; } }
-      if (st.P && (st.pest === 'prenda' || st.pest === 'tela' || st.facil)) pintaPanel(); })(); }
+      if (st.P && (st.pest === 'prenda' || st.pest === 'tela' || st.pest === 'marca' || st.facil)) pintaPanel(); })(); } /* (18-10: también «Mi marca»: si se abría la primera, se quedaba en «no encuentro tu carpeta») */
+  // (18-10) 🏷️ MI MARCA: su avatar de CLO, sus fotos (→ «Desde una imagen»), diseños, logos, gráficos y etiquetas (→ estampados), los detalles
+  function piezaEspalda() { const L = (st.P.prenda && st.P.prenda.piezas) || [], pz = L.find(p => /^(Cuerpo espalda|Espalda)/.test(p.nombre)); return pz ? pz.nombre.replace(/ \(.*\)$/, '') : null; }
+  function panelMarca() { cargaMarca(); return MU.panel({ st, base: st.marca.mirada && st.marca.base === null ? null : st.marca.base, repinta: () => { if (st.pest === 'marca') pintaPanel(); },
+    recarga: () => { st.marca.mirada = false; cargaMarca(); pintaPanel(); },
+    estampar: d => disenoAEstampado(d),
+    etiqueta: async d => { const pz = piezaEspalda(); if (!pz) return toast('Esta prenda no tiene espalda donde poner la etiqueta.', 'bad'); try { anadeEstampado(await MA.aDataUrl(d.ruta), { pieza: pz, x: 0, yc: 55, w: 50, nombre: 'Etiqueta ' + d.nombre, que: 'Etiqueta «' + d.nombre + '» detrás del cuello' }); toast('🏷️ Etiqueta detrás del cuello (muévela en «Tela»)', 'ok'); } catch (e) { toast('No puedo leer esa etiqueta: ' + e.message, 'bad'); } },
+    abrir: async d => { try { const r = await fetch(MA.urlDe(d.ruta)), b = await r.blob(); IU.abre(opImagen(), new File([b], d.nombre + '.png', { type: b.type || 'image/png' })); } catch (e) { toast('No puedo abrir esa imagen: ' + e.message, 'bad'); } },
+    clo: async (ruta, nombre) => { st.pest = 'avatar'; pintaPestanas(); pintaPanel(); try { const r = await fetch(MA.urlDe(ruta)), L = CUE.leeAvs(await r.arrayBuffer()); if (!L) return toast('No he podido leer ese avatar de CLO.', 'bad', 8000); if (st.cloConfirma) st.cloConfirma(L, nombre); } catch (e) { toast('No puedo leer ' + nombre + ': ' + e.message, 'bad'); } },
+    color: hex => cambia('Color ' + hex, () => { st.P.tela.color = hex; st.P.tela.colorPieza = {}; }),
+    ficha: () => { st.pest = 'exportar'; pintaPestanas(); pintaPanel(); } }); }
   async function disenoAEstampado(d) { try { anadeEstampado(await MA.aDataUrl(d.ruta), { nombre: d.nombre, que: 'Tu diseño «' + d.nombre + '»' }); } catch (e) { toast('No puedo leer ese diseño: ' + e.message, 'bad', 6000); } }
   function catalogoModelos() {
     cargaMarca(); const P = st.P, g = st.grupoCat || 'basicos', base = st.marca.base, chico = P.avatar.sexo === 'hombre', q = (st.buscaCat || '').trim().toLowerCase();
@@ -433,13 +471,14 @@ export function render(root) {
   function panelPrenda() {
     const P = st.P, D = BL.BLOQUES[P.k];
     return [catalogoModelos(),
-      btn('🌐 Desde una imagen (internet, revista…)', desdeImagen, { cls: 'ghost dw-desde-imagen', title: 'La IA del PC lee la prenda de la foto y hace su patrón a la medida de tu avatar' }),
+      h('div.dw-desde', btn('🌐 Desde una imagen (internet, revista…)', desdeImagen, { cls: 'ghost dw-desde-imagen', title: 'La IA del PC lee la prenda de la foto y hace su patrón a la medida de tu avatar' }),
+        btn('📐 Patrón desde una imagen', desdePatron, { cls: 'ghost dw-desde-patron', title: 'Una foto, un escaneo o un dibujo de un PATRÓN: saco sus piezas, sus medidas y la prenda rediseñada (en 3D y editable)' })),
       h('h3', 'Plantilla'), h('div.dw-plantillas', Object.values(BL.BLOQUES).map(B => h('button' + (B.k === P.k ? '.on' : ''), { type: 'button', onclick: () => cambiaPlantilla(B.k) }, h('b', B.e), B.t))),
       P.k === 'sudadera' ? montaSudadera() : null,
       seccionTalla(),
       (D.opciones || []).length ? h('h3', 'Cómo es') : null,
       (D.opciones || []).map(O => h('div.dw-fila', h('label', O.t), h('select.dw-sel', { onchange: e => cambia(O.t, () => { P.opciones[O.k] = e.target.value; if (P.autoAjuste) ajustaAlAvatar(); }) }, O.ops.map(([v, t]) => h('option', { value: v, selected: P.opciones[O.k] === v }, t))))),
-      h('h3', 'Medidas de la prenda'), bannerFoto(), bannerImagen(),
+      h('h3', 'Medidas de la prenda'), bannerFoto(), bannerImagen(), bannerPatron(),
       h('label.dw-ayuda', { style: { display: 'flex', gap: '8px', alignItems: 'center' } }, h('input', { type: 'checkbox', checked: P.autoAjuste, onchange: e => cambia('Ajustar al avatar', () => { P.autoAjuste = e.target.checked; if (P.autoAjuste) ajustaAlAvatar(); }) }), 'Calcularlas para el cuerpo del avatar'),
       P.autoAjuste ? h('div.dw-chips', Object.entries(TA.AJUSTES).map(([k, t]) => h('button.dw-chip' + (P.ajuste === k ? '.on' : ''), { type: 'button', onclick: () => cambia('Ajuste ' + t, () => { P.ajuste = k; Object.keys(P.medidas).forEach(m => { if (P.medidas[m].origen === 'calculada') delete P.medidas[m]; }); ajustaAlAvatar(); }) }, t))) : null,
       h('div.dw-ayuda', 'Lo que mide la prenda ACABADA (cuerpo + holgura). Cambia un número y míralo en el 3D al momento.'),
@@ -469,12 +508,12 @@ export function render(root) {
     const biblioteca = h('div.dw-cbib', CUE.CUERPOS.map(C => { const b = h('button.dw-cbib-c' + (A.via === 'cuerpo' && A.cuerpo === C.id ? '.on' : ''), { type: 'button', 'data-cuerpo': C.id, title: C.t + ' · ' + C.d, onclick: () => ponCuerpo(C) }); b.innerHTML = CUE.dibujo(C); b.append(h('b', C.t), h('small', C.d)); return b; }));
     const desdeCLO = () => { const i = h('input', { type: 'file', accept: '.avs', style: { display: 'none' }, onchange: async e => { const f = e.target.files[0]; i.remove(); if (!f) return; const L = CUE.leeAvs(await f.arrayBuffer());
         if (!L) return toast('No he podido leer ese archivo de CLO (.avs).', 'bad', 8000); confirmaCLO(L, f.name); } }); document.body.append(i); i.click(); };
-    const confirmaCLO = (L, nombre) => { const sexo = L.sexo || A.sexo, inp = k => h('input', { type: 'number', step: 0.5, value: L[k], 'data-clo': k }), F = { altura: inp('altura'), pecho: inp('pecho'), cintura: inp('cintura'), cadera: inp('cadera') };
+    const confirmaCLO = st.cloConfirma = (L, nombre) => { /* (18-10: también desde «Mi marca», sin buscar el archivo) */ const sexo = L.sexo || A.sexo, inp = k => h('input', { type: 'number', step: 0.5, value: L[k], 'data-clo': k }), F = { altura: inp('altura'), pecho: inp('pecho'), cintura: inp('cintura'), cadera: inp('cadera') };
       const m = modal('📥 Avatar de CLO 3D', h('div.dw-clo', h('div.dw-ayuda', 'He leído «' + nombre + '»' + (L.plantilla ? ' (plantilla ' + L.plantilla + ')' : '') + '. CLO no dice qué es cada número: esto es lo que he podido leer. CONFÍRMALO con tu cinta (o corrígelo) antes de usarlo; el resto de medidas sale de la talla más parecida.'),
         ['altura', 'pecho', 'cintura', 'cadera'].map(k => h('div.dw-fila', h('label', { altura: 'Altura', pecho: 'Pecho / busto', cintura: 'Cintura', cadera: 'Cadera' }[k]), h('span.dw-num', F[k], h('span.u', 'cm'))))),
         [btn('Cancelar', () => m.close(), { cls: 'ghost' }), btn('✔ Usar este avatar', () => { const o = Object.fromEntries(Object.entries(F).map(([k, x]) => [k, Number(String(x.value).replace(',', '.'))]));
           try { const X = CUE.desdeConfirmadas(sexo, o); m.close(); ponMed(X.med, 'clo', 'Avatar de CLO', { sexo, talla: X.talla, pelo: sexo === 'hombre' ? 'corto' : 'mono' }); toast('📥 Avatar de CLO puesto: ' + o.altura + ' cm · ' + o.pecho + '/' + o.cintura + '/' + o.cadera, 'ok', 6000); } catch (x) { toast(x.message, 'bad', 8000); } }, { cls: 'primary dw-clo-usar' })]); };
-    const ponPelo = (estilo, color) => { st.hist.apunta(st.P, 'Pelo del avatar'); if (estilo) A.pelo = estilo; if (color) A.peloColor = color; V.ponPelo(CUE.peinadoDe(A), A.peloColor || 'igual'); W.postMessage({ tipo: 'pelo', estilo: CUE.peinadoDe(A) }); /* (18-10: la tela choca con el pelo) */ guarda(); pintaPanel(); };
+    const ponPelo = (estilo, color) => { st.hist.apunta(st.P, 'Pelo del avatar'); if (estilo) A.pelo = estilo; if (color) A.peloColor = color; V.ponPelo(CUE.peinadoDe(A), A.peloColor || 'igual'); V.piel(A.piel); /* (las cejas, del color del pelo) */ W.postMessage({ tipo: 'pelo', estilo: CUE.peinadoDe(A) }); /* (18-10: la tela choca con el pelo) */ guarda(); pintaPanel(); };
     const altura = h('input', { type: 'number', min: 120, max: 215, step: 1, value: A.med.altura }), peso = h('input', { type: 'number', min: 30, max: 200, step: 0.5, value: A.peso || '' , placeholder: 'kg' });
     return [h('h3', '👥 Biblioteca de cuerpos'), h('div.dw-ayuda', 'Un toque y el avatar cambia: mujeres y hombres de varias alturas y tallas. Luego ajusta lo que quieras con la cinta.'), biblioteca,
       btn('📥 Avatar de CLO 3D (.avs)…', desdeCLO, { cls: 'ghost sm dw-clo-btn', title: 'Lee las medidas de un avatar guardado en CLO 3D (las confirmas antes de usarlas)' }),
@@ -490,6 +529,7 @@ export function render(root) {
         h('span.dw-num', h('input', { type: 'number', step: 0.5, value: A.med[k], onchange: e => { const v = Number(String(e.target.value).replace(',', '.')); if (!(v >= 0)) return; const med = Object.assign({}, A.med, { [k]: v }); ponMed(med, 'cm', t + ' del avatar'); } }), h('span.u', 'cm')))),
       M ? h('div.dw-medido', (M.premium ? '✨ Cuerpo realista. ' : '') + 'Comprobado: el avatar mide lo pedido con un desvío máximo de ' + (M.desvio || 0).toFixed(1) + ' cm (cada contorno medido como con una cinta).' + (M.fuera && M.fuera.length ? ' ⚠️ No llega a: ' + M.fuera.join(', ') + ' (medidas fuera de lo que admite el cuerpo).' : '')) : null,
       h('h3', 'Aspecto'), h('div.dw-chips', Object.entries(PIELES).map(([k, [c, t]]) => h('button.dw-chip' + (A.piel === k ? '.on' : ''), { type: 'button', title: t, onclick: () => { A.piel = k; V.piel(k); guarda(); pintaPanel(); } }, h('span', { style: { display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: c, marginRight: '5px', verticalAlign: '-1px', border: '1px solid var(--line-2)' } }), t))),
+      h('h3', '👁️ Ojos'), h('div.dw-chips', HU.OJOS.map(([k, t, c]) => h('button.dw-chip' + ((A.ojos || 'marron') === k ? '.on' : ''), { type: 'button', 'data-ojos': k, onclick: () => { A.ojos = k; V.ojos(k); guarda(); pintaPanel(); } }, h('span', { style: { display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: c, marginRight: '5px', verticalAlign: '-1px', border: '1px solid var(--line-2)' } }), t))),
       h('h3', '💇 Pelo'), h('div.dw-chips', CUE.PEINADOS.map(([k, t]) => h('button.dw-chip' + (CUE.peinadoDe(A) === k ? '.on' : ''), { type: 'button', 'data-pelo': k, onclick: () => ponPelo(k) }, t))),
       h('div.dw-chips', { style: { marginTop: '6px' } }, CUE.COLORES_PELO.map(([k, t, c]) => h('button.dw-chip.dw-pelo-c' + ((A.peloColor || 'igual') === k ? '.on' : ''), { type: 'button', title: t, 'data-pelo-color': k, onclick: () => ponPelo(null, k) }, h('span', { style: { display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: c, marginRight: '5px', verticalAlign: '-1px', border: '1px solid var(--line-2)' } }), t)))];
   }
@@ -497,7 +537,10 @@ export function render(root) {
     const P = st.P, pz = st.sel, def = P.tela.def || (P.prenda && P.prenda.tejido === 'punto' ? (P.k === 'sudadera' ? 'felpa' : 'punto') : P.k === 'pantalon' ? 'denim' : 'gabardina');
     const ponTela = (k, soloPieza) => cambia('Tela ' + TELAS[k].t, () => { if (soloPieza) P.tela.porPieza[soloPieza] = k; else { P.tela.def = k; P.tela.porPieza = {}; if (ASPECTO[k] && ASPECTO[k].natural) { P.tela.color = 'natural'; P.tela.colorPieza = {}; } else if (P.tela.color === 'natural') P.tela.color = COLOR_DE[P.k] || '#5f7ea8'; } });
     const ponColor = (c, soloPieza) => { if (soloPieza) { P.tela.colorPieza = P.tela.colorPieza || {}; P.tela.colorPieza[soloPieza] = c; } else { P.tela.color = c; P.tela.colorPieza = {}; } const C = coloresPiezas(); Object.entries(C).forEach(([n, x]) => V.colorTela(x, n)); guarda(); pintaPanel(); };
-    return [h('h3', 'Tejido de toda la prenda'), h('div.dw-ayuda', 'Cambia cómo cae, cuánto da de sí y cuánto pesa (como las propiedades físicas de CLO).'),
+    const TF = telaFotoVista();
+    return [TF ? h('div.dw-telafoto', h('img', { src: TF.url, alt: 'Tela de la foto' }), h('div', h('b', '🧵 Tela de la foto'), h('div.dw-ayuda', 'Su dibujo (' + (P.tela.foto.que || 'dibujo') + ') repetido a su tamaño: cada cuadro mide ' + (TF.tile / 10).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + ' cm.'),
+        btn('Quitar la tela de la foto', () => { st.hist.apunta(P, 'Quitar la tela de la foto'); delete P.tela.foto; V.telaFoto(null, coloresPiezas()); guarda(); pintaPanel(); }, { cls: 'sm ghost dw-telafoto-quitar' }))) : null,
+      h('h3', 'Tejido de toda la prenda'), h('div.dw-ayuda', 'Cambia cómo cae, cuánto da de sí y cuánto pesa (como las propiedades físicas de CLO).'),
       h('div.dw-chips', Object.entries(TELAS).map(([k, T]) => h('button.dw-chip' + (def === k && !P.tela.porPieza[pz] ? '.on' : ''), { type: 'button', title: 'Da de sí hasta un ' + Math.round(T.tope * 100) + ' % · ' + T.gm2 + ' g/m²', onclick: () => ponTela(k) }, T.t))),
       h('h3', 'Color'), h('div.dw-chips', h('button.dw-chip' + (P.tela.color === 'natural' ? '.on' : ''), { type: 'button', title: 'El color de verdad de la tela (el de la foto del tejido)', onclick: () => ponColor('natural') }, '🧵 Natural'), COLORES.map(c => h('button.dw-chip', { type: 'button', title: c, style: { width: '30px', height: '30px', padding: 0, background: c, borderColor: P.tela.color === c ? 'var(--brand)' : 'var(--line-2)', borderWidth: P.tela.color === c ? '3px' : '1px' }, onclick: () => ponColor(c) })), h('input', { type: 'color', value: P.tela.color === 'natural' ? '#888888' : P.tela.color, title: 'Otro color', onchange: e => ponColor(e.target.value) })),
       pz ? [h('h3', 'Solo «' + pz + '»'), h('div.dw-chips', Object.entries(TELAS).map(([k, T]) => h('button.dw-chip' + (P.tela.porPieza[pz] === k ? '.on' : ''), { type: 'button', onclick: () => ponTela(k, pz) }, T.t))),
@@ -662,22 +705,24 @@ export function render(root) {
   }
   // 🎬 VÍDEO DE 7 SEGUNDOS para redes (ella: «recuerda siempre implementar un pequeño vídeo de 7 segundos para redes sociales»):
   // vertical 720 × 1280, la cámara da una vuelta entera a la prenda (encuadrada), con su nombre y la marca; MP4 si el navegador sabe, si no WebM.
-  async function video7() {
+  async function video7(modo) {
+    const pasa = modo === 'pasarela'; // (18-10: o la PASARELA entera, con la cámara que la sigue)
     if (st.grabando) return; if (!window.MediaRecorder) return toast('Este navegador no sabe grabar vídeo', 'bad'); st.grabando = true;
     // 16-10 · ella: «no se ve 4K, sube resolución, puedes utilizar la gráfica» → 4K vertical (2160×3840) si la gráfica lo codifica; si no, Full HD
     let Wv = 1080, Hv = 1920; try { if (window.VideoEncoder && (await VideoEncoder.isConfigSupported({ codec: 'avc1.640033', width: 2160, height: 3840, bitrate: 30e6, framerate: 30 })).supported) { Wv = 2160; Hv = 3840; } } catch (e) { }
     const k = Wv / 720, c2 = h('canvas', { width: Wv, height: Hv }), g = c2.getContext('2d'), tipo = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(x => MediaRecorder.isTypeSupported(x)) || '';
     const cam0 = V.cam.position.clone(), tgt0 = V.ctl.target.clone(), gira0 = V.gira, s0 = V.ren.getSize(new V.T.Vector2()), pr0 = V.ren.getPixelRatio(); V.gira = false;
+    const yaPas = V.enPasarela; if (pasa && !yaPas) { pasarela(); if (!V.enPasarela) { st.grabando = false; return; } }
     try {
       let empresa = 'CelebriDiseños'; try { const { S } = await import('../store.js'); empresa = (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || empresa; } catch (e) { }
       // encuadre VERTICAL (9:16) de la prenda entera con aire: la distancia la marca lo que más ocupe (alto, o ancho con el campo estrecho)
       // (ella: «en el maniquí no se ve completo» → de la cabeza a los pies, con aire arriba y sitio abajo para el rótulo)
       let T0 = V.ctl.target.clone(), R0 = 2600, yC = 1100; try { const B = new V.T.Box3().setFromObject(V.grupoTela); if (st.verAv) B.union(new V.T.Box3().setFromObject(V.grupoAv)); if (!B.isEmpty()) { const hB = B.max.y - B.min.y, wB = B.max.x - B.min.x, tg = Math.tan(V.cam.fov * Math.PI / 360);
         R0 = Math.max(hB * 0.66 / tg, wB * 0.56 / (tg * Wv / Hv)); T0 = new V.T.Vector3((B.min.x + B.max.x) / 2, (B.min.y + B.max.y) / 2 - hB * 0.07, (B.min.z + B.max.z) / 2); yC = T0.y + R0 * 0.06; } } catch (e) { }
-      V.ren.setPixelRatio(1); V.ren.setSize(Wv, Hv, false); V.cam.aspect = Wv / Hv; V.cam.updateProjectionMatrix(); const tapa = h('div.dw-grabando', h('i'), 'Haciendo el vídeo de 7 s en ' + (Wv >= 2160 ? '4K' : 'Full HD') + '…', h('small', 'la vista vuelve sola al terminar')); lienzo3.parentNode.appendChild(tapa); st.tapa = tapa;
-      const fondo = g.createLinearGradient(0, 0, 0, Hv); fondo.addColorStop(0, '#f6f3ee'); fondo.addColorStop(1, '#e2dbd0'); const N = 210;
+      V.ren.setPixelRatio(1); V.ren.setSize(Wv, Hv, false); V.cam.aspect = Wv / Hv; V.cam.updateProjectionMatrix(); const tapa = h('div.dw-grabando', h('i'), 'Haciendo el vídeo de ' + (pasa ? 'la pasarela' : '7 s') + ' en ' + (Wv >= 2160 ? '4K' : 'Full HD') + '…', h('small', 'la vista vuelve sola al terminar')); lienzo3.parentNode.appendChild(tapa); st.tapa = tapa;
+      const fondo = g.createLinearGradient(0, 0, 0, Hv); fondo.addColorStop(0, '#f6f3ee'); fondo.addColorStop(1, '#e2dbd0'); const N = window.__drew_videoFotogramas || (pasa ? Math.round(V.pasarelaDur * 30) : 210); /* (__drew_videoFotogramas: solo las pruebas, que pintan sin gráfica) */
       const dibuja = f => { const t = f / N, a = (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)) * Math.PI * 2; // (arranca y frena suave)
-        V.cam.position.set(T0.x + Math.sin(a) * R0, yC, T0.z + Math.cos(a) * R0); V.ctl.target.copy(T0); V.cam.lookAt(T0); V.pinta();
+        if (pasa) { V.pasarelaEn(f / 30); V.pinta(); } else { V.cam.position.set(T0.x + Math.sin(a) * R0, yC, T0.z + Math.cos(a) * R0); V.ctl.target.copy(T0); V.cam.lookAt(T0); V.pinta(); }
         g.fillStyle = fondo; g.fillRect(0, 0, Wv, Hv); g.drawImage(V.lienzo, 0, 0, Wv, Hv);
         const al = Math.min(1, t * 4) * Math.min(1, (1 - t) * 6 + 0.35); g.globalAlpha = al; g.fillStyle = 'rgba(20,16,30,.62)'; g.fillRect(0, Hv - 190 * k, Wv, 190 * k); g.fillStyle = '#fff'; g.textAlign = 'center';
         g.font = '800 ' + Math.round(54 * k) + 'px system-ui, sans-serif'; g.fillText(st.P.nombre || 'Mi prenda', Wv / 2, Hv - 112 * k); g.font = '600 ' + Math.round(30 * k) + 'px system-ui, sans-serif'; g.fillText(empresa + ' · diseñado con CelebriDREW', Wv / 2, Hv - 62 * k); g.globalAlpha = 1; };
@@ -689,9 +734,9 @@ export function render(root) {
         for (let f = 0; f < N && st.vivo; f++) { dibuja(f); if (pista.requestFrame) pista.requestFrame(); const espera = t0 + (f + 1) * 1000 / 30 - performance.now(); await new Promise(r => espera > 1 ? setTimeout(r, espera) : requestAnimationFrame(r)); }
         await new Promise(r => setTimeout(r, 250)); rec.stop(); await fin; blob = new Blob(trozos, { type: /mp4/.test(tipo) ? 'video/mp4' : 'video/webm' }); }
       if (!st.vivo || !blob) return; const mp4 = /mp4/.test(blob.type); window.__drew_video = { bytes: blob.size, tipo: blob.type, via, ancho: Wv, alto: Hv };
-      if (!st.vivo) return; descarga(blob, limpio(st.P.nombre) + '_7s.' + (mp4 ? 'mp4' : 'webm')); toast('🎬 Vídeo de 7 s en Descargas (' + (mp4 ? 'MP4' : 'WebM') + ' ' + (Wv >= 2160 ? '4K' : 'Full HD') + ' vertical, para Reels, TikTok y Stories)', 'ok', 6000);
+      if (!st.vivo) return; descarga(blob, limpio(st.P.nombre) + (pasa ? '_pasarela.' : '_7s.') + (mp4 ? 'mp4' : 'webm')); toast('🎬 Vídeo ' + (pasa ? 'de la pasarela' : 'de 7 s') + ' en Descargas (' + (mp4 ? 'MP4' : 'WebM') + ' ' + (Wv >= 2160 ? '4K' : 'Full HD') + ' vertical, para Reels, TikTok y Stories)', 'ok', 6000);
     } catch (e) { toast('No se pudo grabar el vídeo: ' + e.message, 'bad', 7000); }
-    finally { V.ren.setPixelRatio(pr0); V.ren.setSize(s0.x, s0.y, false); V.cam.aspect = s0.x / s0.y; V.cam.updateProjectionMatrix(); V.cam.position.copy(cam0); V.ctl.target.copy(tgt0); V.ctl.update(); V.gira = gira0; V.marca(); st.grabando = false; if (st.tapa) { st.tapa.remove(); st.tapa = null; } }
+    finally { if (pasa) { if (!yaPas) pasarela(); else V.pasarelaSigue(); } V.ren.setPixelRatio(pr0); V.ren.setSize(s0.x, s0.y, false); V.cam.aspect = s0.x / s0.y; V.cam.updateProjectionMatrix(); V.cam.position.copy(cam0); V.ctl.target.copy(tgt0); V.ctl.update(); V.gira = gira0; V.marca(); st.grabando = false; if (st.tapa) { st.tapa.remove(); st.tapa = null; } }
   }
   // (17-10) 🏭 la FICHA TÉCNICA PARA FÁBRICA (drew/ficha_pdf.js): con las fotos del 3D (delante y detrás) y los estampados en JPEG
   async function fichaFabrica() {

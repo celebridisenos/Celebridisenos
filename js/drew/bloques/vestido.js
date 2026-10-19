@@ -11,7 +11,7 @@
 //   · Escote y sisas (si no lleva manga) se rematan con bies (7 mm). Cremallera invisible de la nuca a la cadera.
 import * as G from '../geom.js';
 import * as Z from '../pieza.js';
-import { mal, costura, costuraEspejo, med, opc, compruebaMedidas, perpAbajo, largo } from './comun.js';
+import { mal, costura, costuraEspejo, med, opc, compruebaMedidas, perpAbajo, largo, volante } from './comun.js';
 import { mitad } from './falda.js';
 import { manga } from './camiseta.js';
 
@@ -68,10 +68,14 @@ function cuerpoV(M, esp) {
   const uSh = G.norma(G.sub(sp, top)), abajo = perpAbajo(uSh), prof = sp[1] - ax[1], kx = Math.max(10, (esp ? 0.45 : 0.62) * (W - sp[0]) + 14);
   B.t('sisa', 'ax', 'sp', [ax[0] - kx, ax[1]], G.suma(sp, G.esc(abajo, (esp ? 0.5 : 0.42) * prof)));
   B.t('hombro', 'sp', 'hps');
-  const baj = esp ? M.bajadaEsp : M.bajadaDel; B.t('escote', 'hps', 'cn', G.suma(top, G.esc(abajo, Math.min(0.55 * baj, 0.6 * nw))), [cn[0] + 0.55 * nw, cn[1]]);
+  const baj = esp ? M.bajadaEsp : M.bajadaDel; let tramosEsc = ['escote'];
+  // (18-10) el escote delantero: redondo, de PICO o CUADRADO (la espalda, siempre redonda)
+  if (!esp && M.escote === 'pico') B.t('escote', 'hps', 'cn', G.suma(top, G.esc(abajo, 0.25 * baj)), [cn[0] + 0.12 * nw, cn[1] + 0.25 * baj]);
+  else if (!esp && M.escote === 'cuadrado') { const xq = Math.max(nw * 0.92, nw - 12); p('eq', xq, cn[1], 'Esquina del escote'); B.t('escote', 'hps', 'eq'); B.t('escoteB', 'eq', 'cn'); tramosEsc = ['escote', 'escoteB']; }
+  else B.t('escote', 'hps', 'cn', G.suma(top, G.esc(abajo, Math.min(0.55 * baj, 0.6 * nw))), [cn[0] + 0.55 * nw, cn[1]]);
   B.t('centro', 'cn', 'cw');
   B.borde('cintura', 'Cintura', ['cint0', 'cint1']); B.borde('sisa', 'Sisa', ['sisa'], M.sinMangas ? 'remate' : 'costura', M.sinMangas ? 7 : null);
-  B.borde('hombro', 'Hombro', ['hombro']); B.borde('escote', 'Escote (se remata con bies)', ['escote'], 'remate', 7);
+  B.borde('hombro', 'Hombro', ['hombro']); B.borde('escote', 'Escote (se remata con bies)', tramosEsc, 'remate', 7);
   B.borde('centro', esp ? 'Centro espalda (cremallera)' : 'Centro delantero (doblez)', ['centro'], esp ? 'costura' : 'doblez', esp ? 15 : null);
   B.hilo([W * 0.55, yax * 0.25], [W * 0.55, yax * 0.85]);
   // (16-10) VARILLAS (corsé): canales de abajo arriba, 1,2 cm por encima de la cintura (su margen) hasta 2,5–3 cm antes del borde de arriba;
@@ -86,7 +90,10 @@ function cuerpoV(M, esp) {
 
 export function generaVestido(M0, O = {}, D = VESTIDO) {
   const M = Object.assign({}, M0); if (O.falda === 'evase' && !(M.vuelo > 0)) M.vuelo = 60; if (O.falda === 'recta') M.vuelo = 0;
-  compruebaMedidas(D, M); M.sinMangas = O.mangaTipo === 'sin'; M.varillas = O.varillas === 'si';
+  compruebaMedidas(D, M); M.sinMangas = O.mangaTipo === 'sin'; M.varillas = O.varillas === 'si'; M.escote = O.escote || 'redondo';
+  // (18-10) con VOLANTE en el bajo: la falda acaba antes (el volante pone el resto del largo)
+  // (con una falda CORTA, el volante la alarga en vez de quitarle largo: se dice)
+  const conVol = O.bajo === 'volante', altVol = conVol ? Math.min(140, Math.max(60, Math.round(M.largo * 0.18))) : 0, quita = conVol ? Math.max(0, Math.min(altVol, M.largo - M.altoCadera - 50)) : 0; M.largo -= quita;
   if (M.cadera < M.cintura) mal('La cadera tiene que medir más que la cintura.');
   if (M.alturaPecho > M.espalda + 15 - 40) mal('La altura de pecho no cabe en el talle: revisa la altura de pecho o el talle de espalda.');
   const del = cuerpoV(M, false), esp = cuerpoV(M, true);
@@ -105,9 +112,13 @@ export function generaVestido(M0, O = {}, D = VESTIDO) {
       costura('manga', 'Costura de la manga', m.pz, 'costuraDer', m.pz, 'costuraIzq', { inv: true }));
   }
   esp.meta.notas.push('Cremallera invisible desde la nuca hasta ' + G.cm(M.altoCadera - 20, 0) + ' cm por debajo de la cintura (cuerpo + falda).');
+  if (M.escote === 'cuadrado') del.meta.notas.push('Escote CUADRADO: en las esquinas, un piquete hasta 2 mm de la costura para que la vista quede plana.');
+  if (conVol) { const fr = 1.35, Bd = largo(fdel, 'bajo'), Be = largo(fesp, 'bajo'), v = volante(Bd, Be, altVol, fr, M.largo); [fdel, fesp].forEach(z => { z.bordes.find(x => x.id === 'bajo').tipo = 'costura'; z.margen.borde.bajo = 10; });
+    if (quita < altVol) v.meta.notas.push('La falda es corta: el volante la alarga ' + G.cm(altVol - quita) + ' cm (para no subir el bajo por encima de la cadera).');
+    piezas.push(v); costuras.push(costura('volDel', 'Volante con el bajo delantero', fdel, 'bajo', v, 'del', { ratio: fr }), costura('volEsp', 'Volante con el bajo de la espalda', fesp, 'bajo', v, 'esp', { ratio: fr, inv: true }), costuraEspejo('volCB', 'Centro espalda del volante', v, 'cb')); }
   return { piezas, costuras, avisos: [] };
 }
 
 export const VESTIDO = { k: 'vestido', e: '👗', t: 'Vestido', categoria: 'vestido', tejido: 'plano', medidas: MEDIDAS_VESTIDO,
-  opciones: [opc('mangaTipo', 'Manga', 'sin', [['sin', 'Sin mangas'], ['corta', 'Corta'], ['larga', 'Larga']]), opc('falda', 'Falda', 'recta', [['recta', 'Recta (de tubo)'], ['evase', 'Evasé (vuelo en el bajo)']]), opc('varillas', 'Varillas (corsé)', 'no', [['no', 'Sin varillas'], ['si', 'Con varillas (canales en el cuerpo)']])],
+  opciones: [opc('mangaTipo', 'Manga', 'sin', [['sin', 'Sin mangas'], ['corta', 'Corta'], ['larga', 'Larga']]), opc('escote', 'Escote', 'redondo', [['redondo', 'Redondo'], ['pico', 'De pico'], ['cuadrado', 'Cuadrado']]), opc('bajo', 'Bajo', 'dobladillo', [['dobladillo', 'Dobladillo'], ['volante', 'Con volante']]), opc('falda', 'Falda', 'recta', [['recta', 'Recta (de tubo)'], ['evase', 'Evasé (vuelo en el bajo)']]), opc('varillas', 'Varillas (corsé)', 'no', [['no', 'Sin varillas'], ['si', 'Con varillas (canales en el cuerpo)']])],
   genera(M, O) { return generaVestido(M, O, this); } };

@@ -24,4 +24,18 @@ export const opc = (k, t, v, ops) => ({ k, t, v, ops });
 // comprobar medidas dentro de sus límites (con el porqué)
 export function compruebaMedidas(D, M) { D.medidas.forEach(m => { const v = M[m.k]; if (!(isFinite(v))) mal('Falta la medida «' + m.t + '».'); if (v < m.min || v > m.max) mal('«' + m.t + '» = ' + G.cm(v) + ' cm: fuera de lo posible (' + G.cm(m.min) + '–' + G.cm(m.max) + ' cm).'); }); }
 // la dirección perpendicular a u hacia abajo (para que dos curvas se encuentren en ángulo recto)
+// (18-10) el VOLANTE del bajo: media tira (al doblez del centro delantero) que mide el bajo × el FRUNCE (1,35: un frunce suave; con 1,6 la tela
+// del 3D no paraba de temblar, medido con tools/banco_volante.mjs);
+// sus bordes: «del» (al bajo delantero), «esp» (al bajo de la espalda), «cb» (centro espalda), «arriba» (su bajo, con dobladillo) y «cf» (doblez).
+// Lo que cuelga se dice en meta.cuelga (mm desde la cintura hasta su costura) para colocarlo en el 3D.
+export function volante(Ld, Le, alto, frunce, cuelga) {
+  const B = Z.constructor('Volante', { corte: { n: 1, espejo: false, doblez: 'cf' } }), p = B.p, a = Ld * frunce, b = (Ld + Le) * frunce;
+  p('o', 0, 0, 'Centro delantero'); p('s', a, 0, 'Costado'); p('cb', b, 0, 'Centro espalda'); p('cbt', b, alto); p('ot', 0, alto);
+  B.t('del', 'o', 's'); B.t('esp', 's', 'cb'); B.t('cb', 'cb', 'cbt'); B.t('arriba', 'cbt', 'ot'); B.t('cf', 'ot', 'o');
+  B.borde('del', 'Al bajo delantero (fruncido)', ['del'], 'costura', 10); B.borde('esp', 'Al bajo de la espalda (fruncido)', ['esp'], 'costura', 10); B.borde('cb', 'Centro espalda', ['cb'], 'costura', 10);
+  B.borde('arriba', 'Bajo del volante (dobladillo estrecho)', ['arriba'], 'bajo', 10); B.borde('cf', 'Centro delantero (doblez)', ['cf'], 'doblez');
+  B.hilo([b * 0.5, alto * 0.2], [b * 0.5, alto * 0.8]); B.pz.meta.cuelga = cuelga;
+  B.pz.meta.notas.push('VOLANTE: frunce el borde de arriba (dos pespuntes largos) hasta que mida el bajo y cóselo; ' + (frunce).toFixed(1).replace('.', ',') + ' veces el bajo.');
+  return B.pz;
+}
 export const perpAbajo = u => { const n = [u[1], -u[0]]; return n[1] > 0 ? [-n[0], -n[1]] : n; };
