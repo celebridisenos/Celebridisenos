@@ -56,9 +56,20 @@ export function calienta() {
   setTimeout(() => { calentando = null; }, 10 * 60 * 1000); return calentando;
 }
 // → { j (el JSON leído), modelo, comercial, licencia, ms, guardada } o lanza un error claro
+// 20-10-2026 · ✨ CLAUDE PRIMERO (plan maestro 3: «la IA para copiar imágenes no funciona»): si en este PC Claude está conectado (programa del PC,
+// desktop/host/claude.go), mira él la foto: lee mejor la prenda que la IA pequeña local y no tarda 100 s. La foto va a Claude con SU cuenta
+// (se dice en la ventana de Claude); se puede apagar con localStorage 'cd.drew.claudeFotos' = '0'. Si no está, todo sigue como antes (Ollama).
+export const usaClaude = () => ls.get('cd.drew.claudeFotos') !== '0';
+async function conClaude(texto, b64) {
+  const D = await puente(); if (!D || !D.claudeEstado) return null; let e; try { e = await D.claudeEstado(); } catch (x) { return null; } if (!e || !e.sesion) return null;
+  const r = await D.claudePregunta(texto + '\nAnswer ONLY the JSON object, no other text.', b64); if (!r || !r.ok) throw new Error((r && r.error) || 'Claude no ha contestado');
+  const j = leeJSON(r.texto); if (!j) throw new Error('Claude no ha contestado en el formato pedido'); return { j, ms: r.ms };
+}
 export async function pregunta(texto, b64, o = {}) {
   const t0 = Date.now(), errores = [], clave = huella(texto) + '.' + huella(b64);
   if (!o.sinCache) { const c = deCache(clave); if (c && c.j) return Object.assign({}, c, { ms: 0, guardada: true }); }
+  if (o.claude !== false && usaClaude()) { try { const C = await conClaude(texto, b64); if (C) { const R = { j: C.j, modelo: 'claude', t: 'Claude (tu cuenta)', comercial: true, licencia: 'Tu cuenta de Claude', ms: Date.now() - t0 };
+    if (!o.sinCache) aCache(clave, { j: C.j, modelo: 'claude', t: R.t, comercial: true, licencia: R.licencia }); return R; } } catch (e) { errores.push('claude: ' + e.message); } }
   for (const M of o.modelos || orden()) {
     try { const ta = Date.now(), txt = await unaVez(M.id, texto, b64, o.signal, { think: M.piensa ? undefined : false, ctx: M.piensa ? 8192 : undefined }), j = leeJSON(txt); if (!j) throw new Error('no ha contestado en el formato pedido');
       const R = { j, modelo: M.id, t: M.t, comercial: M.comercial, licencia: M.licencia, ms: Date.now() - t0 };
@@ -66,5 +77,5 @@ export async function pregunta(texto, b64, o = {}) {
       return R; }
     catch (e) { if (noEsta(e)) marcaFalta(M.id); errores.push(M.id + ': ' + (noEsta(e) ? 'no está instalada' : e.message)); if (/solo está en el PC/.test(e.message)) break; if (o.signal && o.signal.aborted) break; }
   }
-  throw new Error('La IA de visión no está disponible (' + errores.join(' · ') + ').');
+  throw new Error('La IA de visión no está disponible (' + errores.join(' · ') + '). Para que funcione siempre: ✨ Claude → «Conectar Claude» (una vez).');
 }

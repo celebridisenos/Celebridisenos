@@ -26,7 +26,7 @@ export const es50 = () => interfaz() === 'v50';
 export const TEMAS30 = [['papel', 'Papel cálido', 'dia'], ['nieve', 'Blanco nieve', 'dia'], ['cuarzo', 'Rosa cuarzo', 'dia'], ['menta', 'Menta fresca', 'dia'], ['lavanda', 'Lavanda', 'dia'], ['cielo', 'Cielo', 'dia'], ['claro-fuerte', 'Alto contraste claro', 'dia'],
   ['obsidiana', 'Obsidiana y oro', 'noche'], ['medianoche', 'Medianoche azul', 'noche'], ['bosque', 'Bosque de noche', 'noche'], ['ciruela', 'Ciruela', 'noche'], ['grafito', 'Grafito', 'noche'], ['oscuro-fuerte', 'Alto contraste oscuro', 'noche']];
 // los temas de la cara «CelebriDiseños» (contraste comprobado con tools/temas50.py)
-export const TEMAS50 = [['perla', 'Perla', 'dia'], ['champan', 'Champán y rosa', 'dia'], ['aurora', 'Aurora', 'noche'], ['eclipse', 'Eclipse', 'noche']];
+export const TEMAS50 = [['nacar', '✨ Nácar', 'dia'], ['perla', 'Perla', 'dia'], ['champan', 'Champán y rosa', 'dia'], ['medianoche', '✨ Medianoche', 'noche'], ['aurora', 'Aurora', 'noche'], ['eclipse', 'Eclipse', 'noche']]; // 21-10 · la 60: Nácar y Medianoche (css/ui60.css)
 const LISTA = () => (es50() ? TEMAS50 : TEMAS30), POR_DEFECTO = m => (es50() ? (m === 'dia' ? 'perla' : 'aurora') : (m === 'dia' ? 'papel' : 'obsidiana'));
 const TEMA_ = () => (es50() ? 'cd.tema50' : 'cd.tema30'), esTema = k => LISTA().some(t => t[0] === k), oscuroWin = () => { try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; } };
 const ultimo = m => { const v = leer(TEMA_() + '.' + m); return esTema(v) && LISTA().find(t => t[0] === v)[2] === m ? v : POR_DEFECTO(m); };
@@ -57,6 +57,7 @@ export function tema18(real) {
   de.classList.toggle('ui18', on); de.classList.toggle('ui30', es30()); de.classList.toggle('ui50', es50());
   if (es30()) de.dataset.tema30 = temaReal(); else de.removeAttribute('data-tema30'); // v30.7.1
   if (es50()) de.dataset.tema50 = temaReal(); else de.removeAttribute('data-tema50');
+  de.classList.toggle('ui60', es50() && (temaReal() === 'nacar' || temaReal() === 'medianoche')); // 21-10 · la cara 60 «Maison» (css/ui60.css)
   if (on) { de.classList.remove('ui14'); de.dataset.modo = modo(); return modo() === 'noche' ? 'oscuro' : 'claro'; }
   de.removeAttribute('data-modo');
   return real;

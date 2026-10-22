@@ -20,9 +20,10 @@ import { DISENOS, precio, eur, PRECIO_TELA, POR_DEFECTO } from '../drew/disenos.
 import { TIPOS as TIPOS_COSTURA, tipoDe, edicionesTipo, pasos as pasosMontaje } from '../drew/montaje.js'; // 16-10: el tipo de cada costura (cambia sus márgenes y sale en el PDF)
 import * as IU from '../drew/inspira_ui.js'; import * as INS from '../drew/foto/inspira.js'; // 16-10: 🌐 diseñar desde una imagen (internet, revista…)
 import * as CUE from '../drew/cuerpos.js';
+import * as AC from '../drew/accesorios.js';
+import * as CLU from '../drew/claude_ui.js'; // 20-10: ✨ Claude, el asistente de patronaje (crear o cambiar la prenda con palabras o con una foto) // 20-10: 👒 complementos (gorra, sombrero, pamela, gorro, boina, gafas)
 import * as HU from '../drew/humano.js'; // 18-10: 🧑 avatares humanos (ojos, tonos de piel)
 import * as MI from '../drew/manual_ia.js'; import { desktop } from '../desktop.js'; // 17-10 noche: 🤖 el manual fácil (con la IA del PC o sin ella) y la exportación completa en una carpeta
-import * as MU from '../drew/marca_ui.js'; // 18-10: 🏷️ la pestaña «Mi marca» (todo lo de NOORKO1, con un toque)
 import * as MA from '../drew/marca.js'; // 17-10 noche: 🏷️ su marca THE NOORKO (paleta, medidas de estampado, sus diseños) y el 📚 catálogo de modelos hecho con sus planos
 import * as PZU from '../drew/piezas_ui.js'; // 17-10: 🧩 monta tu sudadera (piezas que se arrastran) y la cremallera pintada en el 3D // 17-10: biblioteca de cuerpos (mujeres y hombres), pelo y el avatar de CLO (.avs)
 import * as CU from '../drew/calibra_ui.js'; import { impresora as impresoraCalibrada, pct } from '../drew/calibra.js'; // 16-10: pestaña 📷 Foto (guía, medir con un folio A4, calibrar la impresora)
@@ -65,12 +66,15 @@ export function render(root) {
   // 18-10-2026 · ella: «los menús mejor organizados, muy feo». La cabecera va POR GRUPOS, cada uno con su nombre encima: la prenda (nombre, talla,
   // deshacer) · Modo · Archivo · Exportar · Vista. Los botones son los mismos de siempre (y hacen lo mismo).
   const grupo = (t, ...L) => h('div.dw-g', { 'data-t': t, role: 'group', 'aria-label': t }, ...L);
-  const cab = h('div.dw-cab', h('h1.dw-marca', 'Celebri', h('b', 'DREW'), h('small', 'atelier 3D')), grupo('Prenda', nombre, chipTalla, bDeshacer, bRehacer), h('div.esp'),
-    grupo('Modo', (bFacil = bc('🧸', 'Fácil', () => ponFacil(!st.facil), { title: 'Modo fácil: arrastra un modelo al avatar, elige chica o chico, la talla, el color y tus diseños, y exporta' }))),
+  // 21-10 · 📱 los grupos de botones van en .dw-cab-bt («display: contents» en el PC y la tablet: no cambia nada); en el MÓVIL son una
+  // segunda fila que se desliza con el dedo (antes quedaban fuera de la pantalla, a la derecha, sin que se viera que estaban)
+  const cab = h('div.dw-cab', h('h1.dw-marca', 'Celebri', h('b', 'DREW'), h('small', 'atelier 3D')), grupo('Prenda', nombre, chipTalla, bDeshacer, bRehacer), h('div.esp'), h('div.dw-cab-bt',
+    grupo('Modo', (bFacil = bc('🧸', 'Fácil', () => ponFacil(!st.facil), { title: 'Modo fácil: arrastra un modelo al avatar, elige chica o chico, la talla, el color y tus diseños, y exporta' })),
+      bc('✨', 'Claude', () => abreClaude(), { title: 'Claude, tu asistente: dile con palabras (o con una foto) la prenda que quieres o qué cambiar, y hace el patrón', cls: 'ghost dw-b-claude' })),
     grupo('Archivo', bc('📂', 'Mis prendas', () => misPrendas()), bc('＋', 'Nueva', () => nueva())),
     grupo('Exportar', bc('🎬', 'Vídeo 7 s', () => video7(), { title: 'Un vídeo vertical de 7 segundos de la prenda girando, para redes (V)' }), bc('🚶‍♀️', 'Vídeo pasarela', () => video7('pasarela'), { title: 'Un vídeo vertical de la modelo desfilando con tu prenda: sale, desfila, posa, se gira y vuelve' }),
       (() => { const b = btn('', () => exporta('pdf'), { cls: 'primary', title: 'Patrón completo con manual (Ctrl+P)' }); b.append(h('i.ic', '📄'), h('span', ' PDF'), h('span.l', ' para imprimir')); return b; })()),
-    grupo('Vista', bTema, btn('⛶', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Este navegador no deja ponerla a pantalla completa', 'bad')); }, { cls: 'ghost', title: 'Pantalla completa (F11)' }), btn('⌨', () => atajos(), { cls: 'ghost', title: 'Atajos de teclado (?)' })));
+    grupo('Vista', bTema, btn('⛶', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => toast('Este navegador no deja ponerla a pantalla completa', 'bad')); }, { cls: 'ghost', title: 'Pantalla completa (F11)' }), btn('⌨', () => atajos(), { cls: 'ghost', title: 'Atajos de teclado (?)' }))));
   const pestanas = h('div.dw-pest', { role: 'tablist' }), panel = h('div.dw-panel');
   const lado = h('div.dw-lado', pestanas, panel);
   // 3D
@@ -113,6 +117,7 @@ export function render(root) {
   W.onerror = e => { aviso3.textContent = '⚠️ La simulación 3D no ha podido arrancar: ' + (e.message || 'error'); };
   W.onmessage = e => { const m = e.data; if (!st.vivo) return;
     if (m.tipo === 'avatar') { V.ponAvatar({ H: m.H, juntas: m.juntas }, m.malla); st.med3d = { medido: m.medido, objetivo: m.objetivo, desvio: m.desvio, ms: m.ms, premium: m.premium, fuera: m.fuera }; if (m.aviso) toast(m.aviso, 'bad', 8000); st.niveles = m.niveles; st.avatarOk = true; V.ponPelo(CUE.peinadoDe(st.P.avatar), st.P.avatar.peloColor || 'igual'); V.piel(st.P.avatar.piel); V.ojos(st.P.avatar.ojos || 'marron'); V.verAvatar(st.verAv);
+      compruebaPuestas();
       aviso3.textContent = 'Avatar listo (' + (m.ms / 1000).toFixed(1) + ' s). Cosiendo la prenda…'; if (st.P.autoAjuste) { ajustaAlAvatar(); regenera(true); } else mandaPrenda(true); if (st.pest === 'avatar' || st.facil) pintaPanel(); }
     else if (m.tipo === 'modelo') { st.topo = m.topo; st.Sv = { P: m.topo.P.map(p => ({ off: p.off, n: p.n, tri: p.tri, tela: p.tela, pz: { nombre: p.nombre } })), uv: m.topo.uv, pos: new Float32Array(m.pos), pares: m.topo.pares };
       V.ponTela(st.Sv, { colores: coloresPiezas(), estampados: estampadosVista(), telaFoto: telaFotoVista() }); V.actualizaTela(null); V.resalta(st.sel); if (m.topo.avisos.length) console.warn('CelebriDREW 3D:', m.topo.avisos); if (m.gen === undefined || m.gen === st.gen) st.espera3d = false; /* (solo la prenda del último encargo) */ st.cosida = false; st.quieta = false; pintaPie(); }
@@ -167,7 +172,12 @@ export function render(root) {
       if (ob && ob.tipo !== 'doblez' && !out.some(x => x.pz === opz && x.borde === o.borde)) out.push({ pz: opz, borde: o.borde, n: ob.n }); }); return out; }
   const ED = editor2d(lienzo2, ctx);
   let piezasVistas = '', encuadrado = false, cortesVistos = '';
-  new ResizeObserver(() => { const r = lienzo2.getBoundingClientRect(); if (r.width > 50 && r.height > 50 && !encuadrado && ctx.prenda) { encuadrado = true; ED.encuadra(); } }).observe(lienzo2);
+  // 21-10 · 📱 en el móvil la ventana cambia de tamaño al colocarse la cabecera (y al girar el móvil): si cambia mucho justo después de encajar,
+  // o se pone de lado / de pie, se vuelve a encajar (antes se encajaba UNA vez y el patrón quedaba cortado por un lado)
+  let medida2 = null, tEnc2 = 0;
+  new ResizeObserver(() => { const r = lienzo2.getBoundingClientRect(); if (!(r.width > 50 && r.height > 50 && ctx.prenda)) return;
+    const m = medida2, mucho = m && (Math.abs(r.width - m[0]) > m[0] * 0.12 || Math.abs(r.height - m[1]) > m[1] * 0.12), gira = m && (r.width > r.height) !== (m[0] > m[1]);
+    if (!encuadrado || (mucho && Date.now() - tEnc2 < 5000) || gira) { encuadrado = true; medida2 = [r.width, r.height]; tEnc2 = Date.now(); ED.encuadra(); } }).observe(lienzo2);
 
   // ---------- el proyecto ----------
   // dónde está cada pieza en la mesa del 2D (se recuerda por su nombre; las nuevas, a la derecha de las que ya había)
@@ -223,10 +233,58 @@ export function render(root) {
     const L = String(texto).split(/\n/), w = Math.ceil(Math.max(...L.map(t => g.measureText(t).width)) + px * 0.3), h = Math.ceil(L.length * px * 1.12 + px * 0.2); c.width = w; c.height = h; g.font = f; g.fillStyle = color || '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
     L.forEach((t, i) => g.fillText(t, w / 2, px * 0.6 + i * px * 1.12)); return c.toDataURL('image/png'); }
   function edita(e, que) { cambia(que, () => { st.P.ediciones.push(...[].concat(e)); }); } // (16-10: un piquete y su pareja = un solo paso de Ctrl+Z)
-  function deshacer() { const r = st.hist.deshacer(st.P); if (!r) return toast('No hay nada que deshacer'); const avAntes = JSON.stringify(st.P.avatar); st.P = r.P; toast('↶ ' + r.que); if (JSON.stringify(st.P.avatar) !== avAntes) mandaAvatar(); regenera(true); }
-  function rehacer() { const r = st.hist.rehacer(st.P); if (!r) return toast('No hay nada que rehacer'); const avAntes = JSON.stringify(st.P.avatar); st.P = r.P; toast('↷ ' + r.que); if (JSON.stringify(st.P.avatar) !== avAntes) mandaAvatar(); regenera(true); }
+  function deshacer() { const r = st.hist.deshacer(st.P); if (!r) return toast('No hay nada que deshacer'); const avAntes = JSON.stringify(st.P.avatar); st.P = r.P; toast('↶ ' + r.que); if (JSON.stringify(st.P.avatar) !== avAntes) mandaAvatar(); sincroConjunto(); regenera(true); }
+  function rehacer() { const r = st.hist.rehacer(st.P); if (!r) return toast('No hay nada que rehacer'); const avAntes = JSON.stringify(st.P.avatar); st.P = r.P; toast('↷ ' + r.que); if (JSON.stringify(st.P.avatar) !== avAntes) mandaAvatar(); sincroConjunto(); regenera(true); }
   function elige(nombrePz, s) { st.sel = nombrePz; const pz = nombrePz && st.P.prenda.piezas.find(p => p.nombre === nombrePz); ctx.sel = pz ? Object.assign({ pieza: pz.id }, s || {}) : {}; V.resalta(nombrePz); ED.pinta(); pintaFicha(); pintaAyuda2(); if (st.pest === 'tela') pintaPanel(); }
-  function abre(P) { st.P = P; st.hist = PR.historial(); st.sel = null; ctx.sel = {}; ctx.disp = P.disp || {}; nombre.value = P.nombre; regenera(false, true); mandaAvatar(); ED.encuadra(); pintaPanel(); }
+  function abre(P) { st.P = P; st.hist = PR.historial(); st.sel = null; ctx.sel = {}; ctx.disp = P.disp || {}; nombre.value = P.nombre; sincroConjunto(); regenera(false, true); mandaAvatar(); ED.encuadra(); pintaPanel(); }
+  // ================= 20-10-2026 · 👕+👖 EL CONJUNTO y 👒 LOS COMPLEMENTOS (ella: «no deja vestir todo el maniquí, solo una cosa, no dos;
+  // pon también accesorios: gorras, sombreros…») =================
+  // Una prenda ya COLOCADA se deja PUESTA: se congela tal cual (con sus colores), se guarda aparte (PR.guardaMalla) y el simulador la cuenta
+  // como algo que la tela no atraviesa → la siguiente prenda se pone ENCIMA. Las puestas valen para ESTE cuerpo: si cambia, se quitan (y se dice).
+  const mallas = new Map(); // id → malla de la prenda puesta (para no leerla otra vez del almacén)
+  const firmaAv = () => JSON.stringify([st.P.avatar.med, st.P.avatar.sexo, st.P.avatar.via, st.P.avatar.peso, st.P.avatar.musculo, st.P.avatar.realista, st.P.avatar.cuerpo]);
+  const mandaPuestas = () => W.postMessage({ tipo: 'puestas', lista: (st.P.puestas || []).map(p => mallas.get(p.id)).filter(Boolean).map(x => ({ pos: x.pos })) });
+  async function sincroConjunto() { const P = st.P, L = P.puestas || [];
+    for (const p of L) if (!mallas.has(p.id)) { try { const x = await PR.leeMalla(p.id); if (x) mallas.set(p.id, x); } catch (e) { } }
+    if (st.P !== P) return; V.ponPuestas(L.map(p => mallas.get(p.id)).filter(Boolean)); V.verTela(!P.ocultaActiva); V.ponAccesorios(P.accesorios || []); if (st.avatarOk) mandaPuestas(); }
+  function compruebaPuestas() { const P = st.P, L = P.puestas || [], f = firmaAv(), malas = L.filter(p => p.firma !== f);
+    if (malas.length) { P.puestas = L.filter(p => p.firma === f); malas.forEach(p => { mallas.delete(p.id); PR.borraMalla(p.id).catch(() => { }); }); if (!P.puestas.length) P.ocultaActiva = false; guarda();
+      toast('👕 Has cambiado el cuerpo del avatar: ' + malas.map(p => '«' + p.nombre + '»').join(', ') + (malas.length > 1 ? ' se han quitado' : ' se ha quitado') + ' (estaban hechas para el cuerpo de antes). Vuelve a ponerlas.', 'warn', 9000); }
+    V.ponPuestas((P.puestas || []).map(p => mallas.get(p.id)).filter(Boolean)); V.verTela(!P.ocultaActiva); mandaPuestas(); }
+  async function dejarPuesta() {
+    const P = st.P, S = st.Sv; if (!S || !P.prenda) return toast('Primero pon una prenda.', 'warn');
+    if (P.ocultaActiva) return toast('Ahora elige la siguiente prenda en el catálogo (la de antes ya está puesta).', 'warn', 6000);
+    if (!st.cosida || !st.quieta) return toast('Espera a que la prenda esté cosida y quieta (abajo pone «colocada»): así se queda bien puesta.', 'warn', 7000);
+    if ((P.puestas || []).length >= 3) return toast('Como mucho 3 prendas puestas además de la que estás haciendo.', 'warn');
+    const col = coloresPiezas(), cv = new Float32Array(S.pos.length), tris = [], tmp = new V.T.Color();
+    S.P.forEach(p => { tmp.set(col[p.pz.nombre] && col[p.pz.nombre] !== 'natural' ? col[p.pz.nombre] : '#e9e6df'); for (let i = p.off; i < p.off + p.n; i++) { cv[3 * i] = tmp.r; cv[3 * i + 1] = tmp.g; cv[3 * i + 2] = tmp.b; }
+      const pl = ArrayBuffer.isView(p.tri) ? p.tri : p.tri.flat(); for (let q = 0; q < pl.length; q++) tris.push(pl[q]); });
+    const uv = new Float32Array(S.uv.length); for (let i = 0; i < uv.length; i++) uv[i] = S.uv[i] / 1000;
+    const id = 'puesta_' + P.id + '_' + Date.now().toString(36), malla = { pos: Float32Array.from(S.pos), tris: Uint32Array.from(tris), uv, col: cv, tela: (S.P[0] && S.P[0].tela) || 'punto' };
+    try { await PR.guardaMalla(id, malla); } catch (e) { return toast('No se ha podido guardar la prenda puesta: ' + e.message, 'bad'); }
+    mallas.set(id, malla); st.hist.apunta(P, 'Dejar puesta «' + (P.nombre || 'prenda') + '»');
+    P.puestas = (P.puestas || []).concat([{ id, nombre: P.nombre || 'Prenda', firma: firmaAv() }]); P.ocultaActiva = true;
+    V.ponPuestas(P.puestas.map(p => mallas.get(p.id)).filter(Boolean)); V.verTela(false); mandaPuestas(); guarda(); if (st.facil) st.fpaso = '2'; pintaPanel();
+    toast('📌 «' + (P.nombre || 'Prenda') + '» se queda puesta. Ahora elige la siguiente prenda: irá ENCIMA.', 'ok', 8000);
+  }
+  function quitaPuesta(i) { const P = st.P, x = P.puestas[i]; if (!x) return; st.hist.apunta(P, 'Quitar «' + x.nombre + '»'); P.puestas.splice(i, 1); mallas.delete(x.id); PR.borraMalla(x.id).catch(() => { });
+    if (!P.puestas.length && P.ocultaActiva) { P.ocultaActiva = false; V.verTela(true); }
+    V.ponPuestas(P.puestas.map(p => mallas.get(p.id)).filter(Boolean)); mandaPuestas(); guarda(); pintaPanel(); }
+  function ponComplemento(k) { const P = st.P; st.hist.apunta(P, 'Complemento'); let L = (P.accesorios || []).slice(); const ya = L.find(a => a.k === k);
+    if (ya) L = L.filter(a => a.k !== k); else { if (AC.DE_CABEZA.has(k)) L = L.filter(a => !AC.DE_CABEZA.has(a.k)); L.push({ k, color: (AC.COMPLEMENTOS.find(x => x[0] === k) || [])[2] }); }
+    P.accesorios = L; V.ponAccesorios(L); guarda(); pintaPanel();
+    if (k === 'gafas' && !ya && P.avatar.realista === false) toast('Las gafas necesitan el avatar realista (el que tiene ojos).', 'warn', 6000); }
+  function colorComplemento(k, c) { const a = (st.P.accesorios || []).find(x => x.k === k); if (!a) return; a.color = c; V.ponAccesorios(st.P.accesorios); guarda(); }
+  function bloqueConjunto() { const P = st.P, L = P.puestas || [], acc = P.accesorios || [];
+    return h('div.dw-conjunto',
+      h('h3', '👕+👖 Conjunto: varias prendas a la vez'),
+      h('div.dw-ayuda', P.ocultaActiva ? '👉 Elige arriba la siguiente prenda: irá encima de lo que ya lleva puesto.' : 'Cuando esta prenda esté colocada, déjala puesta y elige otra: va ENCIMA. Pon primero lo de dentro (pantalón, camiseta) y después lo de fuera.'),
+      L.length ? h('div.dw-puestas', L.map((p, i) => h('div.dw-puesta', { 'data-puesta': i }, h('span', '📌 ' + p.nombre), h('button.dw-chip', { type: 'button', title: 'Quitársela', 'aria-label': 'Quitar ' + p.nombre, onclick: () => quitaPuesta(i) }, '✕')))) : null,
+      P.ocultaActiva ? null : btn('📌 Dejar esta puesta y añadir otra', dejarPuesta, { cls: 'sm primary dw-dejar-puesta' }),
+      h('h3', '👒 Complementos'),
+      h('div.dw-chips.dw-complementos', AC.COMPLEMENTOS.map(([k, t]) => h('button.dw-chip' + (acc.some(a => a.k === k) ? '.on' : ''), { type: 'button', 'data-acc': k, onclick: () => ponComplemento(k) }, t))),
+      acc.length ? h('div.dw-acc-colores', acc.map(a => h('label.dw-acc-color', h('span', ((AC.COMPLEMENTOS.find(x => x[0] === a.k) || [])[1]) || a.k), h('input', { type: 'color', value: a.color || '#333333', 'data-acc-color': a.k, onchange: e => colorComplemento(a.k, e.target.value) })))) : null);
+  }
   async function nueva() { const k = await eligePlantilla(); if (!k) return; const P = proyectoNuevo(k); P.avatar = JSON.parse(JSON.stringify(st.P.avatar)); abre(P); toast('👗 ' + BL.BLOQUES[k].t + ' nueva, ajustada a tu avatar'); }
   function eligePlantilla() { return new Promise(res => { let ok = false; const m = modal('¿Qué prenda?', h('div.dw-plantillas', Object.values(BL.BLOQUES).map(D => h('button', { onclick: () => { ok = true; m.close(); res(D.k); } }, h('b', D.e), D.t))), null, { size: 'narrow', onclose: () => { if (!ok) res(null); } }); }); }
   async function misPrendas() {
@@ -342,11 +400,11 @@ export function render(root) {
   }
 
   // ---------- la biblioteca (izquierda) ----------
-  const PEST = [['prenda', '👗', 'Prenda'], ['avatar', '🧍', 'Avatar'], ['tela', '🧵', 'Tela'], ['marca', '🏷️', 'Mi marca'], ['foto', '📷', 'Foto'], ['exportar', '⬇', 'Exportar']];
+  const PEST = [['prenda', '👗', 'Prenda'], ['avatar', '🧍', 'Avatar'], ['tela', '🧵', 'Tela'], ['foto', '📷', 'Foto'], ['exportar', '⬇', 'Exportar']];
   function pintaPestanas() { if (st.facil) return mount(pestanas, h('button.on', { type: 'button', role: 'tab', 'aria-selected': 'true', title: 'Modo fácil' }, h('b', '🧸'), 'Fácil'), h('button.dw-facil-salir', { type: 'button', title: 'Volver al modo completo (con el patrón 2D y todas las herramientas)', onclick: () => ponFacil(false) }, h('b', '🧑‍🎨'), 'Completo'));
     mount(pestanas, PEST.map(([k, e, t]) => h('button' + (st.pest === k && !st.plegado ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': st.pest === k ? 'true' : 'false', onclick: () => { st.pest = k; if (st.plegado) plega(false); pintaPestanas(); pintaPanel(); } }, h('b', e), t)),
     h('button.dw-plegar', { type: 'button', title: st.plegado ? 'Abrir la biblioteca' : 'Plegar la biblioteca: más sitio para el 3D y el patrón', 'aria-label': st.plegado ? 'Abrir la biblioteca' : 'Plegar la biblioteca', onclick: () => plega(!st.plegado) }, h('b', st.plegado ? '»' : '«'), st.plegado ? 'Abrir' : 'Plegar')); }
-  function pintaPanel() { if (st.facil) return mount(panel, panelFacil()); const f = { prenda: panelPrenda, avatar: panelAvatar, tela: panelTela, marca: panelMarca, foto: panelFoto, exportar: panelExportar }[st.pest] || panelPrenda; mount(panel, f()); }
+  function pintaPanel() { if (st.facil) return mount(panel, panelFacil()); const f = { prenda: panelPrenda, avatar: panelAvatar, tela: panelTela, foto: panelFoto, exportar: panelExportar }[st.pest] || panelPrenda; mount(panel, f()); }
   const irA = k => { st.pest = k; pintaPestanas(); pintaPanel(); };
   // 📷 FOTO (drew/calibra_ui.js): qué foto sirve, MEDIR con una foto calibrada con un folio A4 (y llevar la medida a la prenda), calibrar la IMPRESORA
   function panelFoto() { return CU.panelFoto(opFoto()); }
@@ -387,6 +445,9 @@ export function render(root) {
   const opImagen = extra => Object.assign({ crear: deImagen, listo: () => !!st.niveles, crearExacta: A => deFoto(A), crearPatron: A => dePatron(A),
     cuerpo: (k, ajuste) => TA.medidasPrenda(k, cuerpoParaPrenda(st.P.avatar.med, st.niveles), { ajuste, manga: 'larga' }) }, extra || {});
   const desdeImagen = () => IU.abre(opImagen());
+  // 20-10-2026 · ✨ Claude: lo que hay ahora (para que cambie solo lo que se pide) y el mismo «crear» que las fotos (deImagen: patrón a la medida)
+  const abreClaude = () => CLU.abre({ listo: () => !!st.niveles, crear: (D, L, x) => deImagen(D, L, x), imagen: () => { const u = IU.ultimaImagen && IU.ultimaImagen(); return u && u.url; },
+    actual: () => { const P = st.P; return { nombre: P.nombre, plantilla: P.k, opciones: P.opciones, ficha: P.deImagen ? P.deImagen.lee : null, talla: P.avatar && P.avatar.talla, avatar: P.avatar && P.avatar.sexo === 'hombre' ? 'chico' : 'chica' }; } });
   const desdePatron = () => IU.abre(opImagen({ modoPatron: true })); // (18-10) 📐 la imagen de un PATRÓN → la prenda
   // (18-10) 📐 la prenda de un PATRÓN en imagen: plantilla + opciones + las MEDIDAS del patrón (las suyas: no se cambian al cambiar el avatar)
   function dePatron(A) {
@@ -440,19 +501,10 @@ export function render(root) {
   // ---------- 17-10 noche · 📚 CATÁLOGO DE MODELOS (hechos con SUS planos de NOORKO1) y 🏷️ SU MARCA ----------
   // su carpeta NOORKO1 en el PC: se busca una vez; sin PC (móvil, iPad) los modelos salen igual, sin la miniatura de su plano
   function modeloPorId(id) { return MA.MODELOS.find(m => m.id === id) || DISENOS.find(d => d.id === id) || null; }
-  function cargaMarca() { if (st.marca.mirada) return; st.marca.mirada = true;
-    (async () => { const b = await MA.carpeta(); st.marca.base = (await MA.existe(b)) ? b : null; if (st.marca.base) { try { st.marca.disenos = await MA.imagenes(st.marca.base, ['DISEÑOS', 'LOGO'], 60); } catch (e) { st.marca.disenos = []; } }
-      if (st.P && (st.pest === 'prenda' || st.pest === 'tela' || st.pest === 'marca' || st.facil)) pintaPanel(); })(); } /* (18-10: también «Mi marca»: si se abría la primera, se quedaba en «no encuentro tu carpeta») */
-  // (18-10) 🏷️ MI MARCA: su avatar de CLO, sus fotos (→ «Desde una imagen»), diseños, logos, gráficos y etiquetas (→ estampados), los detalles
+  // 21-10-2026 · ella: «borra NOORKO si molesta, la verdad»: ya NO se busca su carpeta NOORKO1 (solo iba en el PC y CelebriDREW tiene que ir en
+  // todo: PC, tablet y móvil). Los modelos del catálogo, la paleta y los tamaños de estampado siguen (no necesitan la carpeta). Su carpeta no se toca.
+  function cargaMarca() { if (st.marca.mirada) return; st.marca.mirada = true; st.marca.base = null; st.marca.disenos = []; }
   function piezaEspalda() { const L = (st.P.prenda && st.P.prenda.piezas) || [], pz = L.find(p => /^(Cuerpo espalda|Espalda)/.test(p.nombre)); return pz ? pz.nombre.replace(/ \(.*\)$/, '') : null; }
-  function panelMarca() { cargaMarca(); return MU.panel({ st, base: st.marca.mirada && st.marca.base === null ? null : st.marca.base, repinta: () => { if (st.pest === 'marca') pintaPanel(); },
-    recarga: () => { st.marca.mirada = false; cargaMarca(); pintaPanel(); },
-    estampar: d => disenoAEstampado(d),
-    etiqueta: async d => { const pz = piezaEspalda(); if (!pz) return toast('Esta prenda no tiene espalda donde poner la etiqueta.', 'bad'); try { anadeEstampado(await MA.aDataUrl(d.ruta), { pieza: pz, x: 0, yc: 55, w: 50, nombre: 'Etiqueta ' + d.nombre, que: 'Etiqueta «' + d.nombre + '» detrás del cuello' }); toast('🏷️ Etiqueta detrás del cuello (muévela en «Tela»)', 'ok'); } catch (e) { toast('No puedo leer esa etiqueta: ' + e.message, 'bad'); } },
-    abrir: async d => { try { const r = await fetch(MA.urlDe(d.ruta)), b = await r.blob(); IU.abre(opImagen(), new File([b], d.nombre + '.png', { type: b.type || 'image/png' })); } catch (e) { toast('No puedo abrir esa imagen: ' + e.message, 'bad'); } },
-    clo: async (ruta, nombre) => { st.pest = 'avatar'; pintaPestanas(); pintaPanel(); try { const r = await fetch(MA.urlDe(ruta)), L = CUE.leeAvs(await r.arrayBuffer()); if (!L) return toast('No he podido leer ese avatar de CLO.', 'bad', 8000); if (st.cloConfirma) st.cloConfirma(L, nombre); } catch (e) { toast('No puedo leer ' + nombre + ': ' + e.message, 'bad'); } },
-    color: hex => cambia('Color ' + hex, () => { st.P.tela.color = hex; st.P.tela.colorPieza = {}; }),
-    ficha: () => { st.pest = 'exportar'; pintaPestanas(); pintaPanel(); } }); }
   async function disenoAEstampado(d) { try { anadeEstampado(await MA.aDataUrl(d.ruta), { nombre: d.nombre, que: 'Tu diseño «' + d.nombre + '»' }); } catch (e) { toast('No puedo leer ese diseño: ' + e.message, 'bad', 6000); } }
   function catalogoModelos() {
     cargaMarca(); const P = st.P, g = st.grupoCat || 'basicos', base = st.marca.base, chico = P.avatar.sexo === 'hombre', q = (st.buscaCat || '').trim().toLowerCase();
@@ -462,7 +514,7 @@ export function render(root) {
         ondragstart: e => { e.dataTransfer.setData(TIPO_MODELO, m.id); e.dataTransfer.setData('text/plain', m.t); e.dataTransfer.effectAllowed = 'copy'; document.body.classList.add('dw-arrastrando'); }, ondragend: () => document.body.classList.remove('dw-arrastrando') });
       b.append(base && m.ref ? h('img', { src: MA.urlDe(MA.rutaPlano(base, m.ref)), alt: '', loading: 'lazy', draggable: 'false' }) : h('b.dw-modelo-e', m.e || '👗'), h('span', m.t)); if (m.para) b.append(h('i.dw-modelo-para', { title: 'Pensado para mujer' }, '♀')); return b; }; // (append(null) escribía «null» debajo de cada nombre)
     return [h('h3', '📚 Catálogo de modelos (' + (MA.MODELOS.length + DISENOS.length) + ')'),
-      h('div.dw-ayuda', (base ? 'Hechos con tus planos de NOORKO1, en los colores de THE NOORKO. ' : '') + 'Tócalo o ARRÁSTRALO al avatar: sale en 3D a su medida y en su talla (chico o chica: el avatar).'),
+      h('div.dw-ayuda', 'Tócalo o ARRÁSTRALO al avatar: sale en 3D a su medida y en su talla (chico o chica: el avatar).'),
       h('div.dw-busca-cat', h('input.inp', { type: 'search', placeholder: '🔎 Buscar: sudadera, crop, falda, vestido…', value: st.buscaCat || '', 'aria-label': 'Buscar modelo', oninput: e => { st.buscaCat = e.target.value; const c = e.target.selectionStart; pintaPanel(); const i = panel.querySelector('.dw-busca-cat input'); if (i) { i.focus(); try { i.setSelectionRange(c, c); } catch (x) { } } } })),
       q ? h('div.dw-ayuda', L.length ? L.length + ' modelo(s) con «' + st.buscaCat.trim() + '»' : 'Ningún modelo con «' + st.buscaCat.trim() + '»') : h('div.dw-chips.dw-grupos', [['basicos', '✨ Básicos']].concat(MA.GRUPOS).map(([k, t]) => h('button.dw-chip' + (g === k ? '.on' : ''), { type: 'button', 'data-grupo': k, onclick: () => { st.grupoCat = k; pintaPanel(); } }, t))),
       L.length < L0.length ? h('div.dw-ayuda.dw-solo-chica', '♀ ' + (L0.length - L.length) + ' modelo(s) de este grupo son de chica: salen con el avatar de chica.') : null,
@@ -470,7 +522,7 @@ export function render(root) {
   }
   function panelPrenda() {
     const P = st.P, D = BL.BLOQUES[P.k];
-    return [catalogoModelos(),
+    return [catalogoModelos(), bloqueConjunto(),
       h('div.dw-desde', btn('🌐 Desde una imagen (internet, revista…)', desdeImagen, { cls: 'ghost dw-desde-imagen', title: 'La IA del PC lee la prenda de la foto y hace su patrón a la medida de tu avatar' }),
         btn('📐 Patrón desde una imagen', desdePatron, { cls: 'ghost dw-desde-patron', title: 'Una foto, un escaneo o un dibujo de un PATRÓN: saco sus piezas, sus medidas y la prenda rediseñada (en 3D y editable)' })),
       h('h3', 'Plantilla'), h('div.dw-plantillas', Object.values(BL.BLOQUES).map(B => h('button' + (B.k === P.k ? '.on' : ''), { type: 'button', onclick: () => cambiaPlantilla(B.k) }, h('b', B.e), B.t))),
@@ -495,7 +547,8 @@ export function render(root) {
   function aplicaDiseno(Dz) { const P = st.P; if (Dz.para === 'mujer' && P.avatar.sexo === 'hombre') { toast('«' + Dz.t + '» es un modelo de chica: pon el avatar de chica (👩) para hacerlo.', 'bad', 6000); return; } cambia('Diseño «' + Dz.t + '»', () => { P.porPlantilla[P.k] = { medidas: P.medidas, ediciones: P.ediciones, opciones: P.opciones, disp: P.disp, tela: JSON.parse(JSON.stringify(P.tela)) };
       P.k = Dz.k; P.diseno = Dz.id; P.escala = Dz.escala || null; P.refPlano = Dz.ref || null; P.opciones = Object.assign(BL.opcionesPorDefecto(Dz.k), Dz.opciones); P.ajuste = Dz.ajuste; P.autoAjuste = true; P.ediciones = []; P.disp = {}; ctx.disp = P.disp; st.sel = null; P.nombre = Dz.t;
       P.medidas = {}; Object.entries(Dz.medidas || {}).forEach(([m, v]) => { P.medidas[m] = { v, origen: 'usuario', confianza: 1 }; }); P.tela = { def: Dz.tela, color: Dz.color, porPieza: {} }; ajustaAlAvatar(); }, { conservar: false });
-    setTimeout(() => ED.encuadra(), 50); toast(Dz.e + ' ' + Dz.t + ': se está cosiendo en tu avatar…', 'ok', 4000); }
+    if (P.ocultaActiva) { P.ocultaActiva = false; V.verTela(true); } // (20-10: la siguiente prenda del conjunto)
+    setTimeout(() => ED.encuadra(), 50); toast(Dz.e + ' ' + Dz.t + ': se está cosiendo en tu avatar' + ((P.puestas || []).length ? ', encima de lo que ya lleva' : '') + '…', 'ok', 4000); }
   function cambiaPlantilla(k) { const P = st.P; if (k === P.k) return; cambia('Plantilla ' + BL.BLOQUES[k].t, () => { P.porPlantilla[P.k] = { medidas: P.medidas, ediciones: P.ediciones, opciones: P.opciones, disp: P.disp, tela: JSON.parse(JSON.stringify(P.tela)) };
       const g = P.porPlantilla[k] || {}; P.k = k; P.escala = null; P.refPlano = null; P.medidas = g.medidas || {}; P.ediciones = g.ediciones || []; P.opciones = g.opciones || BL.opcionesPorDefecto(k); P.disp = g.disp || {}; ctx.disp = P.disp; st.sel = null; if (P.nombre === 'Prenda nueva' || Object.values(BL.BLOQUES).some(B => B.t === P.nombre)) P.nombre = BL.BLOQUES[k].t;
       // (16-10: cada prenda RECUERDA su tela y su color; la primera vez, los suyos de siempre: antes la organza de la falda pasaba a la sudadera)
@@ -545,21 +598,21 @@ export function render(root) {
       h('h3', 'Color'), h('div.dw-chips', h('button.dw-chip' + (P.tela.color === 'natural' ? '.on' : ''), { type: 'button', title: 'El color de verdad de la tela (el de la foto del tejido)', onclick: () => ponColor('natural') }, '🧵 Natural'), COLORES.map(c => h('button.dw-chip', { type: 'button', title: c, style: { width: '30px', height: '30px', padding: 0, background: c, borderColor: P.tela.color === c ? 'var(--brand)' : 'var(--line-2)', borderWidth: P.tela.color === c ? '3px' : '1px' }, onclick: () => ponColor(c) })), h('input', { type: 'color', value: P.tela.color === 'natural' ? '#888888' : P.tela.color, title: 'Otro color', onchange: e => ponColor(e.target.value) })),
       pz ? [h('h3', 'Solo «' + pz + '»'), h('div.dw-chips', Object.entries(TELAS).map(([k, T]) => h('button.dw-chip' + (P.tela.porPieza[pz] === k ? '.on' : ''), { type: 'button', onclick: () => ponTela(k, pz) }, T.t))),
         h('div', { style: { marginTop: '6px' } }, h('input', { type: 'color', value: ((P.tela.colorPieza && P.tela.colorPieza[pz]) || P.tela.color).replace('natural', '#888888'), onchange: e => ponColor(e.target.value, pz) }), h('span.dw-ayuda', ' color solo de esta pieza'))] : h('div.dw-ayuda', 'Elige una pieza (en el 2D o tocándola en el 3D) para darle otra tela o color.'),
-      h('h3', '🏷️ Paleta ' + MA.MARCA.nombre), h('div.dw-chips.dw-marca-pal', MA.MARCA.colores.map(c => h('button.dw-chip', { type: 'button', 'data-color': c.hex, title: c.t + ' · ' + c.uso + (pz ? ' (solo «' + pz + '»)' : ''), style: { width: '34px', height: '34px', padding: 0, background: c.hex, borderColor: (P.tela.color || '').toLowerCase() === c.hex.toLowerCase() ? 'var(--brand)' : 'var(--line-2)', borderWidth: '2px' }, onclick: () => ponColor(c.hex, pz || null) }))),
+      h('h3', '🎨 Paleta de colores'), h('div.dw-chips.dw-marca-pal', MA.MARCA.colores.map(c => h('button.dw-chip', { type: 'button', 'data-color': c.hex, title: c.t + ' · ' + c.uso + (pz ? ' (solo «' + pz + '»)' : ''), style: { width: '34px', height: '34px', padding: 0, background: c.hex, borderColor: (P.tela.color || '').toLowerCase() === c.hex.toLowerCase() ? 'var(--brand)' : 'var(--line-2)', borderWidth: '2px' }, onclick: () => ponColor(c.hex, pz || null) }))),
       h('div.dw-ayuda', 'Tu libro de marca: base Negro Carbón · detalles en Gris Acero · UN solo punto de rojo · cian para bordados mínimos · off-white para letras. ' + (pz ? 'Con «' + pz + '» elegida, el color va solo a esa pieza.' : 'Elige una pieza para darle otro color (puños, bolsillo…).')),
       h('h3', '🖼 Estampados'), h('div.dw-ayuda', 'Una imagen (mejor PNG con fondo transparente) o unas letras sobre una pieza. Se ven en el 3D, en el patrón y en el PDF. Las que vienen de una foto de producto ya salen recortadas.'),
       (() => { cargaMarca(); const L = st.marca.disenos || []; if (!st.marca.base || !L.length) return null;
-        return h('div', h('div.dw-ayuda', '🎨 Tus diseños (NOORKO1): tócalo o arrástralo a la prenda.'), h('div.dw-misdisenos', L.map(d => { const b = h('button.dw-midiseno', { type: 'button', draggable: 'true', title: d.nombre, 'data-ruta': d.ruta, onclick: () => disenoAEstampado(d),
+        return h('div', h('div.dw-ayuda', '🎨 Tus diseños: tócalo o arrástralo a la prenda.'), h('div.dw-misdisenos', L.map(d => { const b = h('button.dw-midiseno', { type: 'button', draggable: 'true', title: d.nombre, 'data-ruta': d.ruta, onclick: () => disenoAEstampado(d),
           ondragstart: e => { e.dataTransfer.setData(TIPO_DISENO, JSON.stringify({ ruta: d.ruta, nombre: d.nombre })); e.dataTransfer.setData('text/plain', d.nombre); e.dataTransfer.effectAllowed = 'copy'; document.body.classList.add('dw-arrastrando'); }, ondragend: () => document.body.classList.remove('dw-arrastrando') });
           b.append(h('img', { src: MA.urlDe(d.ruta), alt: '', loading: 'lazy', draggable: 'false' })); return b; }))); })(),
       h('div.dw-ests', (P.estampados || []).map((E, i) => { const mueve = (dx, dy, k) => cambiaEst(k ? 'Tamaño del estampado' : 'Mover el estampado', () => { const x = st.P.estampados[i]; if (k) { x.w = Math.max(10, Math.round(x.w * k)); x.h = Math.max(10, Math.round(x.h * k)); } else { x.x += dx; if (x.yc != null) x.yc -= dy; else x.y += dy; } });
         // (17-10 noche) las medidas de SU libro de marca: espalda 40 × 50, pecho 30 × 30, logo de pecho izquierdo 12 × 12 (cabe entero, sin deformarse)
-        const deMarca = h('div.dw-chips.dw-estam-marca', MA.MARCA.estampados.map(Mm => h('button.dw-chip', { type: 'button', 'data-medida': Mm.k, title: 'Como en tu libro de marca: ' + Mm.t, onclick: () => colocaDeMarca(i, Mm) }, Mm.t)));
+        const deMarca = h('div.dw-chips.dw-estam-marca', MA.MARCA.estampados.map(Mm => h('button.dw-chip', { type: 'button', 'data-medida': Mm.k, title: 'Tamaño de estampado: ' + Mm.t, onclick: () => colocaDeMarca(i, Mm) }, Mm.t)));
         return h('div.dw-estam', { 'data-est': E.id }, h('img', { src: estUrl(E), alt: '' }), h('div.dw-estam-t', h('b', E.nombre || 'Estampado ' + (i + 1)), h('small', E.pieza + ' · ' + G.cm(E.w) + ' × ' + G.cm(E.h) + ' cm'), deMarca),
           h('div.dw-estam-b', [['◀', 'Mover 1 cm a la izquierda', () => mueve(-10, 0)], ['▲', 'Subir 1 cm', () => mueve(0, 10)], ['▼', 'Bajar 1 cm', () => mueve(0, -10)], ['▶', 'Mover 1 cm a la derecha', () => mueve(10, 0)], ['−', 'Más pequeño', () => mueve(0, 0, 0.9)], ['+', 'Más grande', () => mueve(0, 0, 1.1)], ['✕', 'Quitar el estampado', () => cambiaEst('Quitar estampado', () => { st.P.estampados.splice(i, 1); })]]
             .map(([t, ti, f]) => h('button.dw-estam-bt', { type: 'button', title: ti, 'aria-label': ti, onclick: f }, t)))); })),
       h('div.dw-chips', { style: { marginTop: '6px' } }, btn('🖼 Añadir una imagen…', () => { const i = h('input', { type: 'file', accept: 'image/*', style: { display: 'none' }, onchange: e => { const f = e.target.files[0]; i.remove(); if (!f) return; const r = new FileReader(); r.onload = () => anadeEstampado(r.result, { nombre: f.name.replace(/\.[^.]+$/, '') }); r.readAsDataURL(f); } }); document.body.append(i); i.click(); }, { cls: 'ghost dw-est-img' })),
-      (() => { const tx = h('input.dw-estam-txt', { type: 'text', placeholder: 'Escribe unas letras (p. ej. NOORKO)', maxlength: 40 }), co = h('input', { type: 'color', value: '#ffffff', title: 'Color de las letras' });
+      (() => { const tx = h('input.dw-estam-txt', { type: 'text', placeholder: 'Escribe unas letras (p. ej. tu marca)', maxlength: 40 }), co = h('input', { type: 'color', value: '#ffffff', title: 'Color de las letras' });
         return h('div.dw-chips', { style: { marginTop: '6px', alignItems: 'center' } }, tx, co, btn('Aa Estampar letras', () => { const t = tx.value.trim(); if (!t) return toast('Escribe primero las letras.', 'bad'); anadeEstampado(letrasAPng(t, co.value), { nombre: '«' + t + '»', que: 'Letras «' + t + '»' }); }, { cls: 'ghost dw-est-letras' })); })(),
       h('h3', '🌡 Mapa de ajuste'), h('div.dw-ayuda', 'En la barra del 3D, «🌡 Ajuste» pinta dónde tira la tela: verde = suelta, amarillo = justa (5 %), rojo = tira (10 % o más). Es lo que se estira la tela sobre el avatar, calculado en la simulación.')];
   }
@@ -572,7 +625,13 @@ export function render(root) {
     else toast('📏 ' + (sexo === 'hombre' ? 'Chico' : 'Chica') + ', talla ' + X.t + ': ajustando el avatar y la prenda…', 'ok', 2500); }
   function panelFacil() {
     const P = st.P, A = P.avatar, T = st.errorPrenda ? null : tallaPrenda(), sexo = A.sexo === 'hombre' ? 'hombre' : 'mujer', tabla = TA.TABLAS[sexo], tAv = A.via === 'talla' ? A.talla : null;
-    const paso = (n, t, ...c) => h('section.dw-fpaso', { 'data-paso': n }, h('h3.dw-fpaso-t', h('i', n), t), ...c);
+    // 20-10-2026 · los 5 pasos como SUBMENÚS: uno abierto cada vez (los demás, plegados con su resumen) → sin bajar y bajar con la rueda
+    const abierto = st.fpaso || '1', RES = { '1': (sexo === 'hombre' ? 'Chico' : 'Chica') + (tAv ? ' · ' + tAv : ''), '2': P.nombre || '', '3': '', '4': (P.estampados || []).length ? (P.estampados.length + ' diseño' + (P.estampados.length > 1 ? 's' : '')) : '', '5': '' };
+    const abre = n => { st.fpaso = n; pintaPanel(); const s = panel.querySelector('[data-paso="' + n + '"]'); if (s && s.scrollIntoView) s.scrollIntoView({ block: 'nearest' }); };
+    const paso = (n, t, ...c) => n === abierto
+      ? h('section.dw-fpaso.abierto', { 'data-paso': n }, h('h3.dw-fpaso-t', h('i', n), t), ...c, n < '5' ? h('div.dw-fpaso-sig', btn('Siguiente →', () => abre(String(+n + 1)), { cls: 'sm primary' })) : null)
+      : h('section.dw-fpaso.plegado', { 'data-paso': n }, h('button.dw-fpaso-t', { type: 'button', 'aria-expanded': 'false', onclick: () => abre(n) }, h('i', n), h('span', t),
+        n === '3' ? h('em.dw-fpaso-color', { style: { background: P.tela.color || '#888' } }) : RES[n] ? h('em', RES[n]) : null, h('b.dw-fpaso-fl', '▾')));
     const ponColor = c => { P.tela.color = c; P.tela.colorPieza = {}; Object.entries(coloresPiezas()).forEach(([n, x]) => V.colorTela(x, n)); guarda(); pintaPanel(); };
     const col = (c, t) => h('button.dw-chip.dw-fcolor' + ((P.tela.color || '').toLowerCase() === c.toLowerCase() ? '.on' : ''), { type: 'button', 'data-color': c, title: t || c, style: { background: c }, onclick: () => ponColor(c) });
     cargaMarca(); const L = st.marca.disenos || [];
@@ -581,7 +640,7 @@ export function render(root) {
         h('div.dw-chips.dw-fsexo', [['mujer', '👩 Chica'], ['hombre', '👨 Chico']].map(([k, t]) => h('button.dw-chip' + (sexo === k ? '.on' : ''), { type: 'button', 'data-sexo': k, onclick: () => ponCuerpoFacil(k, tAv || 'M') }, t))),
         h('div.dw-chips.dw-ftallas', tabla.tallas.map(X => h('button.dw-chip' + (tAv === X.t ? '.on' : ''), { type: 'button', 'data-talla': X.t, onclick: () => ponCuerpoFacil(sexo, X.t) }, X.t))),
         h('div.dw-ayuda', A.via === 'talla' ? 'El avatar es una ' + (sexo === 'hombre' ? 'chico' : 'chica') + ' de talla ' + tAv + ' (tabla europea).' : 'El avatar va con sus propias medidas (las cambias en «Modo completo» → Avatar).', T ? h('b', ' La prenda sale una talla ' + T.texto + '.') : null)),
-      paso('2', 'Elige la prenda', catalogoModelos()),
+      paso('2', 'Elige la prenda', catalogoModelos(), bloqueConjunto()),
       paso('3', 'El color', h('div.dw-chips.dw-fcolores', MA.MARCA.colores.map(c => col(c.hex, c.t + ' · ' + c.uso)), COLORES.map(c => col(c)), h('input', { type: 'color', value: /^#[0-9a-f]{6}$/i.test(P.tela.color || '') ? P.tela.color : '#888888', title: 'Otro color', onchange: e => ponColor(e.target.value) }))),
       paso('4', 'Tus diseños', h('div.dw-ayuda', st.marca.base && L.length ? 'Toca uno o ARRÁSTRALO a la prenda. Luego elige dónde va: espalda, pecho o logo.' : 'Pon una imagen (mejor PNG sin fondo) y elige dónde va.'),
         st.marca.base && L.length ? h('div.dw-misdisenos', L.slice(0, 24).map(d => { const b = h('button.dw-midiseno', { type: 'button', draggable: 'true', title: d.nombre, 'data-ruta': d.ruta, onclick: () => disenoAEstampado(d),
@@ -611,7 +670,14 @@ export function render(root) {
     const P = st.P, E = estadoManual(); if (!E.P0) return; const P0 = E.P0, prev = E.ok ? E.M : null; let ia = !!(prev && prev.ia), modelo = prev ? prev.modelo || null : null, ctl = null;
     const cajas = P0.map((p, i) => h('textarea.dw-man-t', { rows: 3, 'data-paso': i, oninput: () => { cajas[i].dataset.mano = '1'; } }, prev ? prev.pasos[i] : MI.sencillo(p)));
     const estado = h('div.dw-ayuda.dw-man-estado', prev ? (prev.ia ? '🤖 Escrito con la IA de tu PC (' + (prev.modelo || 'local') + ') y revisado por ti.' : '📝 Manual sencillo (sin IA), revisado por ti.') : '📝 Este es el manual SENCILLO (sin IA). Léelo y cámbialo si quieres, o pulsa «✨ Pedírselo a la IA» para que lo reescriba la IA de tu PC.'), vivo = h('pre.dw-man-vivo', { style: { display: 'none' } });
-    const bIA = btn('✨ Pedírselo a la IA', async () => { let S = null; try { const { localStatus } = await import('../ai/models.js'); S = await localStatus(); } catch (e) { S = null; }
+    const bIA = btn('✨ Pedírselo a la IA', async () => {
+      if (!desktop.on) { /* 21-10 · en el MÓVIL / la TABLET: lo escribe la IA del PC del taller, por encargo (drew/claude_pc.js) */
+        bIA.disabled = true; estado.textContent = '📤 Se lo pido a la IA de tu PC del taller (tiene que estar encendido con el programa abierto)…'; ctl = new AbortController();
+        try { const { manualPorPC } = await import('../drew/claude_pc.js'), R = await manualPorPC(P0, { nombre: P.nombre, tela: ((TELAS[P.tela.def] || {}).t) || null }, { onStatus: t => { estado.textContent = t; }, signal: ctl.signal });
+          R.pasos.forEach((t, i) => { cajas[i].value = t; delete cajas[i].dataset.mano; }); ia = true; modelo = R.modelo; estado.textContent = '🤖 Escrito por la IA de tu PC del taller (' + R.modelo + '). LÉELO antes de usarlo: cambia lo que no te convenza.' + (R.avisos.length ? ' ⚠️ ' + R.avisos.join(' · ') : ''); }
+        catch (e) { if (e && e.name === 'AbortError') return; estado.textContent = '⚠️ ' + (e.message || e) + ' Queda el manual sencillo: revísalo y úsalo.'; } finally { bIA.disabled = false; ctl = null; }
+        return; }
+      let S = null; try { const { localStatus } = await import('../ai/models.js'); S = await localStatus(); } catch (e) { S = null; }
       if (!S || !S.disponible || !S.modelo) { estado.textContent = '⚠️ La IA del PC no está lista' + (S && S.motivo ? ' (' + S.motivo + ')' : '') + '. Queda el manual sencillo: revísalo y úsalo.'; return; }
       bIA.disabled = true; estado.textContent = '✨ La IA de tu PC (' + S.modelo + ') está escribiendo el manual… puede tardar un minuto.'; vivo.style.display = ''; ctl = new AbortController();
       try { const R = await MI.escribe(P0, { chat: desktop.iaChat, modelo: S.modelo, prenda: { nombre: P.nombre, tela: ((TELAS[P.tela.def] || {}).t) || null }, onTexto: t => { vivo.textContent = t.slice(-300); }, signal: ctl.signal });
@@ -637,7 +703,7 @@ export function render(root) {
     try {
       const n = limpio(P.nombre), Fi = P.ficha || {}, E = estadoManual(), td = P.tela.def || (pr.tejido === 'punto' ? (P.k === 'sudadera' ? 'felpa' : 'punto') : P.k === 'pantalon' ? 'denim' : 'gabardina'), T = tallaPrenda() || {};
       let empresa = 'CelebriDiseños'; try { const { S } = await import('../store.js'); empresa = (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || empresa; } catch (e) { }
-      const marca = Fi.marca || (P.refPlano ? MA.MARCA.nombre : empresa), fotos = await fotosPrenda();
+      const marca = Fi.marca || empresa, fotos = await fotosPrenda();
       const est = []; for (const Es of (P.estampados || [])) { const url = estUrl(Es); if (!url) continue; const j = await aJpgDe(url, null, null, /^#[0-9a-f]{6}$/i.test(P.tela.color || '') ? P.tela.color : '#3a3a3a'); est.push(Object.assign({ nombre: Es.nombre, pieza: Es.pieza, w: Es.w, h: Es.h, x: Es.x, yc: Es.yc }, j ? { jpg: j.jpg, pw: j.w, ph: j.h } : {})); }
       let plano = null; if (P.refPlano && st.marca.base) { try { plano = await MA.planoAJpg(MA.urlDe(MA.rutaPlano(st.marca.base, P.refPlano)), P.tela.color); } catch (e) { plano = null; } }
       const modelo = modeloPorId(P.diseno), cuerpo = (A.sexo === 'hombre' ? 'Chico' : 'Chica') + (A.via === 'talla' && A.talla ? ' talla ' + A.talla : '') + (A.med && A.med.pecho ? ' · pecho ' + A.med.pecho + ' cm' : '');
@@ -651,17 +717,21 @@ export function render(root) {
       let carpeta = null; if (desktop.on) { try { const I = await desktop.info(), b = String((I && I.backupDir) || ''), i = b.toLowerCase().indexOf('\\appdata\\'); if (i > 0) { const d = new Date(), f2 = x => String(x).padStart(2, '0');
           carpeta = b.slice(0, i) + '\\Downloads\\CelebriDREW\\' + n + ' ' + d.getFullYear() + '-' + f2(d.getMonth() + 1) + '-' + f2(d.getDate()) + ' ' + f2(d.getHours()) + 'h' + f2(d.getMinutes());
           for (const [nom, bl] of archivos) await desktop.save(carpeta + '\\' + nom, bl, true); } } catch (e) { console.warn('Exportación completa: no se pudo guardar en la carpeta', e); carpeta = null; } }
-      if (!carpeta) { for (const [nom, bl] of (desktop.on ? archivos : archivos.slice(0, 2))) { descarga(bl, nom); await new Promise(r => setTimeout(r, 350)); } }
-      window.__drew_completa = { paginas: D.paginas, archivos: archivos.map(a => a[0]), carpeta, fotos: fotos.length, plano: !!plano, estampados: est.length, manual: E.ok ? (E.ia ? 'ia' : 'sencillo') : 'montaje', bytes: D.bytes.length, marca }; window.__drew_dossierBytes = D.bytes;
+      let zipNom = null; /* 21-10 · en el MÓVIL / la TABLET: TODO en un ZIP (antes solo bajaban 2 de los 7 archivos) */
+      if (!carpeta && !desktop.on) { const { zipFiles } = await import('../xlsx.js'), Z = {}; for (const [nom, bl] of archivos) Z[nom] = new Uint8Array(await bl.arrayBuffer());
+        zipNom = n + ' - CelebriDREW completo.zip'; descarga(new Blob([zipFiles(Z)], { type: 'application/zip' }), zipNom); }
+      else if (!carpeta) { for (const [nom, bl] of archivos) { descarga(bl, nom); await new Promise(r => setTimeout(r, 350)); } }
+      window.__drew_completa = { paginas: D.paginas, archivos: archivos.map(a => a[0]), carpeta, zip: zipNom, fotos: fotos.length, plano: !!plano, estampados: est.length, manual: E.ok ? (E.ia ? 'ia' : 'sencillo') : 'montaje', bytes: D.bytes.length, marca }; window.__drew_dossierBytes = D.bytes;
       if (carpeta) { toast('📦 Exportación completa: ' + archivos.length + ' archivos en Descargas › CelebriDREW (el dossier tiene ' + D.paginas + ' páginas). Te abro la carpeta.', 'ok', 9000); try { await desktop.open(carpeta); } catch (e) { } }
-      else toast('📦 Exportación completa en Descargas: el dossier (' + D.paginas + ' páginas) y el PDF para imprimir' + (desktop.on ? ' y el resto de archivos' : ' (en el PC sale todo junto en una carpeta)') + '.', 'ok', 9000);
+      else if (zipNom) toast('📦 Exportación completa: un ZIP con los ' + archivos.length + ' archivos (el dossier de ' + D.paginas + ' páginas, el PDF para imprimir, la ficha de fábrica, DXF, SVG, la foto 3D y el proyecto). Ábrelo desde Descargas / Archivos.', 'ok', 9000);
+      else toast('📦 Exportación completa en Descargas: los ' + archivos.length + ' archivos (el dossier tiene ' + D.paginas + ' páginas).', 'ok', 9000);
     } catch (e) { toast('No se pudo hacer la exportación completa: ' + e.message, 'bad', 9000); console.error(e); }
     finally { st.exportando = false; }
   }
   function panelExportar() {
     const ok = st.V && st.V.ok, Fi = st.P.ficha || {}, campo = (k, t, ph) => h('div.dw-fila', h('label', t), h('input.dw-ficha-in', { type: 'text', value: Fi[k] || '', placeholder: ph, 'data-ficha': k, onchange: e => { st.P.ficha = Object.assign({}, st.P.ficha, { [k]: e.target.value.trim() }); guarda(); } }));
     return [h('h3', '📤 Exportar'), bloqueExportar(), h('h3', '🏭 Ficha técnica para fábrica'), h('div.dw-ayuda', 'Como tu plantilla de «tech pack»: portada, vistas, avíos y lista de materiales, estampados, tabla de medidas de XS a XXL (graduada), montaje, etiquetas y embalaje. Se rellena sola con la prenda.'),
-      campo('marca', 'Marca', 'p. ej. NOORKO'), campo('ref', 'Referencia', 'p. ej. NK-SUD-001'), campo('coleccion', 'Colección', 'p. ej. Invierno 2026'),
+      campo('marca', 'Marca', 'p. ej. tu marca'), campo('ref', 'Referencia', 'p. ej. REF-001'), campo('coleccion', 'Colección', 'p. ej. Invierno 2026'),
       btn('🏭 Ficha técnica para fábrica (PDF)', () => fichaFabrica(), { cls: 'primary dw-ficha-pdf', title: 'El tech pack completo de esta prenda, en PDF apaisado' }),
       h('h3', 'Para hacer la prenda de verdad'), !ok ? h('div.dw-ayuda.dw-mal', 'El patrón tiene errores: arréglalos antes de imprimir.') : null,
       h('div', { style: { display: 'grid', gap: '6px' } },

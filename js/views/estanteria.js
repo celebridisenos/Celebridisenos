@@ -29,7 +29,8 @@ export function productosEnTienda(productos, nivel) {
     return {
       id: p.id, nombre: p.nombre || '(sin nombre)', categoria: pretty(p.subcategoria || p.categoria) || 'Sin categoría', precio,
       tiene3d: !!p.web.modelo, publicadoEn: p.web.publicadoEn || '',
-      agotado: !!(lv && lv.controlado && lv.disponible <= 0), quedan: lv && lv.controlado && lv.bajo && lv.disponible > 0 ? lv.disponible : 0, p
+      // (20-10: bajo pedido: «agotado» solo si en la web se vende con stock CONTADO y no queda; si no, se fabrica al pedirlo)
+      agotado: !!(p.web.stockModo === 'contado' && !(Number(p.web.stock) > 0)), quedan: p.web.stockModo === 'contado' && Number(p.web.stock) > 0 && Number(p.web.stock) <= 3 ? Number(p.web.stock) : 0, p
     };
   });
 }

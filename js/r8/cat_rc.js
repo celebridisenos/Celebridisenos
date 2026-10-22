@@ -78,7 +78,10 @@ const perfilCaja = Q => CS().hull([circ(2 * 20.3).translate(Q.AX), circ(2 * 19.3
 export const pasadoresTapa = Q => [sum(Q.AX, [-1, 0], 20.3 - 1.2), sum(Q.I, [0, 1], 19.3 - 1.2), sum(Q.MO, [1, 0], 9 - 1.2)];
 // una placa (de lado: x, z) · la izquierda lleva el motor, el eje del loco y los pasadores de la tapa
 export function placaCaja(Q, izq) { const C = COMPONENTES.motor;
-  let cs = perfilCaja(Q).add(rr(8, 3.5).translate([-6, Q.zP1 - 1.75])).add(rr(8, 3.5).translate([Q.S2[0] - 8, Q.zP1 - 1.75])); // con dos lengüetas para el chasis
+  // con dos lengüetas para el chasis. 20-10 noche: la de delante quedaba SUELTA (el borde de la placa pasa por encima de ella: la placa salía en 2 trozos y
+  // la lengüeta se habría caído al imprimir); ahora cada lengüeta sube hasta tocar la placa (la envolvente de la lengüeta y la placa en su franja de 8 mm)
+  const pf = perfilCaja(Q), leng = x => { const t = rr(8, 3.5).translate([x, Q.zP1 - 1.75]), arriba = pf.intersect(rr(8, 200).translate([x, Q.zP1 + 100])); return arriba.isEmpty() ? t : CS().hull([t, arriba]); };
+  let cs = pf.add(leng(-6)).add(leng(Q.S2[0] - 8));
   cs = cs.subtract(circ(6 + 2 * GIRA).translate(Q.AX)).subtract(perfilD(5, PRES).translate(Q.S1)).subtract(perfilD(5, PRES).translate(Q.S2));
   if (izq) cs = cs.subtract(circ(C.boss + 2 * JUSTO).translate(Q.MO)).subtract(circ(C.tor + 0.3).translate(sum(Q.MO, [0, 1], C.sep / 2))).subtract(circ(C.tor + 0.3).translate(sum(Q.MO, [0, -1], C.sep / 2))).subtract(perfilD(4, PRES).translate(Q.I));
   let m = deLado(cs, Q.yP, Q.yP + 3);
@@ -270,7 +273,7 @@ export function pruebaRC(p) { const Q = medidasRC(p), C = COMPONENTES.motor, L =
 const QUE = [['cama1', 'Cama 1'], ['cama2', 'Cama 2'], ['cama3', 'Cama 3'], ['cama4', 'Cama 4'], ['cama5', 'Cama 5'], ['ruedas', 'Las 4 ruedas con sus neumáticos (PLA o PETG)'], ['prueba', '🧪 Prueba de encaje (motor, servo, hexágono, mangueta)'],
   ['chasis', 'Solo chasis, paragolpes y postes'], ['caja', 'Solo la caja de cambios y el eje de atrás'], ['direccion', 'Solo la dirección'], ['montado', '👀 Montado (con los componentes en gris)'], ['girado', '👀 Montado con la dirección girada'], ['despiece', '📐 Despiece: el dibujo de montaje']];
 export const DISENOS_COCHE_RC = {
-  cocheDrift: { cat: 'rc', tambien: ['juguetes', 'pro', 'mecanica'], nuevo: true, busca: 'coche rc drift kit chasis dirección servo sg90 motor 370 engranajes spool eje bloqueado rueda neumático liso 1/16 radiocontrol', e: '🏎️', t: 'Coche RC de DRIFT por piezas (el kit entero)', d: 'Chasis, dirección con Ackermann y servo SG90, caja de cambios con motor 370 y engranajes 9:1, eje de atrás bloqueado, ruedas de drift con neumático duro, bandejas para batería, variador y receptor. Solo pones los componentes', uso: 'encaje', color: '#2b2d42',
+  cocheDrift: { cat: 'rc', tambien: ['juguetes', 'pro', 'mecanica'], nuevo: true, busca: 'coche rc drift kit chasis dirección servo sg90 motor 370 engranajes spool eje bloqueado rueda neumático liso 1/16 radiocontrol', e: '🏎️', t: 'Coche RC de DRIFT por piezas (el kit entero)', d: 'Chasis, dirección con Ackermann y servo SG90, caja de cambios con motor 370 y engranajes 9:1, eje de atrás bloqueado, ruedas de drift con neumático duro, bandejas para batería, variador y receptor. Solo pones los componentes', uso: 'mecanica', color: '#2b2d42',
     campos: [n('rueda', 'Rueda (Ø con neumático)', 52, 44, 64, 1), n('batalla', 'Batalla (entre ejes)', 170, 150, 200, 1), n('via', 'Vía (de rueda a rueda, por el centro)', 96, 86, 110, 1), s('llanta', 'Llantas', 'r5d', [['r5d', '5 radios dobles'], ['r6', '6 radios'], ['r10', '10 radios finos'], ['malla', 'Malla'], ['turbina', 'Turbina'], ['estrella', 'Estrella de 5']]), s('que', 'Qué imprimo', 'cama1', QUE)],
     gen: p => genRC(p),
     nota: p => { let R = null, Cs = []; try { R = cocheRC(p); Cs = camasDe(R); } catch (e) { return '⚠️ ' + e.message; } const Q = R.Q, C = COMPONENTES, G2 = giroManguetas(Q, 45), G3 = giroManguetas(Q, -45);

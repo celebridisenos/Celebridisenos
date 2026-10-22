@@ -1,0 +1,120 @@
+/* ================= 21-10-2026 · LA CARA 60: «MAISON» (html.ui50.ui60: temas Nácar y Medianoche) =================
+   Ella: «una versión 60.0.0 nueva que me la regales, quiero un diseño distinto, súper premium». Por dentro es la misma (pantallas, botones, datos):
+   cambia el ASPECTO: fondo de nácar con brillos, barra lateral de cristal que flota, títulos en letra de imprenta (serif) y el ORO champán de
+   acento; de noche, azul medianoche con oro. Sin números a la vista (como pidió con la «40»). Contraste comprobado con tools/temas50.py.
+   Se vuelve a las de antes en Configuración → Mi perfil → Interfaz / Tema (Perla, Champán y rosa, Aurora, Eclipse). */
+html.ui50[data-tema50="nacar"] {
+  --a50-1: #b8893e; --a50-2: #b85f78; --a50-3: #4f7f78;
+  --bg: #f6f0e7; --surface: #fffcf7; --surface-2: #f6eee2; --surface-3: #ebe0cf;
+  --line: #e7dac6; --line-2: #d3c0a3; --text: #1b1714; --text-2: #4a4038; --muted: #6c6155;
+  --brand: #8a5814; --brand-2: #73480e; --brand-text: #ffffff; --brand-soft: color-mix(in srgb, #b8893e 14%, #fffcf7);
+  --ok: #157a55; --ok-soft: #e4f3ea; --warn: #9a5505; --warn-soft: #fff1dc; --bad: #b83246; --bad-soft: #fbe6e8; --info: #2b5aa8; --info-soft: #e7eefc;
+  --shadow: 0 1px 0 rgba(255, 255, 255, .85) inset, 0 1px 2px rgba(70, 48, 18, .05), 0 18px 44px -18px rgba(70, 48, 18, .20); --shadow-l: 0 40px 100px -20px rgba(70, 48, 18, .35);
+  --focus: 0 0 0 3px color-mix(in srgb, #b8893e 34%, transparent); --u18-panel: #fffcf7; --u18-brillo: rgba(255, 255, 255, .9); --rail-bg: #fffcf7;
+  --oro: linear-gradient(135deg, #f3e2b8 0%, #d9b46a 48%, #b8893e 100%); --oro-letra: #1b1714; --oro-filo: color-mix(in srgb, #b8893e 32%, var(--line));
+  color-scheme: light;
+}
+html.ui50[data-tema50="medianoche"] {
+  --a50-1: #d8b56d; --a50-2: #7ea8c9; --a50-3: #c98aa1;
+  --bg: #080c17; --surface: #0f1526; --surface-2: #151d33; --surface-3: #1d2742;
+  --line: #212b46; --line-2: #34405f; --text: #f4efe6; --text-2: #cfc6b6; --muted: #a0978a;
+  --brand: #d8b56d; --brand-2: #c49d52; --brand-text: #12141f; --brand-soft: color-mix(in srgb, #d8b56d 14%, #0f1526);
+  --ok: #4fd1a0; --ok-soft: #0d2a23; --warn: #f2c14e; --warn-soft: #2b2410; --bad: #f2849a; --bad-soft: #3a1622; --info: #7eb4f2; --info-soft: #12223f;
+  --shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 18px 44px -16px rgba(0, 0, 0, .65); --shadow-l: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 40px 110px rgba(0, 0, 0, .8);
+  --focus: 0 0 0 3px color-mix(in srgb, #d8b56d 40%, transparent); --u18-panel: #0b1020; --u18-brillo: rgba(255, 255, 255, .05); --rail-bg: #0b1020;
+  --oro: linear-gradient(135deg, #f6e3b4 0%, #d8b56d 50%, #a9813a 100%); --oro-letra: #12141f; --oro-filo: color-mix(in srgb, #d8b56d 30%, var(--line));
+  color-scheme: dark;
+}
+
+/* ---------- la letra: títulos de imprenta (serif) y el resto, la de siempre ---------- */
+html.ui60 { --font-d: "Palatino Linotype", "Book Antiqua", "Iowan Old Style", Palatino, Georgia, "Times New Roman", serif; --radius: 22px; --radius-l: 30px; --rail: 104px; }
+html.ui60 h1 { font-weight: 500; letter-spacing: -.012em; }
+html.ui60 h2 { font-weight: 600; letter-spacing: -.006em; }
+html.ui60 h3 { letter-spacing: 0; }
+html.ui60 a { color: color-mix(in srgb, var(--brand) 90%, var(--text)); }
+html.ui60 ::selection { background: color-mix(in srgb, var(--a50-1) 40%, transparent); }
+
+/* ---------- el fondo: nácar con brillos (de noche, azul medianoche con oro) y un grano muy fino de papel ---------- */
+html.ui60 body { background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+    radial-gradient(1200px 620px at 92% -14%, color-mix(in srgb, var(--a50-1) 26%, transparent), transparent 62%),
+    radial-gradient(900px 560px at -6% 8%, color-mix(in srgb, var(--a50-2) 14%, transparent), transparent 60%),
+    radial-gradient(1100px 700px at 50% 122%, color-mix(in srgb, var(--a50-3) 12%, transparent), transparent 64%); }
+html.ui60[data-modo="noche"] body { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .035 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+    radial-gradient(1200px 620px at 92% -14%, color-mix(in srgb, var(--a50-1) 16%, transparent), transparent 62%),
+    radial-gradient(900px 560px at -6% 8%, color-mix(in srgb, var(--a50-2) 13%, transparent), transparent 60%),
+    radial-gradient(1100px 700px at 50% 122%, color-mix(in srgb, var(--a50-3) 9%, transparent), transparent 64%); }
+
+/* ---------- la barra lateral: de cristal, FLOTA separada del borde ---------- */
+@media (min-width: 900px) {
+  html.ui60 .rail50 { top: 12px; height: calc(100vh - 24px); margin: 12px 0 12px 12px; border-radius: 30px; border: 1px solid var(--oro-filo);
+    background: color-mix(in srgb, var(--surface) 72%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.15); backdrop-filter: blur(18px) saturate(1.15);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .55) inset, 0 24px 60px -24px rgba(60, 40, 10, .30); }
+  html.ui60[data-modo="noche"] .rail50 { box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 24px 60px -20px rgba(0, 0, 0, .7); }
+}
+html.ui60 .r50-marca { background: var(--oro); box-shadow: 0 10px 26px color-mix(in srgb, var(--a50-1) 45%, transparent); }
+html.ui60 .r50-pie { border-top-color: var(--oro-filo); }
+html.ui60 .r50-it { font-weight: 600; letter-spacing: .02em; }
+html.ui60 .r50-it:hover .r50-ic { background: color-mix(in srgb, var(--a50-1) 12%, transparent); }
+html.ui60 .r50-it.on .r50-ic { background: var(--oro); color: var(--oro-letra); box-shadow: 0 8px 20px color-mix(in srgb, var(--a50-1) 42%, transparent), 0 1px 0 rgba(255, 255, 255, .6) inset; }
+html.ui60 .r50-it.on::before { left: -11px; background: var(--oro); }
+html.ui60 .r50-n { background: var(--a50-2); box-shadow: 0 0 0 2px var(--surface); }
+html.ui60 .r50-todo .r50-ic { background: color-mix(in srgb, var(--a50-1) 16%, transparent); color: color-mix(in srgb, var(--a50-1) 80%, var(--text)); }
+
+/* ---------- la barra de arriba: cristal con un filo de oro ---------- */
+html.ui60 .topbar { background: color-mix(in srgb, var(--bg) 62%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.1); backdrop-filter: blur(16px) saturate(1.1); }
+html.ui60 .topbar::after { content: ""; position: absolute; left: 28px; right: 28px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--a50-1) 55%, transparent), transparent); }
+html.ui60 .search-btn { border-radius: 999px; border-color: var(--oro-filo); }
+html.ui60 .search-btn:hover { border-color: color-mix(in srgb, var(--a50-1) 70%, var(--line-2)); }
+html.ui60 .me-chip, html.ui60 .u30-tema { border-color: var(--oro-filo); }
+html.ui60 .me-chip { border-radius: 999px; }
+
+/* ---------- títulos de página: serif grande y una raya de oro ---------- */
+html.ui60 .page-head h1 { font-size: 40px; }
+html.ui60 .page-head::after { width: 64px; height: 3px; background: var(--oro); }
+
+/* ---------- tarjetas: papel grueso con el canto de luz arriba ---------- */
+html.ui60 .card, html.ui60 .kpi, html.ui60 .kt { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 100%, transparent), color-mix(in srgb, var(--surface) 90%, var(--surface-2)));
+  border: 1px solid var(--oro-filo); border-radius: var(--radius); box-shadow: var(--shadow); }
+html.ui60[data-modo="noche"] .card, html.ui60[data-modo="noche"] .kpi, html.ui60[data-modo="noche"] .kt { background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 92%, transparent), var(--surface)); }
+html.ui60 .card.click:hover, html.ui60 .kpi:hover, html.ui60 .att:hover, html.ui60 .kt:hover { border-color: color-mix(in srgb, var(--a50-1) 60%, var(--line)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--a50-1) 26%, transparent), 0 22px 50px -18px color-mix(in srgb, var(--a50-1) 40%, transparent); }
+html.ui60 .kpi .n, html.ui60 .kt .kv, html.ui60 .att .n { font-weight: 500; }
+html.ui60 .kpi .l, html.ui60 .kt .kl, html.ui60 table.t th { letter-spacing: .1em; }
+
+/* ---------- botones: el principal, de ORO champán con letra de tinta ---------- */
+html.ui60 .btn { border-radius: 999px; }
+html.ui60 .btn.sm { border-radius: 999px; }
+html.ui60 .btn.primary, html.ui60 .btn.primary:hover { background: var(--oro); color: var(--oro-letra); border-color: color-mix(in srgb, var(--a50-1) 70%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .55) inset, 0 10px 26px -10px color-mix(in srgb, var(--a50-1) 70%, transparent); }
+html.ui60 .btn.primary:hover { filter: brightness(1.04) saturate(1.05); transform: translateY(-1px); }
+html.ui60 .btn:not(.primary):hover { border-color: color-mix(in srgb, var(--a50-1) 50%, var(--line-2)); }
+html.ui60 .chip { border-radius: 999px; }
+html.ui60 .chip.on, html.ui60 .seg button.on { background: var(--oro); color: var(--oro-letra); border-color: transparent; }
+html.ui60 .tabs button.on { box-shadow: inset 0 -2px 0 var(--a50-1); }
+html.ui60 .switch input:checked + span { background: var(--oro); }
+html.ui60 .fab { background: var(--oro); color: var(--oro-letra); }
+html.ui60 .inp, html.ui60 select.inp, html.ui60 textarea.inp { border-radius: 14px; }
+html.ui60 .inp:focus, html.ui60 select.inp:focus, html.ui60 textarea.inp:focus { border-color: var(--a50-1); box-shadow: var(--focus); }
+
+/* ---------- ventanas y avisos ---------- */
+html.ui60 .modal { border-radius: 28px; border: 1px solid var(--oro-filo); }
+html.ui60 .modal-h h2 { font-weight: 600; }
+html.ui60 .toast { border-radius: 999px; border: 1px solid var(--oro-filo); }
+
+/* ---------- la portada (Puente de mando): saludo en serif, el reloj fino y dorado ---------- */
+html.ui60 .pm-hero { border: 1px solid var(--oro-filo); border-radius: var(--radius-l);
+  background: radial-gradient(700px 300px at 85% 0%, color-mix(in srgb, var(--a50-1) 22%, transparent), transparent 70%),
+    radial-gradient(600px 260px at 0% 100%, color-mix(in srgb, var(--a50-2) 10%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 88%, var(--surface-2))); box-shadow: var(--shadow); }
+html.ui60 .pm-hero h1 { font-family: var(--font-d); font-weight: 500; font-size: 52px; letter-spacing: -.015em; }
+html.ui60 .pm-kicker { color: color-mix(in srgb, var(--a50-1) 85%, var(--text)); letter-spacing: .28em; }
+html.ui60 .pm-reloj b { font-family: var(--font-d); font-weight: 400; background: var(--oro); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html.ui60 .pm-reloj i { color: var(--a50-1); }
+html.ui60 .pm-flujo { border: 1px solid var(--oro-filo); }
+html.ui60 .pm-flujo .n, html.ui60 .pm-flujo b { font-family: var(--font-d); }
+@media (max-width: 860px) {
+  html.ui60 .pm-hero h1 { font-size: 34px; }
+  html.ui60 .page-head h1 { font-size: 30px; }
+  html.ui60 .tabbar a.on svg.i { color: var(--a50-1); }
+}
+@media (prefers-reduced-motion: reduce) { html.ui60 .btn.primary:hover { transform: none; } }

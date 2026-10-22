@@ -475,7 +475,11 @@ export function crearEscena(lienzo, opts = {}) {
   const ro = window.ResizeObserver ? new ResizeObserver(pide) : null; if (ro) ro.observe(lienzo);
   // de un punto del mundo a la pantalla (para las etiquetas de las medidas)
   function aPantalla(q) { const v = new T.Vector3(...q).project(cam), r = lienzo.getBoundingClientRect(); return { x: (v.x + 1) / 2 * r.width, y: (1 - v.y) / 2 * r.height, delante: v.z < 1 }; }
-  function foto(tipo = 'image/png', q) { ren.render(esc, cam); return lienzo.toDataURL(tipo, q); }
+  // 20-10-2026 · la vista tiene el fondo TRANSPARENTE: en JPG (que no guarda transparencia) salía NEGRO en los manuales de montaje, en las
+  // fotos de «📦 Exportar todo» para Cults y en las de las cajas. En JPG se pinta un fondo claro de estudio (el crema de la hoja del manual)
+  // solo para la foto, y la vista se queda como estaba; el PNG sigue transparente.
+  function foto(tipo = 'image/png', q) { const jpg = /jpe?g/i.test(tipo), c0 = jpg ? ren.getClearColor(new T.Color()) : null, a0 = jpg ? ren.getClearAlpha() : 1;
+    if (jpg) ren.setClearColor(0xf6f2ea, 1); ren.render(esc, cam); const u = lienzo.toDataURL(tipo, q); if (jpg) { ren.setClearColor(c0, a0); ren.render(esc, cam); } return u; }
 
   dibuja();
   return {

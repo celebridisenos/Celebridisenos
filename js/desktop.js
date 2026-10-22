@@ -127,6 +127,9 @@ export const desktop = {
   // v20.1 · Hugging Face en un paso: la clave se pega en el programa, se comprueba y se guarda en el PC (nunca vuelve)
   hfClave: clave => call('nube3d/hf-clave', { method: 'POST', body: JSON.stringify({ clave }) }),
   hfQuien: () => call('nube3d/hf-quien'),
+  // 20-10-2026 · ✨ Claude dentro del programa (el Claude Code de la app de escritorio de este PC, con su cuenta)
+  claudeEstado: forzar => call('claude/estado' + (forzar ? '?forzar=1' : '')), claudeConectar: () => call('claude/conectar', { method: 'POST' }),
+  claudePregunta: (texto, imagen) => call('claude/pregunta', { method: 'POST', body: JSON.stringify({ texto, imagen: imagen || '' }), timeout: 300000 }),
   hfSalir: () => call('nube3d/hf-salir', { method: 'POST' }),
   sf3dBajar: probar => call('nube3d/sf3d-bajar' + (probar ? '?probar=1' : ''), { method: 'POST' }),
   sf3dEstado: () => call('nube3d/sf3d-estado'),

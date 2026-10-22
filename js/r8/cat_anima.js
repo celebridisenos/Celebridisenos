@@ -22,8 +22,15 @@ const girarEje = (o, dir, ang) => new T.Matrix4().makeTranslation(o[0], o[1], o[
 
 // Lo que no se deduce solo, dicho a mano: «bisagra» = la pieza pequeña se abre sobre su canto · «gira1» = una sola pieza que gira
 // (aunque no sea redonda del todo: un spinner) · «quieta» = no se pone a dar vueltas aunque sea redonda (un jarrón, un plato)
-export const PISTAS = { bisagraImpresa: 'bisagra', bisagraFuerte: 'bisagra', miniPuerta: 'bisagra', spinner: 'gira1', peonza: 'gira1', tarjetaPeonza: 'gira1' };
+export const PISTAS = { bisagraImpresa: 'bisagra', bisagraFuerte: 'bisagra', miniPuerta: 'bisagra', spinner: 'gira1', peonza: 'gira1', tarjetaPeonza: 'gira1', postesCarroceria: 'quieta', inserto: 'quieta' }; // (20-10: los postes y el inserto no giran de verdad)
 // las secciones en las que una sola pieza redonda SÍ gira sola (un engranaje, una peonza); en las demás (jarrones, vasos…) no
+// 20-10-2026 · «LAS PIEZAS SE MUEVEN SOLAS» (plan maestro). Auditoría de los 372 diseños: giraba TODO lo redondo (las 24 fichas de las damas,
+// las 33 del solitario, la maceta con su plato, la calabaza…) y se «ondulaba como un pez» lo que no es articulado (un rodamiento, el arcoíris
+// apilable, el riel de pared). Ahora: girar, solo lo que gira de verdad (dientes, ruedas, rodamientos, peonzas…) en diseños que son
+// mecanismos o juguetes con ruedas; ondularse, solo los articulados (flexi). Lo demás: «no hay piezas que se muevan solas».
+const MECANICOS = new Set(['mecanica', 'rc', 'juguetes', 'impresora3d']);
+const RE_GIRA = /rueda|llanta|neum|engran|pi[ñn][oó]n|corona|rodamiento|polea|spool|carrete|yoyo|yo-yo|peonza|spinner|fidget|giratori|bayoneta|rosca|tornillo|planetari|reductora|diferencial|ginebra|leva|biela|taladro|bobina|r[oó]tula|espir[oó]grafo/i;
+const RE_ARTICULADO = /flexi|articulad|serpiente/i;
 const GIRAN_SOLAS = new Set(['mecanica', 'juegos', 'juguetes', 'ninos', 'kits', 'rc', 'componentes', 'frikis', 'ciencia', 'oficina', 'compatibles', 'impresora3d']);
 // la opción de un diseño que lo enseña MONTADO (para animarlo): «ver: montada», «que: montado», «que: pareja» (dos engranados)…
 export function opcionMontado(D) {
@@ -34,15 +41,27 @@ export function opcionMontado(D) {
 // Los engranajes en su placa, montados, se tocan con la arandela de su eje: al juntarlos salen soldados en una sola pieza. Para animarlos
 // se le piden al propio diseño, por separado y en su sitio. → [Manifold] o null
 // (los mecanismos que saben su MOVIMIENTO EXACTO —rueda de Ginebra, biela, leva— dan [{ m, mov: { f }, que }]: no se deduce, se usa el suyo)
-export async function montadas(k, p) {
-  if (['corazonEngranajes', 'mesaEngranajes', 'llaveroEngranajes'].includes(k)) { const G = await import('./cat_engranajes.js'), R = G[k](p); return [R.placa].concat(R.piezas.map(q => q.m)); }
-  if (k === 'cajaEngranajes') { const C = await import('./cat_50.js'), R = C.demoEngranajes(p); return [R.placa, R.P1, R.C1, R.S1]; }
-  const X = await import('./cat_1810.js'), L = X.montadas1810(k, p); if (L) return L;
-  return null;
+export async function montadas(k, p) { return (await montadasFn(k))(p); }
+// 20-10-2026 · EL MENSAJE DE MEMORIA QUE TAPABA LA ANIMACIÓN: montar el kit (bici, moto, coche RC…) se hacía FUERA del ámbito de limpieza
+// (había que esperar a cargar su archivo) y todos los pasos intermedios se quedaban en el motor: medido, 4 kits animados 6 veces
+// → de 17 MB a 744 MB, hasta el «memory access out of bounds». Ahora se carga primero el archivo y se devuelve una función SIN esperas,
+// para montarlo DENTRO de N.enAmbito (se borra todo lo intermedio).
+export async function montadasFn(k) {
+  if (['corazonEngranajes', 'mesaEngranajes', 'llaveroEngranajes'].includes(k)) { const G = await import('./cat_engranajes.js'); return p => { const R = G[k](p); return [R.placa].concat(R.piezas.map(q => q.m)); }; }
+  if (k === 'cajaEngranajes') { const C = await import('./cat_50.js'); return p => { const R = C.demoEngranajes(p); return [R.placa, R.P1, R.C1, R.S1]; }; }
+  if (KITS_EXACTOS[k]) { const f = await KITS_EXACTOS[k](); return p => f(p); }
+  const X = await import('./cat_1810.js'); return p => X.montadas1810(k, p) || null;
 }
+// 20-10-2026 · los KITS que traen su movimiento exacto y, para el 🔧 montaje paso a paso y el manual, el NOMBRE de cada pieza y su PASO
+// (el orden de montaje de verdad: primero el casco, luego la cubierta…; tarea 9 del plan maestro)
+const KITS_EXACTOS = { aerobarcoRC: () => import('./cat_agua.js').then(A => A.montadasAero), camionRC: () => import('./cat_camion3.js').then(A => A.montadasCamion),
+  avionetaRC: () => import('./cat_aire.js').then(A => A.montadasAvion), lanzabolas: () => import('./cat_lanzabolas.js').then(A => A.montadasLanzabolas), // 21-10: la avioneta tenía su animación hecha y sin enganchar
+  lanzabolasCompeticion: () => import('./cat_lanzabolas.js').then(A => A.montadasDe('competicion')), lanzabolasTactica: () => import('./cat_lanzabolas.js').then(A => A.montadasDe('tactica')),
+  lanzabolasFutura: () => import('./cat_lanzabolas.js').then(A => A.montadasDe('futura')) }; // 21-10 (tarde): los otros 3 modelos del lanzabolas
 // 18-10-2026 · lo que trae su movimiento exacto: cada pieza con su matriz en cada momento (la misma con la que se comprueba que no se pisan)
 function exactas(N, L) {
-  const P = L.map((x, i) => { const b = N.caja(x.m); return { id: 'an' + i, nombre: x.nombre, vista: N.aVista(x.m), b: { min: b.min, max: b.max, dims: b.dims }, c: [0, 1, 2].map(k => (b.min[k] + b.max[k]) / 2), vol: x.m.volume() }; });
+  const P = L.map((x, i) => { const b = N.caja(x.m); return { id: 'an' + i, nombre: x.nombre, paso: x.paso, color: x.color, // (21-10: cada pieza puede traer su color: la réplica negra con la punta naranja)
+    vista: N.aVista(x.m), b: { min: b.min, max: b.max, dims: b.dims }, c: [0, 1, 2].map(k => (b.min[k] + b.max[k]) / 2), vol: x.m.volume() }; });
   const mov = {}; L.forEach((x, i) => { mov['an' + i] = x.mov ? { tipo: 'exacto', f: x.mov.f } : { tipo: 'quieta' }; });
   return fin(P, mov, null, L.filter(x => x.que).map(x => x.que));
 }
@@ -96,6 +115,7 @@ export function analiza(N, m, o = {}) { // o.pista (de PISTAS) · o.cat (la secc
   const gira = (p, w) => { mov[p.id] = { tipo: 'gira', o: p.centro, dir: EJES[p.eje].dir, w }; usada.add(p.id); };
   const mismoEje = (a, b) => a.eje && a.eje === b.eje, solapan = (a, b, g = 0) => a.ar[0] - g < b.ar[1] && b.ar[0] - g < a.ar[1], d2 = (a, b) => Math.hypot(a.uv[0] - b.uv[0], a.uv[1] - b.uv[1]);
   // pistas a mano
+  const nombre = (o.k || '') + ' ' + (o.t || ''), mecanico = MECANICOS.has(o.cat) || RE_GIRA.test(nombre);
   if (o.pista === 'gira1' && P.length === 1) { const p = P[0]; p.eje = p.eje || 'z'; p.centro = p.centro || p.c; gira(p, W0 * 1.4); return fin(P, mov, null, ['gira sobre sí misma']); }
   if (o.pista === 'bisagra' && P.length >= 2) {
     const fija = grande, mueve = P.filter(p => p !== fija).sort((a, b) => b.vol - a.vol)[0], a = fija.b, b = mueve.b, zc = (b.min[2] + b.max[2]) / 2;
@@ -108,6 +128,7 @@ export function analiza(N, m, o = {}) { // o.pista (de PISTAS) · o.cat (la secc
   const R = P.filter(p => p.eje).sort((a, b) => b.r - a.r);
   // 1) lo que comparte centro y está a la misma altura: el de fuera quieto, el de dentro gira, lo de entre medias da vueltas alrededor
   for (const a of R) {
+    if (!mecanico) break; // (dos cuencos uno dentro de otro no son un rodamiento)
     if (usada.has(a.id)) continue; const tol = Math.max(1.0, 0.04 * a.r);
     const dentro = R.filter(p => p !== a && !usada.has(p.id) && mismoEje(p, a) && p.r < a.r * 0.97 && d2(p, a) < tol && solapan(p, a));
     if (!dentro.length) continue;
@@ -125,7 +146,7 @@ export function analiza(N, m, o = {}) { // o.pista (de PISTAS) · o.cat (la secc
   // 2) cadenas (animales articulados): 5 trozos o más que se tocan unos con otros (va antes que lo redondo: un dragón no son engranajes)
   let cadena = null;
   const alto = Math.max(...P.map(p => p.b.max[2])) - Math.min(...P.map(p => p.b.min[2])), planta = Math.max(Math.max(...P.map(p => p.b.max[0])) - Math.min(...P.map(p => p.b.min[0])), Math.max(...P.map(p => p.b.max[1])) - Math.min(...P.map(p => p.b.min[1])));
-  if (!Object.keys(mov).length && P.length >= 5 && !R.some(p => p.z || p.eje !== 'z') && alto < 0.35 * planta) { cadena = cadenaDe(P, grande); if (cadena) notas.push('se ondula como si nadara: cada trozo gira un poco sobre su unión'); }
+  if (!Object.keys(mov).length && P.length >= 5 && !R.some(p => p.z || p.eje !== 'z') && alto < 0.35 * planta && (RE_ARTICULADO.test(nombre) || o.pista === 'cadena')) { cadena = cadenaDe(P, grande); if (cadena) notas.push('se ondula como si nadara: cada trozo gira un poco sobre su unión'); }
   // 3) ENGRANAJES: dos con dientes, mismo eje, a la altura en que se tocan, a la distancia justa → engranan con la relación exacta
   const S = cadena ? [] : R.filter(p => !usada.has(p.id)), pares = [];
   for (let i = 0; i < S.length; i++) for (let j = i + 1; j < S.length; j++) { const a = S[i], b = S[j]; if (!mismoEje(a, b) || !solapan(a, b)) continue;
@@ -138,7 +159,9 @@ export function analiza(N, m, o = {}) { // o.pista (de PISTAS) · o.cat (la secc
     { const tren = Object.values(mov).filter(x => x.tipo === 'gira'), wm = Math.max(...tren.map(x => Math.abs(x.w))); tren.forEach(x => { x.w *= W0 * 1.2 / wm; }); } // (el más rápido, a 0,3 vueltas por segundo: en una reductora, la salida va despacio de verdad)
     notas.push(pares.length === 1 ? 'los dos engranajes engranan: ' + pares[0].za + ' y ' + pares[0].zb + ' dientes' + (pares[0].za === pares[0].zb ? ' (giran a la par, cada uno al revés que el otro)' : ' (el pequeño gira ' + (Math.max(pares[0].za, pares[0].zb) / Math.min(pares[0].za, pares[0].zb)).toLocaleString('es-ES', { maximumFractionDigits: 2 }) + ' veces más deprisa)') : pares.length + ' parejas de engranajes engranan, cada una con su relación exacta de dientes'); }
   // 4) lo redondo que queda suelto: gira sobre su eje (una rueda, un engranaje sin pareja); un plato junto a una figura, no
-  const sueltas = S.filter(p => !usada.has(p.id)), soloAdorno = (sueltas.length === 1 && P.length > 1 && grande === sueltas[0] && !sueltas[0].z) || (sueltas.length === 1 && P.length > 1 && grande !== sueltas[0] && !sueltas[0].z && sueltas[0].eje === 'z') || (P.length === 1 && !GIRAN_SOLAS.has(o.cat)) || o.pista === 'quieta';
+  const rueda = p => p.z || (p.eje && (p.b.dims[EJES[p.eje].ax] < 0.8 * 2 * p.r || p.r < 8)); // (con dientes, un disco o un eje fino —el del pedalier—: no un poste gordo ni un cuenco alto)
+  const sueltas = S.filter(p => !usada.has(p.id) && mecanico && rueda(p)), soloAdorno = // (fuera de los mecanismos, un borde ondulado —maceta facetada, pétalos— parece «dientes»: solo giran los engranajes que engranan, paso 3)
+    (sueltas.length === 1 && P.length > 1 && grande === sueltas[0] && !sueltas[0].z) || (sueltas.length === 1 && P.length > 1 && grande !== sueltas[0] && !sueltas[0].z && sueltas[0].eje === 'z') || (P.length === 1 && !(GIRAN_SOLAS.has(o.cat) && (RE_GIRA.test(nombre) || (P[0].z && mecanico)))) || o.pista === 'quieta';
   if (sueltas.length && !soloAdorno) { sueltas.forEach(p => gira(p, W0 * 0.8 * (p.z ? 1 : Math.min(2, 40 / Math.max(5, p.r))))); if (!pares.length) notas.push(P.length === 1 ? 'gira sobre sí misma' : 'lo redondo gira sobre su eje'); }
   // 5) lo que va enganchado a un eje que gira (bielas y pedales en el pedalier): gira con él
   const girando = P.filter(p => mov[p.id] && mov[p.id].tipo === 'gira');
@@ -198,4 +221,61 @@ export function animacionAbrir(partes, vel = 1) {
     partes.forEach(p => { if (p.bisagra) D[p.id] = girarEje(p.bisagra.o, p.bisagra.dir, (p.bisagra.ang || 100) * Math.PI / 180 * k);
       else if (p.desliza) { const d = (p.desliza.d || 30) * k; D[p.id] = new T.Matrix4().makeTranslation(p.desliza.dir[0] * d, p.desliza.dir[1] * d, p.desliza.dir[2] * d); } });
     return D; };
+}
+
+// ================= 20-10-2026 · 🔧 MONTAJE PASO A PASO (plan maestro: «animación completa del ensamblaje: piezas en el orden correcto,
+// cada una moviéndose hasta su sitio, dónde encaja, fluida, que se pueda pausar, reanudar y repasar; útil para montarlo de verdad») =================
+// Orden: la BASE es la pieza más grande; después, siempre la que más cerca queda de lo ya montado (la que se apoya en ello), y a igualdad
+// la más grande. Cada pieza ENTRA por el lado por el que cabe sin chocar con lo ya montado (se barre su caja hacia fuera en las 6
+// direcciones y se queda la que menos choca; un eje largo y fino entra a lo largo de sí mismo). En su sitio se ve su FANTASMA mientras llega.
+const DIRS = [[0, 0, 1], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, -1]];
+const cruce = (a, b) => { let v = 1; for (let k = 0; k < 3; k++) { const d = Math.min(a.max[k], b.max[k]) - Math.max(a.min[k], b.min[k]); if (d <= 0) return 0; v *= d; } return v; };
+const encoge = (b, f) => ({ min: b.min.map((x, k) => x + (b.max[k] - b.min[k]) * f), max: b.max.map((x, k) => x - (b.max[k] - b.min[k]) * f) });
+const hueco = (a, b) => Math.hypot(...[0, 1, 2].map(k => Math.max(0, a.min[k] - b.max[k], b.min[k] - a.max[k])));
+// lo que parece cada pieza (cuando el diseño no trae su nombre): por su forma, sin inventar
+const queEs = p => { const d = p.b.dims, mx = Math.max(...d), resto = d.filter((_, k) => k !== d.indexOf(mx));
+  if (p.z) return 'Engranaje de ' + p.z + ' dientes';
+  if (mx > 2.5 * Math.max(...resto)) return Math.max(...resto) < 8 ? 'Eje' : 'Barra';
+  if (p.eje && p.r && Math.min(...d) < 0.45 * mx) return 'Rueda';
+  return 'Pieza'; };
+export function ordenMontaje(A) {
+  const P = A.piezas.slice(); if (!P.length) return [];
+  const todo = [0, 1, 2].map(k => [Math.min(...P.map(p => p.b.min[k])), Math.max(...P.map(p => p.b.max[k]))]), tam = Math.max(...todo.map(([a, b]) => b - a));
+  // la BASE: la que toca a más piezas (el cuadro de la bici, no su peana); a igualdad, la más grande
+  // (20-10: si el kit trae el PASO de cada pieza —su orden de montaje de verdad—, manda ese orden; si no, se deduce)
+  const conPaso = P.every(p => typeof p.paso === 'number'), porPaso = (a, b) => a.paso - b.paso || b.vol - a.vol;
+  const toca = p => P.filter(q => q !== p && hueco(p.b, q.b) < 1).length, base = conPaso ? P.slice().sort(porPaso)[0] : P.slice().sort((a, b) => toca(b) - toca(a) || b.vol - a.vol)[0];
+  const puestas = [base], orden = [{ id: base.id, nombre: base.nombre || (queEs(base) === 'Pieza' ? 'Pieza principal' : queEs(base)), dir: [0, 0, 1], base: true }];
+  const quedan = new Set(P.filter(p => p !== base)), siguen = conPaso ? P.filter(p => p !== base).sort(porPaso) : null;
+  while (quedan.size) {
+    let mejor = null, dm = Infinity;
+    if (siguen) mejor = siguen.shift();
+    else for (const p of quedan) { const d = Math.min(...puestas.map(q => hueco(p.b, q.b))); if (d < dm - 0.5 || (Math.abs(d - dm) <= 0.5 && p.vol > mejor.vol)) { dm = d; mejor = p; } }
+    quedan.delete(mejor);
+    const dims = mejor.b.dims, larga = dims.indexOf(Math.max(...dims)), fino = dims[larga] > 2.5 * Math.max(...dims.filter((_, k) => k !== larga));
+    const cand = (fino ? [[0, 1, 2].map(k => k === larga ? 1 : 0), [0, 1, 2].map(k => k === larga ? -1 : 0)] : []).concat(DIRS);
+    let dir = cand[0], peor = Infinity;
+    cand.forEach((d, i) => { // la caja de la pieza barrida hacia fuera (sin contar su sitio final)
+      const L = tam * 0.8, b = encoge(mejor.b, 0.04), bar = { min: b.min.map((x, k) => d[k] > 0 ? b.max[k] : d[k] < 0 ? x - L : x), max: b.max.map((x, k) => d[k] > 0 ? x + L : d[k] < 0 ? b.min[k] : x) };
+      const choca = puestas.reduce((s, q) => s + cruce(bar, encoge(q.b, 0.04)), 0) * (1 + i * 0.02); // (a igualdad, el orden de preferencia: arriba primero)
+      if (choca < peor - 1e-6) { peor = choca; dir = d; } });
+    orden.push({ id: mejor.id, nombre: mejor.nombre || queEs(mejor), dir }); puestas.push(mejor);
+  }
+  const cuenta = {}, van = {}; orden.forEach(o => { cuenta[o.nombre] = (cuenta[o.nombre] || 0) + 1; }); // (dos ruedas → «Rueda 1», «Rueda 2»)
+  orden.forEach(o => { if (cuenta[o.nombre] > 1) { van[o.nombre] = (van[o.nombre] || 0) + 1; o.nombre += ' ' + van[o.nombre]; } });
+  return orden;
+}
+// → { pasos, dur, pasoEn(t), fn(t) } · fn da también la matriz de los fantasmas ('g' + id). Bucle: todos los pasos y 3 s montado entero.
+export function animacionMontaje(A, orden, vel = 1) {
+  const todo = [0, 1, 2].map(k => [Math.min(...A.piezas.map(p => p.b.min[k])), Math.max(...A.piezas.map(p => p.b.max[k]))]), tam = Math.max(...todo.map(([a, b]) => b - a));
+  const S = 2.2 / vel, FIN = 3 / vel, dur = orden.length * S + FIN, cero = new T.Matrix4().makeScale(1e-6, 1e-6, 1e-6);
+  const idx = Object.fromEntries(orden.map((o, i) => [o.id, i])), pasoEn = t => Math.min(orden.length - 1, Math.floor(((t % dur) + dur) % dur / S));
+  const fn = t => { const x = ((t % dur) + dur) % dur, D = {}, actual = x / S;
+    orden.forEach((o, i) => { const g = 'g' + o.id;
+      if (actual < i) { D[o.id] = cero; D[g] = cero; return; } // aún no le toca: ni ella ni su fantasma
+      if (actual >= i + 1) { D[o.id] = new T.Matrix4(); D[g] = cero; return; } // ya está en su sitio
+      const f = actual - i, k = suave(f, 0.12, 0.82), lejos = (1 - k) * (0.55 * tam + 10); // entra desde fuera y se para en su sitio
+      D[o.id] = new T.Matrix4().makeTranslation(o.dir[0] * lejos, o.dir[1] * lejos, o.dir[2] * lejos); D[g] = f < 0.86 ? new T.Matrix4() : cero; });
+    return D; };
+  return { pasos: orden.length, dur, S, pasoEn, fn, idx };
 }

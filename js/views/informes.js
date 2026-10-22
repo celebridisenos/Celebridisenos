@@ -68,6 +68,7 @@ export function render(el) {
     mount(box,
       h('p.muted.small', 'Del ' + (d.a === '0000-01-01' ? 'inicio' : fdate(d.a)) + ' al ' + (d.b === '9999-12-31' ? 'hoy' : fdate(d.b)) + ' · calculado con los datos reales de la app'),
       biCard(),
+      rankingCard(d),
       profitCard(d),
       h('div.grid.g4.kpis', [sales ? ['Ventas', eur(d.total)] : null, ['Pedidos', num(d.valid.length)], sales ? ['Ticket medio', eur(d.valid.length ? d.total / d.valid.length : 0)] : null, ['Enviados', num(d.shipped.length)], ['A tiempo', d.shipped.length ? Math.round((d.shipped.length - d.late.length) / d.shipped.length * 100) + '%' : '—'],
         ['Clientes que compran', num(d.clientsIn.length)], ['Clientes nuevos', num(d.nuevos)], ['Tareas completadas', num(d.tareas.length)]].filter(Boolean).map(x => h('div.kpi', { style: { cursor: 'default' } }, h('span.n', x[1]), h('span.l', x[0])))),
@@ -81,6 +82,31 @@ export function render(el) {
         h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Tareas completadas por persona'), d.tareasPor.length ? bars(d.tareasPor) : h('p.muted.small', 'Ninguna en este periodo')),
         h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Publicaciones en redes'), d.redesPor.length ? bars(d.redesPor) : h('p.muted.small', 'Ninguna en este periodo'), h('p.small.muted', d.redes.filter(r => r.estado === 'Publicado').length + ' publicadas de ' + d.redes.length + ' planificadas'))),
       d.late.length ? h('div.card', h('h3', 'Enviados con retraso (' + d.late.length + ')'), h('div.list', d.late.slice(0, 20).map(o => h('div.item', { onclick: () => location.hash = '#/pedidos/' + o.id }, h('b', 'nº ' + o.numero), h('span.grow', o.cliente + ' · ' + o.producto), h('span.small.bad-t', 'enviado ' + fdate(o.fechaEnvio)))))) : null);
+  }
+  // 20-10-2026 · 🏆 RANKING DE VENTAS DEL EQUIPO (plan maestro 10): por persona, con el periodo de arriba (semana, mes, año…), comparado con el
+  // periodo anterior del mismo largo y con su evolución. Atribución y «sin duplicados»: CL.rankingVentas (shared/logic.js) y lo explica abajo.
+  function rankingCard(d) {
+    if (!can('informes.ver') || !CL.rankingVentas) return null;
+    const hoy = S.hoy, a = d.a === '0000-01-01' ? (S.t.pedidos.map(o => o.fecha).filter(Boolean).sort()[0] || hoy) : d.a, b = d.b === '9999-12-31' ? hoy : d.b;
+    const R = CL.rankingVentas(S.t.pedidos, S.t.usuarios || [], S.cfg.pedidos, a, b);
+    if (!R.personas.length && !R.solos.length) return h('div.card.rk', h('h3', '🏆 Ranking de ventas del equipo'), h('p.muted.small', 'No hay ventas en este periodo.'));
+    const max = Math.max(1, ...R.personas.map(p => p.ingresos)), medalla = i => ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
+    const cambio = p => p.cambio === null ? h('span.tiny.muted', p.antes.ingresos ? '' : 'nuevo') : h('span.tiny' + (p.cambio >= 0 ? '.ok-t' : '.bad-t'), (p.cambio >= 0 ? '▲ ' : '▼ ') + Math.round(Math.abs(p.cambio) * 100) + ' %');
+    const linea = serie => { const m = Math.max(1, ...serie); return h('div.rk-serie', { title: 'Evolución (' + ({ dia: 'por días', semana: 'por semanas', mes: 'por meses' }[R.paso]) + ')' }, serie.map((v, i) => h('i', { style: { height: Math.max(2, v / m * 26) + 'px' }, title: R.cubos[i].etiqueta + ': ' + eur(v) }))); };
+    const fila = (p, i) => h('div.rk-fila', { 'data-persona': p.nombre },
+      h('span.rk-pos', medalla(i)), h('div.rk-quien', h('b', p.nombre + (p.fuera ? ' ·' : '')), p.fuera ? h('small.muted', 'no está en el equipo de la app') : null, p.top.length ? h('small.muted', '⭐ ' + p.top[0].producto + ' (' + num(p.top[0].unidades) + ')') : null),
+      h('div.rk-barra', h('i', { style: { width: (p.ingresos / max * 100) + '%' } })),
+      h('div.rk-num', h('b', eur(p.ingresos)), h('small', num(p.pedidos) + ' pedido' + (p.pedidos === 1 ? '' : 's') + ' · ' + num(p.unidades) + ' uds · ticket ' + eur(p.ticket)), h('small.muted', 'antes ' + eur(p.antes.ingresos) + ' '), cambio(p)),
+      linea(p.serie));
+    return h('div.card.rk', h('div.card-h', h('h3', '🏆 Ranking de ventas del equipo'), h('span.tiny.muted', 'frente al ' + fdate(R.antesDesde) + ' – ' + fdate(R.antesHasta))),
+      h('div.grid.g4.kpis', [['Vendido por el equipo', eur(R.totalEquipo.ingresos)], ['Pedidos del equipo', num(R.totalEquipo.pedidos)], ['Entraron solos (web…)', eur(R.totalSolos.ingresos)], ['Total del periodo', eur(R.total.ingresos)]].map(x => h('div.kpi', { style: { cursor: 'default' } }, h('span.n', x[1]), h('span.l', x[0])))),
+      h('div.rk-lista', R.personas.map(fila)),
+      R.solos.length ? h('div', h('div.lbl', { style: { marginTop: '10px' } }, 'Pedidos que entraron solos (no cuentan para nadie)'), bars(R.solos.map(s => [s.nombre + ' · ' + s.pedidos + ' pedido' + (s.pedidos === 1 ? '' : 's'), s.ingresos]), eur)) : null,
+      h('details.more', h('summary', '¿Cómo se cuenta?'), h('ul.small',
+        h('li', 'Cada pedido es de quien lo VENDIÓ (campo «vendedor») o, si no está, de quien lo CREÓ en la app.'),
+        h('li', 'Un pedido con varios productos (varias filas con el mismo número) cuenta como UN pedido; se suman sus euros y unidades.'),
+        h('li', 'Los cancelados no cuentan. Los que entran solos (tienda web, importados) van aparte, por canal.'),
+        h('li', 'Se compara con el periodo anterior del mismo largo. Son los pedidos reales de la app, por su fecha.'))));
   }
   // v11: CENTRO FINANCIERO — de lo cobrado al beneficio neto, en cascada (estimación orientativa)
   function profitCard(d) {

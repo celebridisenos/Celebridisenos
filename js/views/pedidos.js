@@ -607,7 +607,7 @@ function stockHint(name, o) {
   const x = CL.stockLevels({ productos: S.t.productos, stock: S.t.stock, fabricacion: S.t.fabricacion || [], pedidos: S.t.pedidos.filter(p => p.id !== o.id) }, S.cfg.pedidos).of(name);
   if (!x || !x.controlado) return null;
   return x.disponible > 0 ? h('div.pi-tip.ok', '📦 Hay ' + x.disponible + ' disponible(s) en la estantería' + (x.ubicacion ? ' (' + x.ubicacion + ')' : '') + ': se puede enviar sin imprimir.')
-    : h('div.pi-tip.info', '🖨️ No hay piezas libres en stock' + (x.fisico > 0 ? ' (las ' + x.fisico + ' de la estantería ya están apartadas)' : '') + ': habrá que imprimirlo.');
+    : h('div.pi-tip.info', '🛠️ Bajo pedido: se fabrica para este pedido' + (x.fisico > 0 ? ' (las ' + x.fisico + ' de la estantería ya están apartadas)' : '') + '.');
 }
 
 // ---------- Formulario (nuevo / editar) ----------

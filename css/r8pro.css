@@ -829,3 +829,12 @@ html:not([data-modo="dia"]) .r8cj-ok { color: #2fdc72; }
 .r8c-cults { margin-top: 10px; padding: 10px; border: 1px dashed var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 6px; } .r8c-cults .r8c-pvp { color: var(--muted); }
 /* 18-10-2026 · 🎬 Animación en la ficha del Catálogo */
 .r8c-anim { margin-top: 10px; padding: 10px; border: 1px solid color-mix(in srgb, var(--a1, #7c6cff) 35%, var(--line)); border-radius: 12px; display: flex; flex-direction: column; gap: 7px; background: color-mix(in srgb, var(--a1, #7c6cff) 6%, transparent); } .r8c-anim-t { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; } .r8c-anim .r8e-btns button.on { outline: 2px solid var(--a1, #7c6cff); outline-offset: 1px; } .r8c-an-que { margin: 0; color: var(--text-2); min-height: 1em; } .r8c-an-vel { width: auto; }
+
+/* 20-10-2026 · el aviso de la animación, en su línea (no tapa la pieza) */
+.r8c-an-aviso { display: block; padding: 7px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; font-weight: 600; }
+.r8c-an-aviso.warn { background: color-mix(in srgb, var(--warn, #c98a00) 16%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, var(--warn, #c98a00) 45%, transparent); }
+.r8c-an-aviso.bad { background: color-mix(in srgb, var(--bad, #c0392b) 14%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, var(--bad, #c0392b) 45%, transparent); }
+.r8c-montaje { display: grid; gap: 4px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, #00c2d1 10%, transparent); border: 1px solid color-mix(in srgb, #00c2d1 45%, transparent); }
+.r8c-montaje .r8c-mo-paso { font-size: 14px; }
+.r8c-montaje small { color: var(--muted); font-size: 12.5px; }
+.r8c-montaje .r8e-btns { margin-top: 2px; }

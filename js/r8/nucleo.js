@@ -46,6 +46,7 @@ export function cargar() {
   }));
 }
 export const listo = () => !!W;
+export const _motores = () => ({ W, AUX, RESERVA }); // (20-10: solo para medir la memoria de cada motor en las pruebas)
 // v30.4 · MOTOR APARTE PARA ESCULPIR. El levelSet de Manifold, con rejillas grandes, deja memoria ocupada que no se recupera (medido:
 // ~120 MB por cada mano titiritera, hasta agotar los 2 GB y que TODO falle). Se esculpe en una segunda copia del motor, la malla se
 // trae a la principal y, cuando la copia ha trabajado mucho, se tira entera (su memoria se va con ella) y se prepara otra.
@@ -77,6 +78,25 @@ export function enAparte(fn) {
   }
   if (!M || !M.triVerts.length) return null;
   return apunta(new (W0.Manifold)(new W0.Mesh({ numProp: M.numProp, vertProperties: M.vertProperties, triVerts: M.triVerts })));
+}
+// 20-10-2026 · LO MISMO PARA UN CÁLCULO QUE SOLO DEVUELVE DATOS (las animaciones del catálogo: montar el kit y deducir qué se mueve).
+// Medido: 4 kits animados 6 veces dejaban el motor principal en 744 MB (la memoria de WebAssembly no se devuelve nunca: se fragmenta)
+// y en una sesión larga llegaba al tope y salía el error de memoria encima de la animación. Aquí todo se hace en el motor aparte, que
+// después se TIRA entero (cada `cada` usos: las miniaturas del catálogo, de 8 en 8). Lo que más lo llenaba: las ~400 miniaturas del
+// catálogo, que se fabricaban en el principal mientras ella miraba (o animaba) una pieza.
+// fn() debe devolver datos (números, vistas), no piezas. undefined = el aparte aún no está (hazlo en el principal).
+export function enAparteDatos(fn, cada = 1) {
+  const A = AUX; if (!A || !W || W === A) { preparaAux(); return undefined; }
+  const W0 = W, antes = new Set(vivos); let r, roto = null;
+  W = A;
+  try { r = enAmbito(fn); }
+  catch (e) { roto = e; }
+  finally {
+    W = W0; for (const o of [...vivos]) if (!antes.has(o)) { vivos.delete(o); try { o.delete(); } catch (e) { } }
+    if (roto) { AUX = null; auxUsos = 0; renuevaAux(); } else if (++auxUsos >= cada && renuevaAux()) auxUsos = 0;
+  }
+  if (roto) { if (roto.r8) throw roto; return undefined; } // si es el motor aparte el que falla, lo hace el principal
+  return r;
 }
 // v30.4 · un sólido a partir de vértices y triángulos ya cerrados (el esculpidor propio de sdf.js): null si no cierra bien
 export function deTriangulos(vert, tri) {

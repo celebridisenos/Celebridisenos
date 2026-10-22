@@ -20,6 +20,20 @@ function montar(prenda, conservar) {
   S = S2; sim = sim2; quieta = 0; cuadro = 0; foto = null;
   const T = TL.topologia(S); manda({ tipo: 'modelo', topo: T, pos: S.pos.slice(), heredado, gen });
 }
+// ================= 20-10-2026 · EL CONJUNTO (ella: «no deja vestir todo el maniquí, solo una cosa, no dos») =================
+// Las prendas que se dejan PUESTAS (ya colocadas) pasan a ser parte de lo que la tela no atraviesa: en la rejilla de distancias del cuerpo,
+// cada punto de la prenda puesta es una bolita de GROSOR mm; la prenda nueva se apoya encima (como una chaqueta sobre una camiseta).
+let R0 = null, puestas = []; const GROSOR_PUESTA = 9;
+function ponPrendaEnRejilla(R, pos, gro) {
+  const { x0, y0, z0, nx, ny, nz, paso, d } = R, rad = gro + 2 * paso, at = (i, j, k) => (k * ny + j) * nx + i;
+  for (let q = 0; q < pos.length; q += 3) { const x = pos[q], y = pos[q + 1], z = pos[q + 2];
+    const i0 = Math.max(0, Math.floor((x - rad - x0) / paso)), i1 = Math.min(nx - 1, Math.ceil((x + rad - x0) / paso)), j0 = Math.max(0, Math.floor((y - rad - y0) / paso)), j1 = Math.min(ny - 1, Math.ceil((y + rad - y0) / paso)), k0 = Math.max(0, Math.floor((z - rad - z0) / paso)), k1 = Math.min(nz - 1, Math.ceil((z + rad - z0) / paso));
+    for (let k = k0; k <= k1; k++) for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const dx = x0 + i * paso - x, dy = y0 + j * paso - y, dz = z0 + k * paso - z, dd = Math.sqrt(dx * dx + dy * dy + dz * dz) - gro, r = at(i, j, k); if (dd < d[r]) d[r] = dd; } }
+}
+function aplicaPuestas() {
+  if (!R || !R0) return; R.d.set(R0); puestas.forEach(p => ponPrendaEnRejilla(R, p.pos, p.grosor || GROSOR_PUESTA));
+  if (Rp) { Rp.d0 = R.d.slice(); PL.ponEnRejilla(Rp, pelo, cab); } // (la capucha: cuerpo + prendas puestas + pelo)
+}
 let gen = 0; // (16-10: el turno del último encargo de la pantalla; vuelve con el «modelo» para que no cuente como colocada una prenda vieja)
 self.onmessage = async e => { const m = e.data; if (m.gen !== undefined) gen = m.gen;
   try {
@@ -28,12 +42,13 @@ self.onmessage = async e => { const m = e.data; if (m.gen !== undefined) gen = m
       const t0 = performance.now(); let M, aviso = null, premium = false;
       let J = null; if (m.premium !== false) { try { const D = await MH.carga(); C = MH.construye(D, m.med, { sexo: m.sexo, peso: m.peso, musculo: m.musculo }); J = MH.juntasDe(D, C.pos); /* (18-10: los ojos, la boca… para que el avatar tenga cara; y el esqueleto para la pasarela) */ /* (17-10: el músculo de los cuerpos de la biblioteca: atlética, atlético) */ R = MH.rejilla(C, 9); M = MH.malla(C); /* (el pecho ya viene alisado de MH.construye: el cuerpo que se ve es el mismo con el que choca la tela) */ premium = true; } catch (x) { aviso = 'Cuerpo realista no disponible (' + (x.message || x) + '): se usa el maniquí sencillo.'; } }
       if (!premium) { C = A.construye(m.med, { sexo: m.sexo }); R = A.rejilla(C, 8); M = A.malla(C, R); }
-      cab = PL.cabezaDe(M.pos, C.H); if (m.pelo) pelo = m.pelo; Rp = Object.assign({}, R, { d: R.d.slice() }); PL.ponEnRejilla(Rp, pelo, cab); // (la misma cabeza que mide la vista para pintar el pelo; Rp = cuerpo + pelo, solo para la capucha)
+      cab = PL.cabezaDe(M.pos, C.H); if (m.pelo) pelo = m.pelo; R0 = R.d.slice(); puestas = []; Rp = Object.assign({}, R, { d: R.d.slice() }); PL.ponEnRejilla(Rp, pelo, cab); // (la misma cabeza que mide la vista para pintar el pelo; Rp = cuerpo + pelo, solo para la capucha)
       manda({ tipo: 'avatar', malla: M, H: C.H, juntas: J, medido: C.medido, objetivo: C.objetivo, desvio: C.desvio, fuera: C.fuera || [], med: C.med, niveles: C.niveles, premium, aviso, ms: Math.round(performance.now() - t0) }, [M.pos.buffer, M.nor.buffer, M.idx.buffer]);
       if (ultimaPrenda) montar(ultimaPrenda, true);
     } else if (m.tipo === 'prenda') { ultimaPrenda = m.prenda; if (m.tela !== undefined) tela = m.tela; if (C) montar(m.prenda, m.conservar); }
     else if (m.tipo === 'revestir') { if (C && ultimaPrenda) { S = null; montar(ultimaPrenda, false); } }
     else if (m.tipo === 'pelo') { pelo = m.estilo || 'no'; if (Rp && cab) { PL.ponEnRejilla(Rp, pelo, cab); if (sim) { quieta = 0; foto = null; } } }
+    else if (m.tipo === 'puestas') { puestas = m.lista || []; aplicaPuestas(); if (C && ultimaPrenda) montar(ultimaPrenda, true); } // (20-10: el CONJUNTO)
     else if (m.tipo === 'pausa') corre = false;
     else if (m.tipo === 'sigue') { corre = true; quieta = 0; foto = null; }
     else if (m.tipo === 'arrastre') { if (sim) { sim.arrastre = m.i >= 0 ? { i: m.i, p: m.p } : null; quieta = 0; foto = null; } }

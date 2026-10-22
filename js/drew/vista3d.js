@@ -7,6 +7,7 @@ import * as T from '../../vendor/three/three_r8.js';
 import * as PL from './pelo.js';
 import * as HU from './humano.js'; // 18-10: 🧑 avatares humanos (piel, ojos, cejas, labios, pelo de mechones)
 import * as PA from './pasarela.js'; // 18-10: 🚶‍♀️ la pasarela (el avatar desfila con la prenda)
+import * as AC from './accesorios.js'; // 20-10: 👒 complementos del avatar
 
 // el color del MAPA DE AJUSTE: verde (suelta, sin estirar) → amarillo (5 %) → rojo (10 % o más) · encogida (< −3 %) en azul
 export function colorEstira(e) {
@@ -95,7 +96,18 @@ export function vista3d(cont, o = {}) {
     caraJ = HU.cara(C.juntas, C.H); if (caraJ) { const u = matAv.userData.u; u.uOjoL.value.set(...caraJ.Lc); u.uOjoR.value.set(...caraJ.Rc); u.uBoca.value.set(...caraJ.M); u.uS.value = caraJ.s; }
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(M.pos, 3)); g.setAttribute('normal', new T.BufferAttribute(M.nor, 3)); g.setAttribute('reposo', new T.BufferAttribute(Float32Array.from(M.pos), 3)); g.setIndex(new T.BufferAttribute(M.idx, 1)); g.computeBoundingSphere();
     avatar = new T.Mesh(g, matAv); avatar.castShadow = true; avatar.receiveShadow = true; grupoAv.add(avatar); H = C.H; sucio = true;
-    cabeza = PL.cabezaDe(M.pos, C.H); ponPelo(); ponOjos();
+    cabeza = PL.cabezaDe(M.pos, C.H); ponPelo(); ponOjos(); ponAccesorios();
+  }
+  // ---------- 20-10-2026 · 👒 COMPLEMENTOS (gorra, sombrero, pamela, gorro, boina, gafas): a la medida de la cabeza y del pelo ----------
+  let accG = null, accL = [];
+  function ponAccesorios(L) {
+    if (L !== undefined) accL = (L || []).slice();
+    if (accG) { grupoAv.remove(accG); accG.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); accG = null; }
+    sucio = true; if (!cabeza || !accL.length) return;
+    const g = new T.Group(), c = cabeza.c, E = peloEst.estilo, gros = E && E !== 'no' ? PL.grosorPelo(E) * 1.03 : 1.01;
+    const ojosL = caraJ ? [caraJ.L, caraJ.R].map(p => [p[0] - c[0], p[1] - c[1], p[2] - c[2]]) : null;
+    accL.forEach(a => { const o = AC.construye(T, a.k, cabeza, { color: a.color, gros, ojos: ojosL }); if (o) g.add(o); });
+    g.position.set(c[0], c[1], c[2]); accG = g; grupoAv.add(g);
   }
   // ---------- (17-10) el PELO esculpido (como el de los maniquíes de tienda): ella pidió «más avatares, no solo chicos: también mujeres» y
   // la mujer calva parecía un chico. Se calcula sobre la CABEZA del cuerpo (el elipsoide de lo de arriba de la malla) y se recorta por una
@@ -129,7 +141,7 @@ export function vista3d(cont, o = {}) {
       const g2 = new T.BufferGeometry(), col = new Float32Array(H2.col.length * 3); for (let i = 0; i < H2.col.length; i++) col[3 * i] = col[3 * i + 1] = col[3 * i + 2] = H2.col[i];
       g2.setAttribute('position', new T.BufferAttribute(H2.pos, 3)); g2.setAttribute('uv', new T.BufferAttribute(H2.uv, 2)); g2.setAttribute('color', new T.BufferAttribute(col, 3)); g2.setIndex(new T.BufferAttribute(H2.idx, 1)); g2.computeVertexNormals();
       const mech = new T.Mesh(g2, matMech); mech.castShadow = false; gr.add(mech); if (m === matPelo) { matPelo.color.set(peloEst.color).multiplyScalar(0.62); matPelo.sheen = 0.2; matPelo.sheenColor.set(peloEst.color); /* (debajo de los mechones: sin el brillo gris, que asomaba entre los pelos) */ } }
-    gr.position.set(c[0], c[1], c[2]); peloG = gr; grupoAv.add(gr);
+    gr.position.set(c[0], c[1], c[2]); peloG = gr; grupoAv.add(gr); if (accL.length) ponAccesorios();
   }
   function piel(k) { matAv.color.set((PIELES[k] || PIELES.maniqui)[0]); const lac = !k || k === 'maniqui' || k === 'gris'; matAv.clearcoat = lac ? 0.35 : 0.06; matAv.clearcoatRoughness = lac ? 0.42 : 0.6; matAv.roughness = lac ? 0.5 : 0.56; matAv.sheen = lac ? 0.15 : 0.3;
     matAv.sheenColor = new T.Color(lac ? '#ffffff' : '#ffd9c7'); const H = HU.PIELES_H[k], u = matAv.userData.u; u.uHum.value = H ? 1 : 0; if (H) { u.uLabio.value.set(H.labio); u.uRubor.value = H.rubor; u.uCeja.value.set(peloEst.color && peloEst.color !== 'igual' ? peloEst.color : '#2b1d16').multiplyScalar(0.8); }
@@ -197,6 +209,16 @@ export function vista3d(cont, o = {}) {
     tela = { S, metas, lineas, lp, decales: [] }; sucio = true;
     ponEstampados(o2.estampados);
   }
+  // ---------- 20-10-2026 · EL CONJUNTO: las prendas que se dejan PUESTAS (quietas, con sus colores) mientras se viste otra encima ----------
+  const grupoPuestas = new T.Group(); esc.add(grupoPuestas); let puestas = [];
+  function ponPuestas(L) {
+    puestas.forEach(p => { grupoPuestas.remove(p.me); p.g.dispose(); p.me.material.dispose(); }); puestas = [];
+    (L || []).forEach(x => { const g = new T.BufferGeometry(), pos = Float32Array.from(x.pos), at = new T.BufferAttribute(pos, 3); at.setUsage(T.DynamicDrawUsage); g.setAttribute('position', at);
+      if (x.uv) g.setAttribute('uv', new T.BufferAttribute(Float32Array.from(x.uv), 2)); g.setAttribute('color', new T.BufferAttribute(Float32Array.from(x.col), 3)); g.setIndex(new T.BufferAttribute(Uint32Array.from(x.tris), 1)); g.computeVertexNormals();
+      const me = new T.Mesh(g, materialTela(x.tela || 'punto', '#ffffff')); me.castShadow = true; me.receiveShadow = true; me.frustumCulled = false; grupoPuestas.add(me); puestas.push({ me, g, at, rest: Float32Array.from(x.pos) }); });
+    sucio = true;
+  }
+  function verTela(si) { grupoTela.visible = !!si; sucio = true; }
   function quitaTela() { if (!tela) return; quitaEstampados(); tela.metas.forEach(m => { grupoTela.remove(m.me); m.g.dispose(); m.me.material.dispose(); }); grupoTela.remove(tela.lineas); tela.lineas.geometry.dispose(); tela = null; }
   // (17-10) ESTAMPADOS: una imagen (PNG con transparencia: el logo de la foto de producto o una tuya) sobre una pieza. Las UV de la tela son los
   // mm de la pieza (x desde el centro, y desde el bajo): la imagen se coloca con su CENTRO en (x, y) y mide w × h mm. Va en una malla que comparte
@@ -258,8 +280,9 @@ export function vista3d(cont, o = {}) {
     const E = PA.esqueleto(juntasAv, H), g = avatar.geometry, rest = Float32Array.from(g.attributes.position.array), nor0 = Float32Array.from(g.attributes.normal.array), W = PA.pesos(rest, g.index.array, E);
     let T2 = null; if (tela) { const S = tela.S, tris = []; S.P.forEach(p => { const pl = ArrayBuffer.isView(p.tri) ? p.tri : p.tri.flat(); for (let i = 0; i < pl.length; i++) tris.push(pl[i]); });
       T2 = { rest: Float32Array.from(S.pos), W: PA.pesosTela(S.pos, rest, W, E, { tris: Uint32Array.from(tris), pares: S.pares }) }; }
+    const Pu = puestas.map(p => ({ p, W: PA.pesosTela(p.rest, rest, W, E, {}) })); // (20-10: las prendas puestas también desfilan)
     const prog = PA.programa(); montaPasarela(prog);
-    pas = { E, W, rest, nor0, T2, prog, t0: performance.now(), cam: 'frente', fijo: false, vista: { pos: cam.position.clone(), tgt: ctl.target.clone() }, sol0: sol.position.clone(), girar0: girar };
+    pas = { E, W, rest, nor0, T2, Pu, prog, t0: performance.now(), cam: 'frente', fijo: false, vista: { pos: cam.position.clone(), tgt: ctl.target.clone() }, sol0: sol.position.clone(), girar0: girar };
     suelo.visible = aro.visible = false; pasG.visible = true; ctl.enabled = false; girar = false; esc.add(sol.target);
     pasoPasarela(0); return true;
   }
@@ -270,7 +293,9 @@ export function vista3d(cont, o = {}) {
     mH.fromArray(PA.matriz(ps, PA.HU.cabeza));
     if (peloG && cabeza) { peloG.matrixAutoUpdate = false; peloG.matrix.copy(mH).multiply(mC.makeTranslation(cabeza.c[0], cabeza.c[1], cabeza.c[2])); peloG.matrixWorldNeedsUpdate = true; }
     if (ojosG) { ojosG.matrixAutoUpdate = false; ojosG.matrix.copy(mH); ojosG.matrixWorldNeedsUpdate = true; }
-    [grupoAv, grupoTela].forEach(G2 => { G2.position.set(s.x, 0, s.z); G2.rotation.y = s.yaw; });
+    if (accG && cabeza) { accG.matrixAutoUpdate = false; accG.matrix.copy(mH).multiply(mC.makeTranslation(cabeza.c[0], cabeza.c[1], cabeza.c[2])); accG.matrixWorldNeedsUpdate = true; }
+    (P.Pu || []).forEach(x => { PA.piel(x.p.rest, x.W, ps, x.at ? x.at.array : x.p.at.array); x.p.at.needsUpdate = true; x.p.g.computeVertexNormals(); });
+    [grupoAv, grupoTela, grupoPuestas].forEach(G2 => { G2.position.set(s.x, 0, s.z); G2.rotation.y = s.yaw; });
     sol.position.set(P.sol0.x + s.x, P.sol0.y, P.sol0.z + s.z); sol.target.position.set(s.x, 0, s.z); sol.target.updateMatrixWorld();
     const y = H * 0.5, k = P.cam; let d;
     if (k === 'lado') { cam.position.set(s.x + 3800, H * 0.55, s.z); d = 3800; }
@@ -285,14 +310,15 @@ export function vista3d(cont, o = {}) {
     if (!pas) return false; const P = pas; pas = null;
     const g = avatar && avatar.geometry; if (g && g.attributes.position.array.length === P.rest.length) { g.attributes.position.array.set(P.rest); g.attributes.position.needsUpdate = true; g.attributes.normal.array.set(P.nor0); g.attributes.normal.needsUpdate = true; g.computeBoundingSphere(); }
     if (P.T2 && tela && tela.S.pos.length === P.T2.rest.length) { tela.S.pos.set(P.T2.rest); actualizaTela(undefined); }
-    [peloG, ojosG].forEach(o => { if (o) { o.matrixAutoUpdate = true; o.updateMatrix(); } });
-    [grupoAv, grupoTela].forEach(G2 => { G2.position.set(0, 0, 0); G2.rotation.y = 0; });
+    [peloG, ojosG, accG].forEach(o => { if (o) { o.matrixAutoUpdate = true; o.updateMatrix(); } });
+    (P.Pu || []).forEach(x => { x.p.at.array.set(x.p.rest); x.p.at.needsUpdate = true; x.p.g.computeVertexNormals(); });
+    [grupoAv, grupoTela, grupoPuestas].forEach(G2 => { G2.position.set(0, 0, 0); G2.rotation.y = 0; });
     sol.position.copy(P.sol0); sol.target.position.set(0, 0, 0); sol.target.updateMatrixWorld();
     suelo.visible = aro.visible = true; pasG.visible = false; ctl.enabled = true; girar = P.girar0; cam.fov = 28; cam.updateProjectionMatrix(); cam.position.copy(P.vista.pos); ctl.target.copy(P.vista.tgt); ctl.update(); sucio = true; return false;
   }
   vista('tres'); bucle();
   return {
-    T, esc, cam, ctl, ren, grupoTela, grupoAv, lienzo, ponAvatar, piel, verAvatar, ponPelo, get cabeza() { return cabeza; }, vista, ponTela, quitaTela, actualizaTela, colorTela, telaFoto, ojos, ponEstampados, resalta, toca, enPlano, get tela() { return tela; },
+    T, esc, cam, ctl, ren, grupoTela, grupoAv, lienzo, ponAvatar, ponAccesorios, get accesorios() { return accL.slice(); }, get accesoriosG() { return accG; }, ponPuestas, get puestas() { return puestas.length; }, verTela, get telaVisible() { return grupoTela.visible; }, piel, verAvatar, ponPelo, get cabeza() { return cabeza; }, vista, ponTela, quitaTela, actualizaTela, colorTela, telaFoto, ojos, ponEstampados, resalta, toca, enPlano, get tela() { return tela; },
     set gira(v) { girar = !!v; }, get gira() { return girar; },
     pasarela, get enPasarela() { return !!pas; }, get pasarelaDur() { return pas ? pas.prog.dur : PA.programa().dur; }, get pasarelaEstado() { return pas ? pas.s : null; },
     pasarelaEn(t) { if (!pas) return null; pas.fijo = true; pasoPasarela(t); return pas.s; }, pasarelaSigue() { if (pas) { pas.fijo = false; pas.t0 = performance.now(); } }, set alPintar(f) { alPintar = f; }, marca() { sucio = true; }, get cuadros() { return cuadro; },

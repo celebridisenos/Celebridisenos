@@ -53,7 +53,8 @@ export async function montarCatalogo(el, ext = {}) {
     if (!vivo) return;
     [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k)).forEach(b => {
       const k = b.dataset.k; cola = cola.then(libre).then(() => new Promise(res => setTimeout(() => { if (!vivo || MINIS.has(k)) return res();
-        try { if (SDF) SDF.ajustes.rapido = true; const m = K.genera(k, sinNombre(K, k)), url = miniatura(N.aVista(m), C.color[k] || K.DISENOS[k].color, K.DISENOS[k].acabado || 'mate', 300); MINIS.set(k, url); guardaMini(huella(K, k, C.color[k] || K.DISENOS[k].color), url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); }
+        try { if (SDF) SDF.ajustes.rapido = true; const hazV = () => N.aVista(K.genera(k, sinNombre(K, k))); let vis = N.enAparteDatos(hazV, 8); if (vis === undefined) vis = N.enAmbito(hazV); // (20-10: en el motor aparte; el principal no se llena)
+          const url = miniatura(vis, C.color[k] || K.DISENOS[k].color, K.DISENOS[k].acabado || 'mate', 300); MINIS.set(k, url); guardaMini(huella(K, k, C.color[k] || K.DISENOS[k].color), url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); }
         catch (e) { MINIS.set(k, ''); console.warn(k, e); } finally { if (SDF) SDF.ajustes.rapido = false; N.limpia(); } res(); }, 16)));
     });
   }
@@ -74,7 +75,7 @@ export async function montarCatalogo(el, ext = {}) {
         h('div.r8e-btns', btn('🖨️ Preparar para la Bambu', () => imprimir(k), { cls: 'primary r8c-imprimir' }), btn('🧰 Abrir en el Estudio', () => alEstudio(k), { cls: 'r8c-estudio', title: 'La pieza entera, con sus medidas para seguir cambiándolas' }), ext.irA ? btn('🛡️ ¿Aguanta?', () => aResistencia(k), { cls: 'r8c-fragil', title: 'Dónde se partiría con estas medidas y reforzarla tocando la zona' }) : null, K.PARTES && K.PARTES[k] && ext.alEstudioPiezas ? btn('🧩 Al Estudio por piezas (editar y abrir)', () => alEstudioPiezas(k), { cls: 'r8c-estudio-p', title: 'Cada parte suelta (base, tapa, cajón…): se editan una a una y en 🎬 Animar se abre y se cierra' }) : null),
         h('div.r8e-btns.r8c-manual-f', { hidden: true }, btn('📄 Manual de montaje (para el paquete)', () => manual(k), { cls: 'r8c-manual', title: 'Una hoja A4 con la foto, las piezas y los pasos: se imprime o se guarda en PDF' })),
         h('div.r8c-anim', h('div.r8c-anim-t', h('b', '🎬 Animación'), h('small.muted', 'para ver cómo es y cómo se mueve')),
-          h('div.r8e-btns', btn('⚙️ Que se mueva', () => anima('mover'), { cls: 'sm r8c-an-mover', title: 'Lo que gira, engrana, orbita, se abre o se ondula, como de verdad' }), btn('🔄 Que gire', () => anima('girar'), { cls: 'sm r8c-an-girar', title: 'Da vueltas para verlo por todos lados' }), btn('💥 Desmontar y montar', () => anima('desmontar'), { cls: 'sm r8c-an-desmontar', title: 'Sus piezas se separan y se vuelven a juntar' }), K.PARTES && K.PARTES[k] ? btn('🚪 Abrir y cerrar', () => anima('abrir'), { cls: 'sm r8c-an-abrir' }) : null),
+          h('div.r8e-btns', btn('⚙️ Que se mueva', () => anima('mover'), { cls: 'sm r8c-an-mover', title: 'Lo que gira, engrana, orbita, se abre o se ondula, como de verdad' }), btn('🔄 Que gire', () => anima('girar'), { cls: 'sm r8c-an-girar', title: 'Da vueltas para verlo por todos lados' }), btn('💥 Desmontar y montar', () => anima('desmontar'), { cls: 'sm r8c-an-desmontar', title: 'Sus piezas se separan y se vuelven a juntar' }), btn('🔧 Montaje paso a paso', () => anima('montar'), { cls: 'sm r8c-an-montar', title: 'Pieza a pieza, en orden: cada una entra por donde cabe hasta su sitio (se puede pausar y repasar)' }), K.PARTES && K.PARTES[k] ? btn('🚪 Abrir y cerrar', () => anima('abrir'), { cls: 'sm r8c-an-abrir' }) : null),
           h('div.r8e-btns', h('select.inp.sm.r8c-an-vel', { 'aria-label': 'Velocidad', onchange: e => { VEL = Number(e.target.value) || 1; if (AN && AN.modo !== 'girar') anima(AN.modo); } }, [['0.5', '🐢 Despacio'], ['1', 'Normal'], ['2', '🐇 Deprisa']].map(([v2, t]) => h('option', { value: v2, selected: Number(v2) === VEL }, t))), btn('⏹ Parar', () => pararAnim(), { cls: 'sm ghost r8c-an-parar' }), btn('⏺ Grabar vídeo (8 s)', () => grabarAnim(), { cls: 'sm primary r8c-an-grabar', title: 'Lo que se ve, con la cámara girando despacio: para Instagram, TikTok o Cults' })),
           h('p.small.r8c-an-que')),
         h('div.r8e-btns.r8c-sorpresas', btn('📸 Escaparate', () => sorpresa('escaparate', k), { cls: 'r8c-escaparate', title: 'Foto de estudio y vídeo 360° para anunciarla antes de imprimirla' }), btn('🎬 Impresión fantasma', () => sorpresa('fantasma', k), { cls: 'r8c-fantasma', title: 'Mira cómo se imprimirá, capa a capa, con el tiempo estimado' })),
@@ -91,10 +92,11 @@ export async function montarCatalogo(el, ext = {}) {
     clearTimeout(tic); tic = setTimeout(() => {
       const k = C.abierto; if (!k || !escena) return; const D = K.DISENOS[k], v = C.v[k];
       try { const t0 = performance.now(), m = K.genera(k, v), I = N.info(m); const col1 = C.color[k] || D.color || '#7c6cff', aca = C.acabado[k] || D.acabado || 'mate', dc = D.dosColores && D.dosColores(v); let PV = [{ id: k, vista: N.aVista(m), color: col1, acabado: aca }];
+        if (D.coloresVista) { try { const CV = N.enAmbito(() => (D.coloresVista(v, col1) || []).map(x => ({ vista: N.aVista(x.m), color: x.color }))); if (CV.length) PV = CV.map((x, i) => ({ id: k + (i ? '_' + i : ''), vista: x.vista, color: x.color || col1, acabado: aca })); } catch (x) { console.warn('colores', x); } } // 21-10: piezas de varios colores (la réplica negra con la punta naranja)
         if (dc) { try { const [sube, baja] = m.splitByPlane([0, 0, 1], N.caja(m).min[2] + dc.z); if (!sube.isEmpty() && !baja.isEmpty()) PV = [{ id: k, vista: N.aVista(baja), color: col1, acabado: aca }, { id: k + '_2', vista: N.aVista(sube), color: dc.color, acabado: aca }]; } catch (x) { console.warn('dos colores', x); } } // v30.2: el QR en negro sobre blanco (como saldrá con la pausa)
         escena.ponPartes(PV); { const t = Math.max(...I.dims), cambia = TAM0 && (t > TAM0 * 1.4 || t < TAM0 / 1.4); if (ya || cambia) escena.encuadrar('iso'); TAM0 = t; } // (19-10: si pasa a ser mucho más grande o más pequeña —«Verlo montado»—, la cámara se recoloca para verla entera)
         mount(info, h('span', I.dims.map(x => (Math.round(x * 10) / 10).toLocaleString('es-ES')).join(' × ') + ' mm'), h('span', Math.round(I.vol / 1000) + ' cm³'), h('span', Math.round(performance.now() - t0) + ' ms'));
-        const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, D.soportes ? h('p.r8e-nota.r8c-sopn', '🌲 Lleva soportes (por su forma: asa, orejas, gancho…). Al prepararla para tu Bambu salen marcados los de árbol, que se quitan fácil.') : null, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null);
+        const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, (typeof D.soportes === 'function' ? D.soportes(v) : D.soportes) ? h('p.r8e-nota.r8c-sopn', '🌲 Lleva soportes (por su forma: asa, orejas, gancho…). Al prepararla para tu Bambu salen marcados los de árbol, que se quitan fácil.') : null, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null);
         window.__r8c = { k, dims: I.dims.map(x => Math.round(x * 10) / 10), vol: I.vol, piezas: m.decompose().length, valores: Object.assign({}, v) };
       } catch (e) { mount(info, h('span.r8e-mal', '⚠️ ' + (e.message || e))); window.__r8c = { k, error: e.message }; }
       finally { N.limpia(); }
@@ -104,7 +106,7 @@ export async function montarCatalogo(el, ext = {}) {
     const { modal } = await import('../ui.js'), A = await import('../r8/consejos3d.js'), d = await import('../desktop.js').catch(() => null), cuerpo = h('div.r8c-aj'); const D = K.DISENOS[k];
     modal('🖨️ ' + D.t + ' · preparar para tu Bambu', cuerpo, null, { size: 'wide' });
     const nombre = (D.t + '_' + Object.values(C.v[k] || {}).filter(x => typeof x === 'string' && x.length < 14 && /[a-z]/i.test(x)).slice(0, 1).join('')).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(0, 50);
-    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.usoDe ? D.usoDe(C.v[k]) : D.uso === 'pieza' ? 'mecanica' : D.uso, /* v30.3: jarrón hueco = impresión normal */ texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!D.soportes, sinSoportes: D.sinSoportes || '', /* v30.7 */ desktopAbrir: !!(d && d.desktop && d.desktop.on) });
+    A.asistente(cuerpo, { clave: 'cat_' + k, partes: () => (MESA ? MESA.expande : x => x)([{ m: K.genera(k, C.v[k]), color: C.color[k] || D.color || '#7c6cff', nombre: D.t }]), N, uso: D.usoDe ? D.usoDe(C.v[k]) : D.uso === 'pieza' ? 'mecanica' : D.uso, /* v30.3: jarrón hueco = impresión normal */ texto: (D.campos || []).some(c => c.txt && C.v[k][c.k]), nombre, baja, cama: 256, forzar: D.bambu, cambios: D.dosColores ? [D.dosColores(C.v[k])] : null, colorBase: C.color[k] || D.color, /* v30.2 🌈 */ sinCalibrar: !!D.sinCalibrar, soportes: !!(typeof D.soportes === 'function' ? D.soportes(C.v[k]) : D.soportes), sinSoportes: D.sinSoportes || '', /* (20-10 noche: D.soportes puede depender de lo que se imprime: el camión, solo en la cama de las manguetas) */ /* v30.7 */ desktopAbrir: !!(d && d.desktop && d.desktop.on) });
   }
   // ---------- 14-10-2026 (tarde) · 🛒 VENDER EN CULTS: la ficha (cada campo con su nota al lado) y «📦 Exportar todo» ----------
   const LS_PV = 'cd.r8.cults.precios'; // los precios que ella pone (por diseño), en este aparato
@@ -166,33 +168,56 @@ export async function montarCatalogo(el, ext = {}) {
   // (si el diseño tiene vista «Montado» —los kits, los engranajes en su placa—, se anima MONTADO: así se ve cómo se mueve de verdad)
   async function analisisDe(k) {
     const D = K.DISENOS[k], om = CA.opcionMontado(D), v = Object.assign({}, C.v[k], om ? { [om.k]: om.v } : {}), clave = k + '|' + JSON.stringify(v); if (ANA.has(clave)) return ANA.get(clave);
-    let X; try { const L0 = await CA.montadas(k, Object.assign({}, K.valores ? K.valores(k) : {}, v)); X = N.enAmbito(() => CA.analiza(N, L0 || K.genera(k, v), { pista: CA.PISTAS[k], cat: D.cat })); } finally { N.limpia(); }
+    let X; try { const monta = await CA.montadasFn(k), p = Object.assign({}, K.valores ? K.valores(k) : {}, v), haz = () => CA.analiza(N, monta(p) || K.genera(k, v), { pista: CA.PISTAS[k], cat: D.cat, k, t: D.t });
+      X = N.enAparteDatos(haz); if (X === undefined) X = N.enAmbito(haz); } finally { N.limpia(); } // (20-10: en el motor aparte, que luego se tira: la memoria del principal no sube con cada animación)
     X.montado = !!om && v[om.k] !== (C.v[k] || {})[om.k]; ANA.set(clave, X); if (ANA.size > 30) ANA.delete(ANA.keys().next().value); return X;
   }
+  // 20-10-2026 · los avisos de la animación van EN SU LÍNEA (debajo de los botones), no en un globo flotante encima de la pieza
+  let AVISO_AN = null; const avisaAn = (t, tipo = 'warn') => { AVISO_AN = { t, tipo }; };
+  const motorLleno = e => /memory|out of bounds|OOM|Aborted|allocation/i.test(String((e && e.message) || e)); // (el motor 3D sin memoria: decirlo en cristiano)
+  const DIR_TXT = d => d[2] > 0 ? 'desde arriba' : d[2] < 0 ? 'desde abajo' : d[0] > 0 ? 'por la derecha' : d[0] < 0 ? 'por la izquierda' : d[1] > 0 ? 'por detrás' : 'por delante';
+  function pintaMontaje(q) { // 20-10-2026 · 🔧 el paso que se ve, con ⏮ ⏯ ⏭ (para montarlo de verdad mirando la pantalla)
+    const M = AN.M, R = AN.R, p = M.pasoEn(R.t), o = AN.orden[p], ir = n => { R.t = Math.max(0, Math.min(M.pasos - 1, n)) * M.S + 0.02; AN.pasoVisto = -1; };
+    mount(q, h('div.r8c-montaje', h('b.r8c-mo-paso', '🔧 Paso ' + (p + 1) + ' de ' + M.pasos + ': ' + o.nombre), h('small', o.base ? 'La base: todo lo demás se monta encima o alrededor.' : 'Entra ' + DIR_TXT(o.dir) + '. El fantasma azul marca dónde encaja.'),
+      h('div.r8e-btns', btn('⏮', () => ir(p - 1), { cls: 'sm r8c-mo-atras', title: 'Paso anterior' }), btn(R.pausa ? '▶ Seguir' : '⏸ Pausa', () => { R.pausa = !R.pausa; pintaAn(); }, { cls: 'sm r8c-mo-pausa' }), btn('⏭', () => ir(p + 1), { cls: 'sm r8c-mo-sig', title: 'Paso siguiente' }), btn('↺ Desde el principio', () => ir(0), { cls: 'sm ghost r8c-mo-inicio' }))));
+  }
   function pintaAn() {
-    const q = detalle.querySelector('.r8c-an-que'); if (q) mount(q, AN ? (AN.modo === 'girar' ? '🔄 Dando vueltas.' : AN.modo === 'desmontar' ? '💥 ' + AN.X.n + ' piezas se separan y se vuelven a juntar.' : AN.modo === 'abrir' ? '🚪 Se abre y se cierra por su bisagra o su cajón.' : '⚙️ ' + (AN.X.notas || []).join('; ') + '.') + (AN && AN.X && AN.X.montado ? ' (Para verlo moverse lo he puesto MONTADO, con todas sus piezas.)' : '') : '');
+    const q0 = detalle.querySelector('.r8c-an-que'); if (q0 && AN && AN.modo === 'montar') { pintaMontaje(q0); return pintaAn2(); }
+    const q = q0; if (q) mount(q, !AN && AVISO_AN ? h('span.r8c-an-aviso.' + AVISO_AN.tipo, { role: 'status' }, AVISO_AN.t) : AN ? (AN.modo === 'girar' ? '🔄 Dando vueltas.' : AN.modo === 'desmontar' ? '💥 ' + AN.X.n + ' piezas se separan y se vuelven a juntar.' : AN.modo === 'abrir' ? '🚪 Se abre y se cierra por su bisagra o su cajón.' : '⚙️ ' + (AN.X.notas || []).join('; ') + '.') + (AN && AN.X && AN.X.montado ? ' (Para verlo moverse lo he puesto MONTADO, con todas sus piezas.)' : '') : '');
+    pintaAn2();
+  }
+  function pintaAn2() {
     detalle.querySelectorAll('.r8c-anim .r8e-btns button').forEach(b => b.classList.toggle('on', !!AN && b.classList.contains('r8c-an-' + AN.modo)));
-    window.__r8c = Object.assign(window.__r8c || {}, { anim: AN ? { modo: AN.modo, piezas: AN.X ? AN.X.n : null, mov: AN.X ? Object.fromEntries(Object.entries(AN.X.mov || {}).map(([i, m]) => [i, m.tipo])) : null, cadena: AN.X && AN.X.cadena ? AN.X.cadena.orden.length : 0 } : null });
+    window.__r8c = Object.assign(window.__r8c || {}, { anim: AN ? { modo: AN.modo, piezas: AN.X ? AN.X.n : null, mov: AN.X ? Object.fromEntries(Object.entries(AN.X.mov || {}).map(([i, m]) => [i, m.tipo])) : null, cadena: AN.X && AN.X.cadena ? AN.X.cadena.orden.length : 0, montaje: AN.M ? { paso: AN.M.pasoEn(AN.R.t), pasos: AN.M.pasos, pausa: AN.R.pausa, t: AN.R.t, orden: AN.orden.map(o => ({ id: o.id, nombre: o.nombre, dir: o.dir })) } : null } : null });
   }
   const conMesa = fn => (MESA && MESA.anim ? MESA.anim(fn) : fn); // (la cama del catálogo dibuja cada pieza por copia: «id@copia»)
   function pararAnim() { if (!escena) return; const cambio = AN && AN.cambio; escena.animar(null); escena.giraCamara(0); AN = null; if (cambio) genera(); pintaAn(); }
   async function anima(modo) {
     const k = C.abierto; if (!k || !escena) return; const D = K.DISENOS[k], v = C.v[k], color = C.color[k] || D.color || '#7c6cff', acabado = C.acabado[k] || D.acabado || 'mate';
-    escena.animar(null); escena.giraCamara(0);
+    escena.animar(null); escena.giraCamara(0); AVISO_AN = null;
     if (modo === 'girar') { if (AN && AN.cambio) genera(); AN = { modo }; escena.giraCamara(VEL); pintaAn(); return; }
     const q = detalle.querySelector('.r8c-an-que'); if (q) mount(q, '⏳ Mirando sus piezas…'); await new Promise(r => setTimeout(r, 30));
     try {
       if (modo === 'abrir') {
-        const L = N.enAmbito(() => (K.partesDe(k, Object.assign({}, v)) || []).map((x, i) => ({ id: 'pa' + i, vista: N.aVista(N.deSopa(x.sopa)), bisagra: x.bisagra, desliza: x.desliza }))); N.limpia();
-        if (!L.some(x => x.bisagra || x.desliza)) { toast('Este no trae bisagra ni cajón.', 'warn'); return pintaAn(); }
+        const hazL = () => (K.partesDe(k, Object.assign({}, v)) || []).map((x, i) => ({ id: 'pa' + i, vista: N.aVista(N.deSopa(x.sopa)), bisagra: x.bisagra, desliza: x.desliza }));
+        let L = N.enAparteDatos(hazL); if (L === undefined) L = N.enAmbito(hazL); N.limpia();
+        if (!L.some(x => x.bisagra || x.desliza)) { avisaAn('🚪 Este no trae bisagra ni cajón: mira «🔄 Que gire».'); return pintaAn(); }
         escena.ponPartes(L.map(x => ({ id: x.id, vista: x.vista, color, acabado }))); const fn = conMesa(CA.animacionAbrir(L, VEL)); escena.animar(fn); AN = { modo, cambio: true, X: { n: L.length }, fn }; return pintaAn();
       }
       const X = await analisisDe(k);
-      if (X.demasiadas) { toast('Tiene ' + X.n + ' trozos sueltos (letras, detalles…): mira «🔄 Que gire».', 'warn', 6000); return pintaAn(); }
-      if (modo === 'mover' && !X.hayMovimiento) { toast('En este diseño no hay piezas que se muevan solas' + (X.n > 1 ? ': mira «💥 Desmontar y montar» o «🔄 Que gire».' : ': mira «🔄 Que gire».'), 'warn', 7000); return pintaAn(); }
-      if (modo === 'desmontar' && X.n < 2) { toast('Es de una sola pieza: no hay nada que desmontar. Mira «🔄 Que gire».', 'warn', 6000); return pintaAn(); }
-      escena.ponPartes(X.piezas.map(p => ({ id: p.id, vista: p.vista, color, acabado }))); const fn = conMesa(CA.animacion(X, modo, VEL)); escena.animar(fn); AN = { modo, cambio: true, X, fn };
-    } catch (e) { toast('No he podido animarlo: ' + (e.message || e), 'bad', 7000); AN = null; }
+      if (X.demasiadas) { avisaAn('Tiene ' + X.n + ' trozos sueltos (letras, detalles…): mira «🔄 Que gire».'); return pintaAn(); }
+      if (modo === 'mover' && !X.hayMovimiento) { avisaAn('En este diseño no hay piezas que se muevan solas' + (X.n > 1 ? ': mira «💥 Desmontar y montar» o «🔄 Que gire».' : ': mira «🔄 Que gire».')); return pintaAn(); }
+      if (modo === 'montar') { // 20-10-2026 · 🔧 montaje paso a paso, con su propio reloj (⏸ lo para; ⏮ ⏭ saltan de paso)
+        if (X.n < 2) { avisaAn('Es de una sola pieza: no hay nada que montar. Mira «🔄 Que gire».'); return pintaAn(); }
+        const orden = CA.ordenMontaje(X), M = CA.animacionMontaje(X, orden, VEL), R = { t: 0, ult: null, pausa: false };
+        escena.ponPartes(X.piezas.map(p => ({ id: p.id, vista: p.vista, color: p.color || color, acabado })).concat(X.piezas.map(p => ({ id: 'g' + p.id, vista: p.vista, color: '#00c2d1', fantasma: true }))));
+        AN = { modo, cambio: true, X, orden, M, R, pasoVisto: -1, fn: conMesa(M.fn) };
+        const yo = AN; escena.animar(conMesa(tr => { if (R.ult != null && !R.pausa) R.t += tr - R.ult; R.ult = tr; const p = M.pasoEn(R.t); if (AN === yo && p !== yo.pasoVisto) { yo.pasoVisto = p; pintaAn(); } return M.fn(R.t); }));
+        return pintaAn();
+      }
+      if (modo === 'desmontar' && X.n < 2) { avisaAn('Es de una sola pieza: no hay nada que desmontar. Mira «🔄 Que gire».'); return pintaAn(); }
+      escena.ponPartes(X.piezas.map(p => ({ id: p.id, vista: p.vista, color: p.color || color, acabado }))); const fn = conMesa(CA.animacion(X, modo, VEL)); escena.animar(fn); AN = { modo, cambio: true, X, fn };
+    } catch (e) { AN = null; avisaAn(motorLleno(e) ? '⚠️ El motor 3D se ha quedado sin memoria. Pulsa otra vez: lo hago con un motor nuevo.' : '⚠️ No he podido animarlo: ' + (e.message || e), 'bad'); console.warn('animación', e); }
     pintaAn();
   }
   // ⏺ 8 s de la animación que se esté viendo (o, si no hay ninguna, de lo que mejor lo enseña), con la cámara girando despacio

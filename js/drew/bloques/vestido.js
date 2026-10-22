@@ -20,7 +20,7 @@ export const MEDIDAS_VESTIDO = [
   med('cintura', 'Contorno de cintura (de la prenda)', 740, 520, 1300),
   med('cadera', 'Contorno de cadera (de la prenda)', 1000, 760, 1600),
   med('espalda', 'Talle de espalda (de la nuca a la cintura)', 410, 330, 520),
-  med('hombros', 'Ancho de hombros (por la espalda)', 380, 300, 520),
+  med('hombros', 'Ancho de hombros (por la espalda)', 380, 220, 520), // (20-10: el mínimo era 300 y los TIRANTES FINOS —cuello + 7 cm— se quedaban en 7 cm de tirante)
   med('cuello', 'Ancho del cuello (de lado a lado)', 160, 110, 240),
   med('bajadaDel', 'Bajada del escote delantero', 90, 20, 280),
   med('bajadaEsp', 'Bajada del escote de la espalda', 20, 5, 200),
@@ -95,6 +95,7 @@ export function generaVestido(M0, O = {}, D = VESTIDO) {
   // (con una falda CORTA, el volante la alarga en vez de quitarle largo: se dice)
   const conVol = O.bajo === 'volante', altVol = conVol ? Math.min(140, Math.max(60, Math.round(M.largo * 0.18))) : 0, quita = conVol ? Math.max(0, Math.min(altVol, M.largo - M.altoCadera - 50)) : 0; M.largo -= quita;
   if (M.cadera < M.cintura) mal('La cadera tiene que medir más que la cintura.');
+  if (M.hombros / 2 - 10 - M.cuello / 2 < 15) mal('El tirante de delante mediría menos de 1,5 cm: ensancha los hombros o estrecha el cuello.');
   if (M.alturaPecho > M.espalda + 15 - 40) mal('La altura de pecho no cabe en el talle: revisa la altura de pecho o el talle de espalda.');
   const del = cuerpoV(M, false), esp = cuerpoV(M, true);
   const fdel = mitad(M, false), fesp = mitad(M, true); fdel.nombre = 'Falda delantera'; fesp.nombre = 'Falda espalda';

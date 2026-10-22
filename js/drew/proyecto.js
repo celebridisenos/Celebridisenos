@@ -78,6 +78,11 @@ export async function abrir(id) {
   return P;
 }
 export async function lista() { const d = await abre(); const L = d ? await tx(d, 'proyectos', 'readonly', s => s.getAll()) : [...memoria.proyectos.values()]; return (L || []).map(p => ({ id: p.id, nombre: p.nombre, modificado: p.modificado, categoria: p.prenda && p.prenda.categoria, estado: p.prenda && p.prenda.estado })).sort((a, b) => String(b.modificado).localeCompare(String(a.modificado))); }
-export async function borra(id) { const d = await abre(); const P = d ? await tx(d, 'proyectos', 'readonly', s => s.get(id)) : memoria.proyectos.get(id); const ids = ((P && P.imagenes) || []).map(i => i.id);
+export async function borra(id) { const d = await abre(); const P = d ? await tx(d, 'proyectos', 'readonly', s => s.get(id)) : memoria.proyectos.get(id); const ids = ((P && P.imagenes) || []).map(i => i.id).concat(((P && P.puestas) || []).map(x => x.id)); // (y las mallas de las prendas puestas)
   if (!d) { memoria.proyectos.delete(id); ids.forEach(i => memoria.imagenes.delete(i)); return; } await tx(d, 'proyectos', 'readwrite', s => s.delete(id)); for (const i of ids) await tx(d, 'imagenes', 'readwrite', s => s.delete(i)); }
 export async function borraImagen(P, iid) { P.imagenes = P.imagenes.filter(i => i.id !== iid); const d = await abre(); if (!d) memoria.imagenes.delete(iid); else await tx(d, 'imagenes', 'readwrite', s => s.delete(iid)); }
+// 20-10-2026 · 👕+👖 EL CONJUNTO: la malla de cada prenda PUESTA (posiciones, triángulos, colores…: cientos de miles de números) va APARTE,
+// en el almacén de las imágenes (así no entra en el JSON del proyecto ni en cada «deshacer»). En el proyecto solo queda su referencia.
+export async function guardaMalla(id, datos) { const d = await abre(); if (!d) { memoria.imagenes.set(id, { id, datos }); return; } await tx(d, 'imagenes', 'readwrite', s => s.put({ id, datos })); }
+export async function leeMalla(id) { const d = await abre(); const x = d ? await tx(d, 'imagenes', 'readonly', s => s.get(id)) : memoria.imagenes.get(id); return x ? x.datos : null; }
+export async function borraMalla(id) { const d = await abre(); if (!d) { memoria.imagenes.delete(id); return; } await tx(d, 'imagenes', 'readwrite', s => s.delete(id)); }

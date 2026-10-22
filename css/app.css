@@ -2280,3 +2280,14 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .mp-todo { margin-top: 10px; border: 1px dashed var(--line-2, #d9d3e0); background: transparent; border-radius: 12px; padding: 10px 12px; font: inherit; cursor: pointer; color: var(--brand, #8b5cf6); font-weight: 600; }
 @media (max-width: 700px) { .mp { padding: 0; } .mp-caja { border-radius: 0; min-height: 100%; padding: 16px; } .mp-gs { grid-template-columns: 1fr; } }
 @media (pointer: coarse) { .mp-t { padding: 11px 12px; } .mp-x { width: 44px; height: 44px; } }
+/* 20-10-2026 · 🏆 ranking de ventas del equipo (Informes) */
+.rk-lista { display: grid; gap: 6px; margin-top: 10px; }
+.rk-fila { display: grid; grid-template-columns: 34px minmax(120px, 1.2fr) minmax(80px, 1.4fr) minmax(150px, 1.2fr) 110px; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--surface-2, rgba(0,0,0,.03)); }
+.rk-pos { font-size: 20px; text-align: center; font-weight: 800; }
+.rk-quien { display: grid; min-width: 0; } .rk-quien small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-barra { height: 10px; border-radius: 9px; background: var(--surface-3, rgba(0,0,0,.06)); overflow: hidden; } .rk-barra i { display: block; height: 100%; background: var(--brand); border-radius: 9px; }
+.rk-num { display: grid; text-align: right; } .rk-num small { font-size: 11.5px; }
+.rk-serie { display: flex; align-items: flex-end; gap: 1px; height: 28px; } .rk-serie i { flex: 1; min-width: 2px; background: var(--brand); opacity: .55; border-radius: 2px 2px 0 0; }
+@media (max-width: 760px) { .rk-fila { grid-template-columns: 30px 1fr auto; } .rk-barra, .rk-serie { display: none; } }
+/* 20-10-2026 · bajo pedido: «se fabrica al pedirlo» (neutro) y «por fabricar» (trabajo pendiente) */
+.pchips .ped { background: #e0f2fe; color: #075985; } .pchips .pfab { background: #fef3c7; color: #92400e; }

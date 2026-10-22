@@ -31,8 +31,8 @@ export function render(el, params) {
   [fCat, fEst].forEach(x => x.addEventListener('change', () => { st.cat = fCat.value; st.est = fEst.value; drawList(); }));
   const listBox = h('div'), chipsBox = h('div.row.wrap.prod-filtros', { style: { gap: '6px', marginBottom: '14px' } });
   // v16.2 · filtros de un toque: cómo está cada producto en la web y en la estantería
-  const FILTROS = [['', 'Todos'], ['pub', '🟢 Publicados'], ['nopub', 'No publicados'], ['ago', '🔴 Agotados'], ['disp', 'Disponibles']];
-  const pasaWeb = (p, ind, k) => { const e = estadoProducto(p, ind); return !k ? true : k === 'pub' ? e.publicado : k === 'nopub' ? !e.publicado : k === 'ago' ? e.agotado : e.disponible !== null && e.disponible > 0; };
+  const FILTROS = [['', 'Todos'], ['pub', '🟢 Publicados'], ['nopub', 'No publicados'], ['est', '🧺 En estantería'], ['fab', '🛠️ Por fabricar']]; // (20-10: bajo pedido; «agotado», solo si en la web se vende con stock contado)
+  const pasaWeb = (p, ind, k) => { const e = estadoProducto(p, ind); return !k ? true : k === 'pub' ? e.publicado : k === 'nopub' ? !e.publicado : k === 'est' ? e.estanteria > 0 : k === 'fab' ? e.porFabricar > 0 : e.disponible !== null && e.disponible > 0; };
   const pintarChips = ind => mount(chipsBox, FILTROS.map(([k, t]) => h('button.chip' + (st.web === k ? '.on' : ''), { type: 'button', 'data-f': k, onclick: () => { st.web = k; st.limit = 60; drawList(); } }, t, h('span.c', String(S.t.productos.filter(p => pasaWeb(p, ind, k)).length)))));
   el.append(h('div.page-head', h('h1', 'Productos'), can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null),
     h('div.row.wrap', { style: { marginBottom: '10px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fCat), h('div', { style: { width: '180px' } }, fEst)), chipsBox, listBox);
@@ -213,13 +213,17 @@ function indicadores() {
 export function estadoProducto(p, ind) {
   ind = ind || indicadores();
   const w = p.web && typeof p.web === 'object' ? p.web : {}, lv = ind.niveles ? ind.niveles.of(p.nombre) : null, contado = w.stockModo === 'contado';
-  const controlado = !!(lv && lv.controlado), disp = controlado ? lv.disponible : contado && w.publicado ? Math.max(0, Number(w.stock) || 0) : null;
-  return { publicado: !!w.publicado, antes: !!w.publicadoEn, disponible: disp, agotado: disp !== null && disp <= 0, vendidos: ind.vendidos[p.id] || ind.vendidos[CL.norm(p.nombre)] || 0 };
+  // 20-10-2026 · BAJO PEDIDO: lo normal es no tener piezas (se fabrica al pedirlo). «Agotado» SOLO si en la web se vende con stock CONTADO y
+  // ya no quedan; la estantería (lo que sobró de una cancelación…) se enseña aparte, y los pedidos que esperan, como «por fabricar»
+  const controlado = !!(lv && lv.controlado), estanteria = controlado ? Math.max(0, lv.disponible) : 0, porFabricar = controlado ? Math.max(0, -lv.disponible) : 0;
+  const disp = contado && w.publicado ? Math.max(0, Number(w.stock) || 0) : null;
+  return { publicado: !!w.publicado, antes: !!w.publicadoEn, disponible: disp, agotado: disp !== null && disp <= 0, estanteria, porFabricar, contado, vendidos: ind.vendidos[p.id] || ind.vendidos[CL.norm(p.nombre)] || 0 };
 }
 function chipsProducto(p, ind) {
   const e = estadoProducto(p, ind);
   return h('div.pchips', e.publicado ? h('span.pub', '🟢 Publicado') : h('span.nopub', e.antes ? 'Retirado' : 'No publicado'),
-    e.agotado ? h('span.ago', 'AGOTADO') : e.disponible !== null ? h('span.disp', 'Disponible: ' + e.disponible) : null,
+    e.agotado ? h('span.ago', 'AGOTADO (stock contado)') : e.disponible !== null ? h('span.disp', 'Disponible: ' + e.disponible + ' (web)') : e.estanteria ? h('span.disp', '🧺 En estantería: ' + e.estanteria) : h('span.ped', '🛠️ Bajo pedido'),
+    e.porFabricar ? h('span.pfab', 'Por fabricar: ' + e.porFabricar) : null,
     e.vendidos ? h('span.ven', 'Vendidos: ' + e.vendidos) : null);
 }
 // La barra de arriba de la ficha: PUBLICAR EN WEB, grande y a la vista. Republicar es UN clic (reutiliza todo lo guardado).
@@ -233,7 +237,7 @@ function barraWeb(p, irAWeb) {
   };
   return h('div.pub-bar' + (e.publicado ? '.on' : ''),
     h('div.grow', h('b', e.publicado ? (e.agotado ? '🔴 En la web · AGOTADO' : '🟢 Publicado en la web') : e.antes ? '⚪ Retirado de la web' : '⚪ No está en la web'),
-      h('span', [e.disponible !== null ? (e.agotado ? 'Sin unidades' : 'Disponible: ' + e.disponible) : 'Bajo pedido', e.vendidos ? 'Vendidos: ' + e.vendidos : ''].filter(Boolean).join(' · '))),
+      h('span', [e.disponible !== null ? (e.agotado ? 'Sin unidades (vendes con stock contado)' : 'Disponible: ' + e.disponible + ' en la web') : 'Bajo pedido: se fabrica al pedirlo', e.estanteria ? '🧺 ' + e.estanteria + ' en la estantería' : '', e.porFabricar ? '🛠️ ' + e.porFabricar + ' por fabricar' : '', e.vendidos ? 'Vendidos: ' + e.vendidos : ''].filter(Boolean).join(' · '))),
     !tieneTienda ? btn('Conectar la tienda', () => go('tienda'), { cls: 'sm' })
       : e.publicado ? btn('Ver / actualizar', irAWeb, { cls: 'sm' })
         : e.antes ? btn('🔁 REPUBLICAR', unClic, { cls: 'primary pub-btn', title: 'Vuelve a la web con las mismas fotos, texto, precio y categoría' })
@@ -324,10 +328,10 @@ function stockLevel(name) { return CL.stockLevels({ productos: S.t.productos, st
 function stockCard(p) {
   const x = stockLevel(p.nombre);
   const go2 = () => go('stock/' + encodeURIComponent(p.nombre));
-  if (!x || !x.controlado) return h('div.card.flat.row', { style: { marginTop: '12px' } }, h('span.grow.small.muted', '📦 Sin control de stock (bajo demanda).' + (x && x.reservado ? ' ' + x.reservado + ' apartada(s) para pedidos.' : '')), can('stock.mover') ? btn('Tengo unidades', go2, { cls: 'sm' }) : null);
+  if (!x || !x.controlado) return h('div.card.flat.row', { style: { marginTop: '12px' } }, h('span.grow.small.muted', '🛠️ Bajo pedido: se fabrica cuando lo piden.' + (x && x.reservado ? ' ' + x.reservado + ' pedida(s) ahora.' : '')), can('stock.mover') ? btn('🧺 Tengo alguna en la estantería', go2, { cls: 'sm' }) : null);
   const mv = d => btn(d > 0 ? '+1' : '−1', () => import('./stock.js').then(m => m.move(p.nombre, d)), { cls: 'sm', disabled: d < 0 && x.fisico <= 0 });
-  return h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row.wrap', h('b.grow', '📦 Stock' + (x.ubicacion ? ' · ' + x.ubicacion : '')), x.bajo ? pill(x.disponible < 0 ? 'Faltan ' + (-x.disponible) : 'Reponer', x.disponible < 0 ? 'bad' : 'warn') : pill('OK', 'ok')),
-    h('div.st-big.sm', h('div', h('b', String(x.fisico)), h('span', 'Estantería')), h('div', h('b', String(x.reservado)), h('span', 'Apartadas')), h('div', h('b', String(x.disponible)), h('span', 'Disponibles'))),
+  return h('div.card.flat', { style: { marginTop: '12px' } }, h('div.row.wrap', h('b.grow', '📦 Stock' + (x.ubicacion ? ' · ' + x.ubicacion : '')), x.porFabricar > 0 ? pill('🛠️ Por fabricar: ' + x.porFabricar, 'warn') : x.bajo ? pill('Bajo tu mínimo', 'warn') : x.enEstanteria > 0 ? pill('🧺 En estantería', 'ok') : pill('🛠️ Bajo pedido', '')),
+    h('div.st-big.sm', h('div', h('b', String(x.fisico)), h('span', 'En la estantería')), h('div', h('b', String(x.reservado)), h('span', 'Pedidas')), h('div', h('b', String(x.enEstanteria)), h('span', 'Libres para vender ya'))),
     h('div.row.wrap', can('stock.mover') ? [mv(-1), mv(1)] : null, h('span.grow'), btn('Ver stock e historial', go2, { cls: 'sm ghost' })));
 }
 // v20.2 · la dueña: «en Productos debe haber una opción que me deje ver el STL y que ponga “Abrir en Bambu Studio”».

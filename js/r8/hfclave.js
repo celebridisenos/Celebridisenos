@@ -22,7 +22,11 @@ export function cajaHF(opts = {}) {
     if (!q.sesion || q.valida === false) return pidiendo(q);
     const trellisOk = !s || s.trellis !== false; // (un programa del PC antiguo no lo dice: se da por bueno, como antes)
     mount(caja,
-      h('div.hfk-ok', h('span', '✅'), h('div', h('b', 'Hugging Face: has entrado como ', h('span.hfk-user', q.usuario || '?')),
+      q.sinComprobar // 20-10-2026 · guardada, pero Hugging Face no contesta ahora: NO se pide otra (antes sí, y en el portátil parecía que «se borraba»)
+        ? h('div.hfk-ok', { 'data-hf': 'sin-comprobar' }, h('span', '🔑'), h('div', h('b', 'Tu clave de Hugging Face está guardada en este PC'),
+          h('small', 'Ahora Hugging Face no contesta (' + (q.aviso || 'sin conexión') + '). No hace falta volver a pegarla: se usará en cuanto haya conexión. '),
+          btn('Comprobar otra vez', () => pinta(), { cls: 'sm ghost' })))
+        : h('div.hfk-ok', h('span', '✅'), h('div', h('b', 'Hugging Face: has entrado como ', h('span.hfk-user', q.usuario || '?')),
         q.tipo === 'fineGrained' ? h('small', 'Tu clave es «Fine-grained»: si Stable Fast 3D no baja, crea una de tipo «Read».') : null)),
       trellisOk ? h('div.hfk-ok', { 'data-hf': 'trellis' }, h('span', '✅'), h('div', h('b', 'TRELLIS.2 listo'), h('small', 'Nube gratis de Hugging Face: 1–2 figuras al día.')))
         : h('div.hfk-falta', { 'data-hf': 'trellis' }, h('span', '⬇️'), h('div', h('b', 'Falta preparar TRELLIS.2 en este PC (unos 115 MB, una sola vez)'), s.trellisError ? h('small.bad-t', '⚠️ ' + s.trellisError) : h('small', 'Se prepara solo junto con Stable Fast 3D.'))),

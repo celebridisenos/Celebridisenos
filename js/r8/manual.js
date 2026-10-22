@@ -20,7 +20,7 @@ export function pasosDeNota(nota) {
 export function tieneManual(D, v) { if (!D) return false; if (D.manual) return true; try { return !!pasosDeNota(typeof D.nota === 'function' ? D.nota(Object.assign({}, v, { que: (D.campos || []).some(c => c.k === 'que') ? ((D.campos.find(c => c.k === 'que').ops || [])[0] || [])[0] : undefined })) : D.nota); } catch (e) { return false; } }
 // los datos del manual de un diseño con unos valores
 export function datosManual(D, v) {
-  if (D.manual) { const m = D.manual(v) || {}; return { piezas: m.piezas || [], pasos: m.pasos || [], consejos: m.consejos || [], cuidados: m.cuidados || [], herramientas: m.herramientas || 'Ninguna: se monta con las manos.', vistas: m.vistas || null, edad: m.edad || '' }; }
+  if (D.manual) { const m = D.manual(v) || {}; return { piezas: m.piezas || [], pasos: m.pasos || [], consejos: m.consejos || [], cuidados: m.cuidados || [], herramientas: m.herramientas || 'Ninguna: se monta con las manos.', vistas: m.vistas || null, edad: m.edad || '', tornilleria: m.tornilleria || [] }; } // (20-10: tornilleria = [[cuántos, qué, dónde va]], los kits que llevan tornillos y rodamientos)
   const q0 = (D.campos || []).find(c => c.k === 'que'), nota = typeof D.nota === 'function' ? D.nota(Object.assign({}, v, q0 ? { que: q0.ops[0][0] } : {})) : D.nota, P = pasosDeNota(nota) || { pasos: [], cola: '' };
   return { piezas: [], pasos: P.pasos, consejos: P.cola ? [P.cola] : [], cuidados: [], herramientas: 'Ninguna: se monta con las manos.', vistas: null, edad: '' };
 }
@@ -42,6 +42,7 @@ ul { margin: 0; padding-left: 5mm; } ul li { margin: 3px 0; } .dos { display: gr
 <h1>${esc(titulo)}</h1><p class="sub">${esc(sub || '')}</p>
 <div class="fotos">${fotos.map(f => `<figure><img src="${f.src}" alt=""><figcaption>${esc(f.pie)}</figcaption></figure>`).join('')}</div>
 ${M.piezas.length ? `<h2>Qué viene en el paquete</h2><table>${M.piezas.map(p => `<tr><td>${esc(p[1] || 1)} ×</td><td><b>${esc(p[0])}</b>${p[2] ? ` <small>· ${esc(p[2])}</small>` : ''}</td></tr>`).join('')}</table>` : ''}
+${(M.tornilleria || []).length ? `<h2>Tornillería y rodamientos (se compran)</h2><table>${M.tornilleria.map(r => `<tr><td>${esc(r[0])} ×</td><td><b>${esc(r[1])}</b> <small>· ${esc(r[2])}</small></td></tr>`).join('')}</table>` : ''}
 <div class="dos"><div><h2>Necesitas</h2><div class="caja">${esc(M.herramientas)}</div></div>${M.edad ? `<div><h2>Para quién</h2><div class="caja">${esc(M.edad)}</div></div>` : ''}</div>
 <h2>Montaje, paso a paso</h2><ol>${M.pasos.map(p => `<li>${esc(p)}</li>`).join('')}</ol>
 ${M.consejos.length ? `<h2>Consejos</h2><ul>${M.consejos.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}

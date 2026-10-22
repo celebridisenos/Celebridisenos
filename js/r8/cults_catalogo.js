@@ -33,7 +33,17 @@ const PRECIO = {
   biciPro: 6.99, // 19-10-2026 · bicicleta PRO por piezas (4 estilos)
   motoPro: 7.99, // 19-10-2026 · moto PRO con motor N20
   cocheDrift: 9.99, // 19-10-2026 · coche RC de drift: el kit entero
+  camionRC: 14.99, // 20-10-2026 (noche) · camión RC 1/10 por piezas: 3 estilos, diferencial, suspensión, manual con tornillería
+  aerobarcoRC: 8.99, // 20-10-2026 · aerobarco RC: el kit entero (casco estanco, torre, protector, timones)
+  rascacielosGiro: 3.49, rascacielosArtDeco: 3.49, estadioPremium: 5.99, // 21-10-2026 · arquitectura premium
+  carruselEsmaltes: 5.99, expositorUnas: 3.49, organizadorLoto: 3.49, // 21-10-2026 · manicura premium
+  clickerMuelle: 2.49, // 21-10-2026 · clicker antiestrés con muelles de boli (5 formas)
+  soporteDualSense: 4.99, // 21-10-2026 · soporte premium para el mando (placas con silueta + barras, 4 montajes)
+  lanzabolas: 6.99, // 21-10-2026 · lanzabolas de muelle que funciona (juguete de bolas blandas o premium de 6 mm), con manual y prueba de encaje
+  lanzabolasCompeticion: 7.99, lanzabolasTactica: 7.99, lanzabolasFutura: 7.99, // 21-10 (tarde) · los otros 3 modelos (la misma mecánica, otro cuerpo)
+  avionetaRC: 8.99, // 21-10-2026 · avioneta RC entrenadora: fuselaje y cola impresos + plano de corte de las alas de cartón pluma (precio como el aerobarco: se puede cambiar)
   organizadorCilindros: 3.99, // 19-10-2026 · caja organizadora de alojamientos
+  limpiaBrochas4en1: 5.99, // 21-10-2026 · limpiador de brochas 4 en 1 con depósito, botón de muelle (válvula de pinza), cubeta y cajón
   rotulaTimelapse: 3.49, pinzaBobina: 0.99, rackPlacas: 1.49, rodillosBobina: 1.99, gridfinityPro: 1.99, gridfinityPuntas: 1.49, gridfinityBasePro: 0.99, skadisGancho: 0.99, skadisBalda: 1.99, skadisPorta: 1.49, goproTripode: 1.49, goproBrazo: 0.99, aspiradora: 1.49, soporteBalda: 0.99, ganchoPuerta: 1.29, tiburonFlexi: 2.99, serpienteFlexi: 2.99, fundaMecheroPro: 1.49, ceniceroMoai: 2.99, ceniceroVolcan: 2.49, // 17-10-2026 tarde
   dragonFlexi: 3.99, pulpoFlexi: 2.99, pezFlexi: 2.49, lagartijaFlexi: 2.49, aranaFlexi: 2.99, ajoloteFlexi: 2.49, cajaRegalo: 2.49, huevoSorpresa: 1.99, bolaNavidadAbre: 1.99, bolaPremios: 1.99, pastilleroGiratorio: 1.99, cajaGiratoria: 1.99, cajaDientes: 1.99, deckBox: 1.99, fantasmaVela: 1.99, calderoCaramelos: 2.49, lapidaHalloween: 1.49, arbolEspiral: 1.49, cakeTopper: 1.99, placaNacimiento: 2.49, cartelPuerta: 1.99, peanasMiniaturas: 1.49, contadorVida: 1.99, solidosPlatonicos: 2.49, moebius: 1.49, setGeometria: 2.49, bumeran: 1.99, silbato: 0.99, yoyo: 1.49, catapulta: 2.49, huchaRemolino: 3.49, marcapaginas: 1.49, servilleteroCalado: 1.49, estacionEsquejes: 1.99, macetaPared: 1.49, expositorPendientes: 1.99, numeroMesa: 1.49, deshojador: 0.99, exprimidor: 1.99, abrebotellas: 1.49, anilloFidget: 1.99,
   cajaEngranajes: 2.99, mesaEngranajes: 2.49, rodamientoPlanetario: 2.99, corazonEngranajes: 2.49, llaveroEngranajes: 1.99, juegoEngranajesMotor: 1.99, casaMunecas: 4.99, hormiguero: 3.49, hormigaNido: 2.99,
@@ -53,8 +63,24 @@ const PRECIO = {
 const T = {
   // 18-10-2026 · mecanismos que se mueven (cada uno con su vídeo del movimiento en «📦 Exportar todo») y el expositor de mecheros
   hormigueroTorre: ['Vertical Ant Farm Tower – Stackable Formicarium with Outworld', 'ant farm, formicarium, ant nest, vertical, stackable, outworld, hormiguero, colonia, science kit, STEM'],
+  limpiaBrochas4en1: ['Brush Cleaning Station 4-in-1 – Push-Button Water Tank, Scrub Pad, Comb & Drawer', 'brush cleaner, makeup brush cleaner, paint brush washer, brush cleaning station, water dispenser, push button valve, spring valve, artist tools, limpiador de brochas'],
   organizadorCilindros: ['Custom Holder Organizer – 4-in-1 Hair Dryer Brush, Cordless Drill & Bits', 'organizer, hair dryer holder, airwrap organizer, drill holder, bit holder, tool caddy, custom organizer, organizador'],
   cocheDrift: ['RC Drift Car Kit 1/16 – Ackermann Steering, 9:1 Gearbox, Spool, Drift Wheels', 'rc drift car, rc kit, 3d printed rc, 1/16 drift, sg90 steering, 370 motor, spool, drift tires, chassis, ackermann'],
+  camionRC: ['RC Truck Kit 1/10 – Stadium/Short Course/Monster, Diff, 540 Motor', 'rc truck, 1/10 rc, stadium truck, short course, monster truck, rc kit, 3d printed rc, bevel differential, independent suspension, oil shocks, 540 motor, bearings, camion rc'],
+  aerobarcoRC: ['RC Airboat Kit – Watertight Hull, 370/Brushless Motor, Prop Guard, Twin Rudders', /* (20-10: tenía 86 letras; Cults admite 80) */ 'rc airboat, rc boat, 3d printed boat, airboat kit, swamp boat, air rudder, prop guard, sg90, 370 motor, brushless, petg, watertight hull, barco rc, aerodeslizador'],
+  lanzabolas: ['Spring Soft-Ball Blaster – Working Slide, Sear & Magazine, Orange Tip', 'toy blaster, spring blaster, soft ball, gel ball, airsoft, slide action, working trigger, magazine, orange tip, prop, lanzabolas, pistola de juguete, juguete'],
+  lanzabolasCompeticion: ['Competition Spring Blaster – Orange Compensator, Magwell, Working Slide', 'toy blaster, spring blaster, competition, compensator, magwell, beavertail, soft ball, airsoft, slide action, orange tip, lanzabolas, pistola de juguete'],
+  lanzabolasTactica: ['Tactical Spring Blaster – Round Guard, Palm Swell, Lanyard Loop, Orange Tip', 'toy blaster, spring blaster, tactical, fde, lanyard loop, palm swell, soft ball, airsoft, slide action, orange tip, lanzabolas, pistola de juguete'],
+  lanzabolasFutura: ['Angular Spring Blaster – Futuristic Body, Chevron Serrations, Working Slide', 'toy blaster, spring blaster, futuristic, angular, sci-fi, chevron, soft ball, airsoft, slide action, orange tip, lanzabolas, pistola de juguete'],
+  avionetaRC: ['RC Trainer Plane Kit – Printed Fuselage, Foam Board Wings, 2212 Brushless', 'rc plane, rc airplane, trainer plane, high wing, foam board, depron, 3d printed fuselage, 2212 brushless, sg90 servo, wing plans, aeromodelo, avioneta rc'],
+  soporteDualSense: ['Premium PS5 Controller Stand – Dragon Claw, Wave, Wing or Minimal, Headset Hook', 'ps5 controller stand, dualsense holder, controller holder, headset stand, gaming setup, dragon claw, desk organizer, ps4, xbox controller, switch pro, wall mount, soporte mando'],
+  clickerMuelle: ['Fidget Clicker with Pen Springs – Cat Paw, Gamepad, Heart, Mini Keyboard, Cloud', 'fidget clicker, fidget toy, clicky, stress relief, anxiety toy, pen spring, cat paw, gamepad, heart, keyboard, cloud, desk toy, antiestres'],
+  carruselEsmaltes: ['Rotating Nail Polish Carousel – Tiered, Spins on 608-Type Bearings, Up to 40', 'nail polish organizer, nail polish rack, rotating organizer, carousel, manicure, nail salon, polish holder, bearing, organizador esmaltes'],
+  rascacielosGiro: ['Twisting Skyscraper Model & Lamp – Square, Triangle, Hex or Trefoil Plan', 'skyscraper, twisted tower, architecture model, desk decor, led lamp, city, building, modern architecture, rascacielos'],
+  rascacielosArtDeco: ['Art Deco Skyscraper Model – Setback Tiers, Pilasters, Crown and Spire', 'art deco, skyscraper, architecture model, 1930s, building, tower, desk decor, new york style, rascacielos'],
+  estadioPremium: ['Football Stadium Model – Tiered Stands, Cantilever Roof, Floodlights, Pitch', 'stadium model, football stadium, soccer, architecture model, pitch, floodlights, gift for fans, estadio'],
+  expositorUnas: ['Nail Swatch Display Stand – Numbered Tiers for Tip Sticks, Salon Name Sign', 'nail swatch, nail tips display, color chart, nail salon, swatch stand, manicure display, expositor uñas'],
+  organizadorLoto: ['Lotus Manicure Organizer – Brush & File Cup with Petal Compartments', 'manicure organizer, nail tools holder, brush holder, lotus, flower organizer, makeup organizer, desk organizer, organizador manicura'],
   motoPro: ['Motorized Motorcycle Kit – N20 Motor, Real Chain, Suspension, Disc Brakes', 'motorcycle model, motorbike kit, n20 motor, working chain, sprocket, swingarm, tpu, naked bike, motocross, moto, maqueta'],
   biciPro: ['Working Bicycle Model Kit – Real Chain, Steering, Disc Brakes, 4 Styles', 'bicycle model, bike kit, working chain, sprocket, TPU chain, disc brake, steering fork, mtb, road bike, bmx, bicicleta, maqueta'],
   ruedaGinebra: ['Geneva Drive Mechanism – Intermittent Motion Desk Toy', 'geneva drive, geneva mechanism, maltese cross, cruz de malta, intermittent motion, desk toy, kinetic'],
@@ -288,10 +314,21 @@ export function ficha(K, k, v, I = {}, o = {}) {
   const en = (T[k] || [D.t])[0], es = D.t.replace(/\s*🎁\s*$/, ''), ayuda = AYUDA.has(k), gratis = GRATIS.has(k), sug = precioDe(K, k), precio = gratis || ayuda ? 0 : (Number(o.precio) > 0 ? Math.round(Number(o.precio) * 100) / 100 : sug);
   const cat = CATEGORIAS[(CAT[D.cat] || ['home'])[0]] || CATEGORIAS.home, tags = tagsDe(K, k), dims = (I.dims || []).map(x => Math.round(x)), nP = I.piezas || 1;
   const usos = USO[D.uso] ? [USO[D.uso]] : [], texto = (D.campos || []).some(c => c.txt);
-  const lEs = [D.d + '.'].concat(usos.map(x => '✔ ' + x[0]), dims.length ? ['✔ 📏 ' + dims.join(' × ') + ' mm'] : [], ['✔ ' + (nP > 1 ? nP + ' piezas · ' : '') + (D.soportes ? 'con soportes de árbol (se quitan fácil)' : 'se imprime SIN soportes')], texto ? ['✔ ✏️ Personalizable (texto o nombre)'] : []);
-  const lEn = [GANCHO[D.cat] || 'Original parametric design, checked before release.'].concat(usos.map(x => '✔ ' + x[1]), dims.length ? ['✔ 📏 ' + dims.join(' × ') + ' mm'] : [], ['✔ ' + (nP > 1 ? nP + ' parts · ' : '') + (D.soportes ? 'tree supports (easy to remove)' : 'prints with NO supports')], texto ? ['✔ ✏️ Customizable text or name'] : []);
-  const imp = D.uso === 'jarron' ? 'PLA · capa 0,2 mm · MODO JARRÓN (espiral) · boquilla 0,4' : D.uso === 'flexible' ? 'TPU 95A · capa 0,2 mm · despacio (25–40 mm/s) · ' + (D.soportes ? 'soportes de árbol' : 'sin soportes') : 'PLA (o PETG) · capa 0,2 mm · 3 paredes · relleno 15 % · ' + (D.soportes ? 'soportes de árbol' : 'SIN soportes') + ' · boquilla 0,4';
-  const impEn = D.uso === 'jarron' ? 'PLA · 0.2 mm layers · VASE MODE (spiralize) · 0.4 nozzle' : D.uso === 'flexible' ? 'TPU 95A · 0.2 mm layers · slow (25–40 mm/s) · ' + (D.soportes ? 'tree supports' : 'no supports') : 'PLA (or PETG) · 0.2 mm layers · 3 walls · 15% infill · ' + (D.soportes ? 'tree supports' : 'NO supports') + ' · 0.4 nozzle';
+  const lEs = [D.d + '.'].concat(usos.map(x => '✔ ' + x[0]), dims.length ? ['✔ 📏 ' + dims.join(' × ') + ' mm'] : [], ['✔ ' + (nP > 1 ? nP + ' piezas · ' : '') + (typeof D.soportes === 'function' ? 'casi todo SIN soportes (solo unas pocas piezas, con soportes de árbol)' : D.soportes ? 'con soportes de árbol (se quitan fácil)' : 'se imprime SIN soportes')], texto ? ['✔ ✏️ Personalizable (texto o nombre)'] : []);
+  const lEn = [GANCHO[D.cat] || 'Original parametric design, checked before release.'].concat(usos.map(x => '✔ ' + x[1]), dims.length ? ['✔ 📏 ' + dims.join(' × ') + ' mm'] : [], ['✔ ' + (nP > 1 ? nP + ' parts · ' : '') + (typeof D.soportes === 'function' ? 'mostly NO supports (only a few parts need tree supports)' : D.soportes ? 'tree supports (easy to remove)' : 'prints with NO supports')], texto ? ['✔ ✏️ Customizable text or name'] : []);
+  // (20-10 noche: antes TODO salía «3 paredes · relleno 15 %», también el camión RC y los engranajes: impreso así, se parte. Ahora, lo que pide cada uso
+  // —lo mismo que pone el programa al exportar, consejos3d.claves—)
+  const algunas = typeof D.soportes === 'function', sop = algunas ? 'soportes de árbol solo en las piezas que lo dicen' : D.soportes ? 'soportes de árbol' : 'SIN soportes', sopEn = algunas ? 'tree supports only on the parts marked so' : D.soportes ? 'tree supports' : 'NO supports', u = D.uso === 'pieza' ? 'mecanica' : D.uso;
+  const imp = u === 'jarron' ? 'PLA · capa 0,2 mm · MODO JARRÓN (espiral) · boquilla 0,4' : u === 'flexible' ? 'TPU 95A · capa 0,2 mm · despacio (25–40 mm/s) · ' + sop
+    : u === 'mecanica' ? 'PETG (o PA) · capa 0,16 mm · 6 paredes · 6 capas arriba y abajo · relleno 60 % giroide · ' + sop + ' · boquilla 0,4'
+      : u === 'funcional' ? 'PETG o PLA · capa 0,2 mm · 4 paredes · relleno 30 % giroide · ' + sop + ' · boquilla 0,4'
+        : u === 'encaje' ? 'PLA o PETG · capa 0,2 mm · 3 paredes · relleno 20 % · pared precisa · ' + sop + ' · boquilla 0,4'
+          : 'PLA (o PETG) · capa 0,2 mm · 3 paredes · relleno 15 % · ' + sop + ' · boquilla 0,4';
+  const impEn = u === 'jarron' ? 'PLA · 0.2 mm layers · VASE MODE (spiralize) · 0.4 nozzle' : u === 'flexible' ? 'TPU 95A · 0.2 mm layers · slow (25–40 mm/s) · ' + sopEn
+    : u === 'mecanica' ? 'PETG (or PA) · 0.16 mm layers · 6 walls · 6 top/bottom layers · 60% gyroid infill · ' + sopEn + ' · 0.4 nozzle'
+      : u === 'funcional' ? 'PETG or PLA · 0.2 mm layers · 4 walls · 30% gyroid infill · ' + sopEn + ' · 0.4 nozzle'
+        : u === 'encaje' ? 'PLA or PETG · 0.2 mm layers · 3 walls · 20% infill · precise wall · ' + sopEn + ' · 0.4 nozzle'
+          : 'PLA (or PETG) · 0.2 mm layers · 3 walls · 15% infill · ' + sopEn + ' · 0.4 nozzle';
   const descEs = lEs.join('\n') + '\n\nImpresión: ' + imp + '\n\nDiseño original de CelebriDiseños.', descEn = lEn.join('\n') + '\n\nPrint: ' + impEn + '\n\nOriginal design by CelebriDiseños.';
   const txt = (D.campos || []).filter(c => c.txt).map(c => String((v || {})[c.k] || '').trim()).find(Boolean) || '', base = limpio(es) + (txt ? '_' + limpio(txt).slice(0, 20) : ''); // (con su texto: cada nombre, su archivo)
   return {
@@ -299,7 +336,7 @@ export function ficha(K, k, v, I = {}, o = {}) {
     campos: [
       { k: 'titulo', t: 'Nombre (título)', v: tituloCults(en, es), nota: notaTitulo(en, es) },
       { k: 'descripcion', t: 'Descripción', v: descEn + '\n\n———\n\n' + descEs, nota: NOTAS.descripcion + (texto ? ' Lleva TEXTO: el STL sale con el que tengas puesto; en Cults puedes poner «personalizado bajo pedido».' : '') },
-      { k: 'impresion', t: 'Parámetros de impresión 3D', v: impEn + '\n' + imp, nota: 'Lo que le sirve al que lo imprime. ' + (D.soportes ? 'Esta pieza lleva soportes por su forma: dilo claro y no habrá quejas.' : '«Sin soportes» vende: esta pieza se imprime sin soportes.') },
+      { k: 'impresion', t: 'Parámetros de impresión 3D', v: impEn + '\n' + imp, nota: 'Lo que le sirve al que lo imprime. ' + (typeof D.soportes === 'function' ? 'Casi todo sin soportes; unas pocas piezas los llevan (lo dice el manual, pieza a pieza): dilo claro y no habrá quejas.' : D.soportes ? 'Esta pieza lleva soportes por su forma: dilo claro y no habrá quejas.' : '«Sin soportes» vende: esta pieza se imprime sin soportes.') },
       { k: 'categoria', t: 'Categoría', v: cat[1] + ' (' + cat[0] + ')', nota: NOTAS.categoria },
       { k: 'etiquetas', t: 'Etiquetas (palabras clave)', v: tags.join(', '), nota: NOTAS.etiquetas },
       { k: 'precio', t: 'Precio', v: ayuda ? 'No es para vender' : gratis ? 'Gratis' : euros(precio), nota: ayuda ? 'Es una AYUDA PARA DISEÑAR (se resta o se añade a otra pieza): no la subas sola a Cults.' : gratis ? NOTAS.gratis : notaPrecio(precio, sug) },

@@ -15,7 +15,8 @@ const FILTERS = [
   { k: 'estanteria', t: 'En estantería', f: x => x.fisico > 0 },
   { k: 'sin', t: 'Sin control', f: x => !x.controlado }
 ];
-const EST = { ok: ['OK', 'ok'], bajo: ['Bajo mínimo', 'warn'], agotado: ['Agotado', 'warn'], faltan: ['Faltan', 'bad'], sin: ['Sin control', ''] };
+// 20-10-2026 · bajo pedido: «pedido» (sin piezas libres: se fabrica al pedirlo) y «porFabricar» (pedidos esperando) no son alarmas
+const EST = { estanteria: ['En estantería', 'ok'], ok: ['En estantería', 'ok'], bajo: ['Bajo tu mínimo', 'warn'], pedido: ['Bajo pedido', ''], porFabricar: ['Por fabricar', 'warn'], agotado: ['Bajo pedido', ''], faltan: ['Por fabricar', 'warn'], sin: ['Bajo pedido', ''] };
 const TIPO_I = { 'Impresión': '🖨️', 'Fabricado (pedido)': '🛠️', 'Entrada': '➕', 'Salida': '➖', 'Recuento': '🔢', 'Rotura': '💥', 'Devolución': '↩️', 'Muestra': '🎁', 'Stock inicial': '📦', 'Envío': '🚚' };
 
 export function levels() {
@@ -155,7 +156,7 @@ export function stockDrawer(name, onClose) {
       mount(d, h('div.drawer-h', h('div.st-thumb.l', thumb(p)), h('div.grow', h('h2.ellipsis', x.producto), h('div.row', { style: { marginTop: '4px' } }, pill(e[0], e[1]), x.ubicacion ? h('span.tiny.muted', '📍 ' + x.ubicacion) : null)), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '16px' } },
           h('div.st-big', h('div', h('b', String(x.fisico)), h('span', 'En la estantería')), h('div', h('b', String(x.reservado)), h('span', 'Apartadas')), x.enFabricacion ? h('div', h('b', String(x.enFabricacion)), h('span', 'En fabricación')) : null, h('div.' + e[1], h('b', String(x.disponible)), h('span', 'Disponibles'))),
-          x.disponible < 0 ? h('p.small.bad-t', '🛠️ Faltan ' + (-x.disponible) + ' para servir los pedidos abiertos' + (x.enFabricacion ? ' · ' + x.enFabricacion + ' ya en cola o imprimiéndose' : '') + (x.porFabricar ? ': faltan por poner a imprimir ' + x.porFabricar + '.' : ': ya están en marcha.')) : null,
+          x.disponible < 0 ? h('p.small.warn-t', '🛠️ Por fabricar: ' + (-x.disponible) + ' para los pedidos abiertos' + (x.enFabricacion ? ' · ' + x.enFabricacion + ' ya en cola o imprimiéndose' : '') + (x.porFabricar ? ': faltan por poner a imprimir ' + x.porFabricar + '.' : ': ya están en marcha.')) : null,
           editable ? h('div.card.flat', h('div.row.wrap', h('b.grow', 'Movimiento rápido'), btn('−1', () => move(x.producto, -1), { cls: 'sm', disabled: x.fisico <= 0 }), btn('+1', () => move(x.producto, 1), { cls: 'sm' }), btn('+5', () => move(x.producto, 5), { cls: 'sm' }),
             btn('Rotura', () => move(x.producto, -1, 'Rotura'), { cls: 'sm ghost', disabled: x.fisico <= 0 })),
             h('div.row.wrap', { style: { marginTop: '10px' } }, h('span.small', 'Recuento: en la estantería hay'), count, btn('Guardar recuento', recount, { cls: 'sm primary' })),

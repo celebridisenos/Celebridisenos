@@ -541,8 +541,12 @@ var CL = (function () {
       x.disponible = x.fisico - x.reservado;
       x.controlado = x.fila || x.movimientos > 0;
       x.porFabricar = Math.max(0, -x.disponible - x.enFabricacion); // lo que falta y aún NO está en marcha
-      x.estado = !x.controlado ? 'sin' : x.disponible < 0 ? 'faltan' : x.disponible === 0 ? 'agotado' : (x.minimo > 0 && x.disponible <= x.minimo) ? 'bajo' : 'ok';
-      x.bajo = x.controlado && (x.disponible < 0 || (x.minimo > 0 && x.disponible <= x.minimo) || (x.disponible === 0 && x.minimo > 0));
+      // 20-10-2026 · BAJO PEDIDO (ella: «vamos bajo demanda: piden y fabricamos; como mucho alguno en la estantería por si se cancela; casi nunca
+      // hay stock»). Sin piezas libres NO es «agotado»: es lo normal, se fabrica al pedirlo ('pedido'). Con pedidos esperando: 'porFabricar' (trabajo,
+      // no alarma). Lo que sobra en la estantería: 'estanteria'. «Reponer» (bajo) SOLO si se ha puesto un MÍNIMO a propósito para ese producto.
+      x.enEstanteria = Math.max(0, x.disponible);
+      x.estado = !x.controlado ? 'sin' : x.disponible < 0 ? 'porFabricar' : (x.minimo > 0 && x.disponible <= x.minimo) ? 'bajo' : x.disponible === 0 ? 'pedido' : 'estanteria';
+      x.bajo = x.controlado && x.minimo > 0 && x.disponible <= x.minimo;
     });
     return { by: by, list: list, of: function (name) { return by[norm(name)] || null; } };
   }
@@ -552,7 +556,7 @@ var CL = (function () {
     hoy = hoy || today(); extra = extra || {};
     var al = cfg.alertas || {}, out = [], cp = cfg.pedidos, minM = n(al.margenMinimo) || 0.15, costOf = costIndex(data, cfg.precios);
     if (al.stockBajo !== false) stockLevels(data, cp).list.forEach(function (x) {
-      if (x.bajo) out.push({ nivel: x.disponible < 0 ? 'bad' : 'warn', tipo: 'stock', texto: (x.disponible < 0 ? 'Faltan ' + (-x.disponible) + ' uds. de ' + x.producto + ' para servir los pedidos' : 'Stock bajo: ' + x.producto + ' (' + x.disponible + ' disponibles, mínimo ' + x.minimo + ')'), enlace: 'stock' });
+      if (x.bajo || x.porFabricar > 0) out.push({ nivel: 'warn', tipo: 'stock', texto: (x.porFabricar > 0 ? '🛠️ Por fabricar: ' + x.porFabricar + ' ud' + (x.porFabricar === 1 ? '' : 's') + '. de ' + x.producto + ' para pedidos (aún sin mandar a imprimir)' : 'Estantería por debajo de tu mínimo: ' + x.producto + ' (' + x.disponible + ', mínimo ' + x.minimo + ')'), enlace: 'stock' });
     });
     (data.productos || []).forEach(function (p) {
       var ci = costOf({ productoId: p.id, producto: p.nombre }), pr = n(p.precio);
@@ -1613,7 +1617,46 @@ var CL = (function () {
   }
   function numerosGrupo(g) { return (g || []).map(function (p) { return s(p.numero); }).join('+'); }
 
-  return { PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
+  // ================= 20-10-2026 · 🏆 RANKING DE VENTAS DEL EQUIPO (plan maestro 10: «ventas por miembro, pedidos, ingresos, productos más vendidos,
+  // evolución, comparativas, semanal/mensual/anual; atribución correcta, sin duplicados, datos reales») =================
+  // A QUIÉN se le cuenta un pedido: a quien lo VENDIÓ (campo «vendedor» si existe; si no, quien lo CREÓ). Los que entran solos (tienda web,
+  // importados, el sistema) NO son de nadie: van aparte, por canal. SIN DUPLICADOS: un pedido de varios productos ocupa varias filas con el
+  // MISMO número → cuenta como UN pedido (los euros y las unidades de todas sus filas se suman). Los CANCELADOS no cuentan. Fecha = la del pedido.
+  var RANK_AUTO = /^(sistema|tienda|tienda web|web|automatico|automatica|auto|importado|importacion|shopify|etsy|wallapop|vinted|cults|cults3d|api|bot)$/;
+  function rankingVentas(pedidos, usuarios, cfgPedidos, a, b, o) {
+    o = o || {}; var equipo = {};
+    (usuarios || []).forEach(function (u) { if (u && u.nombre) equipo[norm(u.nombre)] = u.nombre; });
+    function quien(p) { var v = s(p.vendedor || p.creadoPor).trim(), k = norm(v);
+      if (!v || RANK_AUTO.test(k)) return { k: 'auto:' + norm(p.canal || p.origen || 'otros'), t: s(p.canal || p.origen) || 'Sin canal', auto: true };
+      return { k: k, t: equipo[k] || v, auto: false, fuera: !equipo[k] }; }
+    function valido(p) { return p && p.fecha && !stateOf(cfgPedidos || {}, p.estado).cancelled; }
+    function suma(x0, x1) {
+      var M = {};
+      (pedidos || []).forEach(function (p) { var f = s(p.fecha).substring(0, 10); if (!valido(p) || f < x0 || f > x1) return;
+        var q = quien(p), r = M[q.k] || (M[q.k] = { clave: q.k, nombre: q.t, auto: q.auto, fuera: !!q.fuera, pedidos: {}, unidades: 0, ingresos: 0, productos: {} });
+        r.pedidos[s(p.numero) || s(p.id)] = 1; var u = n(p.cantidad) || 1; r.unidades += u; r.ingresos += orderTotal(p); var pr = s(p.producto).trim() || '—'; r.productos[pr] = (r.productos[pr] || 0) + u; });
+      return Object.keys(M).map(function (k) { var r = M[k], np = Object.keys(r.pedidos).length, top = Object.keys(r.productos).sort(function (x, y) { return r.productos[y] - r.productos[x]; });
+        return { clave: r.clave, nombre: r.nombre, auto: r.auto, fuera: r.fuera, pedidos: np, unidades: r2(r.unidades), ingresos: r2(r.ingresos), ticket: np ? r2(r.ingresos / np) : 0,
+          top: top.slice(0, 3).map(function (t) { return { producto: t, unidades: r2(r.productos[t]) }; }) }; });
+    }
+    var largo = Math.max(1, (days(a, b) || 0) + 1), a0 = addDays(a, -largo), b0 = addDays(a, -1);
+    var ahora = suma(a, b), antes = suma(a0, b0), porClave = {}; antes.forEach(function (r) { porClave[r.clave] = r; });
+    ahora.forEach(function (r) { var x = porClave[r.clave]; r.antes = x ? { pedidos: x.pedidos, ingresos: x.ingresos } : { pedidos: 0, ingresos: 0 }; r.cambio = x && x.ingresos ? r2((r.ingresos - x.ingresos) / x.ingresos) : null; }); // (quien vendió antes y ahora nada, también sale: con 0)
+    antes.forEach(function (x) { if (!ahora.some(function (r) { return r.clave === x.clave; })) ahora.push({ clave: x.clave, nombre: x.nombre, auto: x.auto, fuera: x.fuera, pedidos: 0, unidades: 0, ingresos: 0, ticket: 0, top: [], antes: { pedidos: x.pedidos, ingresos: x.ingresos }, cambio: -1 }); });
+    // la EVOLUCIÓN: por días (hasta 31), por semanas (hasta 120) o por meses
+    var paso = largo <= 31 ? 'dia' : largo <= 120 ? 'semana' : 'mes', cubos = [], k0 = paso === 'semana' ? weekStart(a) : paso === 'mes' ? a.substring(0, 8) + '01' : a, g = 0;
+    while (k0 <= b && g++ < 400) { var k1 = paso === 'dia' ? k0 : paso === 'semana' ? addDays(k0, 6) : addDays(addDays(k0, 32).substring(0, 8) + '01', -1);
+      cubos.push({ desde: k0 < a ? a : k0, hasta: k1 > b ? b : k1, etiqueta: paso === 'mes' ? k0.substring(0, 7) : k0 }); k0 = addDays(k1, 1); }
+    var serie = {}; cubos.forEach(function (c, i) { suma(c.desde, c.hasta).forEach(function (r) { (serie[r.clave] || (serie[r.clave] = cubos.map(function () { return 0; })))[i] = r.ingresos; }); });
+    ahora.forEach(function (r) { r.serie = serie[r.clave] || cubos.map(function () { return 0; }); });
+    var orden = function (x, y) { return y.ingresos - x.ingresos || y.pedidos - x.pedidos; };
+    var personas = ahora.filter(function (r) { return !r.auto; }).sort(orden), solos = ahora.filter(function (r) { return r.auto; }).sort(orden);
+    personas.forEach(function (r, i) { r.puesto = i + 1; });
+    var tot = function (L) { return L.reduce(function (t, r) { t.pedidos += r.pedidos; t.ingresos = r2(t.ingresos + r.ingresos); t.unidades = r2(t.unidades + r.unidades); return t; }, { pedidos: 0, ingresos: 0, unidades: 0 }); };
+    return { desde: a, hasta: b, antesDesde: a0, antesHasta: b0, paso: paso, cubos: cubos, personas: personas, solos: solos, totalEquipo: tot(personas), totalSolos: tot(solos), total: tot(ahora),
+      totalAntes: tot(antes) };
+  }
+  return { rankingVentas: rankingVentas, PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,

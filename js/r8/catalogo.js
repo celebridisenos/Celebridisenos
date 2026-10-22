@@ -39,7 +39,16 @@ import { DISENOS_HORMIGAS } from './cat_hormigas.js'; // 18-10-2026 (noche) · �
 import { DISENOS_BICI } from './cat_bici.js'; // 19-10-2026 · 🚲 bicicleta PRO por piezas: cadena que engrana, dirección, frenos de disco, 4 estilos
 import { DISENOS_MOTO } from './cat_moto.js'; // 19-10-2026 · 🏍️ moto PRO por piezas con motor N20, piñón, cadena y corona
 import { DISENOS_COCHE_RC } from './cat_rc.js'; // 19-10-2026 · 🏎️ coche RC de drift por piezas: dirección, caja de cambios, ruedas de drift
+import { DISENOS_LIMPIABROCHAS } from './cat_limpiabrochas.js'; // 21-10-2026 · 🖌️ limpiador de brochas 4 en 1 (depósito con botón y muelle, cubeta, peine, cajón)
 import { DISENOS_ORGANIZA } from './cat_organiza.js'; // 19-10-2026 · 🧰 caja organizadora de alojamientos (secador 4 en 1, taladro, a medida)
+import { DISENOS_AGUA } from './cat_agua.js';
+import { DISENOS_ARQUITECTURA } from './cat_arquitectura.js'; /* 21-10-2026 · 🏙️ rascacielos y estadios */
+import { DISENOS_LANZABOLAS } from './cat_lanzabolas.js'; /* 21-10-2026 · 🎯 lanzabolas de muelle: juguete de bolas blandas o premium de 6 mm para el campo */
+import { DISENOS_MANICURA } from './cat_manicura.js'; /* 21-10-2026 · 💅 manicura premium */
+import { DISENOS_CLICKER } from './cat_clicker.js'; /* 21-10-2026 · 🔘 clickers antiestrés con muelles de boli */
+import { DISENOS_MANDOS } from './cat_mandos.js'; /* 21-10-2026 · 🎮 soportes premium para el mando de PS5 (placas con silueta + barras) */
+import { DISENOS_AIRE } from './cat_aire.js'; // 20-10-2026 (noche) · ✈️ avioneta RC entrenadora (fuselaje impreso + alas de cartón pluma)
+import { DISENOS_CAMION } from './cat_camion3.js'; // 20-10-2026 (noche) · 🛻 camión RC 1/10 por piezas (estadio, short course, monster) // 20-10-2026 · 🚤 aerobarco RC por piezas (casco estanco, torre del motor, protector, timones en paralelogramo)
 import { DISENOS_1810 } from './cat_1810.js'; // 18-10-2026 · mecanismos que se mueven (Ginebra, biela, leva) y expositor de mecheros
 import { DISENOS_ENGR } from './cat_engranajes.js'; // 14-10-2026 · ⚙️ engranajes para vender: planetario, corazón con nombres, de mesa, llavero, espirógrafo
 import { DISENOS_PRO } from './cat_pro.js'; // v30.7.1 · ⭐ PRO: por piezas, que encajan (lava-pinceles, bote de rosca, escritorio modular, maceta con autorriego)
@@ -1255,6 +1264,15 @@ Object.assign(DISENOS, DISENOS_BICI); // 19-10-2026
 Object.assign(DISENOS, DISENOS_MOTO); // 19-10-2026
 Object.assign(DISENOS, DISENOS_COCHE_RC); // 19-10-2026
 Object.assign(DISENOS, DISENOS_ORGANIZA); // 19-10-2026
+Object.assign(DISENOS, DISENOS_LIMPIABROCHAS); // 21-10-2026
+Object.assign(DISENOS, DISENOS_AGUA); // 20-10-2026
+Object.assign(DISENOS, DISENOS_CAMION); // 20-10-2026 (noche)
+Object.assign(DISENOS, DISENOS_AIRE); // 20-10-2026 (noche)
+Object.assign(DISENOS, DISENOS_MANDOS); // 21-10-2026
+Object.assign(DISENOS, DISENOS_CLICKER); // 21-10-2026
+Object.assign(DISENOS, DISENOS_MANICURA); // 21-10-2026
+Object.assign(DISENOS, DISENOS_ARQUITECTURA); // 21-10-2026
+Object.assign(DISENOS, DISENOS_LANZABOLAS); // 21-10-2026 (tarea 28)
 Object.assign(DISENOS, DISENOS_CASA); // v30.3
 Object.assign(DISENOS, DISENOS_NAVIDAD); // v30.4
 Object.assign(DISENOS, DISENOS_REFERENCIAS); // v30.4

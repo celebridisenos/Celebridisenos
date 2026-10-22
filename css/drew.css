@@ -493,7 +493,7 @@ body.dw-arrastrando .dw-ven { outline: 2px dashed color-mix(in srgb, var(--brand
 .dw-estam-marca .dw-chip { font-size: 11px; padding: 2px 7px; }
 
 /* 17-10-2026 noche · 🧸 MODO FÁCIL (5 pasos grandes, solo el 3D) · 📤 las dos formas de exportar · 🤖 el manual fácil */
-.dw-atelier.dw-facil .dw-cuerpo { grid-template-columns: minmax(380px, 40%) minmax(0, 1fr); }
+.dw-atelier.dw-facil .dw-cuerpo { grid-template-columns: clamp(380px, 28%, 540px) minmax(0, 1fr); } /* (20-10: antes 40 % → «la pantalla partida por la mitad») */
 .dw-atelier.dw-facil .dw-cuerpo.plegado .dw-lado { grid-template-columns: 66px minmax(0, 1fr); }
 .dw-facil .dw-pest .dw-facil-salir { margin-top: auto; }
 .dw-facil-cab { display: grid; gap: 2px; padding: 4px 2px 10px; }
@@ -595,3 +595,85 @@ body.dw-arrastrando .dw-ven { outline: 2px dashed color-mix(in srgb, var(--brand
 .dw-marca-img:hover { outline: 2px solid #c25d74; }
 .dw-marca-ver { display: grid; gap: 8px; justify-items: center; }
 .dw-marca-ver img { max-width: min(70vw, 720px); max-height: 60vh; object-fit: contain; background: #fff; border-radius: 10px; }
+
+/* ================= 20-10-2026 · MODO FÁCIL con SUBMENÚS (plan maestro: «pantalla partida por la mitad», «submenús», «nada cortado») ================= */
+.dw-fpaso.plegado { padding: 0; margin-bottom: 8px; }
+.dw-fpaso.plegado > .dw-fpaso-t { width: 100%; margin: 0; padding: 12px; border: 0; background: none; font: inherit; font-size: 15px; font-weight: 600; color: inherit; cursor: pointer; text-align: left; border-radius: 16px; }
+.dw-fpaso.plegado > .dw-fpaso-t:hover { background: var(--surface-2); }
+.dw-fpaso.plegado > .dw-fpaso-t i { background: color-mix(in srgb, var(--brand) 55%, var(--surface)); }
+.dw-fpaso-t > span { flex: 1; min-width: 0; }
+.dw-fpaso-t > em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--muted); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dw-fpaso-t > em.dw-fpaso-color { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-2); flex: none; }
+.dw-fpaso-fl { color: var(--muted); font-size: 12px; }
+.dw-fpaso.abierto { box-shadow: 0 6px 22px color-mix(in srgb, var(--brand) 12%, transparent); border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
+.dw-fpaso-sig { display: flex; justify-content: flex-end; margin-top: 10px; }
+/* (20-10) la barra de arriba no se corta nunca: hasta 1750 px de ancho los botones van sin palabra (con su explicación al pasar el ratón),
+   y si aun así no cabe, salta a una segunda fila en lugar de esconder «PDF para imprimir» y el grupo «Vista» por la derecha */
+@media (max-width: 1750px) { .dw-atelier .dw-cab .btn .l { display: none; } }
+.dw-atelier .dw-cab { flex-wrap: wrap; row-gap: 6px; }
+/* (21-10) en la TABLET (dedo), una sola fila como en la 50.8: dos filas le quitaban 60 px al patrón (e2e_drew_tablet). Si en vertical no caben
+   todos los botones, la fila se desliza con el dedo; no se esconde nada */
+@media (pointer: coarse) and (max-width: 1400px) { .dw-atelier .dw-cab { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; } .dw-atelier .dw-cab::-webkit-scrollbar { display: none; } .dw-atelier .dw-cab > * { flex: none; } .dw-atelier .dw-cab .esp { flex: 1 0 8px; } }
+/* 20-10-2026 · 👕+👖 conjunto y 👒 complementos */
+.dw-conjunto { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line-2); border-radius: 14px; display: grid; gap: 6px; }
+.dw-conjunto h3 { font-size: 14px; margin: 4px 0 0; }
+.dw-puestas { display: flex; flex-wrap: wrap; gap: 6px; }
+.dw-puesta { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--brand-soft); font-size: 13px; font-weight: 600; }
+.dw-acc-colores { display: flex; flex-wrap: wrap; gap: 8px; }
+.dw-acc-color { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.dw-acc-color input[type=color] { width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--line-2); background: none; }
+/* 20-10-2026 · ✨ Claude, el asistente */
+.dw-claude { display: grid; gap: 10px; }
+.dw-cl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dw-cl-pide { width: 100%; font: inherit; font-size: 15px; line-height: 1.45; padding: 10px; border-radius: 12px; resize: vertical; }
+.dw-cl-mini { display: flex; align-items: center; gap: 10px; } .dw-cl-mini img { max-height: 120px; max-width: 160px; border-radius: 10px; object-fit: contain; background: #fff; border: 1px solid var(--line); }
+.dw-cl-ok, .dw-cl-falta, .dw-cl-pensando { padding: 12px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface); display: grid; gap: 6px; }
+.dw-cl-no { font-size: 13px; color: var(--warn, #9a6b00); }
+
+/* ===================== 21-10-2026 · 📱 CelebriDREW en el MÓVIL (ella: «CelebriDREW no puede solo funcionar en el PC, también en todo») =====================
+   En el móvil la regla del iPad («biblioteca plegada = columna de iconos de 66 px», línea ~376) dejaba el 3D y el patrón en una RAYA de 66 px y la
+   biblioteca vacía ocupando la pantalla. Ahora, en una columna: la cabecera en dos filas (marca y prenda; debajo los botones, que se deslizan),
+   el 3D y el patrón a lo ancho uno debajo del otro, y la biblioteca DEBAJO con sus iconos en fila (tocar uno la abre a lo ancho). */
+.dw-cab-bt { display: contents; }
+@media (pointer: coarse) and (max-width: 1400px) { .dw-atelier .dw-cab-bt > * { flex: none; } }
+@media (max-width: 700px) {
+  body.dw-solo .dw.dw-atelier, .dw.dw-atelier { height: auto; min-height: 0; }
+  .dw-atelier .dw-cuerpo, .dw-atelier .dw-cuerpo.plegado { grid-template-columns: minmax(0, 1fr) !important; }
+  .dw-atelier .dw-vistas { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: 56vh 52vh; row-gap: 10px; }
+  .dw-atelier .dw-vistas.solo3d, .dw-atelier .dw-vistas.solo2d { grid-template-rows: 72vh; }
+  .dw-atelier.dw-facil .dw-vistas { grid-template-rows: 62vh; }
+  .dw-atelier .dw-divisor { display: none; }
+  .dw-atelier .dw-lado, .dw-atelier .dw-cuerpo.plegado .dw-lado, .dw-atelier.dw-facil .dw-cuerpo.plegado .dw-lado { order: 2; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto auto; max-height: none; }
+  .dw-atelier .dw-pest { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(70px, 1fr); grid-auto-rows: 62px; overflow-x: auto; scrollbar-width: none; border-right: 0; border-bottom: 1px solid var(--line); padding-top: 0; }
+  .dw-atelier .dw-pest::-webkit-scrollbar { display: none; }
+  .dw-atelier .dw-pest button { border-left: 0; border-bottom: 3px solid transparent; font-size: 9.5px; }
+  .dw-atelier .dw-pest button b { font-size: 20px; }
+  .dw-atelier .dw-pest button.on { border-left-color: transparent; border-bottom-color: var(--dw-rosa); }
+  .dw-atelier .dw-panel { max-height: 78vh; overflow: auto; }
+  .dw-atelier .dw-cuerpo.plegado .dw-panel { display: none; }
+  /* la cabecera: arriba la marca y la prenda; debajo los botones en una fila que se desliza (con un degradado que dice «hay más») */
+  .dw-atelier .dw-cab { flex-wrap: wrap !important; overflow: visible !important; row-gap: 12px; column-gap: 6px; padding-top: 10px; }
+  .dw-atelier .dw-cab .esp { display: none; }
+  .dw-atelier .dw-marca { font-size: 19px; }
+  .dw-atelier .dw-cab .dw-g[data-t="Prenda"] { flex: 1 1 auto; min-width: 0; }
+  .dw-atelier .dw-cab .dw-nombre { width: auto; min-width: 0; flex: 1 1 60px; font-size: 15px; }
+  .dw-atelier .dw-cab-bt { display: flex; flex: 1 0 100%; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 9px 2px 2px;
+    -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .dw-atelier .dw-cab-bt::-webkit-scrollbar { display: none; }
+  .dw-atelier .dw-cab-bt > * { flex: none; }
+  .dw-atelier .dw-cab .btn .l { display: none; }
+  .dw-atelier .dw-pista { max-width: calc(100% - 24px); }
+  .dw-atelier .dw-ficha { width: min(290px, calc(100% - 20px)); }
+}
+/* 21-10 · 📱 de LADO (móvil tumbado, ventana estrecha de menos de 1100 px): la regla vieja de 1100 px escondía el divisor y el patrón 2D caía en
+   la columna de 10 px del divisor (una raya verde al lado del 3D). De lado: el 3D y el patrón uno al lado del otro, a toda la altura. */
+@media (max-width: 1100px) and (orientation: landscape) {
+  .dw-atelier .dw-divisor { display: block; }
+  .dw-atelier .dw-vistas { grid-template-rows: minmax(0, 1fr); }
+}
+@media (max-width: 1100px) and (max-height: 500px) and (orientation: landscape) {
+  body.dw-solo .dw.dw-atelier, .dw.dw-atelier { height: auto; min-height: 0; }
+  .dw-atelier .dw-vistas { grid-template-rows: calc(100vh - 16px); }
+  .dw-atelier .dw-lado { max-height: calc(100vh - 16px); }
+  .dw-atelier .dw-cab .btn .l, .dw-atelier .dw-marca small { display: none; }
+}
