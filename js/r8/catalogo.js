@@ -39,6 +39,7 @@ import { DISENOS_HORMIGAS } from './cat_hormigas.js'; // 18-10-2026 (noche) · �
 import { DISENOS_BICI } from './cat_bici.js'; // 19-10-2026 · 🚲 bicicleta PRO por piezas: cadena que engrana, dirección, frenos de disco, 4 estilos
 import { DISENOS_MOTO } from './cat_moto.js'; // 19-10-2026 · 🏍️ moto PRO por piezas con motor N20, piñón, cadena y corona
 import { DISENOS_COCHE_RC } from './cat_rc.js'; // 19-10-2026 · 🏎️ coche RC de drift por piezas: dirección, caja de cambios, ruedas de drift
+import { DISENOS_ROBOTS } from './cat_robots.js'; // 22-10-2026 · 🤖 los robots (BICHA, CelebriBot 3 y CelebriBot 2): sus piezas verificadas, montados y su guía
 import { DISENOS_LIMPIABROCHAS } from './cat_limpiabrochas.js'; // 21-10-2026 · 🖌️ limpiador de brochas 4 en 1 (depósito con botón y muelle, cubeta, peine, cajón)
 import { DISENOS_ORGANIZA } from './cat_organiza.js'; // 19-10-2026 · 🧰 caja organizadora de alojamientos (secador 4 en 1, taladro, a medida)
 import { DISENOS_AGUA } from './cat_agua.js';
@@ -62,7 +63,7 @@ import { DISENOS_PREMIUM } from './catalogo_premium.js'; // v20.4: miniaturas, j
 import { asiento, plantilla, medidasRod, OPS_RODAMIENTOS, APRETES, n2 as n2r, ajusteParaDiseno, OPS_AJUSTE, textoAjuste } from './rodamientos.js'; // v20.2: rodamientos que funcionan en plástico
 
 export const CATEGORIAS = [['', '✨ Todo'], ['pro', '⭐ PRO: por piezas, que encajan'], ['compatibles', '🔧 Repuestos y compatibles'], ['impresora3d', '🖨️ Para tu impresora 3D'], ['kits', '🧩 Tarjetas-kit para niños'], ['pack60', '🎁 Pack de 60 (nuevo)'], ['ninos', '🧸 Niños'], ['juguetes', '🚲 Juguetes para montar'], ['navidad', '🎄 Navidad'], ['jovenes', '🎧 Jóvenes'], ['adultos', '🍷 Adultos y decoración'], ['frikis', '👾 Frikis y rol'], ['canicas', '🔮 Canicas y laberintos'], ['ciencia', '🔬 Ciencia'], ['cuadros', '🖼️ Cuadros y siluetas'], ['halloween', '🎃 Halloween'], ['bebes', '👶 Comunión, bautizo y bebés'], ['cuqui', '🌸 Cuqui'], ['organizar', '🗂️ Organizadores'], ['taller', '🧰 Taller y herramientas'], ['macetas', '🪴 Macetas'], ['jarrones', '🏺 Jarrones'], ['vasos', '🕯️ Vasos y velas'], ['lamparas', '💡 Lámparas'],
-  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['oficina', '🖥️ Oficina'], ['empresas', '💼 Empresas y hostelería'], ['flores', '🌷 Flores'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas y hormigas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas y casa de muñecas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['componentes', '🔩 Componentes']];
+  ['deco', '🗿 Figuras y esculturas'], ['calados', '✴️ Calados con estilo'], ['hogar', '🏠 Hogar y cocina'], ['oficina', '🖥️ Oficina'], ['empresas', '💼 Empresas y hostelería'], ['flores', '🌷 Flores'], ['regalos', '🎁 Regalos y llaveros'], ['juegos', '🎲 Juegos y fidget'], ['gaming', '🎮 Gaming'], ['mascotas', '🐾 Mascotas y hormigas'], ['movil', '📱 Fundas de móvil'], ['miniaturas', '🏠 Miniaturas y casa de muñecas'], ['mecanica', '⚙️ Piezas mecánicas'], ['rc', '🏎️ RC y repuestos'], ['robots', '🤖 Robots'], ['componentes', '🔩 Componentes']];
 const n = (k, t, v, min, max, paso = 0.5, u = 'mm') => ({ k, t, v, min, max, paso, u });
 const s = (k, t, v, ops) => ({ k, t, v, ops });
 const c = (k, t, v) => ({ k, t, v: !!v, chk: 1 });
@@ -1265,6 +1266,7 @@ Object.assign(DISENOS, DISENOS_MOTO); // 19-10-2026
 Object.assign(DISENOS, DISENOS_COCHE_RC); // 19-10-2026
 Object.assign(DISENOS, DISENOS_ORGANIZA); // 19-10-2026
 Object.assign(DISENOS, DISENOS_LIMPIABROCHAS); // 21-10-2026
+Object.assign(DISENOS, DISENOS_ROBOTS); // 22-10-2026
 Object.assign(DISENOS, DISENOS_AGUA); // 20-10-2026
 Object.assign(DISENOS, DISENOS_CAMION); // 20-10-2026 (noche)
 Object.assign(DISENOS, DISENOS_AIRE); // 20-10-2026 (noche)

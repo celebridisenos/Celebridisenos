@@ -251,3 +251,4 @@ html[data-modo="noche"] .fu-expl { color: #6fb0ff; }
 .f3-tarjeta { display: block; margin: 2px 0 6px; }
 /* v20 · aviso de los apartados de piezas mecánicas y RC (ocupa toda la fila de la rejilla) */
 .r8c-aviso { grid-column: 1 / -1; display: grid; gap: 4px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); } .r8c-aviso small { color: var(--muted); line-height: 1.4; }
+.r8c-baja { color: var(--muted, #7d7267); font-weight: 600; } /* 22-10: «⏳ Bajando las piezas del robot…» (no es un fallo) */

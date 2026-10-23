@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprar CelebriBot 3</title>
+<style>
+  :root { --fondo:#f6f6f7; --tarjeta:#fff; --texto:#161616; --suave:#6b6b70; --borde:#e4e4e7; --tq:#00b8cf; --ojo:#c2410c; --hecho:#e9f9fb; --ok:#0f766e; }
+  @media (prefers-color-scheme: dark) { :root { --fondo:#121214; --tarjeta:#1c1c1f; --texto:#f4f4f5; --suave:#a1a1aa; --borde:#2e2e33; --tq:#22d3ee; --ojo:#fb923c; --hecho:#0f2a2e; --ok:#5eead4; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:17px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:18px 16px 40px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  .sub { color:var(--suave); margin:0 0 18px; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--suave); margin:26px 0 8px; }
+  .c { background:var(--tarjeta); border:1px solid var(--borde); border-radius:14px; padding:12px 14px; margin:8px 0; display:flex; gap:12px; align-items:flex-start; }
+  .c.hecho { background:var(--hecho); }
+  .c.hecho .n { text-decoration:line-through; color:var(--suave); }
+  .c input { width:26px; height:26px; margin:2px 0 0; accent-color:var(--tq); flex:none; }
+  .d { flex:1; min-width:0; }
+  .n { font-weight:650; font-size:18px; }
+  .p { color:var(--suave); font-size:15px; }
+  .ojo { color:var(--ojo); font-size:15px; font-weight:600; margin-top:2px; }
+  .b { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .b a { flex:1; min-width:120px; text-align:center; text-decoration:none; font-weight:650; font-size:15px; padding:10px 8px; border-radius:10px; background:var(--tq); color:#05262b; }
+  .tot { margin-top:22px; padding:14px; border-radius:14px; background:var(--tarjeta); border:2px solid var(--tq); font-size:17px; }
+  .tot div { display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+  .tot .g { border-top:1px solid var(--borde); margin-top:6px; padding-top:8px; font-weight:700; font-size:19px; }
+  .ya { color:var(--suave); font-size:15px; margin-top:14px; }
+  .caja { background:var(--hecho); border-radius:14px; padding:12px 14px; margin:10px 0 0; font-size:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🤖 Comprar el CelebriBot 3</h1>
+  <p class="sub">El pequeño de escritorio: va <b>enchufado</b> y piensa con tu ordenador (sin Raspberry). Cada botón te lleva a la cosa exacta
+  (comprobada el 22-10-2026). <b>Nada está aún en ninguna cesta</b>: no he comprado nada. Marca ✔ lo que ya tengas.</p>
+
+  <div class="caja">🛒 Son 3 sitios: <b>Seeed</b> (la placa de micrófonos y la cámara, en un solo pedido), <b>AliExpress</b> (lo demás) y lo que
+  sale del diseño (tornillos, arandelas…), que puedes comprar donde quieras o en la ferretería.</div>
+
+  <div id="lista"></div>
+
+  <div class="tot">
+    <div><span>Seeed (micrófonos con su XIAO + cámara)</span><b>74,80 $ + envío e IVA ≈ 85–95 €</b></div>
+    <div><span>AliExpress (11 cosas comprobadas)</span><b>≈ 114 € + ≈ 11 € de envíos</b></div>
+    <div><span>Lo que ha salido del diseño (altavoz, fuente, cables, empalmes, pines, arandelas, imanes, goma, patas y tornillos)</span><b>≈ 45 €</b></div>
+    <div class="g"><span>Total</span><span>≈ 250–270 €</span></div>
+    <span class="p">Precios mirados el 22-10-2026 en cada tienda (lo del diseño, aproximado: aún sin elegir anuncio). Más que los 150–170 € que se calcularon al principio:
+    sobre todo por el IVA y el envío de Seeed. Los envíos de Seeed salen al poner tu dirección. AliExpress suele descontar algo con cupones.</span>
+  </div>
+  <p class="ya">Ya tienes: el plástico (PETG) y tus rodamientos 5 × 11 × 4.</p>
+</main>
+<script>
+// [grupo, nombre, precio, aviso, clave, enlace exacto, texto del botón]
+const ALI = '🟠 En tu cesta de AliExpress', TT = '🍓 En tu cesta de Tiendatec (tienda oficial de Raspberry Pi en España)', SE = '🎙️ En tu cesta de Seeed (el fabricante)',
+      AM = '📦 En tu cesta de Amazon', NK = '🔋 En tu cesta de NKON (tienda de baterías, Países Bajos)', TU = '🙋 Lo compras tú', DE = '🔩 Lo que ha salido del diseño (aún en NINGUNA cesta)';
+const busca = q => 'https://es.aliexpress.com/w/wholesale-' + q.trim().replace(/\s+/g, '-') + '.html';
+const ali = id => 'https://es.aliexpress.com/item/' + id + '.html';
+const L = [
+  [SE, 'Placa de micrófonos reSpeaker XVF3800 CON su XIAO ESP32S3 ya soldada', '60,90 $ + envío e IVA', 'La versión «with XIAO ESP32S3» SIN caja (SKU 114993700). Es el OÍDO y la VOZ: 4 micrófonos, quita el eco de su propia voz y mueve los servos y el radar', 'xvf3800x', 'https://www.seeedstudio.com/ReSpeaker-XVF3800-4-Mic-Array-With-XIAO-ESP32S3-p-6489.html', 'Seeed ✅'],
+  [SE, 'Cámara Seeed XIAO ESP32-S3 Sense', '13,90 $', 'El OJO (en la frente, con su párpado). La normal, sin «Pre-Soldered». Guarda su antena: va pegada dentro de la cabeza', 'xiaosense', 'https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html', 'Seeed ✅'],
+  [ALI, 'Pantalla redonda táctil 2,8" Waveshare ESP32-S3-Touch-LCD-2.8C', '37,59 €', 'Elige «With Touch Function». Es la CARA (la misma del Guardián)', 'lcd28', ali('1005009311521684'), 'AliExpress ✅'],
+  [ALI, '2 servos Waveshare SC09 (2,3 kg·cm, 5 V)', '2 × 11,89 €', 'Uno gira el cuello y otro inclina la cabeza. Traen su brazo y su tornillo: NO los tires', 'sc09', ali('1005013202345952'), 'AliExpress ✅'],
+  [ALI, 'Placa de los servos «Bus Servo Adapter (A)»', '27,79 € + 5,00 € de envío', 'La misma de BICHA (otra para este robot)', 'busadapter', ali('1005012592488806'), 'AliExpress ✅'],
+  [ALI, 'Radar de presencia HLK-LD2410C', '5,27 €', 'Que traiga sus PINES puestos', 'ld2410c', ali('1005005637495945'), 'AliExpress ✅'],
+  [ALI, 'Seta de PARADA 16 mm (se queda hundida)', '3,59 €', '«No Light / Latching»: corta la fuerza de los servos', 'seta', ali('1005009523726118'), 'AliExpress ✅'],
+  [ALI, 'Pulsador PRIVADO 16 mm', '3,49 €', '«No Light / Self-reset»: apaga la cámara y los micrófonos', 'privado', ali('1005009523726118'), 'AliExpress ✅'],
+  [ALI, 'Conector de corriente de panel 5,5 × 2,1 (con cable)', '1,15 € + 2,06 € de envío', 'Va en la pared DERECHA de la base', 'dc099', ali('1005012760927130'), 'AliExpress ✅'],
+  [ALI, '20 empalmes WAGO 221-412 (de 2 cables)', '9,39 € + 3,97 € de envío', 'Para unir el altavoz a su cable y los cables del botón PRIVADO, sin soldar', 'wago', ali('1005009927927351'), 'AliExpress ✅'],
+  [ALI, '10 cables con conector PH2.0 de 2 pines (20 cm)', '2,31 €', 'El altavoz a la placa de micrófonos, sin soldar', 'ph20', ali('1005007270514533'), 'AliExpress ✅'],
+  [DE, '4 empalmes WAGO 221-415 (de 5 cables)', 'unos 6 € (o en la ferretería)', 'Los 5 V y la masa: 2 para cada línea, unidos con un trocito de cable (cada línea junta 7 cables: no caben en los de 2)', 'wago415', busca('WAGO 221-415'), 'Buscar en AliExpress'],
+  [DE, 'Tira de pines macho 2,54 mm (una de 40) y 10 cables dupont hembra-hembra de 20 cm', 'unos 3 €', 'Para la placa de micrófonos: es la ÚNICA soldadura (6 pines: D0, D1, D2, D3, 5V y GND). Si no tienes soldador, uno sencillo cuesta unos 10 €', 'pines', busca('pin header 2.54 dupont female female 20cm'), 'Buscar en AliExpress'],
+  [DE, 'Altavoz de 4 cm, 4 Ω 3 W', 'unos 2 €', 'REDONDO de Ø40 y de grueso 22 mm o menos (mídelo al recibirlo: es su hueco), mejor con cables', 'altavoz40', busca('speaker 40mm 4 ohm 3W'), 'Buscar en AliExpress'],
+  [DE, 'Fuente de 5 V 4 A con clavija 5,5 × 2,1', 'unos 8 €', 'Enchufe EUROPEO. El robot va siempre enchufado (piensa con tu ordenador)', 'fuente5v4a', busca('5V 4A power adapter EU 5.5x2.1'), 'Buscar en AliExpress'],
+  [DE, '4 cables USB-C macho ACODADO (90°) de 2 hilos', 'unos 4 €', 'Llevan los 5 V a la pantalla, a la cámara, a la placa de micrófonos y a la placa de los servos (se empalman con los WAGO)', 'usbc90', busca('USB C male 90 degree 2 pin power cable'), 'Buscar en AliExpress'],
+  [DE, '50 arandelas M10 de acero (DIN 125: Ø20 × 2 mm)', 'unos 3 € (o en la ferretería)', 'El LASTRE: 4 pilas de 11 (44) en el fondo de la base, delante. Así un toque en la pantalla no lo vuelca', 'arandelas', busca('arandela M10 DIN 125 acero 100'), 'Buscar en AliExpress'],
+  [DE, '10 imanes de neodimio Ø6 × 2 mm', 'unos 2 €', 'Se usan 6: 2 en el párpado, 2 en la cara (párpado puesto) y 2 en la nuca (párpado guardado)', 'imanes', busca('iman neodimio 6x2mm'), 'Buscar en AliExpress'],
+  [DE, 'Goma EVA de 1 mm adhesiva (una lámina)', 'unos 2 €', 'Una tira alrededor del cristal de la pantalla y un trozo en la tapa del lastre', 'eva', busca('goma eva adhesiva 1mm'), 'Buscar en AliExpress'],
+  [DE, '4 patas de goma Ø10 adhesivas', 'unos 1 €', 'Debajo, en las 4 esquinas', 'patas', busca('rubber feet 10mm adhesive'), 'Buscar en AliExpress'],
+  [DE, 'Tornillos M3 avellanados: 10 mm (6), 12 mm (6)', 'unos 4 € en un surtido', 'Fondo y torre (desde abajo) y los 2 de arriba de la cara', 'm3aven', busca('M3 countersunk screw assortment 10mm 12mm'), 'Buscar en AliExpress'],
+  [DE, 'Tornillos M3 Allen: 6 mm (8), 10 mm (4), 12 mm (2)', 'unos 4 € en un surtido', 'Los de 6 mm NO pueden ser más largos (aros de la pantalla y del altavoz: saldrían por delante)', 'm3allen', busca('M3 hex socket screw assortment 6mm 10mm 12mm'), 'Buscar en AliExpress'],
+  [DE, 'Tornillos M2: 4 mm (3), 6 mm (4), Allen 8 mm (3); avellanados 8 mm (2)', 'unos 3 €', 'Placa de micrófonos, orejas del servo, cámara, corona (desde abajo) y tapa de arriba del cuello', 'm2', busca('M2 screw assortment countersunk hex'), 'Buscar en AliExpress'],
+  [DE, '4 tornillos M2,5 × 6', 'unos 1 €', 'La placa de los servos a sus 4 postes', 'm25', busca('M2.5 x 6 screw'), 'Buscar en AliExpress'],
+  [DE, '1 tornillo M5 × 14 Allen', 'unos 1 €', 'El eje de la inclinación de la cabeza (ensartado en 2 separadores impresos, pieza 16)', 'm5', busca('M5 x 14 hex socket screw'), 'Buscar en AliExpress'],
+  [TU, '1 rodamiento 5 × 11 × 4 (MR115)', 'ya lo tienes', 'De los que ya tienes. Va en la mejilla izquierda de la cabeza', 'rod', '', ''],
+];
+const lee = k => { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } };
+const guarda = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch (e) { } };
+const caja = document.getElementById('lista'); let grupo = '';
+for (const [g, n, p, ojo, q, url, txt] of L) {
+  if (g !== grupo) { const h = document.createElement('h2'); h.textContent = g; caja.appendChild(h); grupo = g; }
+  const k = 'cb3.' + q, c = document.createElement('div'); c.className = 'c' + (lee(k) ? ' hecho' : '');
+  c.innerHTML = '<input type="checkbox"' + (lee(k) ? ' checked' : '') + ' aria-label="Ya lo tengo"><div class="d"><div class="n"></div><div class="p"></div>' + (ojo ? '<div class="ojo"></div>' : '') +
+    (url ? '<div class="b"><a target="_blank" rel="noopener"></a></div>' : '') + '</div>';
+  c.querySelector('.n').textContent = n; c.querySelector('.p').textContent = p; if (ojo) c.querySelector('.ojo').textContent = '⚠️ ' + ojo;
+  if (url) { const a = c.querySelector('.b a'); a.href = url; a.textContent = txt; }
+  c.querySelector('input').onchange = e => { guarda(k, e.target.checked); c.classList.toggle('hecho', e.target.checked); };
+  caja.appendChild(c);
+}
+</script>
+</body>
+</html>

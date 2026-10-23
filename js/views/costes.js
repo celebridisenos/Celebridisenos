@@ -8,7 +8,7 @@ import { handleError, requestAccess, go } from '../app.js';
 
 const CL = window.CL;
 const pp = () => (S.cfg && S.cfg.precios) || {};
-const data = () => ({ materiales: S.t.materiales || [], embalajes: S.t.embalajes || [], recetas: S.t.recetas || [] });
+const data = () => ({ materiales: S.t.materiales || [], embalajes: S.t.embalajes || [], recetas: S.t.recetas || [], productos: S.t.productos || [], calculadora: S.t.calculadora || [], gastos: S.t.gastos || [] });
 const CONF_CLS = { confirmado: 'ok', importado: '', calculado: '', estimado: 'warn', orientativo: 'warn', revisar: 'bad', pendiente: 'bad' };
 const CONF_HELP = { confirmado: 'Dato tuyo, real', importado: 'Venía de otro sitio (revísalo una vez)', calculado: 'Lo ha calculado el programa', estimado: 'Aproximado: confírmalo cuando puedas', orientativo: 'Precio de referencia, NO es el tuyo', revisar: 'Hay algo raro: revísalo', pendiente: 'Falta el dato: no se puede calcular' };
 export const confPill = e => h('span', { title: CONF_HELP[e] || '' }, pill(CL.CONF_TXT[e] || e || '—', CONF_CLS[e]));
@@ -18,7 +18,8 @@ const UNIT_OPTS = [['ud', 'unidades'], ['g', 'gramos (g)'], ['kg', 'kilos (kg)']
 const CONF_OPTS = CL.CONF.map(k => ({ v: k, t: CL.CONF_TXT[k] + ' · ' + CONF_HELP[k] }));
 const e4 = x => x === null || x === undefined ? '—' : (Math.round(x * 10000) / 10000).toLocaleString('es-ES', { maximumFractionDigits: 4 }) + ' €';
 const editor = () => can('costes.editar');
-const activos = () => (S.t.materiales || []).filter(m => CL.norm(m.activo) !== 'no');
+const conNombre = m => String(m.nombre || '').trim() !== ''; // 22-10-2026: una fila sin nombre (solo el código) no es un material
+const activos = () => (S.t.materiales || []).filter(m => CL.norm(m.activo) !== 'no' && conNombre(m));
 const after = async r => { try { await pullSiHaceFalta(); } catch (e) { } emit(); return r; }; // v16.1: sin segundo viaje si la respuesta ya trajo los cambios
 const call = async (a, d, okMsg) => { try { const r = await api(a, d, { timeout: 120000 }); if (okMsg) toast(okMsg, 'ok'); await after(r); return r; } catch (e) { handleError(e); throw e; } };
 
@@ -50,7 +51,7 @@ export function render(el, params) {
 
 // ---------- Materiales ----------
 function drawMats(el) {
-  const all = S.t.materiales || [];
+  const all = (S.t.materiales || []).filter(conNombre);
   const q = inp({ placeholder: 'Buscar material…', 'aria-label': 'Buscar material' });
   const list = h('div');
   const actions = editor() ? h('div.row.wrap', btn('NUEVO MATERIAL', () => matForm({ tipo: 'material' }), { cls: 'primary', icon: 'plus' }), btn('NUEVO COMPONENTE', () => matForm({ tipo: 'componente', unidad: 'ud' }), { icon: 'plus' }),
@@ -65,9 +66,12 @@ function drawMats(el) {
   const drawList = () => {
     const rows = all.filter(m => !q.value || CL.matches([m.nombre, m.categoria, m.marca, m.proveedor, m.referencia, TIPO_TXT[m.tipo]].join(' '), q.value));
     if (!all.length) return mount(list, empty('box', 'Todavía no hay materiales', 'Carga tus precios con el botón de arriba o crea el primero.', null));
-    const groups = {};
-    rows.forEach(m => { const g = TIPO_TXT[m.tipo] || 'Otro'; (groups[g] = groups[g] || []).push(m); });
-    mount(list, Object.keys(groups).map(g => h('div.card', { style: { marginBottom: '12px' } }, h('h3', { style: { marginBottom: '8px' } }, g + ' (' + groups[g].length + ')'),
+    const groups = {}, retirados = rows.filter(m => CL.norm(m.activo) === 'no');
+    rows.filter(m => CL.norm(m.activo) !== 'no').forEach(m => { const g = TIPO_TXT[m.tipo] || 'Otro'; (groups[g] = groups[g] || []).push(m); });
+    if (retirados.length) groups['🗄️ Retirados'] = retirados; // 22-10-2026: los que ya no usas, aparte (no cuentan como pendientes)
+    const caja = (g, cont) => g === '🗄️ Retirados' ? h('details.card', { style: { marginBottom: '12px' } }, h('summary', h('b', g + ' (' + groups[g].length + ')'), h('span.tiny.muted', ' · ya no los usas: no cuentan como pendientes ni bajan al empaquetar')), cont)
+      : h('div.card', { style: { marginBottom: '12px' } }, h('h3', { style: { marginBottom: '8px' } }, g + ' (' + groups[g].length + ')'), cont);
+    mount(list, Object.keys(groups).map(g => caja(g,
       h('div.table-wrap', h('table.t', h('thead', h('tr', h('th', 'Nombre'), h('th', 'Lo que pagaste'), h('th', 'Coste por unidad'), h('th.hide-m', 'Precio'), h('th.hide-m', 'Cantidad'), h('th.hide-m', 'Proveedor'))),
         h('tbody', groups[g].sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es')).map(m => {
           const c = CL.matCost(m), off = CL.norm(m.activo) === 'no';
@@ -115,6 +119,13 @@ export function matForm(m) {
         c.costeG && x.unidad !== 'g' ? h('div.small.muted', '= ' + e4(c.costeG) + ' por gramo') : null,
         h('div.tiny.muted', 'Cuenta: ' + eur(x.precio) + ' ÷ ' + x.cantidad + ' ' + c.unidadTxt)));
   };
+  // 22-10-2026: si escribes TU precio o TU cantidad y su estado era de referencia (orientativo, estimado…), pasa a CONFIRMADO
+  // (antes se quedaba «orientativo» aunque el precio ya fuera tuyo). Si tocas tú el desplegable, manda lo que elijas.
+  const tocado = { estadoPrecio: false, estadoCantidad: false }, NO_TUYO = ['orientativo', 'estimado', 'pendiente', 'revisar', 'importado'];
+  f.estadoPrecio.addEventListener('change', () => { tocado.estadoPrecio = true; }); f.estadoCantidad.addEventListener('change', () => { tocado.estadoCantidad = true; });
+  [['precio', 'estadoPrecio'], ['cantidad', 'estadoCantidad']].forEach(([k, e]) => f[k].addEventListener('input', () => {
+    if (!tocado[e] && f[k].value !== '' && String(f[k].value) !== String(m[k] ?? '') && NO_TUYO.includes(f[e].value)) f[e].value = 'confirmado';
+  }));
   Object.values(f).forEach(x => x.addEventListener('input', upd)); Object.values(f).forEach(x => x.addEventListener('change', upd));
   const usedIn = isNew ? [] : (S.t.recetas || []).filter(r => r.materialId === m.id).map(r => r.producto).concat((S.t.embalajes || []).filter(e => (e.lineas || []).some(l => l.materialId === m.id)).map(e => 'embalaje ' + e.nombre));
   const hist = isNew ? [] : (S.t.preciosHist || []).filter(x => x.materialId === m.id).slice(-6).reverse();
@@ -167,12 +178,12 @@ function linesEditor(lineas, allowEmb, onChange) {
     const c = CL.linesCost(lineas, data(), pp());
     mount(box, lineas.map((l, i) => {
       const s = sel(opts(), l.materialId || '', { 'aria-label': 'Qué lleva' });
-      const q = inp({ type: 'number', min: 0, step: 'any', value: l.cantidad ?? '', 'aria-label': 'Cantidad' });
+      const q = inp({ type: 'number', min: 0, step: 'any', value: l.cantidad ?? '', 'aria-label': 'Cantidad', placeholder: l.pendiente ? '¿cuánto?' : '' });
       const u = sel(unitsFor(l.materialId), l.unidad || (unitsFor(l.materialId)[0] || {}).v || '');
       const nota = l.materialId === '@otro' ? inp({ value: l.notas || '', placeholder: '¿Qué es? (p. ej. pegamento)', 'aria-label': 'Qué es' }) : null;
       const r = c.lineas[i] || {};
       s.onchange = () => { l.materialId = s.value; l.unidad = (unitsFor(s.value)[0] || {}).v || ''; draw(); onChange(lineas); };
-      q.oninput = () => { l.cantidad = q.value === '' ? '' : Number(q.value); drawSum(); onChange(lineas); };
+      q.oninput = () => { l.cantidad = q.value === '' ? '' : Number(q.value); if (CL.n(l.cantidad) > 0) delete l.pendiente; drawSum(); onChange(lineas); };
       u.onchange = () => { l.unidad = u.value; drawSum(); onChange(lineas); };
       if (nota) nota.oninput = () => { l.notas = nota.value; onChange(lineas); };
       // v11.4: consumo ESTIMADO (metros de cinta, hojas de kraft…): se calcula pero se marca como estimado
@@ -185,7 +196,7 @@ function linesEditor(lineas, allowEmb, onChange) {
     drawSum();
   };
   const drawSum = () => {
-    const c = CL.linesCost(lineas.filter(l => l.materialId && CL.n(l.cantidad) > 0), data(), pp());
+    const c = CL.linesCost(lineas.filter(l => l.materialId && (CL.n(l.cantidad) > 0 || l.pendiente)), data(), pp());
     mount(resumen, costBreakdown(c));
   };
   draw();
@@ -236,36 +247,50 @@ function embForm(e) {
       h('label.check', std, '⭐ Embalaje estándar: se usa en cada pedido (solo puede haber uno)'), h('h4', { style: { margin: '10px 0 4px' } }, 'Qué lleva'), linesEditor(lineas, false, () => { }), msg),
     close => [!isNew ? btn('Borrar', async () => { if (!await confirmDlg('Borrar embalaje', '¿Borrar «' + e.nombre + '»? (va a la papelera)', 'Borrar', true)) return; try { await call('embalajes.borrar', { id: e.id }, 'Borrado'); close(); } catch (x) { msg.textContent = x.message; } }, { cls: 'ghost danger' }) : null,
       h('span.grow'), btn('Cancelar', close), btn('Guardar', async () => {
-        const ls = lineas.filter(l => l.materialId && CL.n(l.cantidad) > 0);
+        const ls = lineas.filter(l => l.materialId && (CL.n(l.cantidad) > 0 || (l.pendiente && (l.cantidad === '' || l.cantidad == null)))); // (22-10: la que falta saber cuánto, se guarda PENDIENTE)
         const datos = { nombre: nombre.value, notas: notas.value, lineas: ls, predeterminado: std.checked ? 'Sí' : 'No', pesoMedido: peso.value === '' ? '' : Number(peso.value) };
         try { await call('embalajes.guardar', isNew ? { datos } : { id: e.id, datos }, 'Embalaje guardado'); close(); } catch (x) { msg.textContent = x.message; }
       }, { cls: 'primary' })], { size: 'wide' });
 }
 
 // ---------- Coste de productos ----------
+// 22-10-2026: la ficha de coste de CADA producto se completa sola con lo que ya está guardado (receta, tu calculadora, Bambu
+// Studio y su pack de embalaje): es lo mismo que contará un pedido nuevo. Lo que falta se dice; nunca se pone a 0.
 function drawProds(el) {
   const prods = (S.t.productos || []).slice().sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
-  const withBom = prods.filter(p => CL.bomOf(p.id, data()).length);
-  mount(el, h('p.small.muted', 'Coste real de cada producto según su receta. Pulsa uno para ver por qué cuesta eso o para cambiar lo que lleva.'),
-    h('div.table-wrap', { style: { marginTop: '10px' } }, h('table.t', h('thead', h('tr', h('th', 'Producto'), h('th', 'Coste real'), h('th.hide-m', 'Estado'), h('th.hide-m', 'Equilibrio'), h('th', 'Precio venta'), h('th', 'Margen'))),
-      h('tbody', prods.map(p => {
-        const c = CL.productCost(p.id, data(), pp()), pr = c.total === null ? null : CL.costPricing(c.total, pp(), p.precio, p.plataforma);
-        return h('tr', { onclick: () => recipeEditor(p), style: { cursor: 'pointer' } }, h('td.bold', p.nombre),
-          h('td', !c.tieneReceta ? h('span.muted.small', 'sin receta') : c.total === null ? h('span.warn-t.small', 'PENDIENTE (≥ ' + eur(c.conocido) + ')') : h('b', eur(c.total))),
-          h('td.hide-m', c.tieneReceta ? confPill(c.estado) : null), h('td.hide-m', pr ? eur(pr.equilibrio) : '—'), h('td', p.precio ? eur(p.precio) : '—'),
+  const cfg = S.cfg || {}, fichas = prods.map(p => ({ p, f: CL.fichaCoste(p, data(), cfg) }));
+  const comp = fichas.filter(x => x.f.total !== null).length;
+  mount(el, h('p.small.muted', 'Coste por unidad de cada producto, calculado solo: fabricación (su receta, tu calculadora o Bambu Studio) + su embalaje. Lo que falta se dice; nunca se pone a 0. Pulsa uno para ver de dónde sale cada euro.'),
+    h('p.small', h('b', comp + ' de ' + prods.length), ' productos con el coste completo' + (comp < prods.length ? ' · los demás dicen qué dato falta.' : '.')),
+    h('div.table-wrap', { style: { marginTop: '10px' } }, h('table.t', h('thead', h('tr', h('th', 'Producto'), h('th', 'Coste por unidad'), h('th.hide-m', 'De dónde sale'), h('th', 'Precio venta'), h('th', 'Margen'))),
+      h('tbody', fichas.map(({ p, f }) => {
+        const pr = f.pricing, g = f.grupos;
+        return h('tr', { onclick: () => fichaDlg(p), style: { cursor: 'pointer' } }, h('td.bold', p.nombre),
+          h('td', f.total === null ? h('span.warn-t.small', { title: f.falta.map(x => x.por).join(' · ') }, 'PENDIENTE' + (f.conocido > 0 ? ' (≥ ' + eur(f.conocido) + ')' : '')) : h('span', h('b', eur(f.total)), ' ', confPill(f.estado))),
+          h('td.hide-m.small.muted', [g['Fabricación'] !== null ? 'Fabricación ' + eur(g['Fabricación']) : null, g['Embalaje'] !== null ? 'embalaje ' + eur(g['Embalaje']) : null].filter(Boolean).join(' + ') || '—',
+            f.falta.length ? h('div.tiny.warn-t', 'Falta: ' + f.falta[0].por) : null),
+          h('td', p.precio ? eur(p.precio) : '—'),
           h('td', pr && pr.margen !== null ? h('span', { class: pr.margen < 0 ? 'bad-t' : 'ok-t' }, eur(pr.margen) + ' · ' + Math.round(pr.margenPct * 100) + ' %') : '—'));
       })))),
-    h('p.tiny.muted', withBom.length + ' de ' + prods.length + ' productos con receta. Los demás siguen usando la calculadora del Excel (hoja Productos).'));
+    h('p.tiny.muted', 'Es el coste de hoy: si cambia un precio de compra, se recalcula solo. Los pedidos ya vendidos guardan su coste y no cambian.'));
+}
+function fichaDlg(p) { modal('🧮 ' + p.nombre, productCostCard(p), close => [btn('Cerrar', close)], { size: 'wide' }); }
+// La ficha: cada euro con su origen, lo que falta y la mano de obra (que cuenta en cada pedido)
+export function fichaCard(f) {
+  return h('div.card.flat',
+    h('div.row.wrap', h('b.grow', f.total === null ? 'Coste: al menos ' + eur(f.conocido) + ' por unidad (falta algún dato)' : 'Coste total: ' + eur(f.total) + ' por unidad'), confPill(f.estado)),
+    h('div.list', { style: { marginTop: '6px' } }, f.lineas.map(l => h('div.item', { style: { cursor: 'default' } }, h('span.tiny.muted', { style: { minWidth: '84px' } }, l.grupo), h('span.grow.small', l.n, l.fuente ? h('span.tiny.muted', ' · ' + l.fuente) : null), h('b.small', l.c === null ? 'PENDIENTE' : eur(l.c))))),
+    f.falta.length ? h('div.small.warn-t', { style: { marginTop: '6px' } }, f.falta.map(x => h('div', '⏳ ' + x.que + ': ' + x.por))) : null,
+    f.estado === 'orientativo' || f.estado === 'estimado' ? h('p.tiny.muted', 'Incluye precios ' + CL.CONF_TXT[f.estado] + 'S: cámbialos por los tuyos en Materiales para que el coste sea exacto.') : null,
+    h('p.tiny.muted', 'Mano de obra: no se suma aquí; cada pedido cuenta la que indicas al terminarlo' + (f.manoObraCalculadora ? ' (tu calculadora dice ' + eur(f.manoObraCalculadora) + ')' : '') + '.'));
 }
 
 // Ficha de coste de un producto (para la pestaña «Precio y costes» del producto)
 export function productCostCard(p) {
-  const c = CL.productCost(p.id, data(), pp());
-  if (!c.tieneReceta) return h('div.card.flat', h('b', '🧮 Receta de materiales'), h('p.small.muted', 'Este producto aún no tiene receta. Con ella el programa calcula el coste real: filamento, horas, componentes, embalaje y otros, con su desglose.'),
-    editor() ? btn('Crear la receta', () => recipeEditor(p), { cls: 'primary sm', icon: 'plus' }) : null);
-  const pr = c.total === null ? null : CL.costPricing(c.total, pp(), p.precio, p.plataforma);
-  return h('div.col', { style: { gap: '10px' } }, h('div.row', h('h4.grow', '🧮 ¿Por qué cuesta lo que cuesta?'), btn(editor() ? 'Cambiar la receta' : 'Ver la receta', () => recipeEditor(p), { cls: 'sm' })),
-    costBreakdown(c), pricingCard(pr, p));
+  const f = CL.fichaCoste(p, data(), S.cfg || {}), tiene = CL.bomOf(p.id, data()).length > 0;
+  return h('div.col', { style: { gap: '10px' } },
+    h('div.row', h('h4.grow', '🧮 ¿Por qué cuesta lo que cuesta?'), editor() || tiene ? btn(editor() ? (tiene ? 'Cambiar la receta' : 'Crear la receta') : 'Ver la receta', () => recipeEditor(p), { cls: 'sm' + (tiene ? '' : ' primary'), icon: tiene ? null : 'plus', title: 'La receta es para lo que no sale solo: componentes, pintura, otro pack…' }) : null),
+    fichaCard(f), pricingCard(f.pricing, p));
 }
 export function pricingCard(pr, p) {
   if (!pr) return h('p.small.muted', 'El precio de equilibrio y el margen se calculan cuando el coste esté completo.');

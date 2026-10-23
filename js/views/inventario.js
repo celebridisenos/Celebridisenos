@@ -24,7 +24,7 @@ function nivelDe(m) {
   return st <= 0 ? 'agotado' : (cri !== null && st <= cri ? 'critico' : (min !== null && st <= min ? 'bajo' : 'ok'));
 }
 const estimado = m => CL.norm(m.estadoStock) === 'estimado' || CL.norm(m.estadoCantidad) === 'estimado';
-const activos = () => (S.t.materiales || []).filter(m => CL.norm(m.activo) !== 'no');
+const activos = () => (S.t.materiales || []).filter(m => CL.norm(m.activo) !== 'no' && String(m.nombre || '').trim()); // (22-10: una fila sin nombre no es un material)
 
 function grupos() {
   const g = {}, kg = n(((S.cfg || {}).precios || {}).costeKg), aviso = n(((S.cfg || {}).taller || {}).avisoColorGramos) || 300;
@@ -63,7 +63,7 @@ export function render(el, params) {
     mats.forEach(m => { const c = CL.matCost(m).coste; if (c === null) sinPrecio++; else vM += n(m.stock) * c; });
     gr.forEach(g => { vF += g.valor; });
     const falta = !(S.cfg && S.cfg.v16 && S.cfg.v16.inventario) && !mats.length;
-    const revCard = h('div.card.inv-rev', { style: { display: 'none' } });
+    const revCard = h('div.card.inv-rev', { style: { display: 'none' } }), pendCard = h('div.card.inv-pend', { style: { display: 'none' } });
     mount(cuerpo,
       falta && can('costes.editar') ? h('div.card', h('h3', 'Carga tu inventario'), h('p.small.muted', 'Cajas, sobres, bolsas, cinta, papel burbuja, kraft, laca, alcohol, aceite y tus bobinas, tal como los indicaste el 7-10-2026.'), btn('Cargar inventario inicial', cargarInicial, { cls: 'primary' })) : null,
       h('div.kpis.g4',
@@ -77,11 +77,47 @@ export function render(el, params) {
           h('b', (NIVEL[a.nivel] || ['', ''])[0].toUpperCase()), h('span.grow', a.nombre + ': ', h('b', a.nivel === 'agotado' ? 'no queda' : a.queda.toLocaleString('es-ES') + ' ' + (UN[a.unidad] || a.unidad) + (a.queda === 1 ? ' restante' : ' restantes'))),
           mover ? btn('Compré…', () => a.tipo === 'filamento' ? compraRapida({ filamento: a.id }) : compraRapida({ id: a.id }), { cls: 'sm' }) : null)))
           : h('p.small.muted', 'Ningún material está por debajo de su aviso. Los límites se cambian en cada material.')),
-      revCard,
+      pendCard, revCard,
       h('p.tiny.muted', 'El stock baja solo: el filamento al imprimir (con la cola o al pasar el pedido a «En mesa»), la caja/sobre/bolsa, la cinta y los papeles al cerrar el paquete, y el alcohol con cada lavado.'));
-    revision(true).then(r => { if (!revCard.isConnected || !r.lista.length) return; const T = { incoherencia: 'No cuadra', falta: 'Falta', estimado: 'Estimado' };
+    pintarPendientes(pendCard);
+    // (las compras con importe raro ya salen arriba, en Pendientes: aquí no se repiten)
+    revision(true).then(r => { r = Object.assign({}, r, { lista: r.lista.filter(x => x.enlace !== 'inventario/compras') }); if (!revCard.isConnected || !r.lista.length) return; const T = { incoherencia: 'No cuadra', falta: 'Falta', estimado: 'Estimado' };
       mount(revCard, h('details.more', h('summary', '🧠 Revisión (opcional): ' + r.lista.length + (r.lista.length === 1 ? ' dato' : ' datos') + ' que podrías afinar cuando quieras'), h('div.in', h('p.tiny.muted', 'Nada de esto impide trabajar. Son datos que faltan o que son una estimación.'),
         r.lista.map(x => h('div.rev-i.' + x.nivel, { onclick: () => go(x.enlace.indexOf('pedido:') === 0 ? 'pedidos/' + x.enlace.slice(7) : (x.enlace || 'inventario')) }, h('span', REV_ICO[x.nivel]), h('b.rev-t', T[x.nivel]), h('span.grow.small', x.texto)))))); revCard.style.display = ''; });
+  }
+
+  // 22-10-2026 · PENDIENTES con su ORIGEN y su PRUEBA. Los demostrables se cierran con un botón (con nota e historial);
+  // los que necesitan un dato tuyo dicen cuál y dónde se escribe. Nada se marca como hecho «porque sí».
+  async function pintarPendientes(card) {
+    let r; try { r = await api('inventario.pendientes', {}, { quiet: true }); } catch (e) {
+      if (servidorViejo(e) && card.isConnected) { mount(card, h('h3', '🧹 Pendientes del inventario'), h('p.small.muted', SERVIDOR_VIEJO)); card.style.display = ''; }
+      return;
+    }
+    if (!card.isConnected || (!r.resueltos.length && !r.abiertos.length)) return;
+    const puede = can('costes.editar'), elegidos = new Set(r.resueltos.map(x => x.clave));
+    const cerrar = async ev => {
+      const bt = ev.target.closest('button'); bt.disabled = true;
+      try {
+        const x = await api('inventario.cerrarPendientes', { claves: [...elegidos] }); await pull();
+        const packs = x.cerrados.reduce((a, c) => a + (c.creados || []).length, 0);
+        toast('Cerrados: ' + x.cerrados.length + (packs ? ' · packs creados: ' + packs : ''), 'ok', 6000); tras();
+      } catch (e) { handleError(e); bt.disabled = false; }
+    };
+    const item = (x, res) => h('div.pend-i' + (res ? '.ok' : ''),
+      res && puede ? h('input', { type: 'checkbox', checked: true, onchange: e => { e.target.checked ? elegidos.add(x.clave) : elegidos.delete(x.clave); } }) : h('span', res ? '✅' : '❓'),
+      h('div.grow', h('b.small', x.titulo), h('div.tiny.muted', x.origen), res ? h('div.tiny', '✔ ' + x.prueba + ' → ' + x.accion) : h('div.tiny.warn-t', 'Falta: ' + x.falta)),
+      x.compra && mover ? btn('✏️ Corregir', () => abrirCompra(x.compra), { cls: 'sm' }) : null);
+    const abiertos = h('details.more', h('summary', r.abiertos.length + (r.abiertos.length === 1 ? ' necesita un dato tuyo' : ' necesitan un dato tuyo') + ' (no se cierran solos)'), h('div.in', r.abiertos.map(x => item(x, false))));
+    if (!r.resueltos.length) abiertos.open = true;
+    mount(card, h('h3', '🧹 Pendientes del inventario'),
+      r.resueltos.length ? h('div', h('p.small', h('b', r.resueltos.length + (r.resueltos.length === 1 ? ' ya está resuelto' : ' ya están resueltos')), ' según tus propios datos (en cada uno se ve la prueba):'),
+        r.resueltos.map(x => item(x, true)), puede ? h('div.row', { style: { marginTop: '6px' } }, btn('Cerrar los marcados', cerrar, { cls: 'primary sm', icon: 'check' }), h('span.tiny.muted', 'Nada se borra: queda una nota y el historial.')) : null) : null,
+      r.abiertos.length ? abiertos : null);
+    card.style.display = '';
+  }
+  async function abrirCompra(id) {
+    try { if (!cache.mov) cache.mov = await api('materiales.movimientos', { limite: 300 }); } catch (e) { return handleError(e); }
+    const x = cache.mov.movimientos.find(m => m.id === id); if (x) corregirCompra(x, tras); else toast('No encuentro esa compra', 'warn');
   }
 
   function materiales() {
@@ -156,11 +192,14 @@ export function render(el, params) {
   async function compras() {
     if (!cache.mov) { mount(cuerpo, h('p.muted', 'Cargando…')); try { cache.mov = await api('materiales.movimientos', { limite: 300 }); } catch (e) { handleError(e); cache.mov = { movimientos: [] }; } if (pestana !== 'compras') return; }
     const mv = cache.mov.movimientos, T = { compra: ['🛒 Compra', 'ok'], consumo: ['Consumo', ''], recuento: ['Recuento', ''], inicial: ['Inventario inicial', ''] };
+    const corrige = costes && mover; // 22-10-2026: una compra mal apuntada se corrige aquí (no se crea otra)
     mount(cuerpo, !mv.length ? empty('box', 'Sin movimientos todavía', 'Cada compra, cada caja usada y cada lavado quedarán aquí.') :
-      h('div.card', h('div.table-wrap', h('table.t', h('thead', h('tr', h('th', 'Cuándo'), h('th', 'Material'), h('th', 'Qué pasó'), h('th', { style: { textAlign: 'right' } }, 'Cambio'), h('th.hide-m', { style: { textAlign: 'right' } }, 'Queda'), costes ? h('th', { style: { textAlign: 'right' } }, 'Importe') : null)),
-        h('tbody', mv.map(x => h('tr', h('td.small.muted', fdt(x.fecha)), h('td.bold', x.material), h('td.small', (T[x.tipo] ? pill(T[x.tipo][0], T[x.tipo][1]) : null), ' ', x.motivo || '', x.pedido ? ' · nº ' + x.pedido : ''),
+      h('div.card', h('div.table-wrap', h('table.t', h('thead', h('tr', h('th', 'Cuándo'), h('th', 'Material'), h('th', 'Qué pasó'), h('th', { style: { textAlign: 'right' } }, 'Cambio'), h('th.hide-m', { style: { textAlign: 'right' } }, 'Queda'), costes ? h('th', { style: { textAlign: 'right' } }, 'Importe') : null, corrige ? h('th') : null)),
+        h('tbody', mv.map(x => h('tr', h('td.small.muted', fdt(x.fecha)), h('td.bold', x.material), h('td.small', (T[x.tipo] ? pill(T[x.tipo][0], T[x.tipo][1]) : null), / · corregida /.test(x.motivo || '') ? [' ', pill('✏️ corregida', '')] : null, ' ', x.motivo || '', x.pedido ? ' · nº ' + x.pedido : ''),
           h('td', { style: { textAlign: 'right' } }, h('b' + (n(x.cambio) < 0 ? '.bad-t' : '.ok-t'), (n(x.cambio) > 0 ? '+' : '') + (Math.round(n(x.cambio) * 100) / 100).toLocaleString('es-ES'))), h('td.hide-m', { style: { textAlign: 'right' } }, (Math.round(n(x.despues) * 100) / 100).toLocaleString('es-ES')),
-          costes ? h('td', { style: { textAlign: 'right' } }, lleno(x.importe) ? fino(n(x.importe)) : '—') : null)))))));
+          costes ? h('td', { style: { textAlign: 'right' } }, lleno(x.importe) ? fino(n(x.importe)) : '—') : null,
+          corrige ? h('td', x.tipo === 'compra' ? btn('', () => corregirCompra(x, tras), { cls: 'sm ghost icon', icon: 'edit', title: 'Corregir esta compra (importe, cuántos, fecha…)' }) : null) : null)))))),
+      corrige && mv.some(x => x.tipo === 'compra') ? h('p.tiny.muted', '✏️ = corregir una compra mal apuntada: se arregla ella misma (no se crea otra) y con ella el stock, el coste por unidad, los packs, los costes de productos y las estadísticas.') : null);
   }
 
   async function estadisticas() {
@@ -334,7 +373,17 @@ export function compraRapida(opt = {}) {
         if (m) d.id = m.id; else { d.nombre = f.que.value.trim(); d.unidad = u; d.tipo = u === 'ud' ? 'embalaje' : 'material'; }
         // «lo que trae» solo se manda si lo has escrito tú (si no, sigue valiendo la estimación que había)
         if (u !== 'ud' && (tocadoTrae || !m) && f.trae.value !== '') d.contenido = n(f.trae.value);
-        const r = await api('materiales.compra', d);
+        let r;
+        try { r = await api('materiales.compra', d); }
+        catch (e) {
+          // 22-10-2026: un importe 10 veces más caro de lo normal (120 € en vez de 1,20 €) o la misma compra dos veces → se pregunta
+          if (e.code !== 'CONFIRMAR' && e.code !== 'DUPLICADO') throw e;
+          const si = await confirmDlg(e.code === 'CONFIRMAR' ? '¿Seguro que es ese importe?' : '¿Otra compra igual?', e.message, e.code === 'CONFIRMAR' ? 'Sí, pagué eso' : 'Sí, compré otra igual');
+          if (!si) { bt.disabled = false; (e.code === 'CONFIRMAR' ? f.total : f.uds).focus(); return; }
+          if (e.code === 'CONFIRMAR') d.confirmado = true; else d.repetir = true;
+          try { r = await api('materiales.compra', d); }
+          catch (e2) { if (e2.code !== 'CONFIRMAR' && e2.code !== 'DUPLICADO') throw e2; const si2 = await confirmDlg('¿Seguro?', e2.message, 'Sí'); if (!si2) { bt.disabled = false; return; } d.confirmado = true; d.repetir = true; r = await api('materiales.compra', d); }
+        }
         upsertLocal('materiales', r.material); emit();
         toast('🛒 ' + r.material.nombre + ': ' + cant(r.antes, r.unidad) + ' → ' + cant(r.despues, r.unidad) + (costes && r.costeMedio !== null ? ' · ' + fino(r.costeMedio) + '/' + (UN[r.unidad] || r.unidad) : ''), 'ok', 6000);
       }
@@ -342,3 +391,73 @@ export function compraRapida(opt = {}) {
     } catch (e) { msg.textContent = e.message || String(e); bt.disabled = false; }
   }
 }
+
+// ---------- CORREGIR UNA COMPRA YA APUNTADA (22-10-2026) ----------
+// Se corrige la compra misma (nada de compras duplicadas): cuántos, lo pagado, lo que trae cada uno, la fecha, el material y
+// el proveedor. El servidor arregla con ella el stock, el coste por unidad, los packs, los costes de productos y las estadísticas.
+export function corregirCompra(x, despues) {
+  if (!can('stock.mover')) return requestAccess('stock.mover', 'stock');
+  const mats = activos().sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+  const m0 = (S.t.materiales || []).find(m => m.id === x.materialId) || { id: x.materialId, nombre: x.material, unidad: 'ud' };
+  const mm = String(x.motivo || '').match(/^Compra:\s*([\d.,]+)\s*×/);
+  const uds0 = mm ? n(mm[1]) : 1, trae0 = uds0 > 0 ? Math.round(n(x.cambio) / uds0 * 10000) / 10000 : n(x.cambio), tot0 = n(x.importe);
+  const dia = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('sv-SE'); };
+  const hoy = new Date().toLocaleDateString('sv-SE');
+  const f = {
+    que: inp({ list: 'dl-corrige', value: m0.nombre, autocomplete: 'off' }),
+    uds: inp({ type: 'number', min: 0, step: 'any', value: uds0, inputmode: 'decimal' }),
+    total: inp({ type: 'number', min: 0, step: 0.01, value: tot0, inputmode: 'decimal' }),
+    trae: inp({ type: 'number', min: 0, step: 'any', value: trae0, inputmode: 'decimal' }),
+    fecha: inp({ type: 'date', value: dia(x.fecha), max: hoy }),
+    prov: inp({ value: m0.proveedor || '', placeholder: 'Tienda o web (opcional)' })
+  };
+  const pre = h('div.compra-pre'), msg = h('p.bad-t'), campoTrae = h('div.field', h('label', 'Cada uno trae (' + (UN[m0.unidad] || m0.unidad || 'ud') + ')'), f.trae);
+  const elegido = () => mats.find(m => CL.norm(m.nombre) === CL.norm(f.que.value)) || null;
+  const conTrae = () => (elegido() || m0).unidad !== 'ud' || trae0 !== 1;
+  function calc() {
+    msg.textContent = '';
+    const m = elegido() || m0, u = m.unidad || 'ud', uds = n(f.uds.value), tot = n(f.total.value), tr = conTrae() ? n(f.trae.value) : 1;
+    campoTrae.style.display = conTrae() ? '' : 'none';
+    if (!(uds > 0) || f.total.value === '') { mount(pre, h('span.warn-t', 'Escribe cuántos y cuánto pagaste.')); return; }
+    const entra = uds * tr, cu = entra > 0 ? tot / entra : null, cu0 = n(x.cambio) > 0 ? tot0 / n(x.cambio) : null;
+    const mismo = !elegido() || elegido().id === m0.id, st = lleno(m0.stock) ? n(m0.stock) : 0;
+    mount(pre,
+      h('div', 'Antes: ', h('b', cant(uds0, 'ud') + ' por ' + eur(tot0)), cu0 !== null ? ' (' + fino(cu0) + ' por ' + (UN[m0.unidad] || m0.unidad || 'ud') + ')' : ''),
+      h('div', 'Ahora: ', h('b', cant(uds, 'ud') + ' por ' + eur(tot)), cu !== null ? ' (' + fino(cu) + ' por ' + (UN[u] || u) + ')' : ''),
+      mismo ? (Math.abs(entra - n(x.cambio)) > 1e-9 ? h('div', '→ stock de ' + m0.nombre + ': ', h('b', cant(st, m0.unidad) + ' → ' + cant(st - n(x.cambio) + entra, m0.unidad))) : h('div.tiny.muted', 'El stock no cambia.'))
+        : h('div', '→ pasa de «' + m0.nombre + '» (' + cant(st, m0.unidad) + ' → ' + cant(st - n(x.cambio), m0.unidad) + ') a «' + elegido().nombre + '»'),
+      Math.abs(tot - tot0) > 0.004 ? h('div', '→ gasto de ese mes: ', h('b', (tot - tot0 > 0 ? '+' : '−') + eur(Math.abs(tot - tot0)))) : null);
+  }
+  Object.values(f).forEach(i => i.addEventListener('input', calc));
+  const body = h('div',
+    h('div.banner-soft', { style: { marginBottom: '10px' } }, '✏️ Estás corrigiendo una compra ya apuntada (' + fdt(x.fecha) + '). No se crea otra: se cambia esta y todo lo que depende de ella.'),
+    h('datalist', { id: 'dl-corrige' }, mats.map(m => h('option', { value: m.nombre }))),
+    h('div.form', field('Qué compraste', f.que, null, 'full'), field('Cuántos *', f.uds), field('Pagué en total (€) *', f.total), campoTrae, field('Fecha de la compra', f.fecha), field('Proveedor', f.prov)),
+    pre, msg);
+  const md = modal('✏️ Corregir compra', body, close => [btn('Cancelar', close), btn('Guardar cambios', guardar, { cls: 'primary', icon: 'check' })]);
+  calc();
+  async function guardar(ev) {
+    const bt = ev.target.closest('button'), m = elegido() || (CL.norm(f.que.value) === CL.norm(m0.nombre) ? m0 : null);
+    if (!m) { msg.textContent = 'Elige un material de la lista (para uno nuevo, apúntalo con «Compré…»).'; f.que.focus(); return; }
+    if (!(n(f.uds.value) > 0)) { msg.textContent = 'Indica cuántos compraste (más de 0).'; f.uds.focus(); return; }
+    if (f.total.value === '' || n(f.total.value) < 0) { msg.textContent = 'Indica cuánto pagaste en total.'; f.total.focus(); return; }
+    if (conTrae() && !(n(f.trae.value) > 0)) { msg.textContent = 'Lo que trae cada uno debe ser mayor que 0.'; f.trae.focus(); return; }
+    if (f.fecha.value && f.fecha.value > hoy) { msg.textContent = 'La fecha no puede ser de un día que aún no ha llegado.'; f.fecha.focus(); return; }
+    const d = { id: x.id, unidades: n(f.uds.value), total: Math.round(n(f.total.value) * 100) / 100, visto: { importe: x.importe, cambio: x.cambio } };
+    if (conTrae() && n(f.trae.value) !== trae0) d.contenido = n(f.trae.value);
+    if (m.id !== m0.id) { d.materialId = m.id; if (conTrae()) d.contenido = n(f.trae.value); }
+    if (f.fecha.value && f.fecha.value !== dia(x.fecha)) d.fecha = f.fecha.value;
+    if (f.prov.value.trim() !== String(m0.proveedor || '').trim()) d.proveedor = f.prov.value.trim();
+    bt.disabled = true;
+    try {
+      const r = await api('materiales.compraEditar', d);
+      (r.materiales || []).forEach(mt => upsertLocal('materiales', mt)); emit();
+      try { await pull(); } catch (e) { }
+      toast('✏️ Compra corregida: ' + eur(r.antes.total) + ' → ' + eur(r.despues.total) + (r.avisos.length ? ' · ' + r.avisos[0] : ''), 'ok', 8000);
+      md.close(); if (despues) despues();
+    } catch (e) { msg.textContent = servidorViejo(e) ? SERVIDOR_VIEJO + ' No se ha cambiado nada.' : e.message || String(e); bt.disabled = false; }
+  }
+}
+// el servidor de Google instalado aún no tiene lo del 22-10 (corregir compras y pendientes): se dice claro, sin error raro
+const SERVIDOR_VIEJO = 'Tu servidor de Google aún es el antiguo: para esto hay que pegar el Servidor.gs nuevo (carpeta de la versión → LEEME).';
+const servidorViejo = e => /Acción desconocida: (materiales\.compraEditar|inventario\.)/.test((e && e.message) || '');

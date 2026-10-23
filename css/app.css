@@ -1757,6 +1757,12 @@ html.ui14 .sidebar .nav .grp.grp-b { color: rgba(233, 222, 255, .62); } html.ui1
 .rev-i .rev-t { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; min-width: 74px; padding-top: 2px; color: var(--muted); }
 .rev-i.incoherencia .rev-t { color: var(--bad); } .rev-i.falta .rev-t { color: var(--warn); }
 .inv-rev { margin-top: 12px; }
+/* 22-10-2026 · Pendientes del inventario: cada uno con su origen y su prueba (o lo que falta) */
+.inv-pend { margin-top: 12px; } .inv-pend h3 { margin-bottom: 6px; }
+.pend-i { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; margin: 6px 0; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.pend-i.ok { border-color: var(--ok); background: var(--ok-soft); }
+.pend-i > input[type=checkbox] { margin-top: 3px; width: 18px; height: 18px; flex: none; } .pend-i > span:first-child { flex: none; }
+.pend-i .grow > div { margin-top: 2px; line-height: 1.35; } .pend-i .btn { flex: none; align-self: center; }
 
 /* v16 · biblioteca de plantillas del editor */
 .bib { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }

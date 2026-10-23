@@ -40,7 +40,7 @@ export async function montarCatalogo(el, ext = {}) {
     mount(rejilla, aviso, L.length ? L.map(([k, d]) => tarjeta(k, d)) : h('p.muted', 'No hay nada con esa palabra.'));
     dibujaMinis();
   }
-  const tarjeta = (k, d) => h('button.r8c-tar' + (C.abierto === k ? '.on' : ''), { type: 'button', 'data-k': k, onclick: () => abre(k) }, (d.tambien || []).includes('pack60') ? h('i.r8c-regalo', { title: 'Del pack de 60' }, '🎁') : null, h('div.r8c-img', MINIS.get(k) ? h('img', { src: MINIS.get(k), alt: d.t }) : h('span.r8c-emo', d.e)), h('b', d.t), h('small', d.d), h('span.r8c-uso', { funcional: '💪 Resistente', jarron: '🏺 Modo jarrón', encaje: '🧩 Encaja', flexible: '🪢 TPU', pieza: '🔩 Pieza', deco: '🎀 Decoración' }[d.uso] || ''));
+  const tarjeta = (k, d) => h('button.r8c-tar' + (C.abierto === k ? '.on' : ''), { type: 'button', 'data-k': k, onclick: () => abre(k) }, (d.tambien || []).includes('pack60') ? h('i.r8c-regalo', { title: 'Del pack de 60' }, '🎁') : null, h('div.r8c-img', (MINIS.get(k) || d.mini) ? h('img', { src: MINIS.get(k) || d.mini, alt: d.t }) : h('span.r8c-emo', d.e)), h('b', d.t), h('small', d.d), h('span.r8c-uso', { funcional: '💪 Resistente', jarron: '🏺 Modo jarrón', encaje: '🧩 Encaja', flexible: '🪢 TPU', pieza: '🔩 Pieza', deco: '🎀 Decoración' }[d.uso] || ''));
   // las miniaturas se dibujan de una en una, sin bloquear la pantalla
   let cola = Promise.resolve();
   // v30.6.2: con una ventana abierta encima (preparar para la Bambu, el taller de colores…) las miniaturas ESPERAN: dibujarlas a la vez
@@ -48,10 +48,11 @@ export async function montarCatalogo(el, ext = {}) {
   const libre = () => new Promise(r => { const mira = () => (!vivo || !document.querySelector('.overlay, .ct-fondo, .aj-vent-f') ? r() : setTimeout(mira, 400)); mira(); });
   async function dibujaMinis() {
     try { if (localStorage.getItem('cd.r8.sinMinis') === '1') return; } catch (e) { } // (las pruebas que no miran las miniaturas: en un PC sin tarjeta gráfica tardan minutos)
-    const faltan = [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k) && K.DISENOS[b.dataset.k]).map(b => b.dataset.k);
+    const conFoto = k => !!(K.DISENOS[k] || {}).mini;   // (22-10: los robots traen su foto: no se fabrican aquí)
+    const faltan = [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k) && K.DISENOS[b.dataset.k] && !conFoto(b.dataset.k)).map(b => b.dataset.k);
     if (faltan.length) { const L = await leeMinis(faltan.map(k => huella(K, k, C.color[k] || K.DISENOS[k].color))); L.forEach(([hk, url], i) => { if (url && vivo) { const k = faltan[i]; MINIS.set(k, url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); } }); }
     if (!vivo) return;
-    [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k)).forEach(b => {
+    [...rejilla.querySelectorAll('.r8c-tar')].filter(b => !MINIS.has(b.dataset.k) && !conFoto(b.dataset.k)).forEach(b => {
       const k = b.dataset.k; cola = cola.then(libre).then(() => new Promise(res => setTimeout(() => { if (!vivo || MINIS.has(k)) return res();
         try { if (SDF) SDF.ajustes.rapido = true; const hazV = () => N.aVista(K.genera(k, sinNombre(K, k))); let vis = N.enAparteDatos(hazV, 8); if (vis === undefined) vis = N.enAmbito(hazV); // (20-10: en el motor aparte; el principal no se llena)
           const url = miniatura(vis, C.color[k] || K.DISENOS[k].color, K.DISENOS[k].acabado || 'mate', 300); MINIS.set(k, url); guardaMini(huella(K, k, C.color[k] || K.DISENOS[k].color), url); const img = rejilla.querySelector('[data-k="' + k + '"] .r8c-img'); if (img) mount(img, h('img', { src: url, alt: '' })); }
@@ -96,9 +97,10 @@ export async function montarCatalogo(el, ext = {}) {
         if (dc) { try { const [sube, baja] = m.splitByPlane([0, 0, 1], N.caja(m).min[2] + dc.z); if (!sube.isEmpty() && !baja.isEmpty()) PV = [{ id: k, vista: N.aVista(baja), color: col1, acabado: aca }, { id: k + '_2', vista: N.aVista(sube), color: dc.color, acabado: aca }]; } catch (x) { console.warn('dos colores', x); } } // v30.2: el QR en negro sobre blanco (como saldrá con la pausa)
         escena.ponPartes(PV); { const t = Math.max(...I.dims), cambia = TAM0 && (t > TAM0 * 1.4 || t < TAM0 / 1.4); if (ya || cambia) escena.encuadrar('iso'); TAM0 = t; } // (19-10: si pasa a ser mucho más grande o más pequeña —«Verlo montado»—, la cámara se recoloca para verla entera)
         mount(info, h('span', I.dims.map(x => (Math.round(x * 10) / 10).toLocaleString('es-ES')).join(' × ') + ' mm'), h('span', Math.round(I.vol / 1000) + ' cm³'), h('span', Math.round(performance.now() - t0) + ' ms'));
-        const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, (typeof D.soportes === 'function' ? D.soportes(v) : D.soportes) ? h('p.r8e-nota.r8c-sopn', '🌲 Lleva soportes (por su forma: asa, orejas, gancho…). Al prepararla para tu Bambu salen marcados los de árbol, que se quitan fácil.') : null, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null);
+        const nota = detalle.querySelector('.r8c-nota'); if (nota) mount(nota, (typeof D.soportes === 'function' ? D.soportes(v) : D.soportes) ? h('p.r8e-nota.r8c-sopn', '🌲 Lleva soportes (por su forma: asa, orejas, gancho…). Al prepararla para tu Bambu salen marcados los de árbol, que se quitan fácil.') : null, D.nota ? h('p.r8e-nota', typeof D.nota === 'function' ? D.nota(v) : D.nota) : null,
+          D.enlaces ? h('div.r8e-btns.r8c-enlaces', D.enlaces(v).map(([t, u]) => btn(t, () => window.open(u, '_blank', 'noopener'), { cls: 'sm' }))) : null);   // 22-10: la guía y la compra de los robots
         window.__r8c = { k, dims: I.dims.map(x => Math.round(x * 10) / 10), vol: I.vol, piezas: m.decompose().length, valores: Object.assign({}, v) };
-      } catch (e) { mount(info, h('span.r8e-mal', '⚠️ ' + (e.message || e))); window.__r8c = { k, error: e.message }; }
+      } catch (e) { const msg = String(e.message || e), baja = /^⏳/.test(msg); mount(info, baja ? h('span.r8c-baja', msg) : h('span.r8e-mal', '⚠️ ' + msg)); window.__r8c = baja ? { k, cargando: true } : { k, error: msg }; }
       finally { N.limpia(); }
     }, ya ? 0 : 120);
   }
@@ -281,7 +283,9 @@ export async function montarCatalogo(el, ext = {}) {
   const abreDe = k => { if (!K.DISENOS[k]) return; C.cat = K.DISENOS[k].cat; C.buscar = ''; pinta(); abre(k); setTimeout(() => { const t = rejilla.querySelector('[data-k="' + k + '"]'); t && t.scrollIntoView({ block: 'center' }); }, 200); };
   window.__r8catAbre = abreDe; let pend = null; try { pend = localStorage.getItem('cd.r8.cat.abrir'); localStorage.removeItem('cd.r8.cat.abrir'); } catch (e) { }
   pinta(); if (pend && K.DISENOS[pend]) abreDe(pend); else if (C.abierto) abre(C.abierto);
-  return { destroy() { vivo = false; if (window.__r8catAbre === abreDe) window.__r8catAbre = null; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); }, abre };
+  const alRobot = () => { const k = C.abierto; if (vivo && k && (K.DISENOS[k] || {}).robot && escena) genera(true); };   // 22-10: llegaron sus piezas (y se encuadra)
+  window.addEventListener('r8-robots-listo', alRobot);
+  return { destroy() { vivo = false; window.removeEventListener('r8-robots-listo', alRobot); if (window.__r8catAbre === abreDe) window.__r8catAbre = null; clearTimeout(tic); if (MESA) MESA.destruir(); if (escena) escena.destruir(); }, abre };
 }
 // los textos de ejemplo no se dibujan en la miniatura si cuestan (se usan los de serie)
 function sinNombre(K, k) { return {}; }

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprar CelebriBot</title>
+<style>
+  :root { --fondo:#f6f6f7; --tarjeta:#fff; --texto:#161616; --suave:#6b6b70; --borde:#e4e4e7; --tq:#00b8cf; --ojo:#c2410c; --hecho:#e9f9fb; }
+  @media (prefers-color-scheme: dark) { :root { --fondo:#121214; --tarjeta:#1c1c1f; --texto:#f4f4f5; --suave:#a1a1aa; --borde:#2e2e33; --tq:#22d3ee; --ojo:#fb923c; --hecho:#0f2a2e; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:17px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:18px 16px 40px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  .sub { color:var(--suave); margin:0 0 18px; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--suave); margin:26px 0 8px; }
+  .c { background:var(--tarjeta); border:1px solid var(--borde); border-radius:14px; padding:12px 14px; margin:8px 0; display:flex; gap:12px; align-items:flex-start; }
+  .c.hecho { background:var(--hecho); }
+  .c.hecho .n { text-decoration:line-through; color:var(--suave); }
+  .c input { width:26px; height:26px; margin:2px 0 0; accent-color:var(--tq); flex:none; }
+  .d { flex:1; min-width:0; }
+  .n { font-weight:650; font-size:18px; }
+  .p { color:var(--suave); font-size:15px; }
+  .ojo { color:var(--ojo); font-size:15px; font-weight:600; margin-top:2px; }
+  .b { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .b a { flex:1; min-width:120px; text-align:center; text-decoration:none; font-weight:650; font-size:15px; padding:10px 8px; border-radius:10px; }
+  .ali { background:#ff4f19; color:#fff; } .amz { background:#232f3e; color:#fff; }
+  .tot { margin-top:22px; padding:14px; border-radius:14px; background:var(--tarjeta); border:2px solid var(--tq); font-size:18px; }
+  .ya { color:var(--suave); font-size:15px; margin-top:14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🤖 Comprar el CelebriBot</h1>
+  <p class="sub">Toca el botón y te lleva a la tienda. Marca ✔ lo que ya tengas.</p>
+
+  <h2>🧠 Cerebro y cara</h2>
+  <div id="lista"></div>
+
+  <div class="tot"><b>Total:</b> unos 50–70 €</div>
+  <p class="ya">Ya tienes: el plástico y el cable USB-C del PC. Bridas: las que tengas.</p>
+</main>
+<script>
+// [grupo, nombre, precio, aviso, lo que se busca]
+const L = [
+  ['🧠 Cerebro y cara', 'Placa con cámara', '16 €', 'Que ponga «Sense» · sin pines · guarda su antena', 'Seeed XIAO ESP32S3 Sense'],
+  ['🧠 Cerebro y cara', 'Pantalla 2 pulgadas', '12 €', 'De Waveshare · que no ponga «Touch»', 'Waveshare 2inch LCD Module'],
+  ['⚙️ Movimiento', '2 servos', '3 € cada uno', 'De 180° (NO de 360°)', 'MG90S servo 180'],
+  ['⚙️ Movimiento', 'Placa de los servos', '3 €', '', 'PCA9685 16 channel'],
+  ['🔊 Sonido', 'Amplificador', '2 €', '', 'MAX98357A'],
+  ['🔊 Sonido', 'Altavoz 4 cm', '2 €', 'Redondo · mejor con cables', 'speaker 40mm 4 ohm 3W'],
+  ['⚡ Corriente', 'Enchufe USB-C', '1 €', 'Que ponga «5.1K»', 'USB-C female 2 pin 5.1K'],
+  ['⚡ Corriente', 'Cargador USB-C', '—', 'Si tienes uno de móvil, vale', 'cargador USB-C 5V 3A'],
+  ['⚡ Corriente', 'Diodo', 'céntimos', '', '1N5819 diode'],
+  ['⚡ Corriente', 'Condensador', 'céntimos', '', 'capacitor 1000uF 16V'],
+  ['⚡ Corriente', 'Regulador 3,3 V', '0,50 €', 'Que ponga «3.3V» · para la pantalla', 'AMS1117 3.3V module'],
+  ['🔩 Cables y tornillos', 'Cables 30 cm', '2 €', 'Hembra-hembra', 'dupont female female 30cm'],
+  ['🔩 Cables y tornillos', 'Cables 10 cm', '2 €', 'Hembra-hembra', 'dupont female female 10cm'],
+  ['🔩 Cables y tornillos', 'Tornillos M2', '4 €', 'Que traiga de 6, 8 y 10 mm', 'M2 screw kit hex socket'],
+  ['🔩 Cables y tornillos', 'Tornillos M3 cabeza plana', '3 €', 'De 8 y 10 mm', 'M3 countersunk screw 8mm 10mm'],
+  ['🔩 Cables y tornillos', 'Tornillos M3 Allen', '2 €', 'De 10 mm', 'M3 x 10 hex socket screw'],
+  ['🔩 Cables y tornillos', 'Llave Allen 2,5 mm', '2 €', 'Si no tienes', 'llave allen 2.5 mm'],
+  ['🔩 Cables y tornillos', 'Cinta de espuma doble cara', '1 €', '', 'cinta espuma doble cara 1mm'],
+  ['🔩 Cables y tornillos', '4 patas de goma', '1 €', '', 'rubber feet 10mm adhesive'],
+  ['🔩 Cables y tornillos', 'Cinta aislante', 'céntimos', 'Para tapar el diodo', 'cinta aislante'],
+];
+const lee = k => { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } };
+const guarda = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch (e) { } };
+const caja = document.getElementById('lista'); let grupo = L[0][0];
+for (const [g, n, p, ojo, q] of L) {
+  if (g !== grupo) { const h = document.createElement('h2'); h.textContent = g; caja.appendChild(h); grupo = g; }
+  const k = 'bot.' + q, c = document.createElement('div'); c.className = 'c' + (lee(k) ? ' hecho' : '');
+  const ali = 'https://es.aliexpress.com/w/wholesale-' + q.trim().replace(/\s+/g, '-') + '.html', amz = 'https://www.amazon.es/s?k=' + encodeURIComponent(q);
+  c.innerHTML = '<input type="checkbox"' + (lee(k) ? ' checked' : '') + ' aria-label="Ya lo tengo"><div class="d"><div class="n"></div><div class="p"></div>' + (ojo ? '<div class="ojo"></div>' : '') +
+    '<div class="b"><a class="ali" target="_blank" rel="noopener">AliExpress</a><a class="amz" target="_blank" rel="noopener">Amazon</a></div></div>';
+  c.querySelector('.n').textContent = n; c.querySelector('.p').textContent = p; if (ojo) c.querySelector('.ojo').textContent = '⚠️ ' + ojo;
+  c.querySelector('.ali').href = ali; c.querySelector('.amz').href = amz;
+  c.querySelector('input').onchange = e => { guarda(k, e.target.checked); c.classList.toggle('hecho', e.target.checked); };
+  caja.appendChild(c);
+}
+</script>
+</body>
+</html>

@@ -740,6 +740,8 @@ var CL = (function () {
       } else {
         var m = mats[id];
         if (!m) { r.nombre = 'Material borrado'; r.estado = 'pendiente'; r.aviso = 'Este material ya no existe en la biblioteca'; r.peso = null; }
+        // 22-10-2026: cantidad PENDIENTE (se sabe QUÉ lleva pero no CUÁNTO): no cuenta como 0 €, sale como dato que falta
+        else if (l.pendiente === true || !filled(l.cantidad)) { r.nombre = m.nombre; r.tipo = m.tipo; r.unidad = l.unidad || matCost(m).unidad; r.estado = 'pendiente'; r.aviso = 'Falta cuánto se gasta de «' + m.nombre + '»'; r.peso = null; r.cantidadPendiente = true; }
         else {
           var mc = matCost(m);
           r.nombre = m.nombre; r.tipo = m.tipo; r.unidad = l.unidad || mc.unidad;
@@ -1001,6 +1003,31 @@ var CL = (function () {
       aviso: 'Solo hay el coste total del Excel: puede incluir mano de obra y embalaje. Rellena gramos y horas en la calculadora para separarlo.', excluido: {} };
     if (bam !== null) return { unidad: r2x(bam), fuente: 'Bambu Studio (solo filamento)', filamento: { coste: r2x(bam), fuente: 'bambu' }, lineas: [{ n: 'Filamento', c: r2x(bam), fuente: 'bambu' }], estado: 'importado', parcial: true, excluido: {} };
     return null;
+  }
+  // 22-10-2026 · FICHA DE COSTE de un producto, completa y AUTOMÁTICA: lo mismo que contará un pedido nuevo de ese producto
+  // (fabricación + embalaje), sacado de lo que ya está guardado: receta, calculadora del Excel, Bambu Studio y packs.
+  // Nada se pide dos veces y nada se pone a 0: lo que falta se DICE (qué dato y dónde se escribe).
+  // La mano de obra no se suma aquí: igual que en los pedidos, cuenta la que se indica al terminar cada uno.
+  function fichaCoste(p, data, cfg) {
+    cfg = cfg || {}; data = data || {}; var pp = cfg.precios || {};
+    var o = { productoId: p.id, producto: p.nombre, cantidad: 1, precio: p.precio, canal: p.plataforma || '' };
+    if (p.embalajeId) o.embalaje = { plantillaId: p.embalajeId };
+    var fab = fabOf(o, data, pp), pack = packPlan(o, data, pp), falta = [], lineas = [];
+    var origen = fab ? (/calculadora/.test(fab.fuente) ? 'de tu calculadora' : /receta/.test(fab.fuente) ? 'de tu receta' : /bambu/i.test(fab.fuente) ? 'de Bambu Studio' : fab.fuente) : '';
+    var fuenteTxt = function (f) { return f === 'bambu' ? 'de Bambu Studio' : origen; };
+    if (fab) fab.lineas.forEach(function (l) { lineas.push({ grupo: 'Fabricación', n: l.n, c: l.c, fuente: fuenteTxt(l.fuente || (l.n === 'Filamento' ? fab.filamento.fuente : '')) }); });
+    else falta.push({ que: 'Fabricación', por: 'Faltan los gramos y las horas de impresión: sube su 3MF laminado (Bambu Studio) o escríbelos en su calculadora.' });
+    if (fab && fab.aviso) falta.push({ que: 'Fabricación', por: fab.aviso });
+    if (fab && fab.parcial) falta.push({ que: 'Fabricación', por: 'Solo se sabe el filamento (de Bambu Studio): faltan las horas para la electricidad.' });
+    var embC = pack && !pack.sinPlantilla ? (pack.coste !== null ? pack.coste : pack.conocido) : null;
+    if (pack && pack.plantilla) lineas.push({ grupo: 'Embalaje', n: pack.plantilla.nombre, c: embC === null ? null : r2x(embC), fuente: pack.origen === 'elegido' ? 'su pack' : pack.origen === 'producto' ? 'el pack de su receta' : 'el pack estándar' });
+    ((pack && pack.pendientes) || []).forEach(function (x) { falta.push({ que: 'Embalaje', por: x.nombre + ': ' + x.falta }); });
+    var completo = !!fab && !!pack && !pack.sinPlantilla && pack.coste !== null;
+    var conocido = r2x((fab ? fab.unidad : 0) + (embC || 0)), total = completo ? conocido : null;
+    var estado = completo ? worst(confOf(fab.estado, 'calculado'), confOf(pack.estado, 'confirmado')) : 'pendiente';
+    var moCalc = fab && fab.excluido && n(fab.excluido.manoObra) > 0 ? fab.excluido.manoObra : 0;
+    return { total: total, conocido: conocido, estado: estado, lineas: lineas, falta: falta, fabricacion: fab, embalaje: pack, manoObraCalculadora: moCalc,
+      grupos: { 'Fabricación': fab ? r2x(fab.unidad) : null, 'Embalaje': embC === null ? null : r2x(embC) }, pricing: total === null ? null : costPricing(total, pp, p.precio, p.plataforma) };
   }
   // Centro de costes de un pedido (modelo 11.4). Los pedidos empaquetados antes de la 11.4 se calculan como siempre.
   function orderCosts(o, data, cfg) {
@@ -1275,7 +1302,7 @@ var CL = (function () {
       var min = filled(m.stockMin) ? n(m.stockMin) : av;
       if (n(m.stock) <= 0) add('bad', 'Sin stock de ' + m.nombre, 'embalaje/cajas'); else if (n(m.stock) <= min) add('warn', 'Quedan ' + n(m.stock) + ' de ' + m.nombre + ' (aviso con ' + min + ')', 'embalaje/cajas');
     });
-    var pendM = (data.materiales || []).filter(function (m) { return norm(m.activo) !== 'no' && matCost(m).estado === 'pendiente'; });
+    var pendM = (data.materiales || []).filter(function (m) { return norm(m.activo) !== 'no' && s(m.nombre) && matCost(m).estado === 'pendiente'; }); // 22-10: una fila sin nombre no es un material
     if (pendM.length) add('info', pendM.length + ' material(es) con datos PENDIENTES (no se pueden calcular)', 'costes', pendM.slice(0, 6).map(function (m) { return m.nombre; }).join(', '));
     var since = parse(hoy); since.setDate(since.getDate() - 14);
     var tr = data.trabajos || [], noVal = tr.filter(function (j) { return j.estado === 'Terminado' && !j.valoracion && j.fin && day(j.fin) >= dateStr(since); });
@@ -1658,7 +1685,7 @@ var CL = (function () {
   }
   return { rankingVentas: rankingVentas, PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
-    LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
+    LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, fichaCoste: fichaCoste, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
     finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,

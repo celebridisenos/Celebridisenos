@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprar BICHA</title>
+<style>
+  :root { --fondo:#f6f6f7; --tarjeta:#fff; --texto:#161616; --suave:#6b6b70; --borde:#e4e4e7; --tq:#00b8cf; --ojo:#c2410c; --hecho:#e9f9fb; --ok:#0f766e; }
+  @media (prefers-color-scheme: dark) { :root { --fondo:#121214; --tarjeta:#1c1c1f; --texto:#f4f4f5; --suave:#a1a1aa; --borde:#2e2e33; --tq:#22d3ee; --ojo:#fb923c; --hecho:#0f2a2e; --ok:#5eead4; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:17px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:18px 16px 40px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  .sub { color:var(--suave); margin:0 0 18px; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--suave); margin:26px 0 8px; }
+  .c { background:var(--tarjeta); border:1px solid var(--borde); border-radius:14px; padding:12px 14px; margin:8px 0; display:flex; gap:12px; align-items:flex-start; }
+  .c.hecho { background:var(--hecho); }
+  .c.hecho .n { text-decoration:line-through; color:var(--suave); }
+  .c input { width:26px; height:26px; margin:2px 0 0; accent-color:var(--tq); flex:none; }
+  .d { flex:1; min-width:0; }
+  .n { font-weight:650; font-size:18px; }
+  .p { color:var(--suave); font-size:15px; }
+  .ojo { color:var(--ojo); font-size:15px; font-weight:600; margin-top:2px; }
+  .b { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .b a { flex:1; min-width:120px; text-align:center; text-decoration:none; font-weight:650; font-size:15px; padding:10px 8px; border-radius:10px; background:var(--tq); color:#05262b; }
+  .tot { margin-top:22px; padding:14px; border-radius:14px; background:var(--tarjeta); border:2px solid var(--tq); font-size:17px; }
+  .tot div { display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+  .tot .g { border-top:1px solid var(--borde); margin-top:6px; padding-top:8px; font-weight:700; font-size:19px; }
+  .ya { color:var(--suave); font-size:15px; margin-top:14px; }
+  .caja { background:var(--hecho); border-radius:14px; padding:12px 14px; margin:10px 0 0; font-size:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🐞 Comprar BICHA</h1>
+  <p class="sub">BICHA es el Guardián mejorado: la misma base (batería, giro, micrófonos, altavoz y botones) y una <b>cabeza nueva
+  con pantalla táctil de 7"</b> y la Raspberry Pi detrás. <b>Todo está ya en sus cestas</b> (no he pagado nada): cada botón te lleva a la cosa exacta.
+  Marca ✔ lo que ya tengas.</p>
+
+  <div class="caja">🛒 <b>Las cestas abiertas</b> (en mi navegador): AliExpress · Tiendatec · Seeed · Amazon · NKON.
+  Al pagar en cada una, mira que el número de cosas coincide con esta lista.</div>
+
+  <div id="lista"></div>
+
+  <div class="tot">
+    <div><span>AliExpress (13 cosas)</span><b>≈ 157 € + ≈ 31 € de envíos</b></div>
+    <div><span>Tiendatec (pantalla y sus cables)</span><b>79,10 € con envío</b></div>
+    <div><span>Seeed (micrófonos)</span><b>60,99 $ + envío e IVA ≈ 75–85 €</b></div>
+    <div><span>Amazon (cámara)</span><b>54,17 €</b></div>
+    <div><span>NKON (3 pilas)</span><b>11,97 € + envío</b></div>
+    <div><span>Lo que ha salido del diseño (arandelas, imanes, goma, patas y tornillos)</span><b>≈ 20 €</b></div>
+    <div class="g"><span>Total sin la Raspberry Pi</span><span>≈ 440–460 €</span></div>
+    <span class="p">Precios mirados el 22-10-2026 en cada tienda (lo del diseño, aproximado: aún sin elegir anuncio). Los envíos de Seeed y NKON salen al poner tu dirección (no los he visto). AliExpress suele descontar algo con cupones.</span>
+  </div>
+  <p class="ya">Ya tienes: el plástico, tus 4 rodamientos 5 × 11 × 4, tu tarjeta microSD y la Raspberry Pi 5 de 8 GB (de segunda mano, con su caja de aluminio con ventilador y su fuente).<br>
+  Ya NO hacen falta (eran del Guardián): la pantalla redonda (quitada de la cesta), el ventilador oficial, la fuente de 27 W y la microSD.</p>
+</main>
+<script>
+// [grupo, nombre, precio, aviso, clave, enlace exacto, texto del botón]
+const ALI = '🟠 En tu cesta de AliExpress', TT = '🍓 En tu cesta de Tiendatec (tienda oficial de Raspberry Pi en España)', SE = '🎙️ En tu cesta de Seeed (el fabricante)',
+      AM = '📦 En tu cesta de Amazon', NK = '🔋 En tu cesta de NKON (tienda de baterías, Países Bajos)', TU = '🙋 Lo compras tú', DE = '🔩 Lo que ha salido del diseño (aún en NINGUNA cesta)';
+const busca = q => 'https://es.aliexpress.com/w/wholesale-' + q.trim().replace(/\s+/g, '-') + '.html';
+const ali = id => 'https://es.aliexpress.com/item/' + id + '.html';
+const L = [
+  [ALI, '2 servos ST3215 (30 kg, 12 V)', '2 × 26,19 € + 7,26 € de envío', 'Mueven la cabeza: uno la gira y otro la inclina', 'st3215', ali('1005006760497781'), 'AliExpress ✅'],
+  [ALI, 'Placa de los servos «Bus Servo Adapter (A)»', '27,79 € + 5,00 € de envío', '', 'busadapter', ali('1005012592488806'), 'AliExpress ✅'],
+  [ALI, 'Batería UPS Module 3S de Waveshare', '25,59 € + 10,32 € de envío', 'Con ENCHUFE EUROPEO (trae su cargador). Las pilas van aparte (NKON)', 'ups3s', ali('1005009785798646'), 'AliExpress ✅'],
+  [ALI, 'Radar de presencia HLK-LD2410C', '5,27 €', 'Va a los pines de la Pi con 4 cables dupont. Mira al recibirlo que trae sus PINES', 'ld2410c', ali('1005005637495945'), 'AliExpress ✅'],
+  [ALI, 'Altavoz 4 Ω 3 W de 5 cm', '3,99 €', 'Mide su grueso al recibirlo: el hueco es de 24 mm', 'altavoz', ali('1005009979197194'), 'AliExpress ✅'],
+  [ALI, '10 cables con conector PH2.0 de 2 pines (20 cm)', '2,31 €', 'Para enchufar el altavoz a la placa de micrófonos sin soldar', 'ph20', ali('1005007270514533'), 'AliExpress ✅'],
+  [ALI, 'Conector de carga de panel 5,5 × 2,1 (con cable)', '1,15 € + 2,06 € de envío', 'Por aquí se enchufa el cargador de la batería. Va en la pared IZQUIERDA de la base (no detrás)', 'dc099', ali('1005012760927130'), 'AliExpress ✅'],
+  [ALI, 'Seta de PARADA 16 mm (se queda hundida)', '3,59 €', '«No Light / Latching»: corta la fuerza de los servos', 'seta', ali('1005009523726118'), 'AliExpress ✅'],
+  [ALI, 'Pulsador PRIVADO 16 mm', '3,49 €', '«No Light / Self-reset»: apaga cámara y micrófonos', 'privado', ali('1005009523726118'), 'AliExpress ✅'],
+  [ALI, '20 empalmes WAGO 221-412', '9,39 € + 3,97 € de envío', 'Para unir cables sin soldar', 'wago', ali('1005009927927351'), 'AliExpress ✅'],
+  [ALI, '2 cables USB-A → USB-C UGREEN de 0,5 m', '2 × 3,87 €', 'Los micrófonos y la placa de los servos están en la base: estos cables suben a la Pi por el cuello', 'ugreen05', ali('1005006471612403'), 'AliExpress ✅'],
+  [ALI, 'Alargador USB-C macho-hembra UGREEN de 0,5 m', '12,49 €', 'La corriente de la batería sube por el cuello hasta la Pi (la cabeza). En el anuncio no pone los amperios: se mira al recibirlo', 'alargac', ali('4001153751133'), 'AliExpress ✅'],
+  [ALI, '40 cables dupont hembra-hembra de 30 cm', '1,48 € + 2,34 € de envío', 'Radar y pulsador a los pines de la Pi', 'dupont', ali('1005004631908016'), 'AliExpress ✅'],
+  [TT, 'Pantalla táctil oficial Raspberry Pi Touch Display 2 de 7"', '69,95 €', 'LA CARA de BICHA (720 × 1280, 5 dedos). En stock. En AliExpress costaba 174 €', 'td2', 'https://www.tiendatec.es/raspberry-pi/pantallas/2406-raspberry-pi-touch-display-2-720x1280-dsi-5056561803937.html', 'Tiendatec ✅'],
+  [TT, 'Alimentación USB para la Touch Display 2', '3,95 €', 'La pantalla toma la corriente de un USB y deja los pines libres para el radar. Sin soldar', 'td2usb', 'https://www.tiendatec.es/raspberry-pi/raspberry-pi-alimentacion/2479-alimentacion-usb-para-raspberry-pi-touch-display-2-8472496030199.html', 'Tiendatec ✅'],
+  [TT, 'Cable de pantalla para Pi 5 (versión «Pantalla», 20 cm)', '1,25 €', 'De repuesto y por si el que trae la pantalla se queda corto con la caja de tu Pi', 'fpc20', 'https://www.tiendatec.es/raspberry-pi/cables/2154-1259-cable-adaptador-fpc-camara-pantalla-raspberry-pi-5.html', 'Tiendatec ✅'],
+  [SE, 'Placa de micrófonos ReSpeaker XVF3800 USB', '60,99 $ + envío e IVA', 'La versión SIN XIAO y SIN caja. Sale de su almacén de EE. UU.: el IVA y el envío salen al pagar', 'xvf3800', 'https://www.seeedstudio.com/ReSpeaker-XVF3800-USB-Mic-Array-p-6488.html', 'Seeed ✅'],
+  [AM, 'Cámara Arducam B0205 1080P día y noche (USB)', '54,17 €', 'La del diseño (placa 38 × 38, luz infrarroja para la noche). Ya no se fabrica: si se acaba, la B0506 es la que la sustituye (mismo sensor y misma placa)', 'b0205', 'https://www.amazon.es/dp/B0829HZ3Q7', 'Amazon ✅'],
+  [NK, '3 pilas 18650 Molicel P30B (3000 mAh)', '3 × 3,99 €', 'Punta plana y sin protección, las 3 iguales. Salen hacia el 30-10. Nunca juntes sus polos', 'p30b', 'https://www.nkon.nl/es/molicel-inr18650-p30b-3000mah-30a.html', 'NKON ✅'],
+  [TU, 'Raspberry Pi 5 de 8 GB (la de segunda mano)', 'tu precio', 'Antes de pagar: que te enseñe que tiene 8 GB (con la orden «free -h» sale «7,9Gi»). En BICHA va ATORNILLADA a los 4 postes de la pantalla (como la diseñó Raspberry): se quita la BASE negra de su caja y se deja la TAPA de aluminio con el ventilador (cabe: hay 22 mm). Mide el alto de esa tapa al recibirla', 'pi5', '', ''],
+  [TU, 'Tu tarjeta microSD', 'ya la tienes', 'De 32 GB o más y de marca (SanDisk, Samsung, Kingston)', 'sd', '', ''],
+  [DE, '100 arandelas M10 de acero (DIN 125: Ø20 × 2 mm)', 'unos 4 € (o en la ferretería)', 'El LASTRE: 8 pilas de 11 (88) en su caja dentro de la base. Con ellas un toque fuerte en la pantalla no la tumba', 'arandelas', busca('arandela M10 DIN 125 acero 100'), 'Buscar en AliExpress'],
+  [DE, '10 imanes de neodimio Ø6 × 2 mm', 'unos 2 €', 'Se usan 6: el párpado de la cámara (2), donde se pega puesto (2) y guardado arriba (2)', 'imanes', busca('iman neodimio 6x2mm'), 'Buscar en AliExpress'],
+  [DE, 'Goma EVA de 1 mm adhesiva (una lámina)', 'unos 2 €', 'Una tira de 3 mm alrededor del cristal de la pantalla (va entre el cristal y la cara) y un trozo en la tapa del lastre', 'eva', busca('goma eva adhesiva 1mm'), 'Buscar en AliExpress'],
+  [DE, '4 patas de goma Ø10 adhesivas', 'unos 1 €', 'Debajo, en las 4 esquinas marcadas en la guía (más fuera que en el Guardián: más estable)', 'patas', busca('rubber feet 10mm adhesive'), 'Buscar en AliExpress'],
+  [DE, 'Tornillos M3 Allen: 6 mm (2), 8 mm (13), 10 mm (4)', 'unos 4 € en un surtido', 'Mejor un surtido M3 de 6–12 mm en acero negro', 'm3allen', busca('M3 hex socket screw assortment 6mm 8mm 10mm 12mm'), 'Buscar en AliExpress'],
+  [DE, 'Tornillos M3 avellanados (cabeza plana): 6 mm (12), 8 mm (2), 10 mm (14), 12 mm (2)', 'unos 4 € en un surtido', 'Los de 6 mm NO pueden ser más largos (tocarían la caja del servo)', 'm3aven', busca('M3 countersunk screw assortment 6mm 8mm 10mm 12mm'), 'Buscar en AliExpress'],
+  [DE, 'Tornillos M2: 7 Allen de 8 mm y 2 avellanados de 6 mm', 'unos 3 €', 'Los Allen: la placa de los servos (4) y la corona, que va DESDE ABAJO (3). Los avellanados: el anillo del tubo', 'm2', busca('M2 screw assortment countersunk hex'), 'Buscar en AliExpress'],
+  [DE, '4 tornillos M5 × 12 Allen', 'unos 1 €', 'Los ejes de tus 4 rodamientos 5 × 11 × 4 (el giro del cuello)', 'm5', busca('M5 x 12 hex socket screw'), 'Buscar en AliExpress'],
+  [DE, 'Los 8 tornillos M2,5 de la Raspberry y de las barras', 'ya vienen', 'Los trae la pantalla. Si la tapa de aluminio de tu caja es gruesa, para la Pi hacen falta 4 más largos: se miden con ella en la mano', 'm25', '', ''],
+];
+const lee = k => { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } };
+const guarda = (k, v) => { try { localStorage.setItem(k, v ? '1' : '0'); } catch (e) { } };
+const caja = document.getElementById('lista'); let grupo = '';
+for (const [g, n, p, ojo, q, url, txt] of L) {
+  if (g !== grupo) { const h = document.createElement('h2'); h.textContent = g; caja.appendChild(h); grupo = g; }
+  const k = 'bicha.' + q, c = document.createElement('div'); c.className = 'c' + (lee(k) ? ' hecho' : '');
+  c.innerHTML = '<input type="checkbox"' + (lee(k) ? ' checked' : '') + ' aria-label="Ya lo tengo"><div class="d"><div class="n"></div><div class="p"></div>' + (ojo ? '<div class="ojo"></div>' : '') +
+    (url ? '<div class="b"><a target="_blank" rel="noopener"></a></div>' : '') + '</div>';
+  c.querySelector('.n').textContent = n; c.querySelector('.p').textContent = p; if (ojo) c.querySelector('.ojo').textContent = '⚠️ ' + ojo;
+  if (url) { const a = c.querySelector('.b a'); a.href = url; a.textContent = txt; }
+  c.querySelector('input').onchange = e => { guarda(k, e.target.checked); c.classList.toggle('hecho', e.target.checked); };
+  caja.appendChild(c);
+}
+</script>
+</body>
+</html>
