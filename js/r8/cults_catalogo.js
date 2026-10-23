@@ -315,6 +315,8 @@ export const esAyuda = k => AYUDA.has(k);
 export function precioDe(K, k) { const D = K.DISENOS[k] || {}; if (AYUDA.has(k) || GRATIS.has(k)) return 0; return PRECIO[k] || (CAT[D.cat] || [, 1.99])[1] || 1.99; }
 const tagsDe = (K, k) => { const D = K.DISENOS[k] || {}, own = ((T[k] || [])[1] || '').split(',').map(x => x.trim()).filter(Boolean), base = ((CAT[D.cat] || [])[2] || '').split(',').map(x => x.trim()).filter(Boolean); return [...new Set(own.concat(base))].slice(0, 12); };
 // la ficha de un diseño del catálogo (I = { dims, piezas } de lo que hay en pantalla · o = { precio: el suyo })
+// (23-10 tarde: ella «no dice si imprimir en PETG o PLA»: la camioneta dice qué va en cada plástico, no el «PLA o PETG» de todo lo que encaja)
+const IMP_PROPIA = { camionetaRC: ['PETG (chasis, engranajes, ruedas, caja, cabina, portón y cama) · PLA solo en lo que adorna (faldones, retrovisores, rótulo, volante y asientos) · neumáticos en TPU 95A · capa 0,2 mm · 3 paredes y relleno 20 % (engranajes y manguetas: 4 paredes y 40 %) · SIN soportes · boquilla 0,4', 'PETG (chassis, gears, wheels, box, cab, tailgate and bed) · PLA only for trim (side skirts, mirrors, sign, steering wheel and seats) · TPU 95A tires · 0.2 mm layers · 3 walls, 20% infill (gears and knuckles: 4 walls, 40%) · NO supports · 0.4 nozzle'] };
 export function ficha(K, k, v, I = {}, o = {}) {
   const D = K.DISENOS[k]; if (!D) throw new Error('No encuentro ese diseño.');
   const en = (T[k] || [D.t])[0], es = D.t.replace(/\s*🎁\s*$/, ''), ayuda = AYUDA.has(k), gratis = GRATIS.has(k), sug = precioDe(K, k), precio = gratis || ayuda ? 0 : (Number(o.precio) > 0 ? Math.round(Number(o.precio) * 100) / 100 : sug);
@@ -325,12 +327,12 @@ export function ficha(K, k, v, I = {}, o = {}) {
   // (20-10 noche: antes TODO salía «3 paredes · relleno 15 %», también el camión RC y los engranajes: impreso así, se parte. Ahora, lo que pide cada uso
   // —lo mismo que pone el programa al exportar, consejos3d.claves—)
   const algunas = typeof D.soportes === 'function', sop = algunas ? 'soportes de árbol solo en las piezas que lo dicen' : D.soportes ? 'soportes de árbol' : 'SIN soportes', sopEn = algunas ? 'tree supports only on the parts marked so' : D.soportes ? 'tree supports' : 'NO supports', u = D.uso === 'pieza' ? 'mecanica' : D.uso;
-  const imp = u === 'jarron' ? 'PLA · capa 0,2 mm · MODO JARRÓN (espiral) · boquilla 0,4' : u === 'flexible' ? 'TPU 95A · capa 0,2 mm · despacio (25–40 mm/s) · ' + sop
+  const propia = IMP_PROPIA[k], imp = propia ? propia[0] : u === 'jarron' ? 'PLA · capa 0,2 mm · MODO JARRÓN (espiral) · boquilla 0,4' : u === 'flexible' ? 'TPU 95A · capa 0,2 mm · despacio (25–40 mm/s) · ' + sop
     : u === 'mecanica' ? 'PETG (o PA) · capa 0,16 mm · 6 paredes · 6 capas arriba y abajo · relleno 60 % giroide · ' + sop + ' · boquilla 0,4'
       : u === 'funcional' ? 'PETG o PLA · capa 0,2 mm · 4 paredes · relleno 30 % giroide · ' + sop + ' · boquilla 0,4'
         : u === 'encaje' ? 'PLA o PETG · capa 0,2 mm · 3 paredes · relleno 20 % · pared precisa · ' + sop + ' · boquilla 0,4'
           : 'PLA (o PETG) · capa 0,2 mm · 3 paredes · relleno 15 % · ' + sop + ' · boquilla 0,4';
-  const impEn = u === 'jarron' ? 'PLA · 0.2 mm layers · VASE MODE (spiralize) · 0.4 nozzle' : u === 'flexible' ? 'TPU 95A · 0.2 mm layers · slow (25–40 mm/s) · ' + sopEn
+  const impEn = propia ? propia[1] : u === 'jarron' ? 'PLA · 0.2 mm layers · VASE MODE (spiralize) · 0.4 nozzle' : u === 'flexible' ? 'TPU 95A · 0.2 mm layers · slow (25–40 mm/s) · ' + sopEn
     : u === 'mecanica' ? 'PETG (or PA) · 0.16 mm layers · 6 walls · 6 top/bottom layers · 60% gyroid infill · ' + sopEn + ' · 0.4 nozzle'
       : u === 'funcional' ? 'PETG or PLA · 0.2 mm layers · 4 walls · 30% gyroid infill · ' + sopEn + ' · 0.4 nozzle'
         : u === 'encaje' ? 'PLA or PETG · 0.2 mm layers · 3 walls · 20% infill · precise wall · ' + sopEn + ' · 0.4 nozzle'
