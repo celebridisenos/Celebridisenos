@@ -179,9 +179,15 @@ export async function montarCatalogo(el, ext = {}) {
   const motorLleno = e => /memory|out of bounds|OOM|Aborted|allocation/i.test(String((e && e.message) || e)); // (el motor 3D sin memoria: decirlo en cristiano)
   const DIR_TXT = d => d[2] > 0 ? 'desde arriba' : d[2] < 0 ? 'desde abajo' : d[0] > 0 ? 'por la derecha' : d[0] < 0 ? 'por la izquierda' : d[1] > 0 ? 'por detrás' : 'por delante';
   function pintaMontaje(q) { // 20-10-2026 · 🔧 el paso que se ve, con ⏮ ⏯ ⏭ (para montarlo de verdad mirando la pantalla)
-    const M = AN.M, R = AN.R, p = M.pasoEn(R.t), o = AN.orden[p], ir = n => { R.t = Math.max(0, Math.min(M.pasos - 1, n)) * M.S + 0.02; AN.pasoVisto = -1; };
-    mount(q, h('div.r8c-montaje', h('b.r8c-mo-paso', '🔧 Paso ' + (p + 1) + ' de ' + M.pasos + ': ' + o.nombre), h('small', o.base ? 'La base: todo lo demás se monta encima o alrededor.' : 'Entra ' + DIR_TXT(o.dir) + '. El fantasma azul marca dónde encaja.'),
-      h('div.r8e-btns', btn('⏮', () => ir(p - 1), { cls: 'sm r8c-mo-atras', title: 'Paso anterior' }), btn(R.pausa ? '▶ Seguir' : '⏸ Pausa', () => { R.pausa = !R.pausa; pintaAn(); }, { cls: 'sm r8c-mo-pausa' }), btn('⏭', () => ir(p + 1), { cls: 'sm r8c-mo-sig', title: 'Paso siguiente' }), btn('↺ Desde el principio', () => ir(0), { cls: 'sm ghost r8c-mo-inicio' }))));
+    const M = AN.M, R = AN.R, p = M.pasoEn(R.t), o = AN.orden[p], ir = n => { R.t = Math.max(0, Math.min(M.pasos - 1, n)) * M.S + 0.02; AN.pasoVisto = -1; }, ahora = () => M.pasoEn(R.t);
+    const paso = '🔧 Paso ' + (p + 1) + ' de ' + M.pasos + ': ' + o.nombre, como = o.base ? 'La base: todo lo demás se monta encima o alrededor.' : 'Entra ' + DIR_TXT(o.dir) + '. El fantasma azul marca dónde encaja.';
+    // (23-10: al cambiar de paso solo cambia el TEXTO; los botones se quedan: si se rehacían, un clic justo en el cambio se perdía, y con el PC lento —un
+    //  paso por fotograma— no había manera de pulsar ⏸)
+    const ya = q.querySelector('.r8c-montaje');
+    if (ya && ya.__an === AN) { ya.querySelector('.r8c-mo-paso').textContent = paso; ya.querySelector('small').textContent = como; ya.querySelector('.r8c-mo-pausa span').textContent = R.pausa ? '▶ Seguir' : '⏸ Pausa'; return; }
+    mount(q, h('div.r8c-montaje', h('b.r8c-mo-paso', paso), h('small', como),
+      h('div.r8e-btns', btn('⏮', () => ir(ahora() - 1), { cls: 'sm r8c-mo-atras', title: 'Paso anterior' }), btn(R.pausa ? '▶ Seguir' : '⏸ Pausa', () => { R.pausa = !R.pausa; pintaAn(); }, { cls: 'sm r8c-mo-pausa' }), btn('⏭', () => ir(ahora() + 1), { cls: 'sm r8c-mo-sig', title: 'Paso siguiente' }), btn('↺ Desde el principio', () => ir(0), { cls: 'sm ghost r8c-mo-inicio' }))));
+    q.querySelector('.r8c-montaje').__an = AN;
   }
   function pintaAn() {
     const q0 = detalle.querySelector('.r8c-an-que'); if (q0 && AN && AN.modo === 'montar') { pintaMontaje(q0); return pintaAn2(); }

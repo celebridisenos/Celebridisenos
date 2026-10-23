@@ -1,4 +1,5 @@
 // ================= 22-10-2026 · 🤖 ROBOTS: BICHA, CelebriBot 3 y CelebriBot 2 (ella: «no encuentro CelebriBot ni Guardián en R8» → «Sí, mételos»; BICHA sustituye al Guardián) =================
+// (23-10-2026 · 60.2.0: y los INVENTOS del día, igual de verificados: ✨ Chispa, 🛻 la Camioneta RC y ⏳ la Mesa de arena)
 // Se diseñaron FUERA del catálogo (00_SISTEMA/DISENOS_PROPIOS, cada uno con su comprobador: nada choca en ninguna postura y cada pieza laminada con
 // su Bambu Studio sin avisos). Aquí van sus piezas TAL CUAL (tools/robots_r8.py → data/r8/robots/): no se rehacen, lo que se ve es lo verificado.
 // Las piezas se bajan al abrir el robot (comprimidas, 0,1–1,6 MB por grupo): mientras, «⏳ Bajando…» y al llegar se dibuja sola (evento
@@ -81,7 +82,7 @@ const nota = (robot, plastico) => v => {
   if (q === 'montado') return '👀 Así queda montado: lo impreso en sus colores y lo que se compra (placas, servos, pantalla…) en el suyo. Para imprimir, elige una pieza en «Qué imprimo». '
     + 'Empieza por la guía paso a paso: se compra en pasos y antes se imprimen las pruebas de encaje.';
   return '🖨️ ' + plastico + ' · sin soportes · la pieza ya va girada como se imprime (comprobada con tu Bambu Studio: 0 avisos). ' + (q.startsWith('p:') || q === 'pruebas' || q === 'paso1'
-    ? '🧪 Prueba de encaje: imprímela antes del robot y comprueba que lo comprado entra (la guía dice qué mirar en cada una).'
+    ? '🧪 Prueba de encaje: imprímela antes que lo grande y comprueba que lo comprado entra (la guía dice qué mirar en cada una).'
     : q.startsWith('b:') ? '🅱️ Plan B (cabeza fija, sin motores): solo si decides no montar los servos. Su guía está en el botón «Plan B».' : '');
 };
 
@@ -100,10 +101,19 @@ export const DISENOS_ROBOTS = {
     uso: 'encaje', color: '#f3f2ee', mini: new URL('celebribot3/mini.jpg', RAIZ).href, robot: 'celebribot3',
     campos: [s('que', 'Qué imprimo', 'montado', QUE('celebribot3'))],
     gen: v => junta(partes('celebribot3', v)), coloresVista: v => partes('celebribot3', v), nota: nota('celebribot3', 'PETG en la P1P'), enlaces: () => enlaces('celebribot3') },
-  robotCelebriBot2: { cat: 'robots', tambien: ['ciencia', 'oficina'], nuevo: true, e: '🤖', t: 'CelebriBot 2 · asistente de escritorio',
-    d: 'Cabeza con pantalla y cámara que gira y se inclina, micrófono y altavoz; piensa con tu PC por la wifi de casa (XIAO ESP32-S3 Sense, 2 servos MG90S). 20 piezas en PLA',
-    busca: 'robot celebribot 2 asistente escritorio xiao esp32s3 sense camara pantalla servo mg90s pca9685 altavoz ia voz',
-    uso: 'encaje', color: '#efeeea', mini: new URL('celebribot2/mini.jpg', RAIZ).href, robot: 'celebribot2',
-    campos: [s('que', 'Qué imprimo', 'montado', QUE('celebribot2'))],
-    gen: v => junta(partes('celebribot2', v)), coloresVista: v => partes('celebribot2', v), nota: nota('celebribot2', 'PLA en la A1 mini (las piezas de dos colores, mejor con el proyecto «con la pausa» de su carpeta)'), enlaces: () => enlaces('celebribot2') }
+  // ---- 23-10-2026 · 60.2.0 · ella: «hay muchos robots, solo quédate con 2, los otros los eliminas, que sean los dos mejores» → BICHA y
+  // CelebriBot 3 (los más completos y comprobados). CelebriBot 2 (CelebriBot 3 es su versión mejorada) y Chispa (una cara sin motores) FUERA.
+  // La camioneta y la mesa no son robots: siguen, pero ya no salen en «🤖 Robots» (en RC y en Hogar).
+  camionetaRC: { cat: 'rc', tambien: ['juguetes'], nuevo: true, e: '🛻', t: 'Camioneta de reparto RC 1/8 · portón y cama solos',
+    d: 'Con tu motor F540 y tu variador de 60 A: portón y cama que salen solos y con seguros, luces de freno y marcha atrás, cámara en el salpicadero (la ves en el móvil) y su rótulo. 52 piezas en PETG + ruedas de TPU',
+    busca: 'camioneta reparto rc 1/8 camion furgoneta porton cama basculante servo arduino nano luces freno marcha atras camara esp32-cam f540 variador',
+    uso: 'encaje', color: '#f3f2ee', mini: new URL('camioneta/mini.jpg', RAIZ).href, robot: 'camioneta',
+    campos: [s('que', 'Qué imprimo', 'montado', QUE('camioneta'))],
+    gen: v => junta(partes('camioneta', v)), coloresVista: v => partes('camioneta', v), nota: nota('camioneta', 'PETG en la P1P (los 4 neumáticos en TPU 95A, despacio)'), enlaces: () => enlaces('camioneta') },
+  mesaArena: { cat: 'hogar', tambien: ['deco', 'ciencia'], nuevo: true, e: '⏳', t: 'Mesa de arena · la bola dibuja sola',
+    d: 'Un imán por debajo arrastra una bola de acero por la arena: 12 dibujos y los tuyos (Sandify), luz que sigue a la bola, silenciosa y desde el móvil. Ø 42 cm · 35 piezas en PETG',
+    busca: 'mesa de arena sand table kinetic bola iman dibuja sola zen sisyphus esp32 tmc2209 nema 17 led ws2812 mandala relajante',
+    uso: 'encaje', color: '#f3f2ee', mini: new URL('mesaArena/mini.jpg', RAIZ).href, robot: 'mesaArena',
+    campos: [s('que', 'Qué imprimo', 'montado', QUE('mesaArena'))],
+    gen: v => junta(partes('mesaArena', v)), coloresVista: v => partes('mesaArena', v), nota: nota('mesaArena', 'PETG en la P1P'), enlaces: () => enlaces('mesaArena') }
 };

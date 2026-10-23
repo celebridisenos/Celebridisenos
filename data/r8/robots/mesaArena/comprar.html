@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprar la mesa de arena</title>
+<style>
+  :root { --fondo:#f6f6f7; --tarjeta:#fff; --texto:#161616; --suave:#6b6b70; --borde:#e4e4e7; --tq:#00b8cf; --ojo:#c2410c; --hecho:#e9f9fb; --ok:#0f766e; }
+  @media (prefers-color-scheme: dark) { :root { --fondo:#121214; --tarjeta:#1c1c1f; --texto:#f4f4f5; --suave:#a1a1aa; --borde:#2e2e33; --tq:#22d3ee; --ojo:#fb923c; --hecho:#0f2a2e; --ok:#5eead4; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:17px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:18px 16px 40px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  .sub { color:var(--suave); margin:0 0 18px; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--suave); margin:26px 0 8px; }
+  .c { background:var(--tarjeta); border:1px solid var(--borde); border-radius:14px; padding:12px 14px; margin:8px 0; display:flex; gap:12px; align-items:flex-start; }
+  .c.hecho { background:var(--hecho); }
+  .c.hecho .n { text-decoration:line-through; color:var(--suave); }
+  .c input { width:26px; height:26px; margin:2px 0 0; accent-color:var(--tq); flex:none; }
+  .d { flex:1; min-width:0; }
+  .n { font-weight:650; font-size:18px; }
+  .p { color:var(--suave); font-size:15px; }
+  .ojo { color:var(--ojo); font-size:15px; font-weight:600; margin-top:2px; }
+  .b { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .b a { flex:1; min-width:120px; text-align:center; text-decoration:none; font-weight:650; font-size:15px; padding:10px 8px; border-radius:10px; background:var(--tq); color:#05262b; }
+  .tot { margin-top:22px; padding:14px; border-radius:14px; background:var(--tarjeta); border:2px solid var(--tq); font-size:17px; }
+  .tot div { display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+  .tot .g { border-top:1px solid var(--borde); margin-top:6px; padding-top:8px; font-weight:700; font-size:19px; }
+  .caja { background:var(--hecho); border-radius:14px; padding:12px 14px; margin:10px 0 0; font-size:16px; }
+  table { width:100%; border-collapse:collapse; font-size:15px; background:var(--tarjeta); border-radius:12px; overflow:hidden; }
+  td, th { padding:6px 8px; border-bottom:1px solid var(--borde); text-align:left; vertical-align:top; }
+  th { color:var(--suave); font-weight:600; }
+  @media print { .b { display:none; } body { font-size:13px; } .c { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>⏳ Comprar la mesa de arena</h1>
+  <p class="sub">Para la mesa de arena (Ø 42 cm, 23-10). <b>No he comprado nada ni he metido nada en ninguna cesta.</b> Los botones abren la <b>búsqueda</b>
+  en la tienda (no un anuncio concreto): mira que coincida lo que dice la tarjeta. Marca ✔ lo que ya tengas.</p>
+  <div class="caja">💶 <b>Precios aproximados</b> (AliExpress, octubre de 2026; pueden cambiar). Los envíos van aparte.</div>
+  <div class="caja">🧪 <b>Pide PRIMERO lo de 🧪</b> (≈ 35–55 €): con eso imprimes el <b>kit de prueba</b> (68 g) y compruebas en tu plástico que todo entra y que el imán arrastra la bola.
+  Si todo está bien, pide la electrónica y lo demás. Lo marcado <b>📏</b> es lo que no publica nadie con exactitud: el kit lo comprueba.</div>
+
+  <div id="lista"></div>
+
+  <h2>🔩 Los tornillos, uno por uno (lo que sale del diseño)</h2>
+  <table>
+    <tr><th>Qué</th><th>Cuántos</th><th>Dónde</th></tr>
+    <tr><td>M3 × 6</td><td>4</td><td>aprietan las 2 varillas del carro en sus soportes (desde arriba)</td></tr>
+    <tr><td>M3 × 10 + arandela</td><td>4</td><td>el motor A al puente (por sus ranuras, para tensar la correa)</td></tr>
+    <tr><td>M3 × 12</td><td>4</td><td>el puente a los 4 postes de la base</td></tr>
+    <tr><td>M3 × 12 avellanado</td><td>4</td><td>la torre y el puente al motor B (lo atraviesan y muerden el motor)</td></tr>
+    <tr><td>M3 × 16 avellanado</td><td>4</td><td>el brazo al cubo</td></tr>
+    <tr><td>M5 × 25 + tuerca M5 + arandela</td><td>2</td><td>los ejes de la polea loca y del engranaje con la polea del carro</td></tr>
+    <tr><td>Bridas pequeñas (2,5 mm)</td><td>≈ 12</td><td>la pinza del carro (1) y la electrónica a la rejilla de la base</td></tr>
+  </table>
+
+  <div class="tot">
+    <div><span>🧪 Lo del kit de prueba (rodamientos, LM8UU, imán, bola, sensor, correas, poleas, 1 motor, arena…)</span><b>≈ 35–55 €</b></div>
+    <div><span>⚡ Electrónica (2.º motor, ESP32, 2 TMC2209, fuente, regulador, tira LED, botón, cables…)</span><b>≈ 40–60 €</b></div>
+    <div><span>Envíos (en AliExpress a veces gratis)</span><b>≈ 5–15 €</b></div>
+    <div class="g"><span>Total</span><span>≈ 80–130 €</span></div>
+    <span class="p">Sin contar el PETG (≈ 1,9 kg: ≈ 30–40 € si no lo tienes), ni los tornillos y rodamientos que ya tienes, ni el polímetro (si no tienes, ≈ 10 €).
+    Sumado pieza a pieza con precios aproximados: puede bajar si alguna cosa ya la tienes (motores de una impresora vieja, cables, condensadores…).</span>
+  </div>
+</main>
+<script>
+const busca = q => 'https://es.aliexpress.com/w/wholesale-' + q.trim().replace(/\s+/g, '-') + '.html';
+const amz = q => 'https://www.amazon.es/s?k=' + encodeURIComponent(q);
+// [grupo, nombre, precio, nota, aviso, clave, [[botón, enlace]…], ya lo tienes]
+const YA = '✅ Ya lo tienes', PR = '🧪 Primero (para el kit de prueba)', EL = '⚡ Después: la electrónica', OT = '🧰 Lo demás', OP = '⭐ Opcional';
+const L = [
+  [YA, 'Rodamientos: 4 de 5 × 10 × 4 y 1 de 8 × 12 × 4', '—', 'Los tuyos. 5 × 10: la polea loca y el engranaje del carro (2 cada uno) · 8 × 12: arriba de la torre.', 'Cuenta que tienes 4 de 5 × 10 × 4 (la camioneta usa los de 5 × 11).', 'rod', [], true],
+  [YA, 'Tornillos M3 y M5 (la tabla de abajo)', '—', 'Los tuyos: tienes de sobra.', 'Mira que tengas los avellanados (8) y los 2 M5 × 25 con tuerca.', 'tornillos', [], true],
+  [PR, '2 rodamientos 6806-2RS (30 × 42 × 7)', '≈ 4–7 € los 2', 'El cubo gira sobre ellos (el brazo).', 'Que pongan 6806 y 30 × 42 × 7. La prueba K1 dice qué medida de torre te va.', '6806', [['AliExpress', busca('6806-2RS bearing 30x42x7')], ['Amazon', amz('rodamiento 6806 2RS 30x42x7')]]],
+  [PR, '2 rodamientos lineales LM8UU (8 × 15 × 24)', '≈ 2–4 € (vienen de 4 o de 10)', 'El carro corre por las 2 varillas con ellos.', '', 'lm8', [['AliExpress', busca('LM8UU linear bearing 8mm')]]],
+  [PR, '1 imán de neodimio N52 de Ø 20 × 10 mm', '≈ 3–5 €', 'El que arrastra la bola por debajo de la arena.', 'Exactamente Ø 20 × 10 (es el hueco del carro). Cuidado: pega muy fuerte, lejos del móvil y de tarjetas.', 'iman', [['AliExpress', busca('N52 neodymium magnet 20x10mm')], ['Amazon', amz('iman neodimio N52 20x10 mm')]]],
+  [PR, 'Bolas de acero cromado de Ø 15 mm', '≈ 2–4 € (vienen de 5 o 10)', 'La que dibuja en la arena (las demás, de repuesto).', 'De acero (que se pegue a un imán), no de acero inoxidable.', 'bola', [['AliExpress', busca('steel ball 15mm chrome bearing ball')]]],
+  [PR, 'Sensor Hall A3144 (bolsa de 10) + imanes de 6 × 3', '≈ 2–3 €', 'El sensor ve el imanito del cubo: así el brazo sabe dónde está su «cero».', 'Si te sobraron imanes de 6 × 3 de la camioneta, valen esos.', 'hall', [['A3144', busca('A3144 hall sensor')], ['Imanes', busca('neodymium magnet 6x3mm')]]],
+  [PR, 'Correa GT2 de 6 mm: 1 CERRADA de 400 mm (200 dientes) y 1 m abierta', '≈ 2–4 €', 'La cerrada mueve el brazo; de la abierta cortas 500 mm para el carro (el resto, para la prueba K2).', '📏 Que diga 400 mm y 200 dientes y 6 mm de ancho.', 'correa', [['Cerrada', busca('GT2 closed loop belt 400mm 6mm')], ['Abierta', busca('GT2 belt 6mm 1m')]]],
+  [PR, 'Polea GT2 de 20 dientes, agujero de 5 mm, para correa de 6', '≈ 1–2 €', 'En el motor A (el del brazo).', '📏 Que el agujero sea de 5 mm (no de 8).', 'polea', [['AliExpress', busca('GT2 pulley 20 teeth 5mm bore 6mm')]]],
+  [PR, 'Acoplador flexible de 5 × 8 mm (25 de largo)', '≈ 1–2 €', 'Une el motor B con la varilla del centro.', '📏 Su Ø suele ser de 19 a 21: el hueco de la torre es de 24.', 'acople', [['AliExpress', busca('flexible coupling 5mm 8mm 25mm')]]],
+  [PR, '2 varillas lisas de 8 × 250 mm + 1 de 8 × 40 mm', '≈ 5–9 €', 'Las 2 largas, el carril del carro (no se cortan). La corta sube por la torre.', 'Si no encuentras la de 40, una de 8 × 45 también entra.', 'varillas', [['8 × 250', busca('linear shaft 8mm 250mm')], ['8 × 40', busca('linear shaft 8mm 40mm')]]],
+  [PR, '2 motores NEMA 17 (17HS4401, 1,7 A, 40 mm)', '≈ 16–22 € los 2', 'A: el brazo · B: el carro. Para el kit de prueba basta 1, pero van mejor juntos en el mismo pedido.', 'Con su cable de 4 hilos. Si ya tienes alguno de una impresora vieja, sirve.', 'nema', [['AliExpress', busca('17HS4401 nema 17 stepper motor')], ['Amazon', amz('motor paso a paso nema 17 17HS4401')]]],
+  [PR, 'Arena fina y seca (1 kg)', '≈ 3–6 €', 'Se usan 0,55 kg (4 mm de capa). Para la prueba K3 basta un puñado.', 'Fina (como la de reloj de arena o arena de sílice blanca 0,1–0,5 mm). Nada de arena de playa húmeda.', 'arena', [['Amazon', amz('arena de silice fina blanca 1 kg')], ['AliExpress', busca('fine white sand 1kg')]]],
+  [EL, 'ESP32 DevKit de 38 pines (USB-C) + su placa de bornes', '≈ 6–9 €', 'El «cerebro»: mueve los motores, la luz y hace el wifi de la página.', 'ESP32 «WROOM-32» de 38 pines, chip CP2102 o CH340. La placa de bornes («expansion board 38 pin») evita soldar.', 'esp32', [['ESP32', busca('ESP32 devkit 38 pin type-c')], ['Placa de bornes', busca('ESP32 38 pin expansion board')]]],
+  [EL, '2 controladores TMC2209 (BIGTREETECH o MKS, con disipador)', '≈ 6–10 € los 2', 'Mueven los motores en silencio (muy importante en una mesa de salón).', 'TMC2209 (no A4988: hacen ruido). La guía dice cómo ajustarles la corriente (1,1 V).', 'tmc', [['AliExpress', busca('TMC2209 BIGTREETECH stepper driver')], ['Amazon', amz('TMC2209 driver')]]],
+  [EL, 'Fuente de 12 V 3 A (clavija 5,5 × 2,1) + conector hembra con bornes', '≈ 7–10 €', 'Da la corriente a todo. El cable entra por el agujero de abajo de la pared W1.', '', 'fuente', [['Fuente', busca('12V 3A power adapter 5.5x2.1 EU')], ['Conector', busca('DC jack female 5.5x2.1 screw terminal')]]],
+  [EL, 'Regulador Mini560 de 5 V (sale 5 V fijos)', '≈ 2–3 €', 'De 12 V a 5 V para la ESP32 y la luz.', 'El de salida FIJA de 5 V (así no hay que ajustarlo).', 'mini560', [['AliExpress', busca('Mini560 5V step down')]]],
+  [EL, 'Tira LED WS2812B de 1 m, 60 LED, 10 mm, IP30 (sin silicona)', '≈ 3–6 €', 'La luz del aro, mirando a la arena.', '60 LED por metro, 5 V. La IP30 (sin funda) se pega mejor en la cara del aro.', 'tira', [['AliExpress', busca('WS2812B 1m 60 leds IP30 10mm')]]],
+  [EL, 'Chip 74AHCT125 (DIP) + protoboard de 400 puntos + cables Dupont', '≈ 4–6 €', 'El chip pasa la señal de la luz de 3,3 a 5 V (sin él, la tira puede parpadear). En la protoboard van él y los 2 TMC2209: sin soldar.', 'Que ponga «AHCT» (no «HC»). Cables Dupont macho-macho y hembra-macho.', 'ahct', [['74AHCT125', busca('74AHCT125N DIP')], ['Protoboard', busca('breadboard 400 points')], ['Dupont', busca('dupont jumper wires male female')]]],
+  [EL, 'Condensadores: 2 de 100 µF 35 V y 1 de 1000 µF 16 V + 1 resistencia de 330 Ω', '≈ 2 €', '100 µF: junto a cada TMC2209 · 1000 µF: en la entrada de la tira · 330 Ω: en el cable de datos de la tira.', '', 'cond', [['AliExpress', busca('electrolytic capacitor kit')]]],
+  [EL, 'Botón metálico de 16 mm con enclavamiento y anillo LED de 12 V', '≈ 2–4 €', 'El encendido, en la pared W1 (con su tapón BOT16).', 'Que sea «latching» (se queda hundido) y de 16 mm. Si es de 12 o 19, imprime el tapón de esa medida.', 'boton', [['AliExpress', busca('16mm metal push button latching 12V LED ring')]]],
+  [EL, '5 conectores de palanca (tipo Wago 221) + cable rojo y negro de 0,5 mm²', '≈ 4–6 €', 'Para repartir los 12 V, los 5 V y el GND sin soldar.', '', 'wago', [['AliExpress', busca('wago 221 lever connector')], ['Cable', busca('22awg red black wire')]]],
+  [OT, 'Fieltros adhesivos', '≈ 2 €', 'Debajo de la base: no raya el mueble y no suena.', '', 'fieltro', [['Amazon', amz('fieltros adhesivos muebles')]]],
+  [OT, 'Pegamento: cianoacrilato (o epoxi de 5 minutos) y cinta de carrocero', '≈ 4 €', 'Las juntas de la bandeja (que no se salga la arena), el engranaje del centro y el sensor.', '', 'pega', [['Amazon', amz('cianoacrilato gel')]]],
+  [OP, 'Polímetro', '≈ 10 €', 'Para ajustar la corriente de los TMC2209 (1,1 V).', 'Solo si no tienes.', 'polimetro', [['Amazon', amz('polimetro digital')]]],
+];
+const guarda = (k, v) => { try { localStorage.setItem('mesa_' + k, v ? '1' : ''); } catch (e) { } };
+const lee = k => { try { return localStorage.getItem('mesa_' + k) === '1'; } catch (e) { return false; } };
+const raiz = document.getElementById('lista'); let grupo = '';
+for (const [g, n, p, nota, ojo, k, bots, ya] of L) {
+  if (g !== grupo) { const h = document.createElement('h2'); h.textContent = g; raiz.appendChild(h); grupo = g; }
+  const c = document.createElement('div'); c.className = 'c' + (ya || lee(k) ? ' hecho' : '');
+  const i = document.createElement('input'); i.type = 'checkbox'; i.checked = !!(ya || lee(k)); i.onchange = () => { c.classList.toggle('hecho', i.checked); guarda(k, i.checked); };
+  const d = document.createElement('div'); d.className = 'd';
+  d.innerHTML = '<div class="n"></div><div class="p"></div><div class="p"></div>' + (ojo ? '<div class="ojo"></div>' : '') + '<div class="b"></div>';
+  d.children[0].textContent = n; d.children[1].textContent = p; d.children[2].textContent = nota; if (ojo) d.querySelector('.ojo').textContent = '👉 ' + ojo;
+  for (const [t, u] of bots) { const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.textContent = t; d.querySelector('.b').appendChild(a); }
+  c.appendChild(i); c.appendChild(d); raiz.appendChild(c);
+}
+</script>
+</body>
+</html>

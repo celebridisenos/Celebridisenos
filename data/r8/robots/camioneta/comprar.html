@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprar la camioneta de reparto</title>
+<style>
+  :root { --fondo:#f6f6f7; --tarjeta:#fff; --texto:#161616; --suave:#6b6b70; --borde:#e4e4e7; --tq:#00b8cf; --ojo:#c2410c; --hecho:#e9f9fb; --ok:#0f766e; }
+  @media (prefers-color-scheme: dark) { :root { --fondo:#121214; --tarjeta:#1c1c1f; --texto:#f4f4f5; --suave:#a1a1aa; --borde:#2e2e33; --tq:#22d3ee; --ojo:#fb923c; --hecho:#0f2a2e; --ok:#5eead4; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fondo); color:var(--texto); font:17px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:18px 16px 40px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  .sub { color:var(--suave); margin:0 0 18px; }
+  h2 { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--suave); margin:26px 0 8px; }
+  .c { background:var(--tarjeta); border:1px solid var(--borde); border-radius:14px; padding:12px 14px; margin:8px 0; display:flex; gap:12px; align-items:flex-start; }
+  .c.hecho { background:var(--hecho); }
+  .c.hecho .n { text-decoration:line-through; color:var(--suave); }
+  .c input { width:26px; height:26px; margin:2px 0 0; accent-color:var(--tq); flex:none; }
+  .d { flex:1; min-width:0; }
+  .n { font-weight:650; font-size:18px; }
+  .p { color:var(--suave); font-size:15px; }
+  .ojo { color:var(--ojo); font-size:15px; font-weight:600; margin-top:2px; }
+  .ver { color:var(--ok); font-size:14px; font-weight:600; }
+  .b { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .b a { flex:1; min-width:120px; text-align:center; text-decoration:none; font-weight:650; font-size:15px; padding:10px 8px; border-radius:10px; background:var(--tq); color:#05262b; }
+  .tot { margin-top:22px; padding:14px; border-radius:14px; background:var(--tarjeta); border:2px solid var(--tq); font-size:17px; }
+  .tot div { display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+  .tot .g { border-top:1px solid var(--borde); margin-top:6px; padding-top:8px; font-weight:700; font-size:19px; }
+  .caja { background:var(--hecho); border-radius:14px; padding:12px 14px; margin:10px 0 0; font-size:16px; }
+  table { width:100%; border-collapse:collapse; font-size:15px; background:var(--tarjeta); border-radius:12px; overflow:hidden; }
+  td, th { padding:6px 8px; border-bottom:1px solid var(--borde); text-align:left; vertical-align:top; }
+  th { color:var(--suave); font-weight:600; }
+  @media print { .b { display:none; } body { font-size:13px; } .c { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🚚 Comprar la camioneta de reparto</h1>
+  <p class="sub">Para la camioneta RC 1/8 (56 cm), con su acabado y su cámara (23-10). Ya tienes lo caro (motor, variador, batería y emisora): esto es lo que falta. <b>No he comprado nada
+  ni he metido nada en ninguna cesta.</b> Los botones abren la <b>búsqueda</b> en la tienda (no un anuncio concreto): mira que coincida lo que dice
+  la tarjeta. Marca ✔ lo que ya tengas.</p>
+  <div class="caja">💶 <b>Precios:</b> los que dicen <span class="ver">«visto el 22-10»</span> los he mirado hoy en una tienda o anuncio; los demás son
+  <b>aproximados</b> (pueden cambiar). Los envíos van aparte.</div>
+
+  <div class="caja">🧪 <b>Pide PRIMERO esto</b> (para el kit de prueba, ≈ 92 g con T3 y T4): <b>1 servo DS3218</b>, el <b>piñón de acero</b>, la <b>ESP32-CAM con su placa MB</b>,
+  los <b>imanes</b>, los <b>LED</b>, la <b>barra de 8 mm</b>, los <b>pasadores de 3 mm</b> y la <b>tornillería</b> (el kit usa M3 × 6, × 8 y × 10, una tuerca M3 y el M5 × 50 con su tuerca: luego van en la camioneta).
+  Los rodamientos ya los tienes. Con eso compruebas en tu plástico que todo entra (la guía, apartado 2: «el kit, pieza a pieza»). Si todo está bien, pide lo demás.</div>
+
+  <div id="lista"></div>
+
+  <h2>🔩 Los tornillos, uno por uno (lo que sale del diseño)</h2>
+  <table>
+    <tr><th>Qué</th><th>Cuántos</th><th>Dónde</th></tr>
+    <tr><td>M3 × 6</td><td>2</td><td>el motor a la caja de engranajes</td></tr>
+    <tr><td>M3 × 8</td><td>17</td><td>palanca y piñón de la cama a los discos de sus servos (4 + 4) · brazo del portón a su servo (2) · soporte del servo de la cama al suelo (3) · el habitáculo a la cabina (4)</td></tr>
+    <tr><td>M3 × 10</td><td>38</td><td>llantas (16) · soporte del servo de dirección (4) y su servo (4) · suelo a las paredes (8) · servo de la cama (4) · retrovisores (2)</td></tr>
+    <tr><td>M3 × 8 avellanado</td><td>4</td><td>la cremallera a la cama (no más largos: asomarían entre los dientes)</td></tr>
+    <tr><td>M3 × 12</td><td>20</td><td>tubo del eje (3) · cabina a la caja (4) · servo del portón (4) · tope (2) · paragolpes (2) · bieletas (4) · el pivote del brazo izquierdo del portón (1)</td></tr>
+    <tr><td>M3 × 12 avellanado</td><td>4</td><td>el suelo a los 4 postes del chasis</td></tr>
+    <tr><td>M3 × 16</td><td>19</td><td>juntas del chasis (4) · caja de engranajes al chasis, patas bajas (2) · juntas de la caja de carga (9) · la visera al techo, con tuerca por dentro (4)</td></tr>
+    <tr><td>M3 × 25</td><td>6</td><td>las 2 mitades de la caja de engranajes (4) · patas altas al chasis (2)</td></tr>
+    <tr><td>M3 × 35</td><td>2</td><td>los pivotes de las manguetas</td></tr>
+    <tr><td>M3 × 45</td><td>2</td><td>la cabina a sus 2 postes (desde debajo del chasis)</td></tr>
+    <tr><td>Tuercas M3</td><td>≈ 50</td><td>llantas (16), juntas, patas, tubo, pivotes… (sobran: van baratas)</td></tr>
+    <tr><td>Fijador de roscas (tipo Loctite azul)</td><td>1 bote</td><td>el pivote del portón (aprieta y afloja un cuarto de vuelta) y los tornillos del motor</td></tr>
+    <tr><td>M4 × 40 + tuerca autoblocante</td><td>1</td><td>el pivote del eje de delante (bascula)</td></tr>
+    <tr><td>M5 × 50 + tuerca + 4 arandelas</td><td>1</td><td>el eje del doble engranaje</td></tr>
+    <tr><td>M5 × 35 + tuerca autoblocante + arandela</td><td>2</td><td>los ejes de las ruedas de delante (la tuerca va metida en la mangueta)</td></tr>
+    <tr><td>Arandelas M3</td><td>≈ 20</td><td>bajo las cabezas en el plástico</td></tr>
+  </table>
+
+  <div class="tot">
+    <div><span>Lo obligatorio (servos, piñón, eje, pasadores, cámara, Nano, regulador, TPU, tornillos, imanes, LED, cables, acetato…)</span><b>≈ 145–175 €</b></div>
+    <div><span>Envíos (si es de AliExpress, a veces gratis)</span><b>≈ 10–20 €</b></div>
+    <div class="g"><span>Total</span><span>≈ 155–195 €</span></div>
+    <span class="p">Lo que más pesa es el kilo de TPU (35–52 €) del que solo se gastan 240 g. Sin contar el PETG (≈ 2,5 kg: ≈ 50 € si no lo tienes) ni la emisora nueva (opcional, 71 €). Lo tuyo (motor, variador, batería, emisora,
+    rodamientos) no está sumado.</span>
+  </div>
+</main>
+<script>
+const busca = q => 'https://es.aliexpress.com/w/wholesale-' + q.trim().replace(/\s+/g, '-') + '.html';
+const amz = q => 'https://www.amazon.es/s?k=' + encodeURIComponent(q);
+// [grupo, nombre, precio, nota, aviso, clave, [[botón, enlace]…], ya lo tienes]
+const YA = '✅ Ya lo tienes', OB = '🛒 Hay que comprarlo', OP = '⭐ Opcional';
+const L = [
+  [YA, 'Motor F540 3300 kV + variador de 60 A', '—', 'Los tuyos. El piñón va en su eje de 3,175 mm.', 'Mira que el motor tenga los 2 tornillos de la cara a 25 mm: lo dice la prueba P1.', 'motor', [], true],
+  [YA, 'Batería LiPo 2S de caja dura', '—', 'La tuya. Su hueco es de 139 × 47 × 25,5 mm (la típica «1/10»).', 'Mídela: si es más grande, dímelo y cambio las guías.', 'lipo', [], true],
+  [YA, 'Tu emisora de 4 canales con su receptor', '—', 'Canal 1 dirección · 2 acelerador · 3 portón y cama (mejor un interruptor de 3 posiciones o una rueda) · 4 luces (botón o interruptor).', '', 'emisora', [], true],
+  [YA, 'Rodamientos: 2 de 8 × 12 × 4 y 6 de 5 × 11 × 4', '—', 'Los tuyos. 8 × 12: el eje de atrás · 5 × 11: el doble engranaje (2) y las ruedas de delante (4).', 'Cuenta que tienes 6 de 5 × 11 × 4.', 'rod', [], true],
+  [YA, 'Plástico PETG (≈ 2,2 kg)', '≈ 20 €/kg si te falta', 'Todo lo impreso salvo los neumáticos.', '', 'petg', [], true],
+  [OB, '3 servos DS3218 de 20 kg (metálicos)', '≈ 13 € cada uno · visto el 22-10', '2 de 180° (dirección y portón) y 1 de 270° (la cama: necesita los 270° para salir 148 mm).', 'Al pedir, elige bien «180°» o «270°»: es una opción del mismo anuncio.', 'servos', [['AliExpress', busca('DS3218 servo 20kg')], ['Amazon', amz('DS3218 servo 20kg')]]],
+  [OB, 'Piñón de ACERO módulo 1, 12 dientes, agujero de 5 mm + casquillo de 3,175 a 5 mm', '≈ 8 € (aproximado)', 'El primer engranaje (el del motor, que gira muy rápido): de acero. El casquillo adapta tu eje de 3,175 mm al agujero de 5.', 'Módulo 1 (no 32P ni 48P) y 12 dientes: si no, no engrana con la rueda de 60.', 'pinon', [['AliExpress', busca('pinion mod1 12T 5mm')], ['Casquillo', busca('motor shaft adapter 3.175mm to 5mm')]]],
+  [OB, 'Barra de acero de 8 mm SIN templar (acero calibrado / plata), 250 mm', '≈ 6 € (aproximado)', 'El eje de atrás: se corta a 238 mm y se le hacen 3 agujeros de 3 mm (con la plantilla H1).', 'NO la varilla «lineal» de impresora (es templada: la broca no entra).', 'eje', [['Amazon', amz('barra acero calibrado 8 mm')], ['AliExpress', busca('8mm steel round bar 250mm')]]],
+  [OB, '3 pasadores de acero de 3 × 20 mm', '≈ 3 € el paquete', 'Atraviesan el eje: arrastran la corona y las 2 ruedas de atrás.', '', 'pasadores', [['AliExpress', busca('dowel pin 3x20mm')]]],
+  [OB, 'ESP32-CAM (cámara OV2640) + su placa ESP32-CAM-MB para grabarla', '≈ 8 € (aproximado)', 'La cámara del salpicadero: la ves en el móvil por su propio wifi, con foto y vídeo. La placa MB solo sirve para grabarle el programa desde el PC.', 'Que sea la de Ai-Thinker (27 × 40,5 mm) y que traiga la MB.', 'cam', [['AliExpress', busca('ESP32-CAM ESP32-CAM-MB OV2640')], ['Amazon', amz('ESP32-CAM MB OV2640')]]],
+  [OB, 'Arduino Nano (USB-C)', '4–8 € · visto el 22-10', 'Mueve el portón y la cama con seguros y enciende las luces.', 'Mejor con los pines ya soldados.', 'nano', [['AliExpress', busca('arduino nano type-c')], ['Amazon', amz('arduino nano usb c')]]],
+  [OB, 'Regulador (UBEC) 5 V 3 A', '≈ 3 € + envío (Hobbywing) o 11,90 € (D-Power) · visto el 22-10', 'Da la corriente a los servos del portón y la cama y al Nano (la dirección va con el variador).', 'Ponlo en 5 V.', 'ubec', [['AliExpress', busca('hobbywing ubec 3a')]]],
+  [OB, 'Filamento TPU 95A (para los 4 neumáticos: 240 g)', '35–52 €/kg · visto el 22-10', 'Neumáticos que agarran y no se rajan.', 'Se imprime despacio (la guía dice cómo).', 'tpu', [['Amazon', amz('filamento TPU 95A')]]],
+  [OB, 'Tornillos (la tabla de abajo): un kit M3 Allen de 6 a 25 mm + los largos sueltos', '≈ 15 € (aproximado)', 'Kit M3 + 2 M3×35, 2 M3×45, 1 M4×40, 1 M5×50, 2 M5×55, tuercas y arandelas.', '', 'tornillos', [['Kit M3', busca('M3 allen screw kit 6-25mm')], ['Largos', busca('M3x45 allen screw')]]],
+  [OB, '12 imanes de neodimio de 6 × 3 mm', '≈ 3–4 € (vienen en bolsas de 20 o 50)', 'Sujetan el portón cerrado (2 + 2) y los 2 faldones que tapan la batería (2 + 2 cada uno).', 'Mira que cada pareja se ATRAIGA antes de pegarla.', 'imanes', [['AliExpress', busca('neodymium magnet 6x3mm')]]],
+  [OB, 'LED de 5 mm: 7 blancos, 4 rojos y 2 ámbar + resistencias de 220 Ω y 330 Ω + 1 zumbador activo de 5 V', '≈ 6 €', 'Faros, luces de atrás, marcha atrás, emergencias, la luz de la caja y el «pi-pi-pi».', 'Opcional en la práctica: sin ellos funciona igual.', 'led', [['LED', busca('5mm LED assorted kit resistors')], ['Zumbador', busca('active buzzer 5v')]]],
+  [OB, 'Cables: 2 alargadores de servo de 50 cm, 1 cable en Y de servo, 7 cables Dupont hembra-hembra y cable fino rojo/negro', '≈ 6 €', 'Para llevar las señales del receptor al Nano y los servos de atrás.', '', 'cables', [['AliExpress', busca('servo extension cable 50cm')], ['Y', busca('servo Y cable')]]],
+  [OB, 'Interruptor pequeño', '≈ 1 €', 'Corta el regulador (si no, gasta batería con el coche apagado).', '', 'inter', [['AliExpress', busca('mini toggle switch')]]],
+  [OB, 'Velcro para la batería, bridas y pegamento (cianoacrilato)', '≈ 6 €', 'La batería con velcro; las 2 mitades de la cabina se pegan.', '', 'varios', [['Amazon', amz('cinta velcro bateria rc')]]],
+  [OP, 'Emisora RadioLink RC4GS V3 con receptor R6FG', '71,39 € (RobotShop) · visto el 22-10 (estaba sin existencias)', 'Solo si la tuya no tiene un canal 3 con interruptor de 3 posiciones o rueda.', '', 'rc4gs', [['RobotShop', 'https://eu.robotshop.com/products/radiolink-rc4gs-v3-24ghz-4ch-transmitter-w-r6fg-receiver']]],
+  [OB, 'Acetato transparente (los cristales)', '≈ 2 €', 'Parabrisas y 2 ventanas: se recortan con PLANTILLA_CRISTALES.pdf y se pegan por dentro. La cámara mira a través del parabrisas.', 'Una hoja A4 de 0,2–0,3 mm basta.', 'acetato', [['Amazon', amz('lamina acetato transparente')]]],
+];
+const guarda = (k, v) => { try { localStorage.setItem('cam_' + k, v ? '1' : ''); } catch (e) { } };
+const lee = k => { try { return localStorage.getItem('cam_' + k) === '1'; } catch (e) { return false; } };
+const raiz = document.getElementById('lista'); let grupo = '';
+for (const [g, n, p, nota, ojo, k, bots, ya] of L) {
+  if (g !== grupo) { const h = document.createElement('h2'); h.textContent = g; raiz.appendChild(h); grupo = g; }
+  const c = document.createElement('div'); c.className = 'c' + (ya || lee(k) ? ' hecho' : '');
+  const i = document.createElement('input'); i.type = 'checkbox'; i.checked = !!(ya || lee(k)); i.onchange = () => { c.classList.toggle('hecho', i.checked); guarda(k, i.checked); };
+  const d = document.createElement('div'); d.className = 'd';
+  d.innerHTML = '<div class="n"></div><div class="p"></div><div class="p"></div>' + (ojo ? '<div class="ojo"></div>' : '') + '<div class="b"></div>';
+  d.children[0].textContent = n; d.children[1].textContent = p; d.children[2].textContent = nota; if (ojo) d.querySelector('.ojo').textContent = '👉 ' + ojo;
+  for (const [t, u] of bots) { const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.textContent = t; d.querySelector('.b').appendChild(a); }
+  c.appendChild(i); c.appendChild(d); raiz.appendChild(c);
+}
+</script>
+</body>
+</html>
