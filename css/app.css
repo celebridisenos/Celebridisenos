@@ -2297,3 +2297,74 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 @media (max-width: 760px) { .rk-fila { grid-template-columns: 30px 1fr auto; } .rk-barra, .rk-serie { display: none; } }
 /* 20-10-2026 · bajo pedido: «se fabrica al pedirlo» (neutro) y «por fabricar» (trabajo pendiente) */
 .pchips .ped { background: #e0f2fe; color: #075985; } .pchips .pfab { background: #fef3c7; color: #92400e; }
+
+/* ================= 26-10-2026 · 📦 MI ALMACÉN (views/almacen.js): grande, claro y en pocos pasos ================= */
+.alm-botones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 6px 0 14px; }
+.alm-gran { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center; text-align: left; padding: 18px 20px;
+  border-radius: var(--radius-l, 20px); border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; box-shadow: var(--shadow); transition: transform .12s, box-shadow .12s; font: inherit; }
+.alm-gran:hover { transform: translateY(-2px); }
+.alm-gran .e { grid-row: 1 / 3; font-size: 40px; line-height: 1; }
+.alm-gran b { font-size: 21px; }
+.alm-gran span:not(.e) { color: var(--muted); font-size: 14px; }
+.alm-gran.compra { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
+.alm-toca { border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); background: var(--warn-soft, #fff4e0); border-radius: var(--radius, 16px); padding: 12px 14px; margin-bottom: 14px; }
+.alm-toca h3 { margin: 0 0 8px; font-size: 17px; } .alm-toca h3 small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.alm-toca-l { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+.alm-toca-i .btn { white-space: nowrap; flex: none; }
+.alm-toca-i .alm-nom { flex: 1; }
+.alm-toca-i { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.alm-toca-i.agotado { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+.alm-bien { background: var(--ok-soft, #e8f6ee); color: var(--ok); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-weight: 600; }
+.alm-busca { margin: 4px 0 10px; } .alm-busca .inp { width: 100%; font-size: 16px; padding: 10px 14px; }
+.alm-bloque { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius, 16px); padding: 12px 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.alm-bloque h3 { margin: 0 0 6px; font-size: 17px; }
+.alm-fila { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 9px 4px; border-top: 1px solid var(--line); }
+.alm-bloque > .alm-fila:first-of-type, .alm-bloque h3 + .alm-fila { border-top: 0; }
+.alm-fila.bajo { background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: 10px; }
+.alm-fila.agotado { background: color-mix(in srgb, var(--bad) 8%, transparent); border-radius: 10px; }
+.alm-ic { font-size: 22px; text-align: center; display: inline-flex; justify-content: center; }
+.alm-dot { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .18); vertical-align: middle; }
+.alm-nom { display: flex; flex-direction: column; min-width: 0; } .alm-nom b { overflow: hidden; text-overflow: ellipsis; } .alm-nom span { color: var(--muted); font-size: 12.5px; }
+.alm-cuanto { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; } .alm-cuanto b { font-size: 18px; white-space: nowrap; }
+.alm-acc { display: flex; gap: 6px; }
+.alm-avanzadas { margin-top: 8px; }
+/* el asistente «He comprado» */
+.alm-asist { min-height: 340px; display: flex; flex-direction: column; }
+.alm-migas { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; } .alm-migas span { font-size: 12.5px; padding: 4px 10px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.alm-migas span.on { background: var(--brand); color: var(--brand-text, #fff); font-weight: 700; } .alm-migas span.hecho { color: var(--ok); }
+.alm-preg { font-weight: 700; margin: 12px 0 8px; } .alm-preg.grande { font-size: 22px; margin-top: 4px; }
+.alm-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.alm-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 8px; border-radius: 16px; border: 2px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.alm-tile .e { font-size: 34px; } .alm-tile small { color: var(--muted); font-size: 11.5px; text-align: center; }
+.alm-tile.on, .alm-item.on, .alm-chip.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, var(--surface)); }
+.alm-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; max-height: 260px; overflow: auto; }
+.alm-item { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+.alm-item span { grid-row: 1 / 3; font-size: 20px; align-self: center; } .alm-item small { color: var(--muted); }
+.alm-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.alm-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 99px; border: 2px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-weight: 600; }
+.alm-det .inp { width: 100%; font-size: 16px; padding: 10px 12px; }
+.alm-paso { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 18px 0 8px; }
+.alm-stepper { display: inline-flex; align-items: center; gap: 8px; }
+.alm-st { width: 52px; height: 52px; border-radius: 50%; font-size: 26px !important; justify-content: center; }
+.inp.alm-num { width: 150px; font-size: 34px; text-align: center; font-weight: 700; padding: 8px; }
+.alm-paso.euros .alm-num { width: 200px; } .alm-eur { font-size: 30px; font-weight: 700; }
+.inp.alm-peq { width: 90px; display: inline-block; text-align: center; }
+.alm-res { text-align: center; font-size: 17px; min-height: 26px; }
+.alm-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 16px; flex-wrap: wrap; }
+.alm-nav .alm-sig { min-width: 170px; font-size: 16px; }
+/* «Cuento lo que tengo» */
+.alm-cuento .alm-bloque { box-shadow: none; }
+.alm-cfila { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto 70px; gap: 10px; align-items: center; padding: 6px 2px; border-top: 1px solid var(--line); }
+.alm-csub { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; }
+.inp.alm-cnt { width: 90px; font-size: 18px; text-align: center; font-weight: 700; }
+.alm-cfila .alm-st { width: 38px; height: 38px; font-size: 20px !important; }
+.alm-u { color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .alm-botones { grid-template-columns: 1fr; }
+  .alm-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .alm-fila { grid-template-columns: 30px minmax(0, 1fr) auto; } .alm-fila .alm-acc { grid-column: 1 / -1; justify-content: flex-end; }
+  .alm-cfila { grid-template-columns: 26px minmax(0, 1fr) auto; } .alm-cfila .alm-u { display: none; }
+}
+.alm-num, .alm-cnt, .alm-peq { -moz-appearance: textfield; appearance: textfield; }
+.alm-num::-webkit-inner-spin-button, .alm-num::-webkit-outer-spin-button, .alm-cnt::-webkit-inner-spin-button, .alm-cnt::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.tabs .tab-link { margin-left: auto; align-self: center; font-size: 13px; padding: 6px 10px; border-radius: 99px; background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); text-decoration: none; font-weight: 600; }

@@ -76,8 +76,12 @@ export function render(el, params) {
     edit ? h('div.row.wrap', btn('🧠 Plan', () => import('../v17.js').then(m => m.dialogoPlan()), { cls: 'p17-abrir', title: 'Plan de impresión: qué imprimir ahora y en qué orden' }), btn('🎬 Así nació', () => import('../nacer.js').then(m => m.dialogoNacer()), { cls: 'nc-abrir', title: 'Mira cómo nació tu pieza: el vídeo de cada impresión, con el nombre del cliente' }), btn('Nueva impresión', () => jobForm(), { cls: 'primary', icon: 'plus' }), btn('Añadir bobina', () => spoolForm(), { icon: 'plus' })) : null), tabs, body);
   function drawTabs() {
     const pend = (S.t.compras || []).filter(c => c.estado === 'Pendiente').length;
-    const T = [['impresoras', 'Impresoras 3D'], ['papel', 'Etiquetas e impresoras de papel'], ['filamento', 'Filamento'], ['compras', 'Lista de la compra' + (pend ? ' (' + pend + ')' : '')], ['historial', 'Historial']];
-    mount(tabs, T.map(x => h('button' + (st.tab === x[0] ? '.on' : ''), { onclick: () => { st.tab = x[0]; history.replaceState(null, '', '#/taller/' + x[0]); draw(); } }, x[1])));
+    // 26-10-2026 · el filamento y lo que hay que comprar están en «📦 Mi almacén» (ella: «tantas cosas sobran»): aquí solo salen si vienes a
+    // ellas a propósito (#/taller/filamento, #/taller/compras) o si quedó algo apuntado a mano en la lista vieja
+    const T = [['impresoras', 'Impresoras 3D'], ['papel', 'Etiquetas e impresoras de papel'], ['filamento', 'Filamento'], ['compras', 'Lista de la compra' + (pend ? ' (' + pend + ')' : '')], ['historial', 'Historial']]
+      .filter(x => !['filamento', 'compras'].includes(x[0]) || st.tab === x[0] || (x[0] === 'compras' && pend));
+    mount(tabs, T.map(x => h('button' + (st.tab === x[0] ? '.on' : ''), { onclick: () => { st.tab = x[0]; history.replaceState(null, '', '#/taller/' + x[0]); draw(); } }, x[1])),
+      h('a.tab-link', { href: '#/almacen', title: 'Filamento, cajas y lo que te toca comprar' }, '📦 Filamento y compras → Mi almacén'));
   }
   // v11.5: la impresión, en un solo sitio (3D + etiquetas/papel). «Hoy» sigue siendo el acceso rápido del día.
   function drawPaper() { mount(body, h('p.small.muted', 'Impresoras de etiquetas y de folios de este ordenador: estado, tamaños y calibración.')); import('./config.js').then(C => C.printCenter(body, () => { if (st.tab === 'papel') drawPaper(); })); }

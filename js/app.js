@@ -26,6 +26,7 @@ const VIEWS = {
   tallervivo: () => import('./views/tallervivo.js'), // v18: 🏭 el taller en directo (en lugar de los juegos)
   trailer: () => import('./views/trailer.js'), // v18: 🎬 Tráiler del mes
   hoy: () => import('./views/hoy.js'),
+  almacen: () => import('./views/almacen.js'), // 26-10-2026: 📦 Mi almacén (lo que tengo y lo que compro, muy fácil)
   tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller (v13.10: fuera del menú; sigue en #/tv)
   estudio: () => import('./views/estudio.js'), // v13.10: 📸 Estudio de fotos
   reels: () => import('./views/reels.js'), // v15.3: 🎬 Reels con Remotion (el vídeo lo hace el PC)
@@ -86,6 +87,7 @@ export const NAV = [
   { sep: true, t: 'Productos' },
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
+  { k: 'almacen', t: 'Mi almacén 📦', i: 'box', p: 'productos.ver' }, // 26-10-2026: lo que tengo y lo que compro (sustituye en el menú a Stock, Inventario y Costes)
   { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
   { sep: true, t: 'Producción' },
   { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,

@@ -12,13 +12,14 @@ export const GRUPOS = [
   { k: 'dia', t: 'Empezar el día', e: '☀️', c: '#f59e0b', items: ['puente', 'inicio', 'hoy', 'tallervivo'] },
   { k: 'vender', t: 'Vender y atender', e: '🛒', c: '#ec4899', items: ['pedidos', 'pedidosweb', 'bandeja', 'clientes', 'presupuestos', 'facturas', 'rapidas'] },
   { k: 'crear', t: 'Diseñar y crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'celebridrew', 'productos', 'catalogo', 'cotizador'] },
-  { k: 'fabricar', t: 'Imprimir y fabricar', e: '🖨️', c: '#0ea5e9', items: ['taller', 'stock', 'inventario', 'costes'] },
+  { k: 'fabricar', t: 'Imprimir y fabricar', e: '🖨️', c: '#0ea5e9', items: ['almacen', 'taller'] }, // 26-10-2026: «no se entiende nada… pocos pasos, muy fácil»
   { k: 'enviar', t: 'Empaquetar y enviar', e: '📦', c: '#f97316', items: ['embalaje', 'escanear'] },
   { k: 'web', t: 'Tienda y web', e: '🌐', c: '#14b8a6', items: ['tienda', 'mitienda', 'estanteria'] },
   { k: 'conocer', t: 'Darte a conocer', e: '📣', c: '#e11d48', items: ['reels', 'instagram', 'redes', 'estudio', 'anuncios', 'trailer'] },
   { k: 'numeros', t: 'Tus números', e: '📊', c: '#22c55e', items: ['ingresos', 'informes', 'inteligencia'] },
   { k: 'equipo', t: 'Equipo y ayuda', e: '🤝', c: '#6366f1', items: ['chat', 'tareas', 'noticias', 'archivos', 'ia', 'centroia'] },
   { k: 'ajustes', t: 'Ajustes', e: '⚙️', c: '#64748b', items: ['config', 'estado'] },
+  { k: 'avanzado', t: 'Avanzado', e: '🧰', c: '#94a3b8', items: ['stock', 'inventario', 'costes'] }, // lo de antes, por si hace falta (para el día a día: «Mi almacén»)
 ];
 // para qué sirve cada sección (una línea, como lo diría ella)
 export const DESCR = {
@@ -26,7 +27,7 @@ export const DESCR = {
   pedidos: 'Ver, crear y seguir pedidos', pedidosweb: 'Lo que te piden desde la tienda web', bandeja: 'Los correos de ventas de todas tus cuentas', clientes: 'Tus clientes y lo que te han comprado',
   presupuestos: 'Hacer y mandar presupuestos', facturas: 'Facturas y cobros', rapidas: 'Respuestas listas para los clientes',
   celebrir8: 'Diseñar piezas en 3D sin saber de 3D', celebridrew: 'Ropa en 3D: patrones, avatar y PDF para coser', productos: 'Tus productos, fotos y abrir en Bambu', catalogo: 'Más de 300 diseños listos para imprimir', cotizador: 'Cuánto cobrar por una pieza impresa',
-  taller: 'Impresoras 3D, etiquetas y papel', stock: 'Lo que tienes hecho y dónde', inventario: 'Filamento, cajas y compras', costes: 'Materiales y cuánto te cuesta cada cosa',
+  almacen: 'Lo que tienes y lo que has comprado (todo va solo)', taller: 'Impresoras 3D, etiquetas y papel', stock: 'Detalle del stock de productos', inventario: 'Inventario completo, historial y estadísticas', costes: 'Precios de los materiales y coste de cada cosa',
   embalaje: 'Empaquetar pedidos y sus etiquetas de envío', escanear: 'Leer el QR de un paquete',
   tienda: 'Tu tienda web: productos y textos', mitienda: 'Abrir, compartir y el QR de tu tienda', estanteria: 'Tus productos en una estantería bonita',
   reels: 'Vídeos para Instagram y TikTok', instagram: 'Publicaciones de Instagram', redes: 'Calendario de redes sociales', estudio: 'Fotos de producto con IA (Biouvision)', anuncios: 'Anuncios con inteligencia artificial', trailer: 'El vídeo resumen de tu mes',
@@ -40,7 +41,7 @@ export const SINONIMOS = {
   presupuestos: 'presupuesto oferta cotizacion precio', facturas: 'factura cobrar cobro facturar pagar recibo iva', rapidas: 'respuesta whatsapp contestar plantilla mensaje',
   celebrir8: 'disenar diseno 3d pieza modelo stl caja llave juguete r8', celebridrew: 'ropa prenda moda costura patron sudadera camiseta vestido falda pantalon avatar drew coser',
   productos: 'producto foto articulo bambu laminar', catalogo: 'catalogo disenos listos imprimir modelos cults', cotizador: 'precio calcular cuanto coste presupuesto cobrar',
-  taller: 'imprimir impresion impresora etiqueta etiquetas papel bambu a1 p1p', stock: 'existencias almacen hecho guardado', inventario: 'filamento compras material proveedor', costes: 'coste material gasto margen',
+  almacen: 'almacen stock inventario compra compras compre comprado tengo existencias filamento bobina bobinas caja cajas sobre sobres bolsa bolsas material materiales falta acaba comprar', taller: 'imprimir impresion impresora etiqueta etiquetas papel bambu a1 p1p', stock: 'existencias hecho guardado productos', inventario: 'historial estadisticas proveedor', costes: 'coste material gasto margen precio',
   embalaje: 'empaquetar paquete envio enviar etiqueta etiquetas correos seur caja', escanear: 'qr escaner leer paquete codigo',
   tienda: 'web subir publicar tienda online pagina', mitienda: 'compartir enlace qr tienda', estanteria: 'escaparate exponer',
   reels: 'video tiktok reel', instagram: 'instagram post publicar foto', redes: 'redes calendario publicar', estudio: 'foto fotos fondo ia biouvision producto', anuncios: 'anuncio publicidad ads', trailer: 'video resumen mes',
@@ -60,11 +61,11 @@ export function agrupa(lista) {
 }
 // BUSCAR: cada palabra tiene que estar en el nombre, la descripción, los sinónimos o el grupo; puntúa más lo que empieza por la palabra y el nombre,
 // y las 3 primeras palabras de sus sinónimos (las principales). Las palabras de relleno («a», «la», «una», «mi»…) no cuentan.
-const RELLENO = new Set(['a', 'al', 'la', 'el', 'lo', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'en', 'mi', 'mis', 'tu', 'con', 'para', 'por', 'y', 'o', 'que', 'quiero', 'como', 'hacer', 'ver']);
+const RELLENO = new Set(['a', 'al', 'la', 'el', 'lo', 'los', 'las', 'un', 'una', 'unos', 'unas', 'de', 'del', 'en', 'mi', 'mis', 'tu', 'con', 'para', 'por', 'y', 'o', 'que', 'quiero', 'como', 'hacer', 'ver', 'he', 'ha', 'me', 'se', 'yo']);
 export function busca(q, lista) {
   const P = norm(q).split(/\s+/).filter(w => w && !RELLENO.has(w)); if (!P.length) return [];
   return lista.map(n => { const nom = norm(n.t), des = norm(DESCR[n.k]), sin = norm(SINONIMOS[n.k]), gr = norm((grupoDe(n.k) || {}).t), todo = nom + ' ' + des + ' ' + sin + ' ' + gr; let p = 0;
-    for (const w of P) { if (!todo.includes(w) && !todo.split(' ').some(x => x.startsWith(w.slice(0, Math.max(3, w.length - 2))))) return null; const sw = sin.split(' '); p += (nom.split(' ').some(x => x.startsWith(w)) ? 10 : 0) + (sw.some(x => x.startsWith(w)) ? 5 : 0) + (sw.slice(0, 3).some(x => x.startsWith(w)) ? 3 : 0) + (des.includes(w) ? 2 : 0) + 1; }
+    for (const w of P) { if (!todo.includes(w) && !todo.split(' ').some(x => x.startsWith(w.slice(0, Math.max(3, w.length - 2))))) return null; const sw = sin.split(' '); p += (nom.split(' ').some(x => x.startsWith(w)) ? 10 : 0) + (sw.some(x => x.startsWith(w)) ? 5 : 0) + (sw.slice(0, 3).some(x => x.startsWith(w)) ? 3 : 0) + (des.includes(w) ? 2 : 0) + (sw.includes(w) ? 4 : 0) + 1; } /* 26-10: la palabra EXACTA cuenta más («comprado» ≠ «comprador») */
     return { n, p }; }).filter(Boolean).sort((a, b) => b.p - a.p).map(x => x.n);
 }
 // lo ÚLTIMO que ha usado (se recuerda en el aparato)
