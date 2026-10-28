@@ -17,12 +17,7 @@ const NIVEL = { agotado: ['⛔ Agotado', 'bad'], critico: ['🔴 Crítico', 'bad
 const ICONO = { caja: '📦', sobre: '✉️', bolsa: '🛍️', embalaje: '🎁', filamento: '🧵', material: '🧴', componente: '🔩', otro: '▫️' };
 let pestana = 'resumen'; // se recuerda al volver (no se pierde la pestaña)
 
-function nivelDe(m) {
-  if (!lleno(m.stock)) return '';
-  const st = n(m.stock), avisoCajas = n(((S.cfg || {}).embalaje || {}).avisoCajas);
-  const min = lleno(m.stockMin) ? n(m.stockMin) : (m.tipo === 'caja' ? avisoCajas : null), cri = lleno(m.stockCritico) ? n(m.stockCritico) : (min === null ? null : Math.floor(min / 2));
-  return st <= 0 ? 'agotado' : (cri !== null && st <= cri ? 'critico' : (min !== null && st <= min ? 'bajo' : 'ok'));
-}
+function nivelDe(m) { const nv = CL.nivelStock(m, S.cfg).nivel; return nv === 'sin' ? '' : nv; } // 26-10-2026: la regla única
 const estimado = m => CL.norm(m.estadoStock) === 'estimado' || CL.norm(m.estadoCantidad) === 'estimado';
 const activos = () => (S.t.materiales || []).filter(m => CL.norm(m.activo) !== 'no' && String(m.nombre || '').trim()); // (22-10: una fila sin nombre no es un material)
 
@@ -44,6 +39,7 @@ export function render(el, params) {
   const costes = can('productos.costes'), mover = can('stock.mover');
   const cuerpo = h('div'), tabs = h('div.tabs');
   el.append(
+    h('a.alm-antigua', { href: '#/almacen' }, '📦 Para el día a día usa ', h('b', 'Mi almacén'), ' (comprar, contar, pendientes, entradas y salidas). Esta es la pantalla de antes, con el detalle de cada cosa. →'),
     h('div.page-head', h('div', h('h1', '📦 Inventario y compras'), h('div.muted.small', 'Lo que tienes, lo que se acaba y lo que vale. Se descuenta solo al imprimir y al empaquetar.')),
       h('div.row', mover ? btn('Compré…', () => compraRapida(), { cls: 'primary', icon: 'plus', title: 'Apunta una compra en segundos' }) : null)),
     tabs, cuerpo);

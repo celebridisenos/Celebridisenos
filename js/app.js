@@ -47,7 +47,7 @@ const VIEWS = {
   escanear: () => import('./views/escanear.js'),
   tienda: () => import('./views/tienda.js'), // v12: Tienda web (sustituye a THE NOORKO)
   celebrir8: () => import('./views/celebrir8.js'), // v18: 🧊 CelebriR8 (diseñar piezas con plantillas y editar STL)
-  celebridrew: () => import('./views/celebridrew.js'), // 👗 CelebriDREW: ropa en 3D (patrón 2D + avatar 3D con la tela simulada, como CLO3D)
+  escaparate: () => import('./views/escaparate.js'), // 28-10-2026: ✨ Escaparate (en el sitio de CelebriDREW, que se quitó: ella no lo usaba): fotos y vídeos 3D de tus productos en cualquier color, sin imprimirlos
   cotizador: () => import('./views/cotizador.js'), // v16.2: STL / 3MF → coste y precio al momento
   camaras: () => import('./views/camaras.js'), // v11.7: cámaras de las Bambu Lab (en el PC) // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
@@ -92,7 +92,7 @@ export const NAV = [
   { sep: true, t: 'Producción' },
   { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
   { k: 'celebrir8', t: 'CelebriR8 🧊', i: 'cube', p: 'productos.ver' }, // v18: diseñar piezas sin saber de 3D
-  { k: 'celebridrew', t: 'CelebriDREW 👗', i: 'sparkles', p: 'productos.ver' }, // ropa en 3D: patrones, avatar a medida, tela simulada y PDF para coser
+  { k: 'escaparate', t: 'Escaparate ✨', i: 'sparkles', p: 'productos.ver' }, // 28-10-2026: fotos de estudio y vídeo 360° de tus productos, en tus colores
   { k: 'cotizador', t: 'Cotizador 3D ⚡', i: 'cube', p: 'productos.ver' }, // v16.2: en lugar de «Cámaras» (no se usaba; sigue existiendo en #/camaras)
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { sep: true, t: 'Embalaje y logística' },
@@ -140,6 +140,7 @@ async function route() {
   if (!S.token || !S.me) return;
   const { name, params } = parseHash();
   // v11: QR universal → #/q/<tipo>/<id> abre directamente la ficha
+  if (name === 'celebridrew') return go('escaparate'); // 28-10-2026: CelebriDREW se quitó; en su sitio está el Escaparate
   if (name === 'descanso') return go('tallervivo'); // v18: los juegos se retiraron; en su sitio está el Taller vivo
   if (name === 'universo') return go('estanteria'); // v13: el Universo (galaxia) se sustituyó por la Estantería; los enlaces antiguos siguen funcionando
   if (name === 'q' && params[0] === 'ceb') return go('escanear/' + encodeURIComponent(params[1] || '')); // v11.6: QR del paquete
@@ -512,10 +513,10 @@ export function accionesPaleta() {
     nav('Inteligencia: banco de metas y planeta de clientes', 'sparkles', 'inteligencia', '', 'metas objetivo ventas paises planeta clientes inteligencia numeros media'),
     fn('Plan de impresión: ¿qué imprimo ahora?', 'printer', () => dialogoPlan(), '', 'plan imprimir orden cola impresion que imprimo'),
     fn('Colores del programa', 'sparkles', () => dialogoColores(), '', 'colores paleta tema aspecto apariencia'),
-    fn('Llevar el programa a otro ordenador (mudanza)', 'download', () => import('./mudanza.js').then(M => M.dialogoMudanza()), '', 'mudanza copia de seguridad cambiar de ordenador pc nuevo usb migrar trasladar backup'), // (fuera del programa del PC explica que se hace allí)
+    ...(isAdminUser() ? [nav('Trasladar TODO a otro ordenador (el nuevo servidor)', 'download', 'config/traslado', '', 'mudanza traslado trasladar copia de seguridad cambiar de ordenador pc nuevo servidor torre disco usb migrar backup llevar')] : []), // (28-10: solo administradoras; antes cualquiera abría la mudanza desde aquí)
     nav('Puente de mando: el taller de un vistazo', 'home', 'puente', '', 'inicio portada sala mando resumen directo'),
     nav('CelebriR8: diseñar una pieza (caja, engranaje, llavero con nombre, molde, cortador) o editar un STL', 'cube', 'celebrir8', 'productos.ver', 'celebrir8 r8 fusion diseñar dibujar 3d stl caja engranaje llavero nombre molde cortador galletas figura arandela editar cortar escalar'),
-    nav('CelebriDREW: ropa en 3D (patrón, avatar a medida, tela que cae y PDF para coser)', 'sparkles', 'celebridrew', 'productos.ver', 'celebridrew drew ropa moda costura patron patronaje prenda camiseta sudadera falda pantalon avatar maniqui clo3d tela coser pdf'),
+    nav('Escaparate: fotos de estudio y vídeo 360° de tus productos en cualquier color, sin imprimirlos', 'sparkles', 'escaparate', 'productos.ver', 'escaparate foto fotos estudio producto colores color vinted wallapop instagram video 360 render escena fondo mockup catalogo anuncio'),
     nav('Taller vivo: los pedidos moviéndose por el taller', 'play', 'tallervivo', 'pedidos.ver', 'taller vivo directo cubos cinta impresoras camión'),
     nav('Tráiler del mes: tus números en vídeo', 'play', 'trailer', 'pedidos.ver', 'trailer video mes resumen cine música reel'),
     nav('Ir a Hoy en el taller', 'play', 'hoy', 'pedidos.ver', 'producción imprimir preparar enviar'),
@@ -733,6 +734,7 @@ export async function start() {
   pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }) /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); } // v30.7.1: la IA ya no se carga en la tarjeta gráfica al arrancar (ver warmUp)
+  if (desktop.on && isAdminUser() && !start._claves) { start._claves = true; setTimeout(() => import('./mudanza.js').then(M => M.clavesPendientes()).catch(() => { }), 4000); } // (28-10) en el ordenador NUEVO de un traslado: poner las claves que vinieron cifradas
 }
 // En el PC: copia local diaria de todos los datos (por si Google fallara algún día)
 async function desktopDaily() {

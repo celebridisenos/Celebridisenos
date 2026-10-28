@@ -206,11 +206,11 @@ var CL = (function () {
     // están a 0, el coste REAL del embalaje estándar (pp.embalajeReal, lo calcula la app con el Stock: packStd)
     // (c.sinEmbalaje: elegido A PROPÓSITO «Sin embalaje» / entrega en mano → 0)
     var emb = c.sinEmbalaje ? 0 : n(c.embalaje) > 0 ? n(c.embalaje) : n(pp.embalaje) > 0 ? n(pp.embalaje) : n(pp.embalajeReal), env = n(c.envio !== undefined && c.envio !== '' ? c.envio : pp.envio);
-    var R = fil + luz + mo + pint + ext, T = R * (1 + n(pp.iva)) + emb + env;
+    var neg = n(pp.negocioPedido), R = fil + luz + mo + pint + ext, T = R * (1 + n(pp.iva)) + emb + env + neg; // (28-10: + móvil, SIM…)
     var etsyPct = n(pp.etsyVenta) + n(pp.etsyPago) + n(pp.etsyReg), etsyFix = n(pp.etsyFijo) + n(pp.etsyAnuncioUSD) * n(pp.usdEur);
     function plat(m) { return { general: T / (1 - m), wallapop: T / (1 - m), vinted: T / (1 - m - n(pp.vinted)), etsy: (T + etsyFix) / (1 - m - etsyPct) }; }
     var o = plat(n(pp.margen)), mi = plat(n(pp.margenMin));
-    var out = { desglose: { filamento: fil, luz: luz, manoObra: mo, pintado: pint, gastosExtra: ext, produccion: R, iva: R * n(pp.iva), embalaje: emb, envio: env, costeTotal: T },
+    var out = { desglose: { filamento: fil, luz: luz, manoObra: mo, pintado: pint, gastosExtra: ext, produccion: R, iva: R * n(pp.iva), embalaje: emb, envio: env, negocio: neg, costeTotal: T },
       recomendado: {}, minimo: {}, segundaMano: round10up(T / (1 - n(pp.margen)) * (1 - n(pp.segundaMano))) };
     Object.keys(o).forEach(function (k) { out.recomendado[k] = round10up(o[k]); out.minimo[k] = round10up(mi[k]); });
     out.beneficio = { wallapop: out.recomendado.wallapop - T, vinted: out.recomendado.vinted * (1 - n(pp.vinted)) - T, etsy: out.recomendado.etsy * (1 - etsyPct) - etsyFix - T };
@@ -364,7 +364,7 @@ var CL = (function () {
       var oc = orderCosts(o, data || {}, cfg);
       return { modelo: 2, costeCongelado: o.costeSnap && o.costeSnap.fecha ? o.costeSnap.fecha : '', total: oc.ingreso, unidad: oc.fabricacion ? oc.fabricacion.unidad : null, produccion: oc.fabricacion ? oc.fabricacion.total : null,
         embalaje: oc.embalaje.coste, manoObra: oc.manoObra.coste, perdidas: oc.perdidas, envio: oc.envio, envioEstimado: oc.envioEstimado, comision: oc.comision, comisionEstimada: oc.comisionEstimada,
-        otros: oc.otros, gastos: oc.gastos, coste: oc.coste, beneficio: oc.beneficio, margen: oc.margen, conCoste: oc.conCoste, detalle: oc };
+        otros: oc.otros, gastos: oc.gastos, negocio: oc.negocio, negocioLineas: oc.negocioLineas, coste: oc.coste, beneficio: oc.beneficio, margen: oc.margen, conCoste: oc.conCoste, detalle: oc };
     }
     var pp = (cfg && cfg.precios) || {};
     costOf = costOf || costIndex(data || {}, pp);
@@ -377,12 +377,12 @@ var CL = (function () {
     var env = envReal ? n(o.costeEnvio) : n(pp.envio);
     var com = comReal ? n(o.comision) : estComision(o.canal, total, pp);
     var list = Array.isArray(o.gastosPedido) ? o.gastosPedido : [];
-    var otros = list.reduce(function (a, g) { return a + n(g && g.coste); }, 0);
+    var otros = list.reduce(function (a, g) { return a + n(g && g.coste); }, 0), neg = cuotaNegocio(cfg, data, o.fecha); // (28-10) móvil, SIM…
     var prod = unit === null ? null : r2(unit * qty);
-    var coste = prod === null ? null : r2(prod + env + com + otros);
+    var coste = prod === null ? null : r2(prod + env + com + otros + neg.cuota);
     var ben = coste === null ? null : r2(total - coste);
     return { costeCongelado: snap ? snap.fecha : '', total: r2(total), unidad: unit === null ? null : r2(unit), produccion: prod, envio: r2(env), envioEstimado: !envReal, comision: r2(com), comisionEstimada: !comReal,
-      otros: r2(otros), gastos: list, coste: coste, beneficio: ben, margen: ben !== null && total > 0 ? ben / total : null, conCoste: unit !== null };
+      otros: r2(otros), gastos: list, negocio: neg.cuota, negocioLineas: neg.lineas, coste: coste, beneficio: ben, margen: ben !== null && total > 0 ? ben / total : null, conCoste: unit !== null };
   }
   // v11 · Centro financiero: de lo cobrado al beneficio neto (estimación orientativa, no sustituye al gestor)
   // Precios con IVA incluido. IVA a pagar ≈ IVA de las ventas − IVA de lo que compras (costes con IVA y comisiones).
@@ -884,13 +884,27 @@ var CL = (function () {
   function medidasTxt(m) { var v = [m.largo, m.ancho, m.alto].filter(function (x) { return filled(x) && n(x) > 0; }).map(fmtN); return v.length ? v.join(' × ') + ' cm' : ''; }
   function envaseNombre(tipo, m) { var t = envaseTipo(tipo); return (t ? t[2] : 'Envase') + (medidasTxt(m) ? ' ' + medidasTxt(m) : ''); }
   function porMetro(m) { if (!m) return null; var c = matCost(m); return c.coste === null ? null : (c.costeM !== undefined ? c.costeM : c.coste); }
-  // 'ok' 🟢 · 'bajo' 🟠 · 'agotado' 🔴 · 'sin' (sin contar)
-  function stockEstado(m, sc) {
-    if (!m || !filled(m.stock)) return 'sin';
-    var st = n(m.stock); sc = simpleCfg(sc);
-    if (st <= 0) return 'agotado';
-    var min = filled(m.stockMin) ? n(m.stockMin) : (unitKey(m.unidad) === 'm' ? sc.avisoMetros : sc.avisoUnidades);
-    return st <= min ? 'bajo' : 'ok';
+  // 26-10-2026 · UNA SOLA REGLA de «se acaba» para todo el programa (Mi almacén, Inicio, Hoy, Inventario, Stock, Embalaje y los
+  // avisos del servidor). Antes había cuatro y una pantalla decía «se acaba» y otra «todo bien». El aviso de cada cosa:
+  //  · el suyo («Avisar si quedan…», stockMin) si lo tiene;
+  //  · si no: metros → «avisar con N metros» (2) · unidades → cajas: «avisoCajas» (3); lo demás: «avisar con N unidades» (3) ·
+  //    mililitros, gramos… → cuando queda menos de MEDIO bote o rollo (la mitad de lo que trae cada uno).
+  //  Crítico = el suyo (stockCritico) o la mitad del aviso. cfg = la configuración entera (S.cfg en la app, getConfig() en el servidor).
+  function nivelStock(m, cfg) {
+    if (!m || !filled(m.stock)) return { nivel: 'sin', min: null, cri: null };
+    var emb = (cfg && cfg.embalaje) || {}, sc = simpleCfg(emb.simple), st = n(m.stock), u = unitKey(m.unidad) || 'ud', min;
+    if (filled(m.stockMin)) min = n(m.stockMin);
+    else if (u === 'm') min = n(sc.avisoMetros);
+    else if (u === 'ud') min = m.tipo === 'caja' && n(emb.avisoCajas) > 0 ? n(emb.avisoCajas) : n(sc.avisoUnidades);
+    else min = n(m.cantidad) > 0 ? Math.round(n(m.cantidad) / 2 * 1000) / 1000 : null;
+    var cri = filled(m.stockCritico) ? n(m.stockCritico) : (min === null ? null : Math.floor(min / 2));
+    var nivel = st <= 0 ? 'agotado' : (cri !== null && cri > 0 && st <= cri ? 'critico' : (min !== null && st <= min ? 'bajo' : 'ok'));
+    return { nivel: nivel, min: min, cri: cri };
+  }
+  // 'ok' 🟢 · 'bajo' 🟠 · 'agotado' 🔴 · 'sin' (sin contar) — la misma regla (crítico cuenta como bajo)
+  function stockEstado(m, sc, cfg) { // sc (lo que se está editando) manda sobre lo guardado
+    var e = (cfg && cfg.embalaje) || {}, c = { embalaje: { avisoCajas: e.avisoCajas, simple: sc || e.simple } }, nv = nivelStock(m, c).nivel;
+    return nv === 'critico' ? 'bajo' : nv;
   }
   // La cinta del inventario (un solo material): «Cinta de embalar (rollo)»
   function cintaDe(mats) { var l = mats || []; for (var i = 0; i < l.length; i++) if (norm(l[i].activo) !== 'no' && norm(l[i].nombre) === norm('Cinta de embalar (rollo)')) return l[i]; return null; }
@@ -1029,6 +1043,34 @@ var CL = (function () {
     return { total: total, conocido: conocido, estado: estado, lineas: lineas, falta: falta, fabricacion: fab, embalaje: pack, manoObraCalculadora: moCalc,
       grupos: { 'Fabricación': fab ? r2x(fab.unidad) : null, 'Embalaje': embC === null ? null : r2x(embC) }, pricing: total === null ? null : costPricing(total, pp, p.precio, p.plataforma) };
   }
+  // ================= 28-10-2026 · 📱 GASTOS DEL NEGOCIO que se recuperan con los pedidos =================
+  // Ella: «a veces compramos SIM o un móvil nuevo… tiene que quitar 1 € por cliente o hacer tú la cuenta… en cada pedido, para recuperar:
+  // el móvil me costó 100 € y las SIM cuestan 10 € (se compra cada mes una como mínimo)». Cada gasto (cfg.finanzas.gastosNegocio) se reparte
+  // entre los pedidos de los meses en que se recupera (la SIM, en su mes; el móvil, en los meses que digas): cuota de un pedido =
+  // Σ importe ÷ meses ÷ pedidos al mes (los de los últimos 60 días ÷ 2, mínimo 10). Sin gastos apuntados, 0: nada cambia.
+  var _pmCache = {}, _pmUltimo = 0;
+  function pedidosAlMes(data, cfg, f) {
+    var L = data && data.pedidos;
+    if (!L || !L.length) return _pmUltimo || 10; // (las pantallas que no pasan los pedidos usan la última media calculada)
+    var k = f + '|' + L.length; if (_pmCache[k]) return _pmCache[k];
+    var d = parse(f) || new Date(), desde = dateStr(new Date(d.getTime() - 60 * 86400000)), d30 = dateStr(new Date(d.getTime() - 30 * 86400000)), cp = (cfg && cfg.pedidos) || {}, c = 0, c30 = 0;
+    L.forEach(function (o) { var x = s(o && o.fecha).substring(0, 10); if (x && x > desde && x <= f && !stateOf(cp, o.estado).cancelled) { c++; if (x > d30) c30++; } });
+    var r = Math.max(10, c30, Math.round(c / 2)); // (el último mes o la media de dos meses: lo que sea más; si el negocio crece, no se cobra de más)
+    if (Object.keys(_pmCache).length > 400) _pmCache = {};
+    _pmCache[k] = r; _pmUltimo = r; return r;
+  }
+  function addMeses(ds, m) { var d = parse(ds); if (!d) return ''; d.setMonth(d.getMonth() + m); return dateStr(d); }
+  function cuotaNegocio(cfg, data, fecha) {
+    var L = ((cfg || {}).finanzas || {}).gastosNegocio;
+    if (!Array.isArray(L) || !L.length) return { cuota: 0, lineas: [], pedidosMes: 0 };
+    var f = s(fecha).substring(0, 10) || dateStr(new Date()), pm = pedidosAlMes(data, cfg, f), tot = 0, lineas = [];
+    L.forEach(function (g) {
+      var ini = s(g && g.fecha).substring(0, 10), m = Math.max(1, Math.round(n(g && g.meses)) || 1), imp = n(g && g.importe);
+      if (!ini || !(imp > 0) || f < ini || f >= addMeses(ini, m)) return;
+      var c = imp / m / pm; tot += c; lineas.push({ id: g.id, nombre: s(g.nombre) || 'Gasto del negocio', cuota: r2x(c), hasta: addMeses(ini, m) });
+    });
+    return { cuota: r2x(tot), lineas: lineas, pedidosMes: pm };
+  }
   // Centro de costes de un pedido (modelo 11.4). Los pedidos empaquetados antes de la 11.4 se calculan como siempre.
   function orderCosts(o, data, cfg) {
     data = data || {}; var pp = (cfg && cfg.precios) || {};
@@ -1041,9 +1083,10 @@ var CL = (function () {
     var envReal = has(o.costeEnvio), comReal = has(o.comision);
     var env = envReal ? n(o.costeEnvio) : n(pp.envio), com = comReal ? n(o.comision) : estComision(o.canal, total, pp);
     var gl = Array.isArray(o.gastosPedido) ? o.gastosPedido : [], otros = r2x(gl.reduce(function (a, x) { return a + n(x && x.coste); }, 0));
+    var neg = cuotaNegocio(cfg, data, o.fecha); // (28-10) móvil, SIM…
     var prod = fab ? r2x(fab.unidad * qty) : null;
     var embC = pack && pack.coste !== null && pack.coste !== undefined ? r2x(pack.coste) : (pack ? r2x(pack.conocido) : 0);
-    var coste = prod === null ? null : r2x(prod + embC + mo + perd + env + com + otros);
+    var coste = prod === null ? null : r2x(prod + embC + mo + perd + env + com + otros + neg.cuota);
     var ben = coste === null ? null : r2x(total - coste);
     var pP = productWeight(o, data), pE = pack ? pack.peso : null;
     return { modelo: 2, ingreso: r2x(total), cantidad: qty,
@@ -1051,7 +1094,7 @@ var CL = (function () {
       embalaje: { coste: embC, completo: !!pack && pack.coste !== null && pack.coste !== undefined, estado: pack ? pack.estado : 'pendiente', congelado: frozen, fecha: frozen ? e.hecho : '', plantilla: pack ? pack.plantilla : null,
         caja: pack ? (pack.caja && pack.caja.nombre ? pack.caja.nombre : pack.caja || '') : '', lineas: pack ? pack.lineas : [], pendientes: pack ? pack.pendientes : [] },
       manoObra: { coste: r2x(mo), respondido: lab.respondido, minutos: lab.minutos, tarifa: lab.tarifa, lineas: lab.lineas },
-      perdidas: perd, perdidasLista: perdL, otros: otros, gastos: gl, envio: r2x(env), envioEstimado: !envReal, comision: r2x(com), comisionEstimada: !comReal,
+      perdidas: perd, perdidasLista: perdL, otros: otros, gastos: gl, negocio: neg.cuota, negocioLineas: neg.lineas, envio: r2x(env), envioEstimado: !envReal, comision: r2x(com), comisionEstimada: !comReal,
       coste: coste, beneficio: ben, margen: ben !== null && total > 0 ? ben / total : null, conCoste: prod !== null,
       pesos: { producto: pP, productoTotal: pP === null ? null : pP * qty, embalaje: pE, embalajeFuente: pack ? pack.pesoFuente : 'pendiente', total: pP !== null && pE !== null && pE !== undefined ? Math.round(pP * qty + pE) : null } };
   }
@@ -1148,11 +1191,11 @@ var CL = (function () {
       R.estado = p.coste === null ? 'pendiente' : (p.envioEstimado || p.comisionEstimada) ? 'estimado' : 'confirmado';
       R.enlace = 'pedidos/' + o.id; R.origen = 'Datos del pedido nº ' + o.numero + ' y sus costes registrados.';
     } else if (id === 'cajas') {
-      var cs = (data.materiales || []).filter(function (m) { return m.tipo === 'caja' && norm(m.activo) !== 'no'; }), aviso = n(((cfg.embalaje || {}).avisoCajas));
+      var cs = (data.materiales || []).filter(function (m) { return m.tipo === 'caja' && norm(m.activo) !== 'no'; });
       if (!cs.length) { R.valor = 'No hay cajas en Materiales'; R.vacio = true; R.estado = 'pendiente'; return R; }
       var tot = 0, sin = 0;
       cs.forEach(function (m) {
-        var st = filled(m.stock) ? n(m.stock) : null, min = filled(m.stockMin) ? n(m.stockMin) : aviso;
+        var st = filled(m.stock) ? n(m.stock) : null, min = nivelStock(m, cfg).min; // 26-10-2026: la regla única
         if (st === null) sin++; else tot += st;
         R.filas.push({ t: m.nombre, v: st === null ? 'sin contar' : String(st), estado: st === null ? 'pendiente' : 'confirmado', nota: st !== null && st <= min ? (st <= 0 ? 'SIN STOCK' : 'stock bajo (aviso con ' + min + ')') : '' });
       });
@@ -1297,10 +1340,9 @@ var CL = (function () {
     if (dups.length) add('warn', dups.length + ' posible(s) pedido(s) duplicado(s) (mismo cliente, producto, fecha e importe)', 'pedidos', dups.slice(0, 6).join(' · '));
     var st = stockLevels(data, cp).list.filter(function (x) { return x.controlado && x.fisico < 0; });
     if (st.length) add('bad', st.length + ' producto(s) con stock negativo (incoherente)', 'stock', st.slice(0, 6).map(function (x) { return x.producto + ' (' + x.fisico + ')'; }).join(', '));
-    var av = n((cfg.embalaje || {}).avisoCajas);
     (data.materiales || []).filter(function (m) { return m.tipo === 'caja' && norm(m.activo) !== 'no' && filled(m.stock); }).forEach(function (m) {
-      var min = filled(m.stockMin) ? n(m.stockMin) : av;
-      if (n(m.stock) <= 0) add('bad', 'Sin stock de ' + m.nombre, 'embalaje/cajas'); else if (n(m.stock) <= min) add('warn', 'Quedan ' + n(m.stock) + ' de ' + m.nombre + ' (aviso con ' + min + ')', 'embalaje/cajas');
+      var r = nivelStock(m, cfg), min = r.min; // 26-10-2026: la regla única
+      if (r.nivel === 'agotado') add('bad', 'Sin stock de ' + m.nombre, 'almacen'); else if (r.nivel === 'bajo' || r.nivel === 'critico') add('warn', 'Quedan ' + n(m.stock) + ' de ' + m.nombre + ' (aviso con ' + min + ')', 'almacen');
     });
     var pendM = (data.materiales || []).filter(function (m) { return norm(m.activo) !== 'no' && s(m.nombre) && matCost(m).estado === 'pendiente'; }); // 22-10: una fila sin nombre no es un material
     if (pendM.length) add('info', pendM.length + ' material(es) con datos PENDIENTES (no se pueden calcular)', 'costes', pendM.slice(0, 6).map(function (m) { return m.nombre; }).join(', '));
@@ -1687,11 +1729,11 @@ var CL = (function () {
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, fichaCoste: fichaCoste, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
-    finance: finance, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
+    finance: finance, cuotaNegocio: cuotaNegocio, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,
-    ENVASE_TIPOS: ENVASE_TIPOS, SIMPLE_DEF: SIMPLE_DEF, simpleCfg: simpleCfg, envaseTipo: envaseTipo, medidasTxt: medidasTxt, envaseNombre: envaseNombre, porMetro: porMetro, stockEstado: stockEstado, simplePlan: simplePlan,
+    ENVASE_TIPOS: ENVASE_TIPOS, SIMPLE_DEF: SIMPLE_DEF, simpleCfg: simpleCfg, nivelStock: nivelStock, envaseTipo: envaseTipo, medidasTxt: medidasTxt, envaseNombre: envaseNombre, porMetro: porMetro, stockEstado: stockEstado, simplePlan: simplePlan,
     grupoEnvio: grupoEnvio, principalEnvio: principalEnvio, mismoCliente: mismoCliente, candidatosConjunto: candidatosConjunto, numerosGrupo: numerosGrupo,
     esRecogida: esRecogida, necesitaEnvio: necesitaEnvio, datosEnvioCompletos: datosEnvioCompletos, datosEnvioFalta: datosEnvioFalta,
     waPhone: waPhone, waLink: waLink, pagoWeb: pagoWeb, webGroup: webGroup, reservaHasta: reservaHasta, reservasPorCaducar: reservasPorCaducar };

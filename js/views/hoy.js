@@ -49,12 +49,10 @@ function pintaRevision(box) {
 // v16 · Avisos de stock: materiales (bajo / crítico / agotado) y filamento por material + color
 export function avisosStock() {
   const lleno = v => v !== '' && v !== null && v !== undefined && isFinite(Number(v)), out = [];
-  const avisoCajas = n(((S.cfg || {}).embalaje || {}).avisoCajas);
-  (S.t.materiales || []).forEach(m => {
-    if (CL.norm(m.activo) === 'no' || !lleno(m.stock)) return;
-    const st = n(m.stock), min = lleno(m.stockMin) ? n(m.stockMin) : (m.tipo === 'caja' ? avisoCajas : null), cri = lleno(m.stockCritico) ? n(m.stockCritico) : (min === null ? null : Math.floor(min / 2));
-    const nivel = st <= 0 ? 'agotado' : (cri !== null && st <= cri ? 'critico' : (min !== null && st <= min ? 'bajo' : ''));
-    if (nivel && (min !== null || st <= 0 && lleno(m.stockMin))) out.push({ tipo: 'material', id: m.id, nombre: m.nombre, nivel, queda: Math.round(st * 100) / 100, unidad: m.unidad || 'ud' });
+  (S.t.materiales || []).forEach(m => { // 26-10-2026: la regla única (CL.nivelStock), la misma de Mi almacén y del servidor
+    if (CL.norm(m.activo) === 'no' || !lleno(m.stock) || m.tipo === 'filamento' || !String(m.nombre || '').trim()) return;
+    const nv = CL.nivelStock(m, S.cfg).nivel;
+    if (['agotado', 'critico', 'bajo'].includes(nv)) out.push({ tipo: 'material', id: m.id, nombre: m.nombre, nivel: nv, queda: Math.round(n(m.stock) * 100) / 100, unidad: m.unidad || 'ud' });
   });
   const aviso = n(((S.cfg || {}).taller || {}).avisoColorGramos) || 300, g = {};
   (S.t.bobinas || []).forEach(b => { const k = (b.material || 'PLA') + ' ' + (b.color || ''); g[k] = (g[k] || 0) + Math.max(0, n(b.restante)); });

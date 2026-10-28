@@ -11,23 +11,23 @@
 export const GRUPOS = [
   { k: 'dia', t: 'Empezar el día', e: '☀️', c: '#f59e0b', items: ['puente', 'inicio', 'hoy', 'tallervivo'] },
   { k: 'vender', t: 'Vender y atender', e: '🛒', c: '#ec4899', items: ['pedidos', 'pedidosweb', 'bandeja', 'clientes', 'presupuestos', 'facturas', 'rapidas'] },
-  { k: 'crear', t: 'Diseñar y crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'celebridrew', 'productos', 'catalogo', 'cotizador'] },
+  { k: 'crear', t: 'Diseñar y crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'escaparate', 'productos', 'catalogo', 'cotizador'] },
   { k: 'fabricar', t: 'Imprimir y fabricar', e: '🖨️', c: '#0ea5e9', items: ['almacen', 'taller'] }, // 26-10-2026: «no se entiende nada… pocos pasos, muy fácil»
   { k: 'enviar', t: 'Empaquetar y enviar', e: '📦', c: '#f97316', items: ['embalaje', 'escanear'] },
   { k: 'web', t: 'Tienda y web', e: '🌐', c: '#14b8a6', items: ['tienda', 'mitienda', 'estanteria'] },
   { k: 'conocer', t: 'Darte a conocer', e: '📣', c: '#e11d48', items: ['reels', 'instagram', 'redes', 'estudio', 'anuncios', 'trailer'] },
-  { k: 'numeros', t: 'Tus números', e: '📊', c: '#22c55e', items: ['ingresos', 'informes', 'inteligencia'] },
+  { k: 'numeros', t: 'Tus números', e: '📊', c: '#22c55e', items: ['ingresos', 'costes', 'informes', 'inteligencia'] }, // 26-10: «Materiales y costes» es dinero (precio de cada cosa), no almacén
   { k: 'equipo', t: 'Equipo y ayuda', e: '🤝', c: '#6366f1', items: ['chat', 'tareas', 'noticias', 'archivos', 'ia', 'centroia'] },
   { k: 'ajustes', t: 'Ajustes', e: '⚙️', c: '#64748b', items: ['config', 'estado'] },
-  { k: 'avanzado', t: 'Avanzado', e: '🧰', c: '#94a3b8', items: ['stock', 'inventario', 'costes'] }, // lo de antes, por si hace falta (para el día a día: «Mi almacén»)
+  { k: 'avanzado', t: 'Avanzado', e: '🧰', c: '#94a3b8', items: ['stock', 'inventario'] }, // las pantallas de antes del almacén, para ver el detalle (el día a día: «Mi almacén»)
 ];
 // para qué sirve cada sección (una línea, como lo diría ella)
 export const DESCR = {
   puente: 'El resumen de todo de un vistazo', inicio: 'Tu día: ventas, pedidos y avisos', hoy: 'Lo que toca hacer hoy en el taller', tallervivo: 'Las impresoras y el taller en directo',
   pedidos: 'Ver, crear y seguir pedidos', pedidosweb: 'Lo que te piden desde la tienda web', bandeja: 'Los correos de ventas de todas tus cuentas', clientes: 'Tus clientes y lo que te han comprado',
   presupuestos: 'Hacer y mandar presupuestos', facturas: 'Facturas y cobros', rapidas: 'Respuestas listas para los clientes',
-  celebrir8: 'Diseñar piezas en 3D sin saber de 3D', celebridrew: 'Ropa en 3D: patrones, avatar y PDF para coser', productos: 'Tus productos, fotos y abrir en Bambu', catalogo: 'Más de 300 diseños listos para imprimir', cotizador: 'Cuánto cobrar por una pieza impresa',
-  almacen: 'Lo que tienes y lo que has comprado (todo va solo)', taller: 'Impresoras 3D, etiquetas y papel', stock: 'Detalle del stock de productos', inventario: 'Inventario completo, historial y estadísticas', costes: 'Precios de los materiales y coste de cada cosa',
+  celebrir8: 'Diseñar piezas en 3D sin saber de 3D', escaparate: 'Fotos y vídeo 360° de tus productos en cualquier color', productos: 'Tus productos, fotos y abrir en Bambu', catalogo: 'Más de 300 diseños listos para imprimir', cotizador: 'Cuánto cobrar por una pieza impresa',
+  almacen: 'Lo que tienes y lo que has comprado (todo va solo)', taller: 'Impresoras 3D, etiquetas y papel', stock: 'Detalle de las piezas en stock (el día a día: Mi almacén)', inventario: 'Inventario completo: avisos de cada cosa (el día a día: Mi almacén)', costes: 'Cuánto te cuesta cada producto: precios de materiales y embalajes',
   embalaje: 'Empaquetar pedidos y sus etiquetas de envío', escanear: 'Leer el QR de un paquete',
   tienda: 'Tu tienda web: productos y textos', mitienda: 'Abrir, compartir y el QR de tu tienda', estanteria: 'Tus productos en una estantería bonita',
   reels: 'Vídeos para Instagram y TikTok', instagram: 'Publicaciones de Instagram', redes: 'Calendario de redes sociales', estudio: 'Fotos de producto con IA (Biouvision)', anuncios: 'Anuncios con inteligencia artificial', trailer: 'El vídeo resumen de tu mes',
@@ -39,7 +39,7 @@ export const DESCR = {
 export const SINONIMOS = {
   pedidos: 'pedido encargo venta vender comanda orden', pedidosweb: 'web solicitud encargo online', bandeja: 'correo email gmail mensajes ventas', clientes: 'cliente comprador contacto',
   presupuestos: 'presupuesto oferta cotizacion precio', facturas: 'factura cobrar cobro facturar pagar recibo iva', rapidas: 'respuesta whatsapp contestar plantilla mensaje',
-  celebrir8: 'disenar diseno 3d pieza modelo stl caja llave juguete r8', celebridrew: 'ropa prenda moda costura patron sudadera camiseta vestido falda pantalon avatar drew coser',
+  celebrir8: 'disenar diseno 3d pieza modelo stl caja llave juguete r8', escaparate: 'escaparate foto fotos estudio producto colores color vinted wallapop instagram video 360 render escena fondo anuncio mockup',
   productos: 'producto foto articulo bambu laminar', catalogo: 'catalogo disenos listos imprimir modelos cults', cotizador: 'precio calcular cuanto coste presupuesto cobrar',
   almacen: 'almacen stock inventario compra compras compre comprado tengo existencias filamento bobina bobinas caja cajas sobre sobres bolsa bolsas material materiales falta acaba comprar', taller: 'imprimir impresion impresora etiqueta etiquetas papel bambu a1 p1p', stock: 'existencias hecho guardado productos', inventario: 'historial estadisticas proveedor', costes: 'coste material gasto margen precio',
   embalaje: 'empaquetar paquete envio enviar etiqueta etiquetas correos seur caja', escanear: 'qr escaner leer paquete codigo',
@@ -101,5 +101,5 @@ export function abre(o) {
   document.addEventListener('keydown', tecla, true); document.body.append(capa); pinta(); try { busca2.focus(); } catch (e) { } setTimeout(() => { try { if (document.activeElement !== busca2) busca2.focus(); } catch (e) { } }, 30); // (18-10: el foco AL MOMENTO: con Ctrl + espacio y a escribir enseguida, las primeras letras se perdían)
   return capa;
 }
-const EMO = { puente: '🛰️', inicio: '🏠', hoy: '📋', tallervivo: '🏭', pedidos: '🧾', pedidosweb: '🛍️', bandeja: '📬', clientes: '👥', presupuestos: '💬', facturas: '🧮', rapidas: '⚡', celebrir8: '🧊', celebridrew: '👗', productos: '📦', catalogo: '📚', cotizador: '💶', taller: '🖨️', stock: '🗄️', inventario: '🧵', costes: '⚖️', embalaje: '🎁', escanear: '📷', tienda: '🌐', mitienda: '🔗', estanteria: '🏬', reels: '🎬', instagram: '📸', redes: '🗓️', estudio: '✨', anuncios: '📣', trailer: '🎞️', ingresos: '💰', informes: '📈', inteligencia: '🧠', chat: '💭', tareas: '✅', noticias: '📰', archivos: '📁', ia: '🤖', centroia: '🪄', config: '⚙️', estado: '🩺' };
+const EMO = { puente: '🛰️', inicio: '🏠', hoy: '📋', tallervivo: '🏭', pedidos: '🧾', pedidosweb: '🛍️', bandeja: '📬', clientes: '👥', presupuestos: '💬', facturas: '🧮', rapidas: '⚡', celebrir8: '🧊', escaparate: '✨', productos: '📦', catalogo: '📚', cotizador: '💶', taller: '🖨️', stock: '🗄️', inventario: '🧵', costes: '⚖️', embalaje: '🎁', escanear: '📷', tienda: '🌐', mitienda: '🔗', estanteria: '🏬', reels: '🎬', instagram: '📸', redes: '🗓️', estudio: '✨', anuncios: '📣', trailer: '🎞️', ingresos: '💰', informes: '📈', inteligencia: '🧠', chat: '💭', tareas: '✅', noticias: '📰', archivos: '📁', ia: '🤖', centroia: '🪄', config: '⚙️', estado: '🩺' };
 const emoji = n => EMO[n.k] || '•';

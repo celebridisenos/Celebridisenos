@@ -240,7 +240,7 @@ export async function montarCatalogo(el, ext = {}) {
   // 18-10-2026 · VÍDEO FOTOGRAMA A FOTOGRAMA (como el de CelebriDREW): cada fotograma con su hora exacta → suave y entero aunque el
   // ordenador tarde en pintar (la grabación «en directo» se quedaba sin imágenes con las piezas pesadas). vueltas = lo que gira la cámara.
   async function fotogramas(dur, fn, vueltas = 0) {
-    let V; try { V = await import('../drew/video_mp4.js'); } catch (e) { return null; } const fps = 30, n = Math.round(dur * fps);
+    let V; try { V = await import('../video_mp4.js'); } catch (e) { return null; } const fps = 30, n = Math.round(dur * fps);
     escena.animar(null); escena.giraCamara(0); escena.video(true);
     try { const blob = await V.mp4DeLienzo(lienzo, n, fps, f => escena.fotograma(fn, f / fps, vueltas * 2 * Math.PI * f / n)); return blob ? { blob, ext: 'mp4' } : null; }
     finally { escena.video(false); if (AN && AN.fn) escena.animar(AN.fn); else if (AN && AN.modo === 'girar') escena.giraCamara(VEL); }

@@ -52,7 +52,8 @@ const SECTIONS = [
   { k: 'importar', t: 'Importar del programa anterior', i: 'upload', p: 'config.editar' },
   { k: 'papelera', t: 'Papelera', i: 'trash' },
   { k: 'auditoria', t: 'Auditoría', i: 'history' },
-  { k: 'conexiones', t: 'Estado del sistema', i: 'refresh', p: 'config.ver' }
+  { k: 'conexiones', t: 'Estado del sistema', i: 'refresh', p: 'config.ver' },
+  { k: 'traslado', t: 'Trasladar a otro ordenador', i: 'download', admin: true } // 28-10-2026: solo administradoras (lleva TODO, también las claves)
 ];
 
 export function render(el, params) {
@@ -62,11 +63,12 @@ export function render(el, params) {
   const mobileSel = h('select.inp.show-m', { style: { marginBottom: '12px' }, onchange: e => go('config/' + e.target.value) });
   el.append(h('div.page-head', h('h1', 'Configuración')), mobileSel, h('div.grid', { style: { gridTemplateColumns: window.innerWidth <= 860 ? '1fr' : '240px minmax(0, 1fr)' } }, h('div.hide-m', nav), body));
   const draw = () => {
-    const vis = SECTIONS.filter(s => !s.p || can(s.p) || ['solicitudes', 'usuarios', 'roles'].includes(s.k) && false);
-    mount(nav, SECTIONS.map(s => s.g ? h('div.grp-t', s.g) : h('div.item' + (sec === s.k ? '.sel' : ''), { onclick: () => go('config/' + s.k) }, icon(s.i, 's'), h('span.grow', s.t), s.p && !can(s.p) ? icon('lock', 's') : null,
+    const cerrada = s => (s.p && !can(s.p)) || (s.admin && !isAdminUser()); // (28-10: «admin» = solo administradoras)
+    mount(nav, SECTIONS.map(s => s.g ? h('div.grp-t', s.g) : h('div.item' + (sec === s.k ? '.sel' : ''), { onclick: () => go('config/' + s.k) }, icon(s.i, 's'), h('span.grow', s.t), cerrada(s) ? icon('lock', 's') : null,
       s.k === 'solicitudes' && can('usuarios.admin') && S.t.solicitudes.filter(x => x.estado === 'pendiente').length ? h('span.pill.bad', String(S.t.solicitudes.filter(x => x.estado === 'pendiente').length)) : null)));
-    mount(mobileSel, SECTIONS.map(s => s.g ? h('optgroup', { label: s.g }) : h('option', { value: s.k, selected: s.k === sec }, s.t + (s.p && !can(s.p) ? ' 🔒' : ''))));
+    mount(mobileSel, SECTIONS.map(s => s.g ? h('optgroup', { label: s.g }) : h('option', { value: s.k, selected: s.k === sec }, s.t + (cerrada(s) ? ' 🔒' : ''))));
     const s = SECTIONS.find(x => x.k === sec) || SECTIONS[1];
+    if (s.admin && !isAdminUser()) return mount(body, h('h2', s.t), card(null, h('p', '🔒 Esto solo lo puede hacer una persona ', h('b', 'administradora'), ': lleva TODO el programa, sus carpetas y sus claves a otro ordenador.')));
     if (s.p && !can(s.p)) return mount(body, lockBox(s.p, 'configuración: ' + s.t));
     mount(body, h('h2', s.t));
     try { const r = SEC[s.k](body); if (r && r.then) r.catch(e => body.appendChild(h('p.bad-t', e.message))); } catch (e) { body.appendChild(h('p.bad-t', e.message)); }
@@ -176,6 +178,7 @@ const SEC = {
       h('div.card', h('div.table-wrap', h('table.t.rules', h('thead', h('tr', h('th', 'Cuando…'), h('th.c', 'Campana'), h('th.c', 'Telegram'), h('th.c', 'Ventana'))), h('tbody', rows)))),
       h('div.row', btn('Guardar reglas', () => saveCfg('automatizaciones', Object.assign(c, { _editado: true })), { cls: 'primary' }), btn('Probar ventana', () => import('../popups.js').then(m => m.popup({ titulo: '🖨️ La P1P debería haber terminado', texto: 'Maceta Luna × 2 · márcala como terminada', enlace: 'hoy' }, true)), { cls: 'ghost' })));
   },
+  traslado(b) { return import('../mudanza.js').then(M => M.seccionTraslado(b, card)); },
   perfil(b) {
     // v11: avisos flotantes de este dispositivo
     import('../popups.js').then(PM => {
@@ -204,7 +207,7 @@ const SEC = {
       h('div.form', field('Nombre que ven los demás', nombre), field('Mi color', color)), btn('Guardar', async () => { try { const r = await api('usuarios.editar', { id: u.id, nombre: nombre.value.trim(), color: color.value }); Object.assign(S.me, r); emit(); toast('Perfil guardado', 'ok'); } catch (e) { handleError(e); } }, { cls: 'primary' })),
       UI18.es18() ? null : card('Apariencia', tema, h('p.small.muted', 'Cada persona elige su tema; se aplica en todos sus dispositivos.')), // (v30.7.1: en la Sala de mando / Atelier 30 este tema no se aplicaba —«no te deja»—: ahí manda el desplegable de temas de abajo)
       card('Interfaz (este aparato)', uiElegir()),
-      desktop.on ? card('📦 Llevar el programa a otro ordenador', h('p.small.muted', { style: { margin: 0 } }, 'Prepara en un USB una carpeta con el programa, tus ajustes, tus diseños y tus perfiles de Bambu Studio, con una guía paso a paso y un «restaurar» de doble clic para el ordenador nuevo. Aquí no se borra nada.'), btn('📦 Preparar la copia de mudanza', () => import('../mudanza.js').then(M => M.dialogoMudanza()), { cls: 'primary cfg-mudanza' })) : null,
+      desktop.on && isAdminUser() ? card('🖥️ Llevar el programa a otro ordenador', h('p.small.muted', { style: { margin: 0 } }, 'Ahora está en Configuración › Sistema › «Trasladar a otro ordenador» (solo administradoras).'), btn('Ir allí', () => go('config/traslado'), { cls: 'sm cfg-mudanza' })) : null, // (28-10: antes lo veía cualquiera aquí)
       UI18.es50() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Seis temas: ✨ Nácar y ✨ Medianoche (los de la 60: cristal, letra de imprenta y oro), Perla y Champán y rosa (claros), Aurora y Eclipse (oscuros), y «Como Windows». En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : null,
       UI18.es30() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Trece temas (siete claros y seis oscuros) y «Como Windows», que cambia solo de claro a oscuro. En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : null,
       card(null, foto.el),

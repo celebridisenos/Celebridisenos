@@ -43,7 +43,7 @@ export function render(el, params) {
   const bar = h('div.tabs.stock-tabs', { style: { marginBottom: '14px' } });
   const pane = h('div');
   const head = h('div.page-head', h('h1', 'Stock'));
-  el.append(head, bar, pane);
+  el.append(h('a.alm-antigua', { href: '#/almacen' }, '📦 Para el día a día usa ', h('b', 'Mi almacén'), ' (comprar, contar, piezas hechas, pendientes). Esta es la pantalla de antes, con el detalle. →'), head, bar, pane); // 26-10-2026
   let cur = null;
   const show = (k, p) => {
     tab = k; try { localStorage.setItem('cd.stock.tab', k); } catch (e) { }

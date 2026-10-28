@@ -285,7 +285,7 @@ function precioFicha(p) {
   const d = x.desglose;
   return h('div.rt',
     x.coste != null ? h('div.rt-c.coste', h('span.rt-t', 'ME CUESTA'), h('span.rt-v', eur(x.coste)),
-      h('details.rt-d', h('summary', 'Ver desglose'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Pintado', d.pintado], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (sumado al precio)', d.embalaje], ['Envío', d.envio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))) : null,
+      h('details.rt-d', h('summary', 'Ver desglose'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Pintado', d.pintado], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (sumado al precio)', d.embalaje], ['Envío', d.envio], ['📱 Móvil, SIM… (se recupera en cada pedido)', d.negocio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))) : null,
     h('div.rt-c.min', h('span.rt-t', 'PUEDES BAJAR HASTA'), h('span.rt-v', x.minimo != null ? eur(x.minimo) : '—'),
       x.minimo != null ? gana(x.ganaMin) : h('span.rt-s', can('productos.editar') ? 'Pon tu mínimo en Editar → paso 3' + (x.sugerido ? ' (por costes, no menos de ' + eur(x.sugerido) + ')' : '') : 'Sin mínimo puesto')),
     x.precio ? h('div.rt-c.pvp', h('span.rt-t', 'LO PUBLICAS A'), h('span.rt-v', eur(x.precio)), gana(x.ganaPrecio)) : null,
@@ -449,7 +449,7 @@ async function view3DLocal(path, name) {
 }
 
 // ---------- Asistente de precio (usa lo que ya hay: costes, Configuración, ventas) ----------
-function pricingParams() { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}); }
+function pricingParams() { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0 }); } // (28-10: + lo que se recupera del móvil y la SIM en cada pedido)
 function gastosMap() { const g = {}; S.t.gastos.forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; }); return g; }
 export function priceAssistant(p, costsIn, onPick) {
   const calc = p ? S.t.calculadora.find(c => c.nombre === p.nombre) : null;
@@ -477,7 +477,7 @@ export function priceAssistant(p, costsIn, onPick) {
       h('div.table-wrap', { style: { marginTop: '8px' } }, h('table.t', h('thead', h('tr', h('th', 'Dónde lo vendes'), h('th', 'Precio recomendado'), h('th', 'No bajes de'), h('th.hide-m', 'Ganas (aprox.)'), onPick ? h('th', '') : null)),
         h('tbody', PLATFORMS.map(pl => h('tr', { style: { cursor: 'default' } }, h('td.bold', pl.t), h('td', h('b', eur(r.recomendado[pl.k]))), h('td', eur(r.minimo[pl.k])), h('td.hide-m', eur(r.beneficio[pl.k])), onPick ? h('td', btn('Usar', () => onPick(r.recomendado[pl.k], pl.t, v, r), { cls: 'sm' })) : null))
           .concat([h('tr', { style: { cursor: 'default' } }, h('td.bold', 'Segunda mano'), h('td', h('b', eur(r.segundaMano))), h('td', '—'), h('td.hide-m', '—'), onPick ? h('td', btn('Usar', () => onPick(r.segundaMano, 'Segunda mano', v), { cls: 'sm' })) : null)])))),
-      h('p.small', { style: { marginTop: '10px' } }, `En palabras: fabricarlo os cuesta ${eur(r.desglose.costeTotal)} con IVA (filamento ${eur(r.desglose.filamento)}, luz ${eur(r.desglose.luz)}, mano de obra ${eur(r.desglose.manoObra)}${r.desglose.pintado ? ', pintado ' + eur(r.desglose.pintado) : ''}${r.desglose.gastosExtra ? ', extras ' + eur(r.desglose.gastosExtra) : ''}). Para ganar el ${Math.round((S.cfg.precios.margen || 0.3) * 100)}% en Wallapop, véndelo a ${eur(r.recomendado.wallapop)}. En Etsy sube a ${eur(r.recomendado.etsy)} porque cobra comisiones (${((S.cfg.precios.etsyVenta + S.cfg.precios.etsyPago + S.cfg.precios.etsyReg) * 100).toFixed(1)}% + ${eur(S.cfg.precios.etsyFijo)} + anuncio).`),
+      h('p.small', { style: { marginTop: '10px' } }, `En palabras: fabricarlo os cuesta ${eur(r.desglose.costeTotal)} con IVA (filamento ${eur(r.desglose.filamento)}, luz ${eur(r.desglose.luz)}, mano de obra ${eur(r.desglose.manoObra)}${r.desglose.pintado ? ', pintado ' + eur(r.desglose.pintado) : ''}${r.desglose.gastosExtra ? ', extras ' + eur(r.desglose.gastosExtra) : ''}${r.desglose.negocio ? ', y ' + eur(r.desglose.negocio) + ' para recuperar el móvil y la SIM' : ''}). Para ganar el ${Math.round((S.cfg.precios.margen || 0.3) * 100)}% en Wallapop, véndelo a ${eur(r.recomendado.wallapop)}. En Etsy sube a ${eur(r.recomendado.etsy)} porque cobra comisiones (${((S.cfg.precios.etsyVenta + S.cfg.precios.etsyPago + S.cfg.precios.etsyReg) * 100).toFixed(1)}% + ${eur(S.cfg.precios.etsyFijo)} + anuncio).`),
       hist ? h('p.small', '📊 Se ha vendido ' + hist.n + (hist.n === 1 ? ' vez' : ' veces') + ' a una media de ' + eur(hist.media) + (hist.n > 1 ? ' (entre ' + eur(hist.min) + ' y ' + eur(hist.max) + ')' : '') + '.') : null,
       h('p.tiny.muted', 'Mismas fórmulas que la hoja Productos del Excel · parámetros de ' + (S.cfg.precios.desdeSheet ? 'la hoja Configuración' : 'la configuración de la app') + '. Los precios se redondean hacia arriba a 10 céntimos.'));
     return { r, v };

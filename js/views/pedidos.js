@@ -321,6 +321,7 @@ const TABS = {
       row('Envío que pagaste', '− ' + eur(p.envio), p.envioEstimado),
       row('Comisión ' + (o.canal || 'de la plataforma'), '− ' + eur(p.comision), p.comisionEstimada),
       p.gastos.map(g => row(g.concepto || 'Otro gasto', '− ' + eur(g.coste))),
+      p.negocio ? row('📱 ' + ((p.negocioLineas || []).map(x => x.nombre).join(', ') || 'Gastos del negocio') + ' (se recupera en cada pedido)', '− ' + eur(p.negocio)) : null,
       h('span.l.sum', 'Beneficio real'), h('span.v.sum' + (p.beneficio !== null && p.beneficio < 0 ? '.bad-t' : ''), p.beneficio === null ? '—' : eur(p.beneficio)),
       h('span.l', 'Margen'), h('span.v', p.margen === null ? '—' : Math.round(p.margen * 100) + ' %'))),
       !p.conCoste ? h('p.small.warn-t', '⚠️ Este producto no tiene coste guardado: añádelo en Productos → Costes y precio para saber el beneficio.') : null,

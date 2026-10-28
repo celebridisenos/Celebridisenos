@@ -16,7 +16,7 @@ const num = v => Number(String(v ?? '').replace(',', '.')) || 0;
 const fmt = v => String(Math.round(num(v) * 1000) / 1000).replace('.', ',');
 const unidadTxt = m => CL.unitKey(m.unidad) === 'm' ? ' m' : (num(m.stock) === 1 ? ' unidad' : ' unidades');
 const EST = { ok: ['🟢 Disponible', 'ok'], bajo: ['🟠 Stock bajo', 'warn'], agotado: ['🔴 Agotado', 'bad'], sin: ['⚪ Sin contar', ''] };
-export const estadoPill = m => { const e = EST[CL.stockEstado(m, sc())] || EST.sin; return pill(e[0], e[1]); };
+export const estadoPill = m => { const e = EST[CL.stockEstado(m, sc(), S.cfg)] || EST.sin; return pill(e[0], e[1]); };
 const packData = () => ({ materiales: S.t.materiales || [], simple: (S.cfg.embalaje || {}).simple });
 export function costeDe(simple) { return simple && simple.tipo ? CL.simplePlan({ embalaje: { simple } }, packData()) : null; }
 export function resumen(simple) {
@@ -45,7 +45,7 @@ export function widget(o, opts = {}) {
       h('p.small', { style: { margin: '4px 0 6px' } }, '¿Cómo se entrega o se prepara este pedido?', h('span.muted', ' · No hace falta elegir: si lo dejas así, lo pongo yo solo (el embalaje del producto o el que le va por sus medidas).')),
       h('div.row.wrap.envase-tipos', { style: { gap: '8px' } }, TIPOS.map(([k, ic, sg]) => h('button.chip' + (st.tipo === k ? '.on' : ''), { type: 'button', 'data-tipo': k, onclick: () => { st.tipo = k; st.envaseId = ''; if (k !== 'bolsa') st.enMano = false; draw(); } }, ic + ' ' + sg + ' · ' + eur(c.precioEnvase)))),
       st.tipo ? (lista.length ? h('div.row.wrap', { style: { gap: '6px', marginTop: '8px' } }, h('span.small', 'Medida:'), lista.map(m => h('button.chip.envase-medida' + (st.envaseId === m.id ? '.on' : ''), { type: 'button', 'data-id': m.id, onclick: () => { st.envaseId = m.id; draw(); } },
-          (CL.medidasTxt(m) || m.nombre) + ' · ' + fmt(m.stock || 0) + ' en stock', CL.stockEstado(m, c) === 'agotado' ? ' 🔴' : CL.stockEstado(m, c) === 'bajo' ? ' 🟠' : '')))
+          (CL.medidasTxt(m) || m.nombre) + ' · ' + fmt(m.stock || 0) + ' en stock', CL.stockEstado(m, c, S.cfg) === 'agotado' ? ' 🔴' : CL.stockEstado(m, c, S.cfg) === 'bajo' ? ' 🟠' : '')))
         : h('p.small.warn-t', 'No hay ' + CL.envaseTipo(st.tipo)[3].toLowerCase() + ' en Stock. Añádelas en Stock → Envases / Embalaje.')) : null,
       st.tipo === 'bolsa' ? h('label.check', { style: { marginTop: '6px' } }, h('input', { type: 'checkbox', checked: st.enMano, 'aria-label': 'Entrega en mano', onchange: e => { st.enMano = e.target.checked; } }), '🤝 Entrega en mano (también gasta una bolsa)') : null,
       h('div.row.wrap.envase-mats', { style: { gap: '14px', marginTop: '10px', alignItems: 'center' } },
@@ -164,7 +164,7 @@ function tarjeta(m, opts = {}) {
   const v = inp({ type: 'number', min: 0, step: metros ? 0.1 : 1, value: fmt(m.stock || 0).replace(',', '.'), 'aria-label': 'Stock de ' + m.nombre, disabled: !editable, style: { width: '84px', textAlign: 'center' } });
   v.onchange = () => { const nv = num(v.value); if (nv < 0) return; mover(m, { nuevo: nv, motivo: 'Recuento' }, 'Recuento ' + m.nombre); };
   const pm = CL.porMetro(m);
-  return h('div.env-card.' + (CL.stockEstado(m, sc())), { 'data-id': m.id },
+  return h('div.env-card.' + (CL.stockEstado(m, sc(), S.cfg)), { 'data-id': m.id },
     h('div.env-t', h('b', opts.icono + ' ' + m.nombre)),
     h('div.env-s', 'Stock: ', h('b', fmt(m.stock || 0) + unidadTxt(m))),
     h('div.env-p.small.muted', metros ? 'Coste: ' + (pm === null ? 'sin precio' : eur(pm) + '/metro') + ' · rollo ' + eur(m.precio) + ' = ' + fmt(m.cantidad) + ' m' : 'Coste: ' + eur(sc().precioEnvase) + '/unidad'),
@@ -183,7 +183,7 @@ export function renderStock(el) {
     if (!can('productos.costes') && !(S.t.materiales || []).length) return mount(box, h('div.card', h('p', '🔒 Para ver el stock de embalaje hace falta el permiso «Ver costes».')));
     if ((!kraft || !marron) && edit && !preparando) { preparando = true; api('envases.preparar', {}, { quiet: true }).then(r => { aplicar(r); api('config.obtener', {}, { quiet: true }).then(cf => { S.cfg = cf; emit(); }).catch(() => { }); }).catch(() => { }); }
     const all = TIPOS.flatMap(t => envasesDe(t[0])).concat([kraft, marron].filter(Boolean));
-    const bajos = all.filter(m => ['bajo', 'agotado'].includes(CL.stockEstado(m, c)));
+    const bajos = all.filter(m => ['bajo', 'agotado'].includes(CL.stockEstado(m, c, S.cfg)));
     // v16: la cinta ya NO es un coste fijo por pedido: se cuentan los metros (estimados) y salen del rollo
     const cinta = inp({ type: 'number', min: 0, step: 0.1, value: c.cintaM, 'aria-label': 'Metros de cinta por pedido', disabled: !edit, style: { width: '100px' } });
     cinta.onchange = async () => { try { aplicar(await api('envases.config', { cintaM: cinta.value })); toast('🧻 Cinta: ' + fmt(num(cinta.value)) + ' m por pedido', 'ok'); } catch (e) { toast(e.message, 'bad'); } };

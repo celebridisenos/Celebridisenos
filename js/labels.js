@@ -89,14 +89,23 @@ const A4 = { w: 210, h: 297 };
 
 // ---------- Configuración de este PC (impresora por plantilla, tamaños y calibración) ----------
 let cfgCache = null, printersCache = null;
+export function olvidaCache() { cfgCache = null; printersCache = null; } // (28-10: para volver a leer la configuración y las impresoras)
 export async function labelCfg() {
   if (cfgCache) return cfgCache;
   let c = null;
   try { c = JSON.parse((await desktop.getConfig('etiquetas')) || 'null'); } catch (e) { }
   if (!c) { try { c = JSON.parse(localStorage.getItem('cd.etiquetas') || 'null'); } catch (e) { } }
   cfgCache = Object.assign({ impresora: {}, tam: {}, ajuste: {} }, c || {});
+  ESTILO_PAQ = cfgCache.estiloPaquete || 'clasico';
   return cfgCache;
 }
+// ================= 28-10-2026 · ESTILOS DEL QR DEL PAQUETE (ella: «varios estilos de QR de referencia de pedidos para saber qué paquete es cuál») =================
+// La etiqueta pequeña (50 × 50) que se pega en cada paquete, con el QR que abre su pedido. Se elige en el diálogo de la etiqueta y se recuerda.
+export const ESTILOS_PAQUETE = [
+  ['clasico', 'Clásico', 'QR, código y nº de pedido'], ['numero', 'Nº grande', 'el número de pedido enorme'], ['cliente', 'Cliente', 'el nombre del cliente bien grande'],
+  ['plataforma', 'Plataforma', 'banda con Vinted, Wallapop…'], ['producto', 'Qué lleva', 'producto, color y cuántos']];
+let ESTILO_PAQ = 'clasico';
+export const estiloPaquete = () => ESTILO_PAQ;
 export async function saveLabelCfg(c) {
   cfgCache = c;
   const s = JSON.stringify(c);
@@ -338,6 +347,48 @@ function dibuja(tpl, d, dpi, size) {
     const src = d.canvas;
     if (src) { const sc = Math.min(c.width / src.width, c.height / src.height), w = src.width * sc, hh = src.height * sc; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(src, (c.width - w) / 2, (c.height - hh) / 2, w, hh); } // (17-10: reducida con calidad alta: barras parejas)
     else T('Falta la etiqueta oficial', m, m, W - 2 * m, 12, 700, 2);
+  } else if (tpl === 'paquete' && (d.estilo || ESTILO_PAQ) !== 'clasico') {
+    // 28-10-2026 · los otros estilos: lo que más se ve es lo que identifica el paquete (el nº, el cliente, la plataforma o lo que lleva)
+    const es = d.estilo || ESTILO_PAQ, ancho = W - 2 * m, pq = W < 45;
+    const num = String(d.numero || ''), cli = String(d.cliente || ''), plat = String(d.cuenta || d.canal || '').toUpperCase(), cod = String(d.codigo || '');
+    const qrs = es === 'numero' || es === 'plataforma' ? Math.min(ancho * 0.52, H * 0.5) : Math.min(ancho * 0.46, H * 0.46);
+    const cabe = (t, max, min, w, peso) => { let z = max; g.font = F(z, peso); while (z > min && g.measureText(t).width > w * k) { z -= 0.5; g.font = F(z, peso); } return z; }; // (se encoge hasta caber; no se corta)
+    g.textAlign = 'center';
+    if (es === 'plataforma') { // banda negra arriba con la plataforma (o la cuenta) y debajo el nº y el QR
+      const hb = H * 0.22; g.fillStyle = '#000'; g.fillRect(0, 0, W * k, (hb + m * 0.4) * k); g.fillStyle = '#fff';
+      cabe(plat || 'PEDIDO', pq ? 9 : 12, 6, ancho, 800); g.fillText(fit(g, plat || 'PEDIDO', ancho * k), (W / 2) * k, (m * 0.6) * k); g.fillStyle = '#000';
+      qr(g, d.qr, m * k, (hb + m * 0.9) * k, qrs * k);
+      g.textAlign = 'left'; const x = m + qrs + 2, tw = W - x - m;
+      g.font = F(5.5, 600); g.fillText('PEDIDO', x * k, (hb + m) * k);
+      cabe('Nº ' + num, pq ? 11 : 15, 6, tw, 800); g.fillText(fit(g, 'Nº ' + num, tw * k), x * k, (hb + m + 3) * k);
+      g.font = F(pq ? 6 : 7.5, 700); g.fillText(fit(g, cli, tw * k), x * k, (hb + m + 11) * k);
+      g.textAlign = 'center'; g.font = F(pq ? 6 : 7, 700); g.fillText(fit(g, cod, ancho * k), (W / 2) * k, (H - m - 3.2) * k);
+    } else if (es === 'numero') { // el nº de pedido gigante arriba y el QR debajo
+      g.font = F(6, 700); g.fillText('PEDIDO Nº', (W / 2) * k, (m - 1.2) * k);
+      let tam = pq ? 22 : 30; g.font = F(tam, 800); while (tam > 10 && g.measureText(num).width > ancho * k) { tam -= 1; g.font = F(tam, 800); }
+      g.fillText(num, (W / 2) * k, (m + 1.6) * k);
+      const y0 = m + 1.6 + tam * 0.42 + 1; qr(g, d.qr, ((W - qrs) / 2) * k, y0 * k, qrs * k);
+      g.font = F(pq ? 6 : 7, 700); g.fillText(fit(g, [cli, cod].filter(Boolean).join(' · '), ancho * k), (W / 2) * k, (y0 + qrs + 0.8) * k);
+    } else if (es === 'cliente') { // el nombre del cliente grande (para encontrar su paquete en la mesa)
+      g.font = F(5.5, 700); g.fillText('PARA', (W / 2) * k, (m - 1.2) * k);
+      let tam = pq ? 14 : 19; g.font = F(tam, 800); while (tam > 8 && g.measureText(cli).width > ancho * k) { tam -= 1; g.font = F(tam, 800); }
+      g.fillText(cli || '—', (W / 2) * k, (m + 1.4) * k);
+      const y0 = m + 1.4 + tam * 0.42 + 1.2; qr(g, d.qr, ((W - qrs) / 2) * k, y0 * k, qrs * k);
+      g.font = F(pq ? 7 : 9, 800); g.fillText(fit(g, 'Nº ' + num + (plat ? ' · ' + plat : ''), ancho * k), (W / 2) * k, (y0 + qrs + 0.6) * k);
+      g.font = F(pq ? 5.5 : 6.5, 600); g.fillText(fit(g, cod, ancho * k), (W / 2) * k, (y0 + qrs + 4.4) * k);
+    } else { // «qué lleva»: el producto, su color y cuántos, para comprobar el paquete antes de cerrarlo
+      qr(g, d.qr, m * k, (m - 1) * k, qrs * k);
+      g.textAlign = 'left'; const x = m + qrs + 2, tw = W - x - m;
+      g.font = F(5.5, 600); g.fillText('PEDIDO', x * k, (m - 0.8) * k); cabe('Nº ' + num, pq ? 10 : 13, 6, tw, 800); g.fillText(fit(g, 'Nº ' + num, tw * k), x * k, (m + 1.6) * k);
+      g.font = F(pq ? 6 : 7, 700); g.fillText(fit(g, cli, tw * k), x * k, (m + 8.2) * k);
+      g.textAlign = 'center'; const y = m + qrs + 0.6;
+      g.fillRect(m * k, y * k, ancho * k, 0.35 * k);
+      const linea = [(Number(d.cantidad) > 1 ? d.cantidad + ' × ' : '') + (d.producto || ''), d.color || ''].filter(Boolean);
+      cabe(linea[0] || '', pq ? 7 : 9, 5.5, ancho, 800); g.fillText(fit(g, linea[0] || '', ancho * k), (W / 2) * k, (y + 1.4) * k);
+      if (linea[1]) { g.font = F(pq ? 6 : 7.5, 600); g.fillText(fit(g, linea[1], ancho * k), (W / 2) * k, (y + 5.6) * k); }
+      g.font = F(pq ? 5.5 : 6.5, 600); g.fillText(fit(g, cod, ancho * k), (W / 2) * k, (H - m - 2.8) * k);
+    }
+    g.textAlign = 'left';
   } else if (tpl === 'paquete') {
     // v17.3: también en la pequeña va el «¡Gracias!» (lo pidió la dueña: QR + gracias + identificación del paquete, siempre)
     const gr = d.gracias ? String(d.gracias).slice(0, 22) : '', alto = gr ? 5.2 : 0;
@@ -571,6 +622,23 @@ export async function sendLabel(tpl, build, opts = {}) {
   return { how: 'pdf', printer: 'PDF', count: canv.length, blob, view };
 }
 export { pdfFromCanvases };
+// 28-10-2026 · (ella: «en ver el adjuntado que me deje imprimir en la Svantto: ahí me preguntaba por otra impresora; todo por la Svantto»)
+// Las páginas de un PDF (la etiqueta oficial adjunta) van directas a la impresora de etiquetas del PC —la ÚNICA si está puesta (la
+// Svantto)—, encajadas a su tamaño, sin preguntar. Devuelve el nombre de la impresora, o null si en este aparato no hay (entonces se
+// usa la ventana de imprimir de siempre). Para usar varias impresoras: Impresión → «Ahora el programa puede usar varias impresoras».
+export async function etiquetera() { if (!desktop.on) return null; try { const t = await targetFor('envio'); return t.pr && !t.pr.raw ? t.pr : null; } catch (e) { return null; } }
+export async function imprimirPaginas(pages) {
+  const pr = await etiquetera(); if (!pr) return null;
+  if (pr.offline) throw new Error(pr.problema || 'La impresora «' + pr.name + '» está desconectada o apagada. No se ha impreso en ninguna otra.');
+  const c = await labelCfg(), s = sizeOf('envio', c), adj = (c.ajuste && c.ajuste[pr.name]) || {}, dpi = dpiOf(pr);
+  for (const p of pages) {
+    const W = Math.round(s.w / 25.4 * dpi), H = Math.round(s.h / 25.4 * dpi), cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    const src = p.canvas, sc = Math.min(W / src.width, H / src.height), w = src.width * sc, hh = src.height * sc; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(src, (W - w) / 2, (H - hh) / 2, w, hh);
+    await desktop.print({ printer: pr.name, png: cv.toDataURL('image/png'), wmm: s.w, hmm: s.h, copies: 1, offx: Number(adj.x) || 0, offy: Number(adj.y) || 0 });
+  }
+  return pr.name;
+}
 
 // v15.0: deja cargado lo que necesita el diseño propio de esa etiqueta (logo en alta, letras de RECURSOS)
 export const prepararPlantilla = tpl => PL.preparar(tpl).catch(() => null);
@@ -587,9 +655,13 @@ export async function labelDialog(tpl, datas, opts = {}) {
   const copies = inp({ type: 'number', min: 1, max: 50, value: 1, style: { width: '80px' } });
   const real = h('input', { type: 'checkbox', checked: true });
   const box = h('div.lbl-prev'), info = h('div.tiny.muted');
+  let estilo = c.estiloPaquete || 'clasico';
+  const estilos = h('div.lbl-estilos'), pintaEstilos = () => mount(estilos, cur !== 'paquete' ? null : [h('div.small.lbl-estilos-t', h('b', '🔳 Estilo del QR'), ' · para saber qué paquete es cuál (se recuerda)'),
+    h('div.row.wrap', { style: { gap: '6px' } }, ESTILOS_PAQUETE.map(([k, t, dd]) => h('button.btn.sm' + (estilo === k ? '.primary' : '.ghost'), { type: 'button', 'data-estilo': k, title: dd, onclick: async () => { estilo = k; ESTILO_PAQ = k; c.estiloPaquete = k; try { await saveLabelCfg(c); } catch (e) { } pintaEstilos(); refresh(); } }, t)))]);
+  const conEstilo = d => cur === 'paquete' ? Object.assign({}, d, { estilo }) : d;
   const refresh = () => {
     const s = sizeOf(cur, c), pr = prSel ? list.find(p => p.name === prSel.value) : null, dpi = dpiOf(pr);
-    const cv = draw(cur, opts.dataFor ? opts.dataFor(cur) : datas[0], dpi, s);
+    const cv = draw(cur, conEstilo(opts.dataFor ? opts.dataFor(cur) : datas[0]), dpi, s); pintaEstilos();
     cv.className = 'lbl-canvas';
     if (real.checked) { cv.style.width = s.w + 'mm'; cv.style.height = s.h + 'mm'; } else { cv.style.width = '100%'; cv.style.height = 'auto'; cv.style.maxWidth = Math.round(s.w * 3.2) + 'px'; }
     mount(box, h('div.lbl-ruler', { style: real.checked ? { width: s.w + 'mm' } : {} }, h('span', s.w + ' mm')), cv);
@@ -611,14 +683,14 @@ export async function labelDialog(tpl, datas, opts = {}) {
   for (const k of choices) await prepararPlantilla(k);
   const m = modal('Etiqueta' + (datas.length > 1 ? 's (' + datas.length + ')' : '') + ' · ' + TEMPLATES[cur].t, h('div.col',
     tplSel ? field('Plantilla', tplSel) : null,
-    box, h('label.check.small', real, 'Ver a tamaño real en pantalla'), info,
+    estilos, box, h('label.check.small', real, 'Ver a tamaño real en pantalla'), info,
     h('div.form', prSel ? field('Impresora', prSel, 'Elegida sola. Se recuerda en este PC.') : h('p.small.muted.full', desktop.on ? 'No se encuentran impresoras en Windows.' : 'En el móvil se crea un PDF con el tamaño exacto de la etiqueta.'), field('Copias', copies)),
     opts.aviso ? h('p.small.warn-t', opts.aviso) : null),
   close => [btn('Cerrar', close), bEdit, btn('IMPRIMIR ETIQUETA', async ev => {
     const b = ev.target.closest('button'); b.disabled = true;
     try {
       if (prSel && prSel.value) { c.impresora = c.impresora || {}; c.impresora[cur] = prSel.value; await saveLabelCfg(c); }
-      const ds = opts.dataFor ? datas.map((_, i) => opts.dataFor(cur, i)) : datas;
+      const ds = (opts.dataFor ? datas.map((_, i) => opts.dataFor(cur, i)) : datas).map(conEstilo);
       await printLabels(cur, ds, { printer: prSel && prSel.value, copies: copies.value });
       close();
     } catch (e) { toast('No se pudo imprimir: ' + e.message, 'bad', 8000); b.disabled = false; }

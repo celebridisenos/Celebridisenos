@@ -116,7 +116,14 @@ export async function showPdf(opts = {}) {
       out.push(btn('Descargar PDF', () => { downloadBlob(opts.blob, name); toast('📄 ' + name + ' descargado (mira en «Descargas»).', 'ok', 6000); }, { icon: 'download' }));
       if (!isMobile() && !standalone()) out.push(btn('Abrir en otra pestaña', () => { const u = URL.createObjectURL(opts.blob); urls.push(u); const w = window.open(u, '_blank'); if (!w) downloadBlob(opts.blob, name); }, { icon: 'external' }));
     }
-    out.push(btn('Imprimir', ev => busy(ev.target.closest('button'), async () => { if (!pages) throw new Error('Espera a que se vea el PDF.'); await printPages(pages); }), { cls: 'primary', icon: 'printer' }));
+    // 28-10-2026: en el PC, directo a la impresora de etiquetas (la Svantto), sin la ventana de Windows que preguntaba por otra
+    const bImp = btn('Imprimir', ev => busy(ev.target.closest('button'), async () => {
+      if (!pages) throw new Error('Espera a que se vea el PDF.');
+      if (desktop.on && !opts.dialogo) { const L = await import('./labels.js'); const nom = await L.imprimirPaginas(pages); if (nom) { toast('🖨️ Enviada a ' + nom + (pages.length > 1 ? ' (' + pages.length + ' páginas)' : ''), 'ok', 5000); return; } }
+      await printPages(pages);
+    }), { cls: 'primary pdfv-imprimir', icon: 'printer' });
+    if (desktop.on && !opts.dialogo) import('./labels.js').then(L => L.etiquetera()).then(pr => { if (pr && bImp.isConnected !== false) { bImp.lastChild.textContent = 'Imprimir en ' + pr.name; bImp.dataset.impresora = pr.name; } }).catch(() => { });
+    out.push(bImp);
     return out;
   };
   const m = modal(opts.title || 'PDF', h('div.col.pdfv', opts.nota ? h('p.small', opts.nota) : null, box, info), acciones, {

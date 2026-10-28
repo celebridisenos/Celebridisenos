@@ -399,7 +399,7 @@ export async function buildFor(o, tipo, L) {
     if (gd.logo) d.logoImg = await L.loadLogo();
     return { tpl: 'paquete150', data: d };
   }
-  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { gracias: thanksData(o).titulo || '¡Gracias!', qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + '), destino: destinoDe(o) } }; }
+  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { gracias: thanksData(o).titulo || '¡Gracias!', qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, producto: g.length > 1 ? g.length + ' productos' : o.producto, color: g.length > 1 ? '' : o.color, cantidad: g.length > 1 ? '' : o.cantidad, canal: o.canal || '', estilo: (await L.labelCfg()).estiloPaquete || 'clasico', cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + '), destino: destinoDe(o) } }; }
   const d = thanksData(o);
   if (d.logo) d.logoImg = await L.loadLogo();
   d.fondoImg = await L.loadCardBg(d.diseno);

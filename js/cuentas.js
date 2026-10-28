@@ -6,8 +6,8 @@ import { h, btn, inp, sel, toast } from './ui.js';
 import { S, api, pull } from './store.js';
 
 const CL = window.CL;
-export const PLATAFORMAS = ['Vinted', 'Wallapop', 'Etsy', 'eBay', 'Instagram', 'TikTok', 'Milanuncios', 'Tienda web', 'Otra'];
-export const EMOJI = { Vinted: '🟦', Wallapop: '🟢', Etsy: '🟠', eBay: '🔵', Instagram: '📸', TikTok: '🎵', Milanuncios: '🟧', 'Tienda web': '🛍️', Otra: '🔖' };
+export const PLATAFORMAS = ['Vinted', 'Wallapop', 'Facebook', 'Etsy', 'eBay', 'Instagram', 'TikTok', 'Milanuncios', 'Tienda web', 'Otra']; // 26-10-2026: + Facebook (Marketplace)
+export const EMOJI = { Vinted: '🟦', Wallapop: '🟢', Facebook: '📘', Etsy: '🟠', eBay: '🔵', Instagram: '📸', TikTok: '🎵', Milanuncios: '🟧', 'Tienda web': '🛍️', Otra: '🔖' };
 export const cuentasVenta = () => (S.cfg && Array.isArray(S.cfg.cuentasVenta)) ? S.cfg.cuentasVenta : [];
 export const textoCuenta = c => c ? c.plataforma + ' · ' + c.nombre : '';
 export const emojiCuenta = txt => { const p = String(txt || '').split(' · ')[0]; return EMOJI[p] || '🔖'; };

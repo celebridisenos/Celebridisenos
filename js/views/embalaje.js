@@ -49,7 +49,7 @@ export function render(el, params) {
 function drawOrders(el) {
   const ped = S.t.pedidos || [];
   const now = ped.filter(o => ph(o) === 'empaquetar'), next = ped.filter(o => ph(o) === 'postpro'), done = ped.filter(o => isPacked(o) && o.embalaje.hecho === S.hoy);
-  const low = cajas().filter(m => m.stock !== '' && m.stock !== undefined && Number(m.stock) <= (m.stockMin !== '' && m.stockMin !== undefined ? Number(m.stockMin) : Number(ec().avisoCajas || 0)));
+  const low = cajas().filter(m => ['agotado', 'critico', 'bajo'].includes(CL.nivelStock(m, S.cfg).nivel)); // 26-10-2026: la regla única
   const card = o => {
     const c = CL.orderCosts(o, packData(), cfg()), p = CL.productOf(o, packData());
     return h('div.card', { style: { cursor: 'pointer' }, onclick: () => packPanel(o.id) },
@@ -312,6 +312,7 @@ export function costCenter(c) {
       row('Mano de obra', eur(c.manoObra.coste), c.manoObra.respondido ? (c.manoObra.minutos ? c.manoObra.minutos + ' min indicados' : 'sin trabajo adicional') : 'sin indicar'),
       c.perdidas ? row('Pérdidas de impresión incluidas', eur(c.perdidas)) : null,
       c.otros ? row('Extraordinarios', eur(c.otros), (c.gastos || []).map(x => x.concepto).filter(Boolean).join(', ')) : null,
+      c.negocio ? row('📱 Gastos del negocio', eur(c.negocio), (c.negocioLineas || []).map(x => x.nombre).join(', ') + ' · se recupera en cada pedido') : null,
       row('Envío', eur(c.envio), c.envioEstimado ? 'ESTIMADO' : ''),
       row('Comisión', eur(c.comision), c.comisionEstimada ? 'ESTIMADA' : ''),
       row('Coste total', c.coste === null ? '—' : eur(c.coste), '', 'bold'),
@@ -320,14 +321,14 @@ export function costCenter(c) {
 
 // ---------- Cajas: inventario, aviso de stock bajo, entradas y recuentos ----------
 function drawBoxes(el) {
-  const list = cajas(), mov = (S.t.movMateriales || []).slice(-15).reverse(), dflt = Number(ec().avisoCajas || 0);
+  const list = cajas(), mov = (S.t.movMateriales || []).slice(-15).reverse();
   const mover = can('stock.mover');
   mount(el,
     h('p.small.muted', 'Cada caja usada al cerrar un paquete se descuenta sola (13 → 12). El precio y las medidas son los tuyos; lo que no sabemos queda PENDIENTE.'),
     can('costes.editar') ? h('div.row', { style: { margin: '10px 0' } }, btn('NUEVA CAJA (otro tamaño)', () => import('./costes.js').then(C => C.matForm({ tipo: 'caja', unidad: 'ud', cantidad: 1 })), { cls: 'primary', icon: 'plus' })) : null,
     list.length ? h('div.table-wrap', h('table.t', h('thead', h('tr', h('th', 'Caja'), h('th', 'Medidas'), h('th', 'Stock'), h('th.hide-m', 'Avisar si quedan'), h('th', 'Precio/ud'), h('th.hide-m', 'Peso'), h('th', ''))),
       h('tbody', list.map(m => {
-        const st = m.stock === '' || m.stock === undefined ? null : Number(m.stock), min = m.stockMin !== '' && m.stockMin !== undefined ? Number(m.stockMin) : dflt, c = CL.matCost(m);
+        const st = m.stock === '' || m.stock === undefined ? null : Number(m.stock), min = CL.nivelStock(m, S.cfg).min, c = CL.matCost(m); // 26-10-2026: la regla única
         return h('tr', h('td.bold', m.nombre), h('td', [m.largo, m.ancho, m.alto].map(v => v === '' || v === undefined ? '¿?' : v).join(' × ') + ' cm'),
           h('td', st === null ? h('span.muted', 'sin contar') : h('b', { class: st <= 0 ? 'bad-t' : st <= min ? 'warn-t' : '' }, st)), h('td.hide-m', min || '—'),
           h('td', c.coste === null ? h('span.warn-t', 'PENDIENTE') : eur(c.coste)), h('td.hide-m', m.pesoG ? m.pesoG + ' g' : h('span.muted', '¿?')),
