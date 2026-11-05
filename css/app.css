@@ -2249,6 +2249,8 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 
 /* ===== 17-10-2026 · 🧭 MENÚ PRINCIPAL (menu_principal.js), «← Atrás» y la ruta de arriba ===== */
 .atras-btn { flex: none; }
+.casa-btn { flex: none; gap: 6px; font-weight: 700; }
+@media (max-width: 700px) { .casa-btn .t { display: none; } }
 .miga { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 0 1 auto; max-width: 34vw; white-space: nowrap; font-size: 13px; color: var(--muted, #6b6475); }
 .miga button { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 3px 6px; border-radius: 8px; }
 .miga button:hover { background: color-mix(in srgb, var(--brand, #8b5cf6) 12%, transparent); color: var(--text, #1d1a22); }
@@ -2547,3 +2549,232 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
   .esc-item { flex: 0 0 210px; }
   .esc-acciones .btn { flex: 1 1 100%; }
 }
+
+/* ---------- 01-11-2026 · ⭐ RESEÑAS DE TUS CLIENTES (views/resenas.js) ---------- */
+.rs-top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: stretch; margin-bottom: 18px; }
+.rs-zona { display: grid; justify-items: center; gap: 4px; padding: 26px 18px; border-radius: var(--radius-l, 18px); border: 2px dashed var(--brand); background: var(--brand-soft); color: var(--text); cursor: pointer; font: inherit; text-align: center; transition: transform .15s, box-shadow .15s; }
+.rs-zona:hover, .rs-zona.on { transform: translateY(-2px); box-shadow: var(--shadow-l); }
+.rs-zona-e { font-size: 44px; line-height: 1; }
+.rs-zona b { font-size: 1.3rem; }
+.rs-zona small { color: var(--muted); }
+.rs-estado { display: grid; align-content: center; padding: 16px 18px; border-radius: var(--radius-l, 18px); background: var(--surface); border: 1px solid var(--line); }
+.rs-num { display: grid; gap: 2px; }
+.rs-num b { font-size: 2.2rem; color: #f5a400; line-height: 1.1; }
+.rs-num span { font-weight: 700; }
+.rs-aviso { font-size: .95rem; line-height: 1.45; }
+.rs-tit { margin: 6px 0 10px; }
+.rs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.rs-card { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; }
+.rs-card img { width: 100%; height: 260px; object-fit: cover; object-position: top; background: var(--surface-2); }
+.rs-card-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; font-size: .9rem; }
+.rs-card-pie .btn { margin-left: auto; }
+.rs-card-tx { flex-basis: 100%; font-weight: 600; }
+.rs-est { color: #f5a400; letter-spacing: 1px; }
+.rs-chip { padding: 1px 9px; border-radius: 999px; background: var(--surface-3); font-weight: 700; font-size: .8rem; }
+.rs-dlg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.rs-lienzo-caja { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); max-height: 62vh; overflow-y: auto; }
+.rs-lienzo { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: none; }
+.rs-marco { position: absolute; display: none; border: 2px dashed #e11d48; background: rgba(225, 29, 72, .15); pointer-events: none; }
+.rs-dlg-datos { display: grid; gap: 8px; align-content: start; }
+.rs-plats { display: flex; flex-wrap: wrap; gap: 6px; }
+.rs-plat { padding: 8px 14px; border-radius: 999px; border: 2px solid var(--line-2); background: var(--surface); font: inherit; font-weight: 700; cursor: pointer; color: var(--text); }
+.rs-plat.on { border-color: var(--c, var(--brand)); background: var(--c, var(--brand)); color: #fff; }
+.rs-estrellas { display: flex; gap: 2px; }
+.rs-star { font-size: 34px; line-height: 1; border: 0; background: none; color: var(--line-2); cursor: pointer; padding: 0 2px; }
+.rs-star.on { color: #f5a400; }
+@media (max-width: 760px) { .rs-top, .rs-dlg { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- 01-11-2026 · 💬 CHATS CON CLIENTES (chats_menu.js): botón fijo arriba + ventanita con una baldosa por plataforma ---------- */
+.chats-top { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 999px; border: 0; background: linear-gradient(120deg, #1877f2, #13c1ac); color: #fff; font: inherit; font-weight: 800; cursor: pointer; box-shadow: 0 6px 18px -8px rgba(19, 120, 200, .8); white-space: nowrap; }
+.chats-top:hover { filter: brightness(1.06); }
+.ch-pop { position: fixed; z-index: 400; width: min(440px, calc(100vw - 20px)); padding: 14px; border-radius: 20px; background: var(--surface); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-l); display: grid; gap: 12px; }
+.ch-pop-h { display: flex; align-items: center; justify-content: space-between; font-size: 1.1rem; }
+.ch-baldosas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ch-b { display: grid; justify-items: center; gap: 4px; padding: 12px 6px; border-radius: 16px; border: 2px solid color-mix(in srgb, var(--c) 35%, transparent); background: color-mix(in srgb, var(--c) 10%, var(--surface)); color: var(--text); font: inherit; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.ch-b:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -14px var(--c); border-color: var(--c); }
+.ch-logo { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--c); color: #fff; font-weight: 900; font-size: 24px; }
+.ch-b b { font-size: 1rem; }
+.ch-b small { color: var(--muted); font-size: .78rem; }
+.ch-todos { height: 44px; border-radius: 14px; border: 0; background: var(--brand); color: var(--brand-text, #fff); font: inherit; font-weight: 800; cursor: pointer; }
+.ch-acc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ch-a { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.ch-a span { font-size: 22px; }
+.ch-a small { color: var(--muted); font-size: .78rem; }
+.ch-pasos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ch-pasos > div { display: flex; gap: 8px; align-items: center; padding: 10px; border-radius: 12px; background: var(--surface-2); font-weight: 600; font-size: .92rem; }
+.ch-pasos b { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #fff; }
+.resp-sel { outline: 3px solid var(--brand); }
+.resp-barra { position: sticky; bottom: 10px; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 12px 16px; border-radius: 16px; background: var(--brand); color: #fff; box-shadow: var(--shadow-l); }
+.resp-barra .btn { background: #fff; color: var(--brand); border-color: #fff; }
+@media (max-width: 760px) { .chats-top .t { display: none; } .ch-pasos { grid-template-columns: 1fr; } }
+
+/* ---------- 01-11-2026 · PEDIDOS DE UN MISMO CLIENTE: fila tranquila + globito al lado + «este, el otro o los dos» ---------- */
+tr.cli-grupo.cg, .item.cli-grupo.cg { background: var(--surface); box-shadow: inset 6px 0 0 var(--brand); }
+tr.cli-grupo.cg:hover, .item.cli-grupo.cg:hover { background: var(--brand-soft); }
+.cg-fotos { display: inline-flex; align-items: center; vertical-align: middle; }
+.cg-fotos > * { border: 2px solid var(--surface); border-radius: 9px; box-shadow: 0 2px 6px rgba(0, 0, 0, .12); }
+.cg-fotos > * + * { margin-left: -12px; }
+.cg-mas { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-left: -10px; border-radius: 9px; background: var(--surface-3); font-weight: 800; font-size: .8rem; }
+.cg-n { display: inline-block; margin-top: 3px; padding: 2px 10px; border-radius: 999px; background: var(--brand); color: var(--brand-text, #fff); font-weight: 800; font-size: .8rem; white-space: nowrap; }
+.cg-est { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-size: .88rem; font-weight: 600; color: var(--text-2); }
+.cg-est span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cg-est i, .cg-chip i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.cg-ver { color: var(--brand); font-weight: 800; white-space: nowrap; }
+.cg-pop { position: fixed; z-index: 90; max-height: calc(100vh - 24px); overflow: auto; padding: 14px; border-radius: 20px; background: var(--surface); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-l); display: grid; gap: 10px; animation: cgEntra .16s ease-out; }
+.cg-pop.hoja { left: 8px !important; right: 8px; bottom: 8px; top: auto !important; width: auto !important; max-height: 78vh; }
+@keyframes cgEntra { from { opacity: 0; transform: translateX(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+.cg-pop-h { display: flex; align-items: center; gap: 8px; }
+.cg-pop-h small { display: block; color: var(--muted); }
+.cg-pop-l { display: grid; gap: 8px; }
+.cg-ped { display: flex; gap: 12px; padding: 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); }
+.cg-ped-t { flex: 1; min-width: 0; }
+.cg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-2); font-weight: 700; font-size: .85rem; }
+.cg-pop-f { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); }
+.ee { display: grid; gap: 10px; margin-bottom: 4px; }
+.ee-q { margin: 0; font-size: 1.05rem; }
+.ee-opc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ee-b { display: grid; gap: 8px; align-content: start; text-align: left; padding: 12px; border-radius: 16px; border: 2px solid var(--line-2); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.ee-b.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
+.ee-b-t { font-size: 1.05rem; }
+.ee-b-ps { display: grid; gap: 6px; }
+.ee-ped { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ee-ped-t { display: grid; min-width: 0; line-height: 1.25; }
+.ee-ped-t small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ee-ped-t .ee-est { color: var(--text-2); font-weight: 700; }
+.ee-lista { display: grid; gap: 6px; }
+.ee-fila { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; }
+@media (max-width: 760px) { .ee-opc { grid-template-columns: 1fr; } }
+
+/* ---------- 01-11-2026 · 💶 «VÉNDELO A» en grande (nuevo pedido) + elegir el producto con su FOTO ---------- */
+.pi-hero { display: grid; grid-template-columns: minmax(170px, auto) minmax(0, 1fr); gap: 14px 22px; align-items: start; padding: 16px 18px; margin-bottom: 10px; border-radius: 18px; background: linear-gradient(120deg, var(--ok-soft), var(--surface)); border: 2px solid color-mix(in srgb, var(--ok) 45%, transparent); }
+.pi-hero.sin { background: var(--surface-2); border-color: var(--line-2); }
+.pi-hero-v { display: grid; gap: 2px; justify-items: start; }
+.pi-hero-t { font-size: .8rem; font-weight: 900; letter-spacing: .12em; color: var(--ok); }
+.pi-hero-n { font-size: clamp(2.4rem, 5vw, 3.2rem); line-height: 1; font-weight: 900; letter-spacing: -.03em; color: var(--text); }
+.pi-hero-v small { color: var(--muted); font-weight: 600; }
+.pi-usar { margin-top: 6px; }
+.pi-hero-d { display: grid; gap: 4px; font-size: .98rem; }
+.pi-hero-dt { font-weight: 800; color: var(--text-2); margin-bottom: 2px; }
+.pi-hero-l { display: flex; justify-content: space-between; gap: 12px; padding: 4px 10px; border-radius: 10px; background: var(--surface); }
+.pi-hero-l.gana { background: var(--ok-soft); font-weight: 800; }
+.pi-cuadra { grid-column: 1 / -1; display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; font-size: 1.08rem; }
+.pi-cuadra-q { font-size: .85rem; font-weight: 700; opacity: .8; }
+.pi-cuadra.ok { background: var(--ok-soft); color: color-mix(in srgb, var(--ok) 70%, var(--text)); border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent); }
+.pi-cuadra.warn { background: var(--warn-soft); color: color-mix(in srgb, var(--warn) 60%, var(--text)); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+.pi-cuadra.bad { background: var(--bad-soft); color: var(--bad); border: 2px solid var(--bad); }
+.pi-cuadra.sin, .pi-cuadra.vacio { background: var(--surface-2); color: var(--text-2); font-size: .95rem; }
+.price-assist .pi-kpis { opacity: .85; }
+.pp { width: 100%; }
+.pp-fila { display: flex; gap: 8px; align-items: stretch; }
+.pp-campo { position: relative; flex: 1; min-width: 0; }
+.pp-campo > .inp { width: 100%; }
+.pp-ver { white-space: nowrap; }
+.pp-lista { position: absolute; z-index: 50; left: 0; right: 0; top: calc(100% + 4px); max-height: 380px; overflow: auto; padding: 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-l); display: grid; gap: 2px; }
+.pp-lista[hidden] { display: none; }
+.pp-op { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border: 0; border-radius: 10px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.pp-op.on, .pp-op:hover { background: var(--brand-soft); }
+.pp-op-t { display: grid; min-width: 0; }
+.pp-op-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-op-t small { color: var(--muted); }
+.pp-foto { flex: none; border-radius: 10px; object-fit: cover; background: var(--surface-3); display: inline-grid; place-items: center; font-weight: 800; color: var(--muted); }
+.pp-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pp-card { display: grid; gap: 4px; justify-items: center; padding: 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; text-align: center; }
+.pp-card:hover { border-color: var(--brand); box-shadow: var(--shadow); }
+.pp-card .pp-foto { width: 120px; height: 120px; }
+.pp-card small { color: var(--muted); }
+@media (max-width: 760px) { .pi-hero { grid-template-columns: 1fr; } .pp-fila { flex-wrap: wrap; } }
+
+/* ---------- 01-11-2026 · 🧮 «fabricarlo te cuesta», grande y ordenado (productos.js desgloseGrande) ---------- */
+.dg { display: grid; gap: 12px; margin-top: 12px; padding: 16px 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line-2); }
+.dg-cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.dg-cab > div:first-child { display: grid; gap: 2px; }
+.dg-t { font-size: .8rem; font-weight: 900; letter-spacing: .12em; color: var(--brand); }
+.dg-n { font-size: clamp(2rem, 4.5vw, 2.8rem); line-height: 1; font-weight: 900; letter-spacing: -.03em; }
+.dg-cab small { color: var(--muted); font-weight: 600; }
+.dg-pc { font-weight: 600; color: var(--text-2); }
+.dg-filas { display: grid; gap: 6px; }
+.dg-f { display: grid; grid-template-columns: 30px minmax(150px, 1.4fr) minmax(80px, 1fr) 76px 46px; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; background: var(--surface-2); font-size: 1.02rem; }
+.dg-e { font-size: 1.3rem; text-align: center; }
+.dg-bar { height: 12px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.dg-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #fff)); }
+.dg-v { text-align: right; font-size: 1.08rem; }
+.dg-p { text-align: right; color: var(--muted); font-size: .85rem; font-weight: 700; }
+.dg-vende { display: grid; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+.dg-vt { font-weight: 800; }
+.dg-cs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dg-c { display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--ok-soft); }
+.dg-c span { font-weight: 700; font-size: .9rem; color: var(--text-2); }
+.dg-c b { font-size: 1.5rem; line-height: 1.1; }
+.dg-c small { color: var(--ok); font-weight: 700; }
+@media (max-width: 760px) { .dg-f { grid-template-columns: 26px minmax(0, 1fr) 70px; } .dg-bar, .dg-p { display: none; } .dg-cs { grid-template-columns: 1fr; } }
+/* 02-11-2026 · 🖥️ encargo de pieza a la torre: por dónde va */
+.pt-estado { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 500; max-width: min(560px, calc(100vw - 24px)); padding: 12px 18px; border-radius: 16px; background: var(--text); color: var(--surface); font-weight: 700; box-shadow: var(--shadow-l); }
+
+/* 02-11-2026 · 💬 el navegador propio de chats: la barra y el panel; las páginas van encima del hueco (chats_windows.go) */
+.chn { position: fixed; inset: 0; z-index: 5; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) 330px; background: var(--bg); color: var(--text); }
+.chn-barra { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: var(--surface); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.chn-tab { position: relative; flex: none; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px 0 8px; border-radius: 14px; border: 2px solid transparent; background: color-mix(in srgb, var(--c) 10%, var(--surface)); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
+.chn-tab:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); }
+.chn-tab.on { background: var(--c); color: #fff; }
+.chn-logo { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--c); color: #fff; font-weight: 900; }
+.chn-tab.on .chn-logo { background: rgba(255, 255, 255, .22); }
+.chn-num { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: #e11d48; color: #fff; font-size: .75rem; line-height: 20px; text-align: center; }
+.chn-casa { flex: none; height: 44px; padding: 0 16px; margin-right: 6px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-weight: 800; cursor: pointer; }
+.chn-casa:hover { background: var(--surface-2); }
+.chn-nav { margin-left: auto; display: flex; gap: 4px; flex: none; padding-left: 10px; }
+.chn-hueco { display: grid; place-items: center; min-width: 0; min-height: 0; padding: 20px; text-align: center; background: var(--bg); }
+.chn-hueco h2 { margin: 0 0 6px; }
+.chn-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 8px; min-height: 0; padding: 10px; background: var(--surface); border-left: 1px solid var(--line); }
+.chn-panel h3 { margin: 0; font-size: 1.05rem; }
+.chn-lista { display: grid; align-content: start; gap: 8px; overflow-y: auto; min-height: 0; padding-right: 2px; }
+.chn-p { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); }
+.chn-foto { width: 76px; height: 76px; border-radius: 10px; overflow: hidden; background: var(--line); display: grid; place-items: center; }
+.chn-p b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chn-precio { color: var(--muted); font-size: .85rem; }
+.chn-acc { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 4px; }
+.chn-estado { min-height: 2.6em; font-size: .85rem; font-weight: 700; color: var(--muted); }
+.chn-estado.ok { color: #059669; } .chn-estado.bad { color: #e11d48; }
+
+/* 02-11-2026 · 📱 Mis cuentas */
+.mc-res { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.mc-res > div { padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
+.mc-res b { display: block; font-size: 1.7rem; } .mc-res small { color: var(--muted); }
+.mc-res .bien b { color: #059669; } .mc-res .mal b { color: #e11d48; }
+.mc-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; margin-top: 8px; }
+.mc-c { display: grid; gap: 6px; border-left: 5px solid var(--line); } .mc-c.vende { border-left-color: #10b981; }
+.mc-cab { display: flex; align-items: center; gap: 10px; } .mc-cab h3 { margin: 0; overflow-wrap: anywhere; } .mc-pl { font-size: 1.6rem; } .mc-est { font-weight: 800; font-size: .85rem; white-space: nowrap; }
+.mc-ventas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 8px; border-radius: 12px; background: var(--bg); text-align: center; }
+.mc-ventas b { display: block; } .mc-ventas small { color: var(--muted); font-size: .72rem; }
+.mc-fila { display: flex; align-items: center; gap: 8px; min-height: 30px; } .mc-ic { width: 22px; text-align: center; } .mc-et { width: 58px; color: var(--muted); font-size: .85rem; } .mc-fila b { overflow-wrap: anywhere; font-weight: 600; }
+.mc-falta { display: flex; flex-wrap: wrap; gap: 6px; } .mc-falta span { padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, #e11d48 12%, var(--surface)); color: #be123c; font-weight: 700; font-size: .85rem; }
+.mc-ok { color: #059669; font-weight: 700; font-size: .9rem; }
+.mc-aviso { padding: 12px 14px; margin-bottom: 12px; border-radius: 14px; background: color-mix(in srgb, #f59e0b 16%, var(--surface)); }
+.mc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; } .mc-preg { display: grid; gap: 4px; } .mc-preg span { font-weight: 700; } .mc-check { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+
+/* 04-11-2026 · 📏 Cotizador: producto + tamaño → precio */
+.cz-prod .pp { margin-top: 4px; }
+.cz-foto { display: grid; place-items: center; aspect-ratio: 1 / 1; max-height: 64vh; overflow: hidden; }
+.cz-foto img { width: 100%; height: 100%; object-fit: cover; }
+.cz-atajos { display: flex; flex-wrap: wrap; gap: 8px; }
+.cz-pct { min-height: 44px; min-width: 64px; font-size: 15px; font-weight: 700; }
+.cz-pct.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.cz-tam-med { font-size: 14.5px; }
+.cz-cabe { padding: 8px 12px; border-radius: 12px; font-size: 13.5px; font-weight: 600; }
+.cz-cabe.ok { background: color-mix(in srgb, var(--ok) 10%, var(--surface)); }
+.cz-cabe.medio { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
+.cz-cabe.no { background: color-mix(in srgb, var(--bad) 10%, var(--surface)); }
+.cz-cmp { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 16px; border-radius: 16px; background: var(--surface-2); }
+.cz-cmp > div { display: grid; } .cz-cmp small { color: var(--muted); font-size: 12px; } .cz-cmp b { font-size: 22px; }
+.cz-cmp > div.on b { color: var(--brand); font-size: 28px; } .cz-cmp > i { font-style: normal; font-size: 22px; color: var(--muted); }
+.cz-cmp-d { margin-left: auto; font-weight: 800; color: var(--ok); }
+
+/* 04-11-2026 · 📤 Subir a la plataforma y 💤 dormidos (ventana de chats) */
+.chn-acc { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto auto; }
+.chn-subir { border-color: color-mix(in srgb, var(--brand) 55%, var(--line)); font-weight: 700; }
+.chn-subido { display: block; font-size: .78rem; color: var(--muted); margin-top: 2px; }
+.chn-subido.dormido { color: var(--warn); font-weight: 700; }
+.chn-dorm { justify-self: start; min-height: 36px; font-weight: 700; }
+.chn-dorm.on { background: var(--warn); color: #fff; border-color: var(--warn); }
+.chn-panel { grid-template-rows: auto auto auto minmax(0, 1fr) auto; } /* (+ la fila de 💤 dormidos, vacía si no hay) */
+.chn-dorm-caja:empty, .chn-dorm-caja:has(> [hidden]) { display: block; height: 0; }
+.chn-dorm[hidden] { display: none !important; }

@@ -199,7 +199,10 @@ var CL = (function () {
     gastos = gastos || {};
     var gb = n(c.gramosBobina) || n(pp.gramosBobina) || 1000;
     var fil = n(c.precioBobina) ? n(c.precioBobina) / gb * n(c.gramos) : n(pp.costeKg) / 1000 * n(c.gramos);
-    var luz = n(c.horas) * n(pp.luzHora), mo = n(c.horasMO) * n(pp.manoObraHora);
+    // 04-11-2026 · Biou: «piensa que somos dos trabajadores… debemos de cobrar». Cada pieza lleva vuestro trabajo (sacarla, limpiarla,
+    // empaquetar, hablar con el cliente): si la fila no trae sus minutos, se cuentan los de Configuración → Precios (minutosPieza).
+    var hMO = n(c.horasMO) > 0 ? n(c.horasMO) : n(pp.minutosPieza) / 60;
+    var luz = n(c.horas) * n(pp.luzHora), mo = hMO * n(pp.manoObraHora);
     var pint = (c.pintado === true || /^s/i.test(s(c.pintado))) ? n(c.costePintado) : 0;
     var ext = (gastos[norm(c.gasto1)] || 0) + (gastos[norm(c.gasto2)] || 0);
     // v20.2: el EMBALAJE se cobra SIEMPRE (la dueña: «siempre se aplica en todo»): el de la fila, el de Configuración o, si los dos
@@ -210,7 +213,7 @@ var CL = (function () {
     var etsyPct = n(pp.etsyVenta) + n(pp.etsyPago) + n(pp.etsyReg), etsyFix = n(pp.etsyFijo) + n(pp.etsyAnuncioUSD) * n(pp.usdEur);
     function plat(m) { return { general: T / (1 - m), wallapop: T / (1 - m), vinted: T / (1 - m - n(pp.vinted)), etsy: (T + etsyFix) / (1 - m - etsyPct) }; }
     var o = plat(n(pp.margen)), mi = plat(n(pp.margenMin));
-    var out = { desglose: { filamento: fil, luz: luz, manoObra: mo, pintado: pint, gastosExtra: ext, produccion: R, iva: R * n(pp.iva), embalaje: emb, envio: env, negocio: neg, costeTotal: T },
+    var out = { minutosTrabajo: Math.round(hMO * 60), trabajoDe: n(c.horasMO) > 0 ? 'pieza' : (n(pp.minutosPieza) > 0 ? 'configuracion' : ''), desglose: { filamento: fil, luz: luz, manoObra: mo, pintado: pint, gastosExtra: ext, produccion: R, iva: R * n(pp.iva), embalaje: emb, envio: env, negocio: neg, costeTotal: T },
       recomendado: {}, minimo: {}, segundaMano: round10up(T / (1 - n(pp.margen)) * (1 - n(pp.segundaMano))) };
     Object.keys(o).forEach(function (k) { out.recomendado[k] = round10up(o[k]); out.minimo[k] = round10up(mi[k]); });
     out.beneficio = { wallapop: out.recomendado.wallapop - T, vinted: out.recomendado.vinted * (1 - n(pp.vinted)) - T, etsy: out.recomendado.etsy * (1 - etsyPct) - etsyFix - T };
@@ -244,13 +247,20 @@ var CL = (function () {
 
   // Coste unitario conocido de cada producto (calculadora del Excel), por ID y por nombre
   function costIndex(data, pp) {
-    var byId = {}, byName = {};
+    var byId = {}, byName = {}, gmap = {};
+    (data.gastos || []).forEach(function (x) { if (x && x.nombre) gmap[norm(x.nombre)] = n(x.coste); });
+    // el móvil y la SIM NO van aquí: cada pedido los suma aparte (orderProfit / orderAssist), nunca dos veces
+    var pq = pp ? Object.assign({}, pp, { negocioPedido: 0 }) : null;
     (data.calculadora || []).forEach(function (c) {
-      var ct = n(c.costeTotal);
-      // si la hoja aún no ha calculado la fórmula, se calcula igual que el Excel
-      if (!(ct > 0) && pp && (n(c.gramos) > 0 || n(c.horas) > 0 || n(c.horasMO) > 0)) { try { ct = prices(c, pp).desglose.costeTotal; } catch (e) { ct = 0; } }
+      // 04-11-2026 · Biou: «¿cómo lo voy a vender a 2,44 € si el material, la luz y el trabajo ya me cuestan más?». El total GUARDADO
+      // en la calculadora venía del Excel viejo (filamento a 0 €, sin embalaje): 1,71 € → «véndelo a 2,44 €». Si la fila tiene gramos u
+      // horas, se calcula SIEMPRE con las cuentas de hoy (las mismas de Productos → Costes); el total guardado, solo si no hay datos.
+      var fr = null;
+      if (pq && (n(c.gramos) > 0 || n(c.horas) > 0 || n(c.horasMO) > 0)) { try { fr = prices(c, pq, gmap); } catch (e) { fr = null; } }
+      var ct = fr ? fr.desglose.costeTotal : n(c.costeTotal);
       if (!(ct > 0)) return;
-      var rec = { coste: ct, recomendado: n(c.precioVenta), minimo: n(c.precioMinimo), nombre: c.nombre, envio: n((pp || {}).envio), emb: n(c.embalaje) > 0 ? n(c.embalaje) : n((pp || {}).embalaje) > 0 ? n(pp.embalaje) : n((pp || {}).embalajeReal) };
+      var rec = fr ? { coste: ct, recomendado: fr.recomendado.wallapop, minimo: fr.minimo.wallapop, nombre: c.nombre, envio: fr.desglose.envio, emb: fr.desglose.embalaje, fresco: true }
+        : { coste: ct, recomendado: n(c.precioVenta), minimo: n(c.precioMinimo), nombre: c.nombre, envio: n((pp || {}).envio), emb: n(c.embalaje) > 0 ? n(c.embalaje) : n((pp || {}).embalaje) > 0 ? n(pp.embalaje) : n((pp || {}).embalajeReal) };
       if (c.id) byId[s(c.id)] = rec;
       if (c.nombre) byName[norm(c.nombre)] = rec;
     });
@@ -288,6 +298,11 @@ var CL = (function () {
       if (ps && ps.coste > 0) emb = { total: r2x(ps.coste), lineas: ps.lineas, nombre: ps.nombre, elegido: false, origen: ps.origen };
     }
     if (emb && ci) { var add = emb.total / qty - n(ci.emb); ci = Object.assign({}, ci, { coste: ci.coste + add, recomendado: ci.recomendado ? r2x(ci.recomendado + add) : ci.recomendado, minimo: ci.minimo ? r2x(ci.minimo + add) : ci.minimo }); }
+    // 04-11-2026 · el «véndelo a» y «lo que ganas» con TODO lo que dice que lleva dentro: + el móvil y la SIM de cada pedido (lo mismo
+    // que luego resta el beneficio del pedido) y, si el coste sale de gramos y horas, el precio se calcula sobre ESE total con su margen
+    var neg = ci ? cuotaNegocio(cfg, data, s(o.fecha).substring(0, 10) || hoy).cuota : 0;
+    if (ci && neg > 0) ci = Object.assign({}, ci, { coste: ci.coste + neg, recomendado: ci.recomendado && !ci.fresco ? r2x(ci.recomendado + neg) : ci.recomendado, minimo: ci.minimo && !ci.fresco ? r2x(ci.minimo + neg) : ci.minimo });
+    if (ci && ci.fresco) { var mg = n(pp.margen), mm = n(pp.margenMin); ci = Object.assign({}, ci, { recomendado: mg < 1 ? round10up(ci.coste / (1 - mg)) : ci.recomendado, minimo: mm < 1 ? round10up(ci.coste / (1 - mm)) : ci.minimo }); }
     var prod = null;
     (data.productos || []).forEach(function (p) { if ((o.productoId && p.id === o.productoId) || (!o.productoId && norm(p.nombre) === norm(o.producto))) prod = prod || p; });
     var same = (data.pedidos || []).filter(function (x) { return x.id !== o.id && !stateOf(cp, x.estado).cancelled && n(x.precio) > 0 && ((o.productoId && x.productoId === o.productoId) || norm(x.producto) === norm(o.producto)); })
@@ -296,12 +311,13 @@ var CL = (function () {
     var last = sameClient[sameClient.length - 1] || null, lastAny = same[same.length - 1] || null;
     var out = { coste: ci ? r2(ci.coste) : null, catalogo: prod && n(prod.precio) > 0 ? n(prod.precio) : null, recomendado: ci && ci.recomendado ? ci.recomendado : null,
       minimo: prod && n(prod.precioMin) > 0 ? n(prod.precioMin) : (ci && ci.minimo ? ci.minimo : (ci ? r2(ci.coste / (1 - minM)) : null)), anteriorCliente: last ? n(last.precio) : null, anterior: lastAny ? n(lastAny.precio) : null,
-      ventasPrevias: same.length, cantidad: qty, notas: [], avisos: [], fuente: '', embalaje: emb, embalajeUnidad: emb ? r2x(emb.total / qty) : 0 };
+      ventasPrevias: same.length, cantidad: qty, notas: [], avisos: [], fuente: '', embalaje: emb, embalajeUnidad: emb ? r2x(emb.total / qty) : 0, negocio: r2x(neg), envio: ci ? r2x(n(ci.envio)) : 0,
+      embalajeDentro: emb ? r2x(emb.total / qty) : ci ? r2x(n(ci.emb)) : 0 }; // (04-11) el embalaje que YA va dentro del coste (aunque no haya plan de embalaje)
     // Precio sugerido: el del catálogo o el recomendado por costes; al cliente habitual, su último precio
     var sug = null;
     if (out.anteriorCliente && (!out.minimo || out.anteriorCliente >= out.minimo)) { sug = out.anteriorCliente; out.fuente = 'Último precio que pagó este cliente'; }
     else if (out.catalogo) { sug = r2(out.catalogo + out.embalajeUnidad); out.fuente = out.embalajeUnidad ? 'Precio del catálogo + embalaje' : 'Precio del catálogo'; } // v20.2
-    else if (out.recomendado) { sug = out.recomendado; out.fuente = 'Precio recomendado por costes (Excel)'; }
+    else if (out.recomendado) { sug = out.recomendado; out.fuente = ci && ci.fresco ? 'Precio recomendado por costes (gramos y horas)' : 'Precio recomendado por costes (Excel)'; }
     else if (out.anterior) { sug = out.anterior; out.fuente = 'Último precio de venta de este producto'; }
     else if (ci) { sug = round10up(ci.coste / (1 - (n(pp.margen) || 0.3))); out.fuente = 'Coste + margen objetivo'; }
     out.sugerido = sug;

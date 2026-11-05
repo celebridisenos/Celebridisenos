@@ -4,7 +4,10 @@
 // (DPAPI), copias locales, actualizaciones e IA local. En el móvil no existe.
 const H = window.__HOST__ || null;
 async function call(path, opts = {}) {
-  const r = await fetch('/local/' + path, Object.assign({}, opts, { headers: Object.assign({ 'X-Host-Key': H.key }, opts.headers || {}) }));
+  if (!H) throw new Error('Esto solo se puede en el programa del PC (Failed to fetch)'); // (02-11: en la tablet o el móvil no hay programa del PC)
+  let r;
+  try { r = await fetch('/local/' + path, Object.assign({}, opts, { headers: Object.assign({ 'X-Host-Key': H.key }, opts.headers || {}) })); }
+  catch (e) { throw new Error('Sin conexión con el programa de este PC (' + (e.message || e) + '). Ciérralo y ábrelo otra vez.'); } // (02-11: antes salía «Failed to fetch» a secas)
   if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { } throw new Error(m || ('Error local ' + r.status)); }
   const ct = r.headers.get('content-type') || '';
   return ct.includes('json') ? r.json() : r;
@@ -115,6 +118,12 @@ export const desktop = {
   r8Guardar: (blob, carpeta, nombre) => call('r8/guardar?' + q({ carpeta, nombre }), { method: 'POST', body: blob }), // v20: Documentos\CelebriDiseños_R8\<carpeta>
   r8Carpeta: (carpeta = '') => call('r8/carpeta?' + q({ carpeta }), { method: 'POST' }),
   r8Archivos: () => call('r8/archivos'),
+  redes: sitio => call('redes' + (sitio ? '?sitio=' + encodeURIComponent(sitio) : ''), { method: 'POST' }), // 01-11-2026: navegador propio de chats
+  cuentasInicio: () => call('cuentas-inicio'), // 02-11-2026: las cuentas de partida (archivo local de la torre, nunca en el código)
+  cuentasInicioHechas: () => call('cuentas-inicio', { method: 'POST' }),
+  redesPendiente: () => call('redes-pendiente'), // 02-11-2026: la ventana de chats pregunta si le han pedido otra pestaña
+  acabado: (ruta, imp, receta) => call('acabado?' + q({ ruta, imp, receta }), { method: 'POST' }), // 01-11-2026: abrir Bambu con la receta de acabado (rapido/normal/fino/fuerte)
+  repara: (ruta, modo) => call('repara?' + q({ ruta, modo: modo || 'decor' }), { method: 'POST' }), // 01-11-2026: reparar por fragilidad (decor engorda / encaje no toca la medida)
   mudanza: (que, cuerpo) => call('mudanza/' + que, cuerpo ? { method: 'POST', body: JSON.stringify(cuerpo) } : undefined), // v30.7.1: la copia para llevar el programa a otro ordenador
   ocr: blob => call('ocr', { method: 'POST', body: blob }), // v30.7.1: leer las letras de una etiqueta con el lector de Windows (gratis, sin internet)
   r8Abrir: (ruta, con) => call('r8/abrir?' + q({ ruta, con: con || '' }), { method: 'POST' }),

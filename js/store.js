@@ -6,7 +6,10 @@ import { uid } from './ui.js';
 import { desktop } from './desktop.js';
 
 const CL = window.CL;
-export const APP_VERSION = '60.5.0';
+// 04-11-2026 · «somos dos trabajadores… debemos de cobrar»: si el Servidor.gs aún es el de antes (no trae minutosPieza), vuestro trabajo
+// por pieza se cuenta igual: 10 min (lo mismo que trae el Servidor 18.6.0 por defecto). Si lo cambiáis en Configuración, manda lo vuestro.
+function conTrabajo(cfg) { if (cfg && cfg.precios && (cfg.precios.minutosPieza === undefined || cfg.precios.minutosPieza === null || cfg.precios.minutosPieza === '')) cfg.precios = Object.assign({}, cfg.precios, { minutosPieza: 10 }); return cfg; }
+export const APP_VERSION = '60.8.0';
 export const SERVIDOR_NECESARIO = '18.0.0'; // v20: la versión MÍNIMA del Servidor.gs que necesita esta app (la 20 no cambia nada del servidor)
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
@@ -191,7 +194,7 @@ export async function loadLocal() {
   localStorage.setItem('cd.device', S.device);
   S.token = (await desktop.secretGet('token')) || localStorage.getItem('cd.token') || '';
   const me = await kv.get('me');
-  if (me && S.token) { S.me = me.me; S.perms = me.perms; S.cfg = me.cfg; }
+  if (me && S.token) { S.me = me.me; S.perms = me.perms; S.cfg = conTrabajo(me.cfg); }
   // Hay sesión guardada pero no la ficha local (caché borrada): se recupera sin pedir contraseña
   if (S.token && !S.me && S.server) await pull(true);
   document.documentElement.dataset.ws = S.ws;
@@ -291,6 +294,10 @@ export async function unlock(pass) {
 
 // ---------- Sincronización ----------
 let pulling = null;
+// 02-11-2026: una sincronización que ya venía de camino trae la configuración de ANTES de guardar y la pisaba (su Google tarda de 2 a 18 s):
+// la cuenta recién añadida desaparecía y la siguiente edición la borraba del servidor. Esa respuesta no toca la configuración; la siguiente ya trae la buena.
+let cfgGuardada = 0;
+export function configGuardada() { cfgGuardada++; }
 // v30.7.1 · fondo = la sincronización de cada 15 s: no enciende «Sincronizando…» (con un servidor lento la pastilla de arriba pasaba
 // la mitad del tiempo cambiando de «Conectado» a «Sincronizando…» sin que nadie hubiera tocado nada)
 export function pull(full, fondo) {
@@ -302,7 +309,7 @@ export function pull(full, fondo) {
     try {
       if (S.queue.length) await flush();
       if (S.queue.length) return; // aún hay cambios sin enviar: no pisamos la copia local
-      const known = {};
+      const known = {}, sello = cfgGuardada;
       if (!full) TABLES.forEach(k => { if (S.meta[k]) known[k] = S.meta[k]; });
       let ws0 = S.ws;
       let r;
@@ -319,21 +326,23 @@ export function pull(full, fondo) {
         } else throw e;
       }
       if (S.ws !== ws0) return; // se cambió de espacio mientras llegaba la respuesta
+      if (sello !== cfgGuardada) r.config = S.cfg;
       const sig = x => JSON.stringify(x);
       // v20.2: embalajeReal lo calcula la app (no viene del servidor): no es un cambio, si no, cada sincronización redibujaría la pantalla
       if (r.config && r.config.precios && S.cfg && S.cfg.precios && 'embalajeReal' in S.cfg.precios) r.config.precios.embalajeReal = S.cfg.precios.embalajeReal;
       // v30.7.1 · ESTABILIDAD (la dueña, 12-10-2026: «se vuelve loco, parpadea… creas un producto y a los segundos desaparece la
       // ventana»): «iaServidor.visto» es la HORA del último latido del PC que atiende la IA y cambia en cada sincronización. Eso se
       // daba por «ha llegado algo nuevo» y cada 15 s se repintaba ENTERA la pantalla abierta (y la ficha del producto, con su 3D).
-      // La hora del latido no es un cambio: solo cuenta QUIÉN atiende y con qué modelo.
-      const sinLatido = x => x ? sig(Object.assign({}, x, { visto: undefined })) : 'null';
-      if (sig(r.yo) !== sig(S.me) || sig(r.permisos) !== sig(S.perms) || sig(r.config) !== sig(S.cfg) || r.hoy !== S.hoy || sinLatido(r.iaServidor) !== sinLatido(S.iaServidor)) changed = true;
-      S.me = r.yo; S.perms = r.permisos; S.cfg = r.config; S.hoy = r.hoy; S.iaServidor = r.iaServidor || null;
+      // La hora del latido no es un cambio. 02-11-2026: QUIÉN atiende tampoco (visto en su programa real: la torre y el portátil se turnan y
+      // «dispositivo» cambiaba en cada sincronización, repintando todo cada 15 s): solo cuenta si hay alguien atendiendo o no.
+      if (sig(r.yo) !== sig(S.me) || sig(r.permisos) !== sig(S.perms) || sig(r.config) !== sig(S.cfg) || r.hoy !== S.hoy || !r.iaServidor !== !S.iaServidor) changed = true;
+      S.me = r.yo; S.perms = r.permisos; S.cfg = conTrabajo(r.config); S.hoy = r.hoy; S.iaServidor = r.iaServidor || null;
       try { const lg = (r.config && r.config.empresa && r.config.empresa.logo) || ''; if (lg !== (localStorage.getItem('cd.logo') || '')) { if (lg) localStorage.setItem('cd.logo', lg); else localStorage.removeItem('cd.logo'); } } catch (e) { }
       if (Object.keys(S.errors || {}).length) changed = true;
       S.errors = {};
       for (const k of Object.keys(r.tablas)) {
         const x = r.tablas[k];
+        if (!TABLES.includes(k)) continue; // 02-11-2026: una tabla que esta app no guarda no es un cambio (movFilamento llegaba entera y repintaba todo cada 15 s)
         if (x.error) { S.errors[k] = x.error; changed = true; continue; }
         if (!x.igual) { changed = true; S.t[k] = x.filas; idb('tables', 'readwrite', s => s.put({ rows: x.filas, rev: x.rev, hash: x.hash }, tk(k, ws0))).catch(() => { }); }
         S.meta[k] = { rev: x.rev, hash: x.hash };

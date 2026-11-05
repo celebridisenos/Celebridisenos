@@ -27,6 +27,7 @@ export function render(el, params) {
     const ws = CL.weekStart(S.hoy), we = CL.addDays(ws, 6);
     const done = S.t.redes.filter(r => r.estado === 'Publicado' && r.fecha >= ws && r.fecha <= we).length;
     mount(links, h('div.card', { style: { marginBottom: '14px' } }, h('div.row.wrap', { style: { gap: '8px' } }, acc.map(a => btn((RED_I[a.red] || '🌐') + ' ' + a.red, () => openNet(a), { cls: 'sm' })),
+      desktop.on ? btn('💬 Contestar mensajes (todas tus ventas)', () => { toast('Abriendo tus mensajes (Facebook, Wallapop, Vinted, Milanuncios y Opla) en una ventana propia. La primera vez entra con tu cuenta; luego se queda guardada.', 'ok', 7000); desktop.redes().catch(e => toast(e.message || String(e), 'bad')); }, { cls: 'sm primary' }) : null, // 01-11-2026: navegador integrado para contestar
       desktop.on ? btn('Carpeta de contenido', openFolder, { cls: 'sm ghost', icon: 'folder' }) : null),
       goal ? h('div.row', { style: { marginTop: '10px' } }, h('div.grow', h('div.bar', { style: { height: '8px', background: 'var(--line)', borderRadius: '9px', overflow: 'hidden' } }, h('i', { style: { display: 'block', height: '100%', width: Math.min(100, done / goal * 100) + '%', background: done >= goal ? 'var(--ok)' : 'var(--brand)' } }))), h('span.small', done + ' de ' + goal + ' publicaciones esta semana' + (done >= goal ? ' 🎉' : ''))) : null));
   }

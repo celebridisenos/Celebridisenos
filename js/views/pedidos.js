@@ -1,6 +1,6 @@
 // ================= Pedidos: panel, filtros, ficha y formulario =================
 import { menu, h, mount, clear, icon, btn, modal, drawer, toast, eur, fdate, fdt, ago, pill, dueBadge, empty, field, inp, sel, area, debounce, confirmDlg, uid, copyText, avatar, na } from '../ui.js';
-import { S, can, mutate, api, timing, stateColor, byId, upsertLocal, removeLocal, emit, clientStats } from '../store.js';
+import { S, can, mutate, api, timing, stateColor, byId, upsertLocal, removeLocal, emit, clientStats, on } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { filesSection, filesOf } from '../files.js';
 import * as EV from '../envio.js';
@@ -46,7 +46,6 @@ export function render(el, params) {
   const st = { preset: 'abiertos', q: '', estado: '', canal: '', resp: '', desde: '', hasta: '', sort: 'limite', limit: 60 };
   // v13.8.1: los pedidos de un mismo cliente se ven JUNTOS en una fila con su nombre; al pulsarla se despliegan
   st.agrupar = (() => { try { return localStorage.getItem('cd.pedidos.agrupar') !== '0'; } catch (e) { return true; } })();
-  const abiertosCli = new Set();
   const agruparBtn = h('button.btn.sm' + (st.agrupar ? '.primary' : ''), { type: 'button', title: 'Ver los pedidos de cada cliente juntos', onclick: () => { st.agrupar = !st.agrupar; try { localStorage.setItem('cd.pedidos.agrupar', st.agrupar ? '1' : '0'); } catch (e) { } agruparBtn.classList.toggle('primary', st.agrupar); drawList(); } }, '👤 Agrupar por cliente');
   const head = h('div.page-head', h('h1', 'Pedidos'), h('div.row',
     can('pedidos.crear') ? btn('Nuevo pedido', () => orderForm(), { cls: 'primary', icon: 'plus' }) : null));
@@ -114,14 +113,11 @@ export function render(el, params) {
     const mobile = window.innerWidth <= 860;
     // grupos por cliente (misma ficha o mismo nombre), en el orden en que aparece su primer pedido
     const grupos = [];
-    if (st.agrupar) {
+    if (st.agrupar && !st.q.trim()) { // (al buscar se ven sueltos: lo que buscas sale a la vista)
       const idx = new Map();
       rows.forEach(x => { const k = x.o.clienteId ? 'id:' + x.o.clienteId : 'n:' + CL.norm(x.o.cliente || '—'); if (!idx.has(k)) { idx.set(k, { k, items: [] }); grupos.push(idx.get(k)); } idx.get(k).items.push(x); });
     } else rows.forEach(x => grupos.push({ k: 'o:' + x.o.id, items: [x] }));
     const shownG = grupos.slice(0, st.limit);
-    const abierto = k => abiertosCli.has(k) || !!st.q.trim(); // al buscar, se ven desplegados
-    const toggle = k => { if (abiertosCli.has(k)) abiertosCli.delete(k); else abiertosCli.add(k); drawList(); };
-    const resumen = items => { const c = {}; items.forEach(({ o }) => { c[o.estado] = (c[o.estado] || 0) + 1; }); return Object.keys(c).map(k => pill((c[k] > 1 ? c[k] + ' · ' : '') + k, '', stateColor(k))); };
     const urgente = items => items.map(x => x.t).filter(t => t.abierto && t.limite).sort((a, b) => a.limite.localeCompare(b.limite))[0];
     const mRow = ({ o, t }, hijo) => h('div.item' + (hijo ? '.cli-hijo' : ''), { onclick: () => go('pedidos/' + o.id) },
       miniPedido(o, 46),
@@ -140,22 +136,29 @@ export function render(el, params) {
     // v13.10: «Un paquete, un QR»: junta los pedidos abiertos del cliente en un envío conjunto e imprime UN solo QR para todos
     const abiertosG = g => g.items.map(x => x.o).filter(o => ['reserva', 'confirmado', 'impresion', 'postpro', 'empaquetar', 'listo'].includes(ph(o)) && CL.necesitaEnvio(o));
     const unQr = g => can('pedidos.editar') && abiertosG(g).length > 1 ? btn('📦 1 paquete · 1 QR', ev => { ev.stopPropagation(); unPaquete(abiertosG(g)); }, { cls: 'sm', title: 'Juntar sus pedidos en un solo paquete con un solo QR' }) : null;
+    // 01-11-2026 · Biou: «cuando hay más de un pedido me lío… por los colores me pierdo… al darle clic que salga un globito o una mini
+    // ventana al lado con todos sus pedidos; desplegarse para abajo no es estético». La fila del cliente es UNA tarjeta tranquila (sus
+    // fotos juntas, «2 pedidos» y el resumen en palabras) y al pulsarla sale el globito al lado con cada pedido y sus botones.
+    const fotosG = g => h('span.cg-fotos', g.items.slice(0, 3).map(x => miniPedido(x.o, 34)), g.items.length > 3 ? h('span.cg-mas', '+' + (g.items.length - 3)) : null);
+    const estadosG = items => { const c = {}; items.forEach(({ o }) => { c[o.estado] = (c[o.estado] || 0) + 1; }); return h('span.cg-est', Object.keys(c).map(k => h('span', h('i', { style: { background: stateColor(k) || 'var(--muted)' } }), c[k] + ' ' + k.toLowerCase()))); };
+    const productosG = items => items.map(x => (x.o.cantidad > 1 ? x.o.cantidad + ' × ' : '') + x.o.producto).join(' · ');
+    const abreG = (g, ev) => { ev.stopPropagation(); grupoPop(g.items.map(x => x.o), ev.currentTarget, drawList); };
     const body = mobile
-      ? h('div.list.boxed', shownG.map(g => g.items.length === 1 ? mRow(g.items[0]) : [
-          h('div.item.cli-grupo', { onclick: () => toggle(g.k), 'aria-expanded': String(abierto(g.k)) },
-            h('div.grow', h('div.row', h('span', abierto(g.k) ? '▾' : '▸'), h('b.ellipsis.grow', '👤 ' + cliTitle(g)), h('span.cli-n', String(g.items.length))),
-              h('div.row.wrap', { style: { marginTop: '4px', gap: '6px' } }, resumen(g.items), urgente(g.items) ? dueBadge(urgente(g.items)) : null, unQr(g))),
-            h('div.bold', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0)))),
-          abierto(g.k) ? g.items.map(x => mRow(x, true)) : null]))
+      ? h('div.list.boxed', shownG.map(g => g.items.length === 1 ? mRow(g.items[0]) :
+          h('div.item.cli-grupo.cg', { onclick: ev => abreG(g, ev), 'aria-haspopup': 'dialog', title: 'Ver sus ' + g.items.length + ' pedidos' },
+            fotosG(g),
+            h('div.grow', h('div.row', h('b.ellipsis.grow', '👤 ' + cliTitle(g)), h('span.cg-n', g.items.length + ' pedidos')),
+              h('div.small.muted.ellipsis', productosG(g.items)),
+              h('div.row.wrap', { style: { marginTop: '4px', gap: '6px' } }, estadosG(g.items), urgente(g.items) ? dueBadge(urgente(g.items)) : null)),
+            h('div.bold', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0))))))
       : h('div.table-wrap', h('table.t', h('thead', h('tr', ['Nº', 'Fecha', 'Cliente', 'Producto', 'Estado', 'Plazo', 'Importe', 'Responsable', 'Canal'].map(x => h('th', x)))),
-          h('tbody', shownG.map(g => g.items.length === 1 ? tRow(g.items[0]) : [
-            h('tr.cli-grupo', { onclick: () => toggle(g.k), 'aria-expanded': String(abierto(g.k)) },
-              h('td.nowrap', abierto(g.k) ? '▾' : '▸'), h('td', ''),
-              h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, '👤 ' + cliTitle(g), h('span.cli-n', String(g.items.length)))),
-              h('td.small.muted', g.items.length + ' pedidos · pulsa para verlos ', unQr(g)),
-              h('td', h('div.row.wrap', { style: { gap: '4px' } }, resumen(g.items))), h('td', urgente(g.items) ? dueBadge(urgente(g.items)) : null),
-              h('td.nowrap', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0))), h('td', ''), h('td', '')),
-            abierto(g.k) ? g.items.map(x => tRow(x, true)) : null]))));
+          h('tbody', shownG.map(g => g.items.length === 1 ? tRow(g.items[0]) :
+            h('tr.cli-grupo.cg', { onclick: ev => abreG(g, ev), 'aria-haspopup': 'dialog', title: 'Ver sus ' + g.items.length + ' pedidos' },
+              h('td.nowrap', { colspan: 2 }, fotosG(g)),
+              h('td', h('div.ellipsis', { style: { maxWidth: '220px' } }, h('b', '👤 ' + cliTitle(g))), h('span.cg-n', g.items.length + ' pedidos')),
+              h('td', h('div.ellipsis.small', { style: { maxWidth: '260px' } }, productosG(g.items)), unQr(g)),
+              h('td', estadosG(g.items)), h('td', urgente(g.items) ? dueBadge(urgente(g.items)) : null),
+              h('td.nowrap.bold', eur(g.items.reduce((s, x) => s + CL.orderTotal(x.o), 0))), h('td', { colspan: 2 }, h('span.cg-ver', 'Ver sus pedidos ›')))))));
     mount(listBox, h('div.row.small.muted', { style: { margin: '0 0 8px' } }, h('span', rows.length + (rows.length === 1 ? ' pedido' : ' pedidos')), can('informes.ver') ? h('span', '· ' + eur(total)) : null,
         ['enviar', 'empaquetar'].includes(st.preset) && rows.length ? btn('Imprimir etiquetas (' + rows.length + ')', () => EV.etiquetasEnvio(rows.map(x => x.o)), { cls: 'sm ghost', icon: 'printer' }) : null),
       body, grupos.length > st.limit ? h('div.pager', btn('Mostrar más (' + (grupos.length - st.limit) + ')', () => { st.limit += 100; drawList(); })) : null);
@@ -180,6 +183,49 @@ export function render(el, params) {
   };
 }
 
+// ---------- 01-11-2026 · 💬 el GLOBITO con todos los pedidos de un cliente (al lado de su fila, no desplegado hacia abajo) ----------
+let cierraPop = null;
+export function grupoPop(lista, ancla, redraw) {
+  if (cierraPop) cierraPop();
+  const ords = () => lista.map(o => byId('pedidos', o.id) || o);
+  const caja = h('div.cg-pop', { role: 'dialog', 'aria-label': 'Pedidos de ' + (lista[0].cliente || 'este cliente') });
+  let off = () => { };
+  const cierra = () => { off(); caja.remove(); document.removeEventListener('pointerdown', fuera, true); document.removeEventListener('keydown', tecla, true); window.removeEventListener('resize', coloca); cierraPop = null; };
+  const fuera = e => { if (!caja.contains(e.target) && !(ancla && ancla.contains(e.target)) && !e.target.closest('.overlay, .toast, .lightbox')) cierra(); };
+  const tecla = e => { if (e.key === 'Escape' && !document.querySelector('.overlay')) cierra(); };
+  const pinta = () => {
+    const L = ords(), t0 = L.reduce((x, o) => x + CL.orderTotal(o), 0), edit = can('pedidos.editar');
+    const abiertos = L.filter(o => ['reserva', 'confirmado', 'impresion', 'postpro', 'empaquetar', 'listo'].includes(ph(o)) && CL.necesitaEnvio(o));
+    mount(caja,
+      h('div.cg-pop-h', h('div.grow', h('b', '👤 ' + (L[0].cliente || '—')), h('small', L.length + ' pedidos · ' + eur(t0))), h('button.btn.ghost.icon.sm', { type: 'button', 'aria-label': 'Cerrar', onclick: cierra }, '✕')),
+      h('div.cg-pop-l', L.map(o => { const t = timing(o);
+        return h('div.cg-ped', { 'data-id': o.id },
+          miniPedido(o, 56),
+          h('div.cg-ped-t', h('div.row', h('b', 'nº ' + o.numero), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, h('span.grow'), h('b', eur(CL.orderTotal(o)))),
+            h('div.small.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null),
+            h('div.row.wrap', { style: { gap: '6px', marginTop: '4px' } }, h('span.cg-chip', h('i', { style: { background: stateColor(o.estado) || 'var(--muted)' } }), o.estado), dueBadge(t)),
+            h('div.row.wrap', { style: { gap: '6px', marginTop: '6px' } },
+              btn('Abrir', () => { cierra(); go('pedidos/' + o.id); }, { cls: 'sm' }),
+              edit && !t.enviado && !t.cancelado ? btn('🚚 Enviado…', () => shipDialog(o), { cls: 'sm ghost', title: 'Te pregunta: este, el otro o los dos' }) : null,
+              edit && !t.cancelado ? btn('Cambiar estado', () => stateDialog(o), { cls: 'sm ghost' }) : null))); })),
+      edit && abiertos.length > 1 ? h('div.cg-pop-f',
+        btn('🚚 Marcar enviados…', () => shipDialog(abiertos[0]), { cls: 'primary sm', title: 'Eliges: uno, otro o todos' }),
+        btn('📦 1 paquete · 1 QR', () => unPaquete(abiertos).then(() => pinta()), { cls: 'sm', title: 'Juntar sus pedidos en un solo paquete con un solo QR' })) : null);
+  };
+  function coloca() {
+    if (window.innerWidth <= 860 || !ancla || !ancla.getBoundingClientRect) { caja.classList.add('hoja'); return; }
+    caja.classList.remove('hoja');
+    const b = ancla.getBoundingClientRect(), w = Math.min(480, window.innerWidth - 24), hh = caja.offsetHeight || 300;
+    let left = Math.min(window.innerWidth - w - 12, Math.max(12, b.left + Math.min(b.width * 0.45, 640))), top = Math.max(12, Math.min(window.innerHeight - hh - 12, b.top - 8));
+    Object.assign(caja.style, { left: left + 'px', top: top + 'px', width: w + 'px' });
+  }
+  pinta(); document.body.append(caja); coloca();
+  off = on(() => { if (caja.isConnected) { pinta(); coloca(); } }); // (al cambiar un pedido, el globito se pone al día solo)
+  setTimeout(() => { document.addEventListener('pointerdown', fuera, true); document.addEventListener('keydown', tecla, true); }, 0);
+  window.addEventListener('resize', coloca);
+  cierraPop = cierra;
+  return { cierra, el: caja };
+}
 // ---------- Ficha del pedido ----------
 function nextState(o) {
   const list = S.cfg.pedidos.estados.filter(s => !s.issue && !s.cancelled);
@@ -413,6 +459,18 @@ export async function changeState(o, estado, extra) {
   const editor = can('pedidos.editar');
   extra = Object.assign({}, extra || {});
   const qrListo = extra._qrInternoListo, pruebaLista = extra._pruebaVentaLista; delete extra._qrInternoListo; delete extra._pruebaVentaLista;
+  // 01-11-2026 · «este, el otro o los dos»: si el cliente tiene más pedidos sin enviar, se pregunta cuáles se han enviado (desde
+  // cualquier sitio: la ficha, «Cambiar estado», el escáner, Hoy…). Los de su paquete que no marque salen del paquete y siguen donde estaban.
+  const elegidos = extra._elegidos; delete extra._elegidos;
+  let sueltos = [];
+  if (to === 'enviado' && fromPhase !== 'enviado' && editor) {
+    const sel = elegidos ? elegidos.map(id => byId('pedidos', id)).filter(Boolean) : await queEnviar(o);
+    if (!sel || !sel.length) return false;
+    if (!sel.some(x => x.id === o.id)) return changeState(sel[0], estado, Object.assign({}, extra, { _elegidos: sel.map(x => x.id), _qrInternoListo: qrListo, _pruebaVentaLista: pruebaLista }));
+    for (const p of EV.grupoDe(o)) if (p.id !== o.id && !sel.some(x => x.id === p.id) && ph(p) !== 'enviado' && EV.grupoDe(o).length > 1) await EV.separar(byId('pedidos', p.id) || p);
+    o = byId('pedidos', o.id) || o;
+    sueltos = sel.filter(x => x.id !== o.id && !EV.grupoDe(o).some(g => g.id === x.id));
+  }
   // v13.8 · QR interno 50 × 50: se imprime al entrar en Postprocesado (o en Empaquetar si se saltó). Antes se pregunta si va junto con otros pedidos del cliente.
   if (editor && !qrListo && (to === 'postpro' || to === 'empaquetar') && to !== fromPhase) {
     if (await EV.conjuntoDialog(o, { auto: true }) === null) return false;
@@ -458,6 +516,14 @@ export async function changeState(o, estado, extra) {
       await applyState(p, estado, ex, true);
     }
   }
+  // 01-11-2026 · los otros pedidos del cliente que ha marcado como enviados (sin repetir preguntas, como en un paquete)
+  if (ok && sueltos.length) for (const p0 of sueltos) {
+    const p = byId('pedidos', p0.id) || p0; if (ph(p) === 'enviado' || ph(p) === 'entregado') continue;
+    const ex = { fechaEnvio: extra.fechaEnvio || S.hoy }; if (extra.seguimiento && !p.seguimiento) ex.seguimiento = extra.seguimiento;
+    if (PACK_BEFORE[ph(p)] && !(p.embalaje && p.embalaje.hecho) && !p.trabajoExtra) ex.trabajoExtra = { lineas: [] };
+    await applyState(p, estado, ex, true);
+  }
+  if (ok && sueltos.length) toast('🚚 Enviados: nº ' + [o].concat(sueltos).map(p => p.numero).join(' y nº '), 'ok', 6000);
   if (ok && to === 'listo' && fromPhase !== 'listo' && CL.necesitaEnvio(o)) await EV.offerOfficialLabel(byId('pedidos', o.id) || o);
   return ok;
 }
@@ -530,10 +596,55 @@ export async function shipDialog(o, estado) {
   const seg = inp({ value: o.seguimiento || '', placeholder: 'Opcional' });
   const fecha = inp({ type: 'date', value: S.hoy });
   const coste = inp({ type: 'number', min: 0, step: 0.01, value: o.costeEnvio ?? '', placeholder: 'Ej.: 3,20' });
-  const g = EV.grupoDe(o);
-  modal((g.length > 1 ? 'Enviar el envío conjunto nº ' + CL.numerosGrupo(g) : 'Enviar pedido nº ' + o.numero), h('div.form', h('p.small', 'El QR es interno. El transportista no hace falta para cambiar el estado.' + (g.length > 1 ? ' Se marcan como enviados todos los pedidos del paquete.' : '')), field('Nº de seguimiento (opcional)', seg), field('Fecha de envío', fecha), field('Coste del envío (€) (opcional)', coste)), close => [
+  const g = EV.grupoDe(o), otros = otrosDelCliente(o);
+  const elige = otros.length ? eligeEnvio(o, otros) : null; // 01-11-2026 · Biou: «tiene que dejarme las tres opciones: este, el otro o ambos»
+  modal((otros.length ? '🚚 ¿Qué has enviado? · ' + (o.cliente || 'este cliente') : g.length > 1 ? 'Enviar el envío conjunto nº ' + CL.numerosGrupo(g) : 'Enviar pedido nº ' + o.numero), h('div.form', elige ? h('div.full', elige.el) : null, h('p.small.full', 'El QR es interno. El transportista no hace falta para cambiar el estado.' + (!otros.length && g.length > 1 ? ' Se marcan como enviados todos los pedidos del paquete.' : '')), field('Nº de seguimiento (opcional)', seg), field('Fecha de envío', fecha), field('Coste del envío (€) (opcional)', coste)), close => [
     btn('Cancelar', close),
-    btn('Marcar como enviado', async () => { close(); const ex = { seguimiento: seg.value.trim(), fechaEnvio: fecha.value }; if (coste.value !== '') ex.costeEnvio = Number(coste.value); const ok = await changeState(o, estado || 'Enviado', ex); const x = byId('pedidos', o.id); if (ok && x) messageDialog(x, 'enviado'); }, { cls: 'primary', icon: 'truck' })], { size: 'narrow' });
+    btn('Marcar como enviado', async () => {
+      const sel = elige ? elige.value() : [o]; if (!sel.length) return toast('Elige qué has enviado', 'warn');
+      close(); const ex = { seguimiento: seg.value.trim(), fechaEnvio: fecha.value, _elegidos: sel.map(x => x.id) }; if (coste.value !== '') ex.costeEnvio = Number(coste.value);
+      const p0 = sel.find(x => x.id === o.id) || sel[0];
+      const ok = await changeState(p0, estado || 'Enviado', ex); const x = byId('pedidos', p0.id); if (ok && x) messageDialog(x, 'enviado');
+    }, { cls: 'primary ship-ok', icon: 'truck' })], { size: otros.length ? 'wide' : 'narrow' });
+}
+// ---------- 01-11-2026 · PEDIDOS DE UN MISMO CLIENTE: «este, el otro o los dos» ----------
+// Biou: «quizás quiero darle a enviado y solo me deja seleccionar un paquete: tiene que dejarme las tres opciones, o el mismo, o un
+// paquete, o ambos… ahora me deja marcar un paquete como enviado y otro en mesa: no tiene sentido».
+// Los otros pedidos ABIERTOS del mismo cliente (los de su paquete y los que van sueltos), sin enviar todavía.
+export function otrosDelCliente(o) {
+  o = byId('pedidos', o.id) || o;
+  const abiertos = p => ['reserva', 'confirmado', 'impresion', 'postpro', 'empaquetar', 'listo'].includes(ph(p));
+  const g = EV.grupoDe(o).filter(p => p.id !== o.id && abiertos(p));
+  const c = CL.candidatosConjunto(S.t.pedidos || [], S.cfg.pedidos, o).filter(x => x.seguro).map(x => x.pedido);
+  const out = []; g.concat(c).forEach(p => { if (!out.some(x => x.id === p.id)) out.push(p); });
+  return out.sort((a, b) => String(a.numero).localeCompare(String(b.numero), 'es', { numeric: true }));
+}
+// El selector: con UN pedido más, tres botones grandes (este · el otro · los dos); con más, una lista para marcar.
+function eligeEnvio(o, otros) {
+  const enPaquete = EV.grupoDe(o).length > 1;
+  const tarjeta = (p, txt) => h('span.ee-ped', miniPedido(p, 44), h('span.ee-ped-t', h('b', 'nº ' + p.numero), h('small', (p.cantidad > 1 ? p.cantidad + ' × ' : '') + (p.producto || '')), h('small.ee-est', '● ' + p.estado)), txt ? h('em', txt) : null);
+  if (otros.length === 1) {
+    const x = otros[0];
+    let modo = enPaquete ? 'ambos' : 'este';
+    const OPC = [['este', '📦 Solo este', [tarjeta(o)]], ['otro', '📦 Solo el otro', [tarjeta(x)]], ['ambos', '📦📦 Los dos', [tarjeta(o), tarjeta(x)]]];
+    const caja = h('div.ee-opc', OPC.map(([k, t, ps]) => h('button.ee-b' + (k === modo ? '.on' : ''), { type: 'button', 'data-k': k, 'aria-pressed': String(k === modo), onclick: () => { modo = k; caja.querySelectorAll('.ee-b').forEach(b => { b.classList.toggle('on', b.dataset.k === k); b.setAttribute('aria-pressed', String(b.dataset.k === k)); }); } }, h('b.ee-b-t', t), h('span.ee-b-ps', ps))));
+    return { el: h('div.ee', h('p.ee-q', h('b', o.cliente || 'Este cliente'), ' tiene 2 pedidos sin enviar. ¿Cuál has enviado?'), caja), value: () => modo === 'este' ? [o] : modo === 'otro' ? [x] : [o, x] };
+  }
+  const todos = [o].concat(otros), marca = new Map(todos.map(p => [p.id, h('input', { type: 'checkbox', checked: enPaquete ? EV.grupoDe(o).some(g => g.id === p.id) : p.id === o.id })]));
+  return { el: h('div.ee', h('p.ee-q', h('b', o.cliente || 'Este cliente'), ' tiene ' + todos.length + ' pedidos sin enviar. Marca los que has enviado:'),
+      h('div.ee-lista', todos.map(p => h('label.ee-fila', marca.get(p), tarjeta(p)))),
+      h('div.row', btn('Marcar todos', () => marca.forEach(x => { x.checked = true; }), { cls: 'sm ghost' }))),
+    value: () => todos.filter(p => marca.get(p.id).checked) };
+}
+// Lo mismo, como ventana suelta (cuando se cambia el estado desde otro sitio: «Cambiar estado», el escáner, Hoy…)
+export function queEnviar(o) {
+  const otros = otrosDelCliente(o);
+  if (!otros.length) return Promise.resolve([o]);
+  return new Promise(res => {
+    let hecho = false; const fin = v => { if (!hecho) { hecho = true; res(v); } };
+    const e = eligeEnvio(o, otros);
+    modal('🚚 ¿Qué has enviado? · ' + (o.cliente || 'este cliente'), e.el, close => [btn('Cancelar', () => { fin(null); close(); }), btn('Marcar como enviado', () => { const v = e.value(); if (!v.length) return toast('Elige qué has enviado', 'warn'); fin(v); close(); }, { cls: 'primary ship-ok', icon: 'truck' })], { size: 'wide', onclose: () => fin(null) });
+  });
 }
 
 export function issueDialog(o) {
@@ -611,6 +722,82 @@ function stockHint(name, o) {
     : h('div.pi-tip.info', '🛠️ Bajo pedido: se fabrica para este pedido' + (x.fisico > 0 ? ' (las ' + x.fisico + ' de la estantería ya están apartadas)' : '') + '.');
 }
 
+// ---------- 01-11-2026 · 💶 «VÉNDELO A»: el precio de venta EN GRANDE, con todo dentro, y si tu precio acordado cuadra ----------
+// Biou: «pone precio acordado, beneficio, margen, recomendado… prefiero que me pongas en grande el precio que tengo que poner para vender
+// (con embalaje, envío y materiales ya dentro) y luego yo pongo mi precio acordado: si cuadra sigo y si no cuadra me lo notifica».
+// El número grande es el MISMO «Recomendado» de siempre (no hay dos precios distintos). El desglose sale de su calculadora (Productos →
+// costes) y del embalaje real del pedido; si falta el coste, se dice (no se inventa).
+function pricingPedido() { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0 }); }
+function gastosPedidoMap() { const g = {}; (S.t.gastos || []).forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; }); return g; }
+export function cuadra(precio, a, canal) {
+  if (!(precio > 0)) return null;
+  if (a.coste === null || a.coste === undefined) return { nivel: 'sin', texto: 'No sé lo que te cuesta este producto: no puedo decirte si cuadra. Pon sus costes en Productos.' };
+  const pp = S.cfg.precios || {}, minM = Number((S.cfg.alertas && S.cfg.alertas.margenMinimo) || pp.margenMin || 0.15);
+  const com = CL.estComision ? CL.estComision(canal, precio, pp) : 0, gana = Math.round((precio - com - a.coste) * 100) / 100, m = gana / precio, v = a.recomendado || a.sugerido;
+  const pc = Math.round(m * 100) + ' %';
+  if (gana < 0) return { nivel: 'bad', gana, texto: '⛔ No cuadra: con ' + eur(precio) + ' PIERDES ' + eur(-gana) + (a.cantidad > 1 ? ' en cada una' : '') + '.' + (v ? ' Lo bueno es ' + eur(v) + '.' : '') };
+  if (m < minM) return { nivel: 'warn', gana, texto: '🟡 Cuadra justo: ganas solo ' + eur(gana) + (a.cantidad > 1 ? ' por unidad' : '') + ' (' + pc + '). Tu mínimo es un ' + Math.round(minM * 100) + ' %.' };
+  return { nivel: 'ok', gana, texto: '✅ Cuadra: ganas ' + eur(gana) + (a.cantidad > 1 ? ' por unidad (' + eur(gana * a.cantidad) + ' en total)' : '') + ' · ' + pc + '.' };
+}
+function heroPrecio(a, p, precio, canal, usar) {
+  const v = a.recomendado || a.sugerido || null; heroPrecio.v = v;
+  if (!can('productos.costes')) return v ? h('div.pi-hero', h('div.pi-hero-v', h('span.pi-hero-t', '💶 VÉNDELO A'), h('b.pi-hero-n', eur(v)))) : null;
+  if (!v) return h('div.pi-hero.sin', h('div.pi-hero-v', h('span.pi-hero-t', '💶 VÉNDELO A'), h('b.pi-hero-n', '—')), h('p.small', 'Este producto aún no tiene sus costes: ponlos en Productos → Costes y te digo a cuánto venderlo.'));
+  const pp = pricingPedido(), calc = p ? (S.t.calculadora || []).find(c => CL.norm(c.nombre) === CL.norm(p.nombre)) : null;
+  const d = calc && (Number(calc.gramos) > 0 || Number(calc.horas) > 0) ? CL.prices(calc, pp, gastosPedidoMap()).desglose : null;
+  const emb = a.embalajeUnidad || 0, com = CL.estComision ? Math.round(CL.estComision(canal, v, S.cfg.precios || {}) * 100) / 100 : 0;
+  // 04-11-2026 · las filas salen del MISMO coste que «lo que ganas» y el «véndelo a» (antes las filas eran de hoy y el precio del Excel viejo:
+  // «véndelo a 2,44 €» con 8,22 € dentro). Lo de dentro + lo que ganas = el número grande, siempre.
+  const env = a.envio || 0, neg = a.negocio || 0, embD = a.embalajeDentro !== undefined ? a.embalajeDentro : emb;
+  const mat = a.coste !== null ? Math.round((a.coste - embD - env - neg) * 100) / 100 : d ? Math.round((d.produccion + d.iva) * 100) / 100 : null;
+  // 04-11-2026 · Biou: «somos dos trabajadores… debemos de cobrar»: vuestro trabajo sale APARTE, para que se vea que el precio lo paga
+  const tr = d && d.manoObra > 0 && mat !== null && mat > d.manoObra ? Math.round(d.manoObra * 100) / 100 : 0, minT = tr ? CL.prices(calc, pp, gastosPedidoMap()).minutosTrabajo : 0;
+  const L = [['🧵', d ? (tr ? 'Materiales y luz' : 'Materiales, luz y tu trabajo') : 'Fabricarlo', tr ? Math.round((mat - tr) * 100) / 100 : mat], ['👥', 'Vuestro trabajo' + (minT ? ' (' + minT + ' min)' : ''), tr], ['📦', 'Embalaje', embD], ['🚚', 'Envío', env], ['📱', 'Móvil y SIM', neg]];
+  if (com > 0) L.push(['🏷️', 'Comisión de ' + (canal || 'la plataforma'), com]);
+  const gana = a.coste !== null ? Math.round((v - com - a.coste) * 100) / 100 : null;
+  const c = cuadra(precio, a, canal);
+  return h('div.pi-hero',
+    h('div.pi-hero-v', h('span.pi-hero-t', '💶 VÉNDELO A'), h('b.pi-hero-n', eur(v)), h('small', 'orientativo · con todo dentro' + (a.cantidad > 1 ? ' · cada una' : '')),
+      usar && precio !== v ? h('button.btn.sm.primary.pi-usar', { type: 'button', onclick: usar }, 'Usar ' + eur(v)) : null),
+    h('div.pi-hero-d', h('div.pi-hero-dt', 'Ya lleva dentro:'),
+      L.filter(x => x[2] > 0).map(([e, t, x]) => h('div.pi-hero-l', h('span', e + ' ' + t), h('b', eur(x)))),
+      gana !== null ? h('div.pi-hero-l.gana', h('span', '💰 Lo que ganas'), h('b', eur(gana))) : null),
+    c ? h('div.pi-cuadra.' + c.nivel, { 'data-nivel': c.nivel }, h('span.pi-cuadra-q', 'Tu precio acordado: ' + eur(precio)), h('b', c.texto)) : h('div.pi-cuadra.vacio', 'Escribe abajo tu precio acordado y te digo si cuadra.'));
+}
+// ---------- 01-11-2026 · 🖼️ elegir el producto CON SU FOTO (Biou: «por texto el ojo se confunde; por foto sabes lo que buscas») ----------
+function fotoProd(p) { const f = filesOf('productos', p.id).filter(a => a.tipo === 'foto'); return f[0] || null; }
+function miniProd(p, tam) { const f = fotoProd(p); return f && f.miniatura ? h('img.pp-foto', { src: f.miniatura, alt: '', width: tam, height: tam, loading: 'lazy' }) : h('span.pp-foto.sin', { style: { width: tam + 'px', height: tam + 'px' } }, String(p.nombre || '?').trim().charAt(0).toUpperCase()); }
+const prodsVisibles = () => (S.t.productos || []).filter(p => !['retirado', 'archivado'].includes(String(p.estado || '').toLowerCase()));
+export function selectorConFoto(input, alElegir) { // 04-11: también lo usa el Cotizador (producto + tamaño)
+  const lista = h('div.pp-lista', { role: 'listbox', hidden: true });
+  let marcado = 0, vistos = [];
+  const elige = p => { input.value = p.nombre; lista.hidden = true; input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); alElegir && alElegir(p); };
+  const pinta = () => {
+    const q = input.value.trim(); vistos = prodsVisibles().filter(p => !q || CL.matches([p.nombre, p.sku, p.categoria, p.color].join(' '), q)).slice(0, 8);
+    if (!vistos.length || (vistos.length === 1 && CL.norm(vistos[0].nombre) === CL.norm(q))) { lista.hidden = true; return; }
+    marcado = Math.min(marcado, vistos.length - 1);
+    mount(lista, vistos.map((p, i) => h('button.pp-op' + (i === marcado ? '.on' : ''), { type: 'button', role: 'option', 'data-id': p.id, onmousedown: e => e.preventDefault(), onclick: () => elige(p) }, miniProd(p, 44), h('span.pp-op-t', h('b', p.nombre), h('small', [Number(p.precio) > 0 ? eur(p.precio) : '', p.categoria || ''].filter(Boolean).join(' · ')))))); lista.hidden = false;
+  };
+  input.addEventListener('focus', () => { marcado = 0; pinta(); });
+  input.addEventListener('input', () => { marcado = 0; if (document.activeElement === input) pinta(); });
+  input.addEventListener('blur', () => setTimeout(() => { lista.hidden = true; }, 150));
+  input.addEventListener('keydown', e => {
+    if (lista.hidden) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); marcado = Math.min(vistos.length - 1, marcado + 1); pinta(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); marcado = Math.max(0, marcado - 1); pinta(); }
+    else if (e.key === 'Enter' && vistos[marcado]) { e.preventDefault(); elige(vistos[marcado]); }
+    else if (e.key === 'Escape') { e.stopPropagation(); lista.hidden = true; }
+  });
+  const todos = () => {
+    const busca = inp({ type: 'search', placeholder: '🔎 Busca: nombre, color, categoría…', 'aria-label': 'Buscar producto' }), rej = h('div.pp-rejilla');
+    const dibuja = () => mount(rej, prodsVisibles().filter(p => !busca.value.trim() || CL.matches([p.nombre, p.sku, p.categoria, p.color].join(' '), busca.value)).slice(0, 150).map(p =>
+      h('button.pp-card', { type: 'button', 'data-id': p.id, onclick: () => { m.close(); elige(p); } }, miniProd(p, 120), h('b', p.nombre), h('small', Number(p.precio) > 0 ? eur(p.precio) : ''))));
+    busca.addEventListener('input', dibuja);
+    const m = modal('🖼️ Elige el producto', h('div.col', { style: { gap: '10px' } }, busca, rej), c => [btn('Cerrar', c)], { size: 'wide' }); dibuja(); setTimeout(() => busca.focus(), 40);
+  };
+  return h('div.pp', h('div.pp-fila', h('div.pp-campo', input, lista), h('button.btn.pp-ver', { type: 'button', title: 'Ver todos tus productos con su foto', onclick: todos }, '🖼️ Ver con fotos')));
+}
+
 // ---------- Formulario (nuevo / editar) ----------
 export function orderForm(o, duplicate, opts = {}) {
   const isNew = !o || !o.id;
@@ -620,9 +807,9 @@ export function orderForm(o, duplicate, opts = {}) {
   const dlP = h('datalist', { id: 'dl-productos' }, S.t.productos.map(p => h('option', { value: p.nombre }, p.id)));
   const f = {
     cliente: inp({ value: o.cliente || '', list: 'dl-clientes', placeholder: 'Nombre o usuario (Vinted, Instagram…)', autocomplete: 'off' }),
-    producto: inp({ value: o.producto || '', list: 'dl-productos', placeholder: 'Producto', autocomplete: 'off' }),
+    producto: inp({ value: o.producto || '', placeholder: 'Producto', autocomplete: 'off', 'data-campo': 'producto' }), // (01-11: la lista sale con FOTO: selectorConFoto)
     cantidad: inp({ type: 'number', min: 1, step: 1, value: o.cantidad || 1 }),
-    precio: inp({ type: 'number', min: 0, step: 0.01, value: o.precio ?? '', placeholder: 'Se rellena con el precio del producto' }),
+    precio: inp({ type: 'number', min: 0, step: 0.01, value: o.precio ?? '', placeholder: 'El que has acordado con el cliente' }),
     canal: sel([''].concat(cfg.canales), o.canal || ''),
     plazoDias: inp({ type: 'number', min: 0, max: 365, value: o.plazoDias ?? cfg.plazoDias }),
     prioridad: sel(['Normal', 'Urgente'], o.prioridad || 'Normal'),
@@ -663,11 +850,11 @@ export function orderForm(o, duplicate, opts = {}) {
   const updPrice = () => {
     const p = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value));
     if (p && !f.precio.value) {
-      const calc = S.t.calculadora.find(c => c.nombre === p.nombre);
       // v20.2: el precio del catálogo + el embalaje (el de la calculadora ya lo lleva dentro)
       let ev0 = null; try { ev0 = envW.value(); } catch (e) { } // (envW se crea más abajo)
-      const a = Number(p.precio) > 0 ? CL.orderAssist({ id: o.id, producto: p.nombre, productoId: p.id, cantidad: f.cantidad.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy) : null;
-      const pr = Number(p.precio) > 0 ? Math.round((Number(p.precio) + (a ? a.embalajeUnidad : 0)) * 100) / 100 : (calc && calc.precioVenta) || '';
+      // 04-11-2026: sin precio de catálogo, el recomendado de HOY (no el «precioVenta» guardado del Excel viejo)
+      const a = CL.orderAssist({ id: o.id, producto: p.nombre, productoId: p.id, cantidad: f.cantidad.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy);
+      const pr = Number(p.precio) > 0 ? Math.round((Number(p.precio) + (a ? a.embalajeUnidad : 0)) * 100) / 100 : (a && a.recomendado) || '';
       if (pr) f.precio.value = pr;
     }
   };
@@ -690,6 +877,7 @@ export function orderForm(o, duplicate, opts = {}) {
     const pos = v => Math.max(0, Math.min(100, (v - lo) / Math.max(0.01, hi - lo) * 100)) + '%';
     const e0 = v => Number.isInteger(Number(v)) ? Number(v) + ' €' : eur(v);
     mount(assist,
+      heroPrecio(a, p, price, f.canal.value, () => { f.precio.value = heroPrecio.v; f.precio.dispatchEvent(new Event('input', { bubbles: true })); }),
       h('div.pi-kpis',
         box('Precio acordado' + (a.cantidad > 1 ? ' (ud.)' : ''), price ? eur(price) : '—', 'acc'),
         costs ? box('Beneficio' + (a.cantidad > 1 ? ' (' + a.cantidad + ' uds.)' : ''), a.beneficio !== undefined ? eur(a.beneficio) : 'sin coste', mCls) : null,
@@ -709,7 +897,7 @@ export function orderForm(o, duplicate, opts = {}) {
         rg && price !== rg[1] ? btn('Usar ' + e0(rg[1]), () => { f.precio.value = rg[1]; updAssist(); }, { cls: 'sm' }) : null,
         a.recomendado && price !== a.recomendado ? btn('Usar recomendado ' + eur(a.recomendado), () => { f.precio.value = a.recomendado; updAssist(); }, { cls: 'sm ghost' }) : null,
         a.descuentoRecomendado && a.sugerido ? btn('Descuento ' + pc(a.descuentoRecomendado) + ' → ' + eur(CL.sale.discount(a.sugerido, a.descuentoRecomendado)), () => { f.precio.value = CL.sale.discount(a.sugerido, a.descuentoRecomendado); updAssist(); }, { cls: 'sm ghost' }) : null,
-        h('span.tiny.muted', 'Tú decides el precio.')),
+        h('span.tiny.muted', 'Es orientativo: tú decides, súbelo o bájalo.')),
       stockHint(f.producto.value, o));
   };
   [f.fecha, f.plazoDias].forEach(x => x.addEventListener('input', updLimit));
@@ -719,8 +907,8 @@ export function orderForm(o, duplicate, opts = {}) {
 
   const msg = h('p.bad-t');
   const labelFile = h('input', { type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp' });
-  const body = h('div.col', dlC, dlP,
-    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('🌍 País del cliente', paisSel, 'Se guarda en su ficha y enciende el planeta de Inteligencia.', 'full.ped-pais'), field('Producto *', f.producto, 'Elige uno del catálogo o escribe uno nuevo.', 'full'), field('Cantidad', f.cantidad), field('Precio por unidad (€)', f.precio), h('div.full.card.flat', { style: { margin: '2px 0' } }, envW.el), h('div.full', assist),
+  const body = h('div.col', dlC,
+    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('🌍 País del cliente', paisSel, 'Se guarda en su ficha y enciende el planeta de Inteligencia.', 'full.ped-pais'), field('Producto *', selectorConFoto(f.producto), 'Escríbelo o pulsa «Ver con fotos». Si no está, se crea uno nuevo.', 'full'), h('div.full', assist), field('Cantidad', f.cantidad), field('Precio acordado (€)', f.precio, 'Por unidad. Arriba te digo si cuadra.'), h('div.full.card.flat', { style: { margin: '2px 0' } }, envW.el),
       field('Cuenta de venta', f.cuenta, cuentasVenta().length ? 'Desde qué cuenta lo vendiste: sale en la etiqueta del paquete.' : 'Añade tus cuentas (Vinted, Wallapop…) en Configuración → Mis cuentas de venta.'), field('Canal / tienda', f.canal),
       h('div.full', h('div.lbl', '🎨 Color'), colSel.el), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
     h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
@@ -740,6 +928,13 @@ export function orderForm(o, duplicate, opts = {}) {
     if (!datos.producto) { otroMas = false; return msg.textContent = 'Indica el producto.'; }
     if (!(datos.cantidad > 0)) { otroMas = false; return msg.textContent = 'La cantidad debe ser mayor que 0.'; }
     const envErr = envW.error(); if (envErr) { otroMas = false; envW.el.scrollIntoView({ block: 'center' }); return msg.textContent = envErr; }
+    // 01-11-2026 · «si no cuadra, me lo notifica»: antes de guardar, si con ese precio pierde o gana menos de su mínimo, se le pregunta
+    if (can('productos.costes') && datos.precio > 0 && (isNew || Number(datos.precio) !== Number(o.precio))) {
+      const pr0 = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(datos.producto)), ev1 = envW.value();
+      const a1 = CL.orderAssist({ id: o.id, producto: datos.producto, productoId: pr0 ? pr0.id : '', cliente: datos.cliente, cantidad: datos.cantidad, precio: datos.precio, embalaje: ev1 ? { simple: ev1 } : null }, S.t, S.cfg, S.hoy);
+      const q = cuadra(Number(datos.precio), a1, datos.canal);
+      if (q && (q.nivel === 'bad' || q.nivel === 'warn') && !await confirmDlg(q.nivel === 'bad' ? '⛔ Este precio no cuadra' : '🟡 Este precio cuadra justo', q.texto + ' ¿Lo guardas igualmente?', q.nivel === 'bad' ? 'Sí, guardar con pérdida' : 'Sí, guardar así', q.nivel === 'bad')) { otroMas = false; return; }
+    }
     if (!datos.numero) delete datos.numero;
     if (costs) Object.assign(datos, costs.value());
     const b = ev.target.closest('button'); b.disabled = true;

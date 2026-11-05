@@ -146,7 +146,7 @@ export function budgetForm(p, preset) {
         const d = inp({ value: l.descripcion, list: 'dl-bprod', placeholder: 'Pieza o producto' }), c = inp({ type: 'number', min: 0, step: 1, value: l.cantidad }), pr = inp({ type: 'number', min: 0, step: 0.01, value: l.precio });
         const imp = h('span.lr-imp.small', eur(n(l.cantidad) * n(l.precio)));
         d.addEventListener('input', () => { l.descripcion = d.value; });
-        d.addEventListener('change', () => { const prod = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(d.value)); if (prod) { l.productoId = prod.id; if (!l.precio) { const cal = (S.t.calculadora || []).find(x => x.nombre === prod.nombre); l.precio = prod.precio || (cal && cal.precioVenta) || ''; drawLines(); } } else delete l.productoId; });
+        d.addEventListener('change', () => { const prod = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(d.value)); if (prod) { l.productoId = prod.id; if (!l.precio) { l.precio = prod.precio || CL.orderAssist({ producto: prod.nombre, productoId: prod.id, cantidad: 1 }, S.t, S.cfg, S.hoy).recomendado || ''; drawLines(); } } else delete l.productoId; });
         [c, pr].forEach(x => x.addEventListener('input', () => { l.cantidad = c.value; l.precio = pr.value; imp.textContent = eur(n(l.cantidad) * n(l.precio)); drawTot(); }));
         return h('div.line-row', d, c, pr, imp, btn('🧮', () => priceHelper((v, extra) => { l.precio = v; Object.assign(l, extra); drawLines(); }), { cls: 'ghost icon sm', title: 'Calcular precio con gramos y horas' }),
           btn('', () => { lines.splice(i, 1); if (!lines.length) lines.push({ descripcion: '', cantidad: 1, precio: '' }); drawLines(); }, { cls: 'ghost icon sm', icon: 'x', title: 'Quitar línea' }));

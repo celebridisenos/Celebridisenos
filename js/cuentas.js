@@ -3,7 +3,7 @@
 //   · el pedido («Cuenta de venta»), que sale en la ficha, en la lista y en la etiqueta interna del paquete;
 //   · la bandeja de correos: el correo de cada cuenta → su nombre.
 import { h, btn, inp, sel, toast } from './ui.js';
-import { S, api, pull } from './store.js';
+import { S, api, pull, configGuardada } from './store.js';
 
 const CL = window.CL;
 export const PLATAFORMAS = ['Vinted', 'Wallapop', 'Facebook', 'Etsy', 'eBay', 'Instagram', 'TikTok', 'Milanuncios', 'Tienda web', 'Otra']; // 26-10-2026: + Facebook (Marketplace)
@@ -44,7 +44,7 @@ export function editorCuentas(alGuardar) {
         btn('+ Añadir cuenta', () => { lista.push({ plataforma: 'Vinted', nombre: '', correo: '' }); pinta(); setTimeout(() => { const x = caja.querySelectorAll('input[aria-label="Nombre de la cuenta"]'); if (x.length) x[x.length - 1].focus(); }, 0); }, { cls: 'sm' }),
         btn('Guardar cuentas', async ev => {
           const b = ev.currentTarget; b.disabled = true;
-          try { const r = await api('cuentas.guardar', { cuentas: lista.filter(c => String(c.nombre || c.correo || '').trim()) }); S.cfg.cuentasVenta = r.cuentas; lista.splice(0, lista.length, ...JSON.parse(JSON.stringify(r.cuentas))); pinta(); toast('Cuentas guardadas (' + r.cuentas.length + ')', 'ok'); pull().catch(() => { }); alGuardar && alGuardar(r.cuentas); }
+          try { const r = await api('cuentas.guardar', { cuentas: lista.filter(c => String(c.nombre || c.correo || '').trim()) }); S.cfg.cuentasVenta = r.cuentas; configGuardada(); lista.splice(0, lista.length, ...JSON.parse(JSON.stringify(r.cuentas))); pinta(); toast('Cuentas guardadas (' + r.cuentas.length + ')', 'ok'); pull().catch(() => { }); alGuardar && alGuardar(r.cuentas); }
           catch (e) { toast(e.message, 'bad'); } finally { b.disabled = false; }
         }, { cls: 'primary sm' })));
   };

@@ -59,7 +59,10 @@ export async function prepara(mesId, paso = () => { }) {
   const extra = []; for (const a of fotosDe(todas.find(p => p.id === mes) || {}).slice(1, 3)) { try { extra.push(jpeg(await imagen(a), 1600)); } catch (e) { } }
   paso('Montando el catálogo…');
   const r = await recursos();
-  const R = armaCatalogo(Object.assign(r, { productos: P, fotos, grandes, tamanos, ventas, mes: { id: mes, fotos: extra }, tel, marca: marcaDe(tienda.quienes), nombre: (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'CelebriDiseños' }));
+  // 02-11-2026 · las reseñas de su web, para la hoja «Los que confiaron en nosotros» (si aún no hay, o el servidor es el antiguo, no sale)
+  let resenas = [], resenasTotal = 0;
+  try { const { api } = await import('./store.js'); const x = await api('tienda.resenas', {}, { quiet: true, timeout: 30000 }); const u = String(x.url || '').replace(/\/+$/, ''); resenasTotal = (x.resenas || []).length; resenas = u ? (x.resenas || []).slice().sort((a, b) => (b.estrellas || 5) - (a.estrellas || 5) || String(b.fecha || '').localeCompare(String(a.fecha || ''))).map(z => Object.assign({}, z, { src: u + '/api/img/' + z.foto })) : []; } catch (e) { resenas = []; }
+  const R = armaCatalogo(Object.assign(r, { resenas, resenasTotal, productos: P, fotos, grandes, tamanos, ventas, mes: { id: mes, fotos: extra }, tel, marca: marcaDe(tienda.quienes), nombre: (S.cfg && S.cfg.empresa && S.cfg.empresa.nombre) || 'CelebriDiseños' }));
   R.malas = malas; R.sinFoto = P.filter(p => !fotosDe(p).length).map(p => textoDe(p).nombre);
   return R;
 }

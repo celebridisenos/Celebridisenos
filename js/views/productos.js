@@ -4,6 +4,9 @@ import { S, can, mutate, api, byId, upsertLocal, removeLocal, emit, timing, stat
 import { go, handleError, requestAccess } from '../app.js';
 import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf, fetchFile } from '../files.js';
 import { desktop } from '../desktop.js';
+import { elegirAcabado } from '../acabado_ui.js'; // 01-11-2026: 🎚️ abrir en Bambu con receta de acabado
+import { repararFragilidad } from '../reparar_ui.js'; // 01-11-2026: 🛠️ reparar por fragilidad
+import { encargarPieza, noSePuedeAqui } from '../pieza_taller.js'; // 02-11-2026: desde el portátil o la tablet, lo hace la torre
 import { parse3D, viewer, unzip } from '../stl.js';
 import { medir3D, esArchivo3D, escalar, textoMedidas, EJES, cm } from '../medidas3d.js'; // v16: medidas reales (Ancho · Largo · Alto)
 import { analizar3D, estimarGramos, estimarHoras } from '../datos3d.js'; // v16.2: gramos, tiempo y material que ya trae el archivo
@@ -61,7 +64,7 @@ export function render(el, params) {
     else if (id && (id !== openId || !document.querySelector('.drawer'))) { openId = id; dr = productDrawer(id, () => { openId = null; dr = null; history.replaceState(null, '', '#/productos'); }); }
   }
   applyParams(params);
-  return { params: applyParams, update: () => { fill(); drawList(); if (dr) dr.update(); }, destroy: () => dr && dr.close() };
+  return { params: applyParams, update: () => { fill(); drawList(); if (dr) dr.update(); }, destroy: () => { cierra3D(); if (dr) dr.close(); } };
 }
 
 // ---------- Ficha de producto ----------
@@ -69,15 +72,18 @@ function productDrawer(id, onClose) {
   let tab = 'resumen', ctl;
   const res = { update: () => { }, close: () => ctl && ctl.close() };
   ctl = drawer((d, close) => {
-    const closeAll = () => { close(); onClose(); };
+    const closeAll = () => { cierra3D(); close(); onClose(); };
+    // 03-11-2026: la barra del 3D se hace UNA vez por producto (antes, cada pestaña y cada sincronización la rehacían y volvían a cargar el 3D)
+    let b3 = null, b3k = '';
+    const barra = p => { const k = JSON.stringify([filesOf('productos', p.id).filter(a => a.tipo === 'stl').map(a => [a.id, a.nombre, a.rutaLocal]), p.ruta || '']); if (!b3 || k !== b3k) { cierra3D(); b3 = barra3D(p, closeAll); b3k = k; } return b3; };
     let draw = () => {
       const p = byId('productos', id);
       if (!p) return mount(d, h('div.drawer-h', h('h2.grow', 'Producto'), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })), h('div.drawer-b', empty('alert', 'Este producto ya no existe')));
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
       const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], can('tienda.gestionar') || (p.web && p.web.publicado) ? ['web', '🛍️ Tienda web'] : null, ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
-      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), desktop.on ? btn('🖨️ Bambu', () => bambuDeProducto(p), { cls: 'sm prod-bambu-cab', title: 'Abrir en Bambu Studio para laminar' }) : null, btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
-        h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), barra3D(p, closeAll), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
+      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), conPieza() ? btn('🎚️ Acabado', () => acabadoDeProducto(p), { cls: 'sm', title: 'Abrir en Bambu con un acabado: Rápido, Normal, Fino o Fuerte' + (desktop.on ? '' : ' (lo prepara la torre)') }) : null, conPieza() ? btn('🛠️ Reforzar', () => reforzarDeProducto(p), { cls: 'sm', title: 'Reparar por fragilidad: engordar lo débil sin tocar los encajes' + (desktop.on ? '' : ' (lo hace la torre)') }) : null, conPieza() ? btn('🖨️ Bambu', () => bambuDeProducto(p), { cls: 'sm prod-bambu-cab', title: 'Abrir en Bambu Studio para laminar' + (desktop.on ? '' : ' (se abre en la torre)') }) : null, btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
+        h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), barra(p), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Publicado']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
             can('pedidos.crear') ? btn('Nuevo pedido', () => import('./pedidos.js').then(m => m.orderForm({ producto: p.nombre, productoId: p.id, precio: p.precio })), { icon: 'plus', cls: 'sm' }) : null,
@@ -86,6 +92,7 @@ function productDrawer(id, onClose) {
             btn('Anuncio con IA', () => { closeAll(); go('anuncios/' + p.id + '/' + ((S.cfg.anuncios && S.cfg.anuncios.plataforma) || 'etsy')); }, { icon: 'sparkles', cls: 'sm' }),
             // v15.3 · en un clic: el Reel del producto o su publicación de Instagram (fotos + texto con IA)
             btn('🎬 Hacer un Reel', () => { closeAll(); go('reels/producto/' + p.id); }, { cls: 'sm prod-reel' }),
+            desktop.on ? btn('🎬 Vídeo con voz', () => import('./celebrimesa.js').then(m => m.abrirVideoEnMesa(p.id)), { cls: 'sm prod-mesa', title: 'Abre este producto en CelebriMesa: allí el botón «Crear vídeo» lo hace solo, con voz y música' }) : null,
             can('redes.ver') ? btn('📸 A Instagram', () => { closeAll(); go('instagram/producto/' + p.id); }, { cls: 'sm prod-ig' }) : null,
             desktop.on && can('config.ver') ? btn('Publicar con CelebryNova', () => import('./celebrynova.js').then(m => m.publishWithNova(p, modal, go)), { icon: 'send', cls: 'sm' }) : null,
             can('productos.editar') ? btn('Editar', () => productWizard(p), { icon: 'edit', cls: 'sm' }) : null,
@@ -345,20 +352,69 @@ export async function abrirEnBambu(x) {
     toast('🖨️ Abriendo «' + x.nombre + '» en Bambu Studio…', '', 4000);
     const r = x.ruta ? await desktop.bambuAbrirRuta(x.ruta) : x.a.rutaLocal ? await desktop.bambuAbrirRuta(x.a.rutaLocal) : await desktop.bambuAbrir(await fetchFile(x.a), x.nombre);
     if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio' + (x.ruta || (x.a && x.a.rutaLocal) ? '' : ' (copia en Documentos › CelebriDiseños_R8)'), 'ok', 6000);
+    else if (x.p) { toast('En este PC no está Bambu Studio: se la abro en la torre.', 'warn', 6000); encargarPieza(x.p, 'bambu'); } // 02-11
     else toast('No encuentro Bambu Studio en este PC. El archivo está en ' + ((r && r.path) || 'Documentos › CelebriDiseños_R8') + '.', 'warn', 9000);
     if (window.__prod3d) window.__prod3d.bambu = r || null;
-  } catch (e) { toast('No se pudo abrir en Bambu Studio: ' + (e.message || e), 'bad', 8000); }
+  } catch (e) {
+    if (x.p && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): se la abro en la torre.', 'warn', 6000); return encargarPieza(x.p, 'bambu'); } // 02-11
+    toast('No se pudo abrir en Bambu Studio: ' + (e.message || e), 'bad', 8000);
+  }
 }
 // 17-10-2026 · ella: «en Productos tiene que dar la opción de abrir en Bambu directamente, sí o sí, todos los productos, para poderlos
 // laminar». Botón 🖨️ en CADA tarjeta de la lista y en la cabecera de la ficha: abre su archivo 3D (el 3MF primero: trae colores y
 // ajustes; si no, el STL) en Bambu Studio. Si aún no tiene archivo 3D, se elige o se arrastra ahí mismo: se abre ya en Bambu Studio y
 // además se guarda en el producto, para que la próxima vez se abra directo.
 const primero3MF = (a, b) => (extOf(b) === '3mf') - (extOf(a) === '3mf');
-export async function bambuDeProducto(p) {
-  if (!desktop.on) return toast('«Abrir en Bambu Studio» funciona en el programa del PC (la torre o el portátil).', 'warn', 6000);
+// 🎚️ Acabado (01-11-2026): abre en Bambu Studio YA CONFIGURADO con una receta (Rápido/Normal/Fino/Fuerte). No toca lo de arriba.
+export async function abrirConAcabado(x) {
+  const remoto = x.p ? (imp, rec) => encargarPieza(x.p, 'acabado', { imp, receta: rec }) : null; // 02-11: si aquí no se puede, la torre
+  if (!desktop.on) return remoto ? elegirAcabado(null, x.nombre, { remoto }) : toast('El acabado se prepara en el programa del PC.', 'warn', 6000);
+  try {
+    let ruta = x.ruta || (x.a && x.a.rutaLocal);
+    if (!ruta) {
+      toast('Guardando la pieza para preparar el acabado…', '', 3000);
+      const r = await desktop.bambuAbrir(await fetchFile(x.a), x.nombre, false); // abrir=0: solo la guarda y da la ruta en el PC
+      ruta = r && r.path;
+    }
+    if (!ruta) return remoto ? elegirAcabado(null, x.nombre, { remoto }) : toast('No pude preparar el archivo para el acabado.', 'warn', 6000);
+    elegirAcabado(ruta, x.nombre, remoto ? { siNoAqui: remoto } : {});
+  } catch (e) {
+    if (remoto && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): lo prepara la torre.', 'warn', 6000); return elegirAcabado(null, x.nombre, { remoto }); }
+    toast('No se pudo preparar el acabado: ' + (e.message || e), 'bad', 8000);
+  }
+}
+// 02-11-2026: los botones de la pieza salen también en la tablet y el móvil (lo hace la torre por encargo)
+const conPieza = () => desktop.on || can('archivos.subir');
+export async function acabadoDeProducto(p) {
+  const remoto = (imp, rec) => encargarPieza(p, 'acabado', { imp, receta: rec }); // 02-11-2026: portátil, tablet y móvil → la torre
+  if (!desktop.on) return elegirAcabado(null, p.nombre, { remoto });
   const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
-  if (subidos.length) return abrirEnBambu({ nombre: subidos[0].nombre, a: subidos[0] });
-  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) return abrirEnBambu({ nombre: L[0].name, ruta: L[0].path }); } catch (e) { /* sin su carpeta: se pide el archivo */ } }
+  if (subidos.length) return abrirConAcabado({ nombre: subidos[0].nombre, a: subidos[0], p });
+  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) return abrirConAcabado({ nombre: L[0].name, ruta: L[0].path, p }); } catch (e) { /* su carpeta está en la torre */ return elegirAcabado(null, p.nombre, { remoto }); } }
+  toast('Este producto no tiene archivo 3D todavía. Súbelo o ábrelo primero en Bambu.', 'warn', 7000);
+}
+// 🛠️ Reparar por fragilidad (01-11-2026): necesita el STL (no 3MF). Decoración → engorda; con encaje → no toca la medida.
+export async function reforzarDeProducto(p) {
+  // 02-11-2026: en el portátil, la tablet o el móvil (o si aquí falla) lo hace la TORRE y el STL reforzado se guarda en el producto
+  const T = { remoto: m => encargarPieza(p, 'reforzar', { modoR: m }), acabadoRemoto: (imp, rec) => encargarPieza(p, 'acabado', { imp, receta: rec }) };
+  if (!desktop.on) return repararFragilidad(null, p.nombre, T);
+  const local = { siNoAqui: T.remoto, acabadoRemoto: T.acabadoRemoto };
+  const stls = filesOf('productos', p.id).filter(a => extOf(a.nombre) === 'stl');
+  if (stls.length) {
+    const a = stls[0];
+    let ruta = a.rutaLocal;
+    try { if (ruta) await desktop.list(ruta.replace(/[\\/][^\\/]+$/, '')); } catch (e) { ruta = null; } // (esa ruta puede ser de otro PC)
+    if (!ruta) { try { toast('Guardando la pieza…', '', 3000); const r = await desktop.bambuAbrir(await fetchFile(a), a.nombre, false); ruta = r && r.path; } catch (e) { if (noSePuedeAqui(e)) return repararFragilidad(null, p.nombre, T); throw e; } }
+    return repararFragilidad(ruta, a.nombre, local);
+  }
+  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && extOf(e.name) === 'stl'); if (L.length) return repararFragilidad(L[0].path, L[0].name, local); } catch (e) { return repararFragilidad(null, p.nombre, T); } }
+  toast('Reparar por fragilidad necesita el STL del producto (sube el archivo .stl).', 'warn', 7000);
+}
+export async function bambuDeProducto(p) {
+  const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
+  if (!desktop.on) return subidos.length ? encargarPieza(p, 'bambu') : toast('Este producto no tiene su archivo 3D en el programa: súbelo (STL o 3MF) y se abre en la torre.', 'warn', 8000); // 02-11: tablet/móvil → la torre
+  if (subidos.length) return abrirEnBambu({ nombre: subidos[0].nombre, a: subidos[0], p });
+  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) return abrirEnBambu({ nombre: L[0].name, ruta: L[0].path, p }); } catch (e) { /* sin su carpeta: se pide el archivo */ } }
   const elegir = h('input', { type: 'file', accept: '.stl,.3mf,.obj', hidden: true });
   let cerrar = () => { };
   const usa = async f => {
@@ -390,15 +446,20 @@ async function perfilEImprimir(x, p) {
     window.__prod3d = Object.assign(window.__prod3d || {}, { perfil: true });
   } catch (e) { mount(cuerpo, h('p.bad-t', '⚠️ ' + (e.message || e)), h('p.small.muted', 'Puedes abrirla tal cual en Bambu Studio y elegir allí el perfil.'), desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu(x), { cls: 'primary' }) : null); }
 }
+// 03-11-2026 · Biou: «va muy lento… en productos tiene que cargar todos los 3D… hace que se lague». El 3D de la ficha ya NO se carga solo
+// (leer el archivo, girarlo, buscar soportes y la mejor postura bloqueaba el programa): sale con el botón «Ver la pieza aquí». Y solo hay UNA
+// vista 3D viva: la anterior se cierra (antes cada ficha dejaba su WebGL abierta y todo iba cada vez más lento).
+let VISTA_3D = null;
+const cierra3D = () => { if (VISTA_3D) { try { VISTA_3D.destroy(); } catch (e) { } VISTA_3D = null; } };
 function barra3D(p, closeAll) {
   const caja = h('div.prod-3d'), visor = h('div.prod-3d-visor'), sop = h('div.prod-3d-sop'); let cargado = '', turno = 0;
   const subidos = filesOf('productos', p.id).filter(a => a.tipo === 'stl' && ES_3D(a.nombre));
-  // el 3D en la ficha: se carga solo si el archivo está en este PC o pesa poco; si no, con un botón (no se baja un archivo enorme sin pedirlo)
   async function ver(x, forzar) {
     const clave = x.ruta || (x.a && x.a.id) || x.nombre; if (cargado === clave) return; const yo = ++turno, grande = !x.ruta && !(x.a && x.a.rutaLocal) && Number((x.a && (x.a.bytes || x.a.tam || x.a.size)) || 0) > 25 * 1048576;
-    mount(sop); if (grande && !forzar) return mount(visor, btn('🧊 Ver aquí el 3D (archivo grande)', () => ver(x, true), { cls: 'sm prod-3d-cargar' }));
+    mount(sop); if (!forzar) return mount(visor, btn(grande ? '🧊 Ver la pieza aquí (archivo grande)' : '🧊 Ver la pieza aquí', () => ver(x, true), { cls: 'sm prod-3d-cargar' }));
     mount(visor, h('p.tiny.muted', 'Cargando el 3D…'));
-    try { const pos = await parse3D(await leeDatos3D(x), x.nombre); if (yo !== turno) return; const c = h('canvas.stl-view.prod-3d-cv'); mount(visor, c, h('p.tiny.muted', 'Arrastra para girarla · rueda o pellizco para acercar')); const v = viewer(c, pos); cargado = clave;
+    try { const pos = await parse3D(await leeDatos3D(x), x.nombre); if (yo !== turno) return; const c = h('canvas.stl-view.prod-3d-cv'); mount(visor, c, h('p.tiny.muted', 'Arrastra para girarla · rueda o pellizco para acercar')); cierra3D(); const v = VISTA_3D = viewer(c, pos); cargado = clave;
+      await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); if (yo !== turno) return; // la pieza se ve ya; los soportes, después
       const C3 = await import('../r8/consejos3d.js'), m = C3.mide(pos, 30), vol = Math.round(m.voladizo / 100); let mejor = null; try { mejor = C3.mejorOrientacion(pos, 30); } catch (e) { mejor = null; }
       const mj = mejor && mejor.mejor, tumbada = mj && mj.t !== 'como está' && mj.m.voladizo < m.voladizo * 0.5 ? ' Puesta ' + mj.t + ' se quedaría en ' + Math.round(mj.m.voladizo / 100) + ' cm².' : '';
       mount(sop, h('div.prod-3d-v' + (m.voladizo > 30 ? '.si' : '.no'), { 'data-soportes': m.voladizo > 30 ? 'si' : 'no' }, m.voladizo > 30 ? [h('b', '🌳 Necesitará soportes'), ' · tiene ' + vol + ' cm² en el aire tal como está guardada.' + tumbada] : [h('b', '✅ No necesita soportes'), ' · tal como está guardada no tiene nada en el aire.']),
@@ -451,6 +512,21 @@ async function view3DLocal(path, name) {
 // ---------- Asistente de precio (usa lo que ya hay: costes, Configuración, ventas) ----------
 function pricingParams() { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0 }); } // (28-10: + lo que se recupera del móvil y la SIM en cada pedido)
 function gastosMap() { const g = {}; S.t.gastos.forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; }); return g; }
+// 01-11-2026 · 🧮 EN QUÉ SE GASTA CADA PRODUCTO, grande y ordenado: una fila por gasto, con su barra, el total arriba y a cuánto venderlo.
+// Mismos números de siempre (CL.prices): solo cambia cómo se ven. Lo que vale 0 no sale.
+export function desgloseGrande(r) {
+  const d = r.desglose, pp = S.cfg.precios || {}, T = d.costeTotal || 0;
+  const L = [['🧵', 'Filamento (plástico)', d.filamento], ['💡', 'Luz de la impresora', d.luz], ['✋', 'Tu trabajo (quitar soportes, montar…)', d.manoObra], ['🎨', 'Pintado', d.pintado], ['➕', 'Gastos extra', d.gastosExtra],
+    ['🧾', 'IVA de lo anterior', d.iva], ['📦', 'Embalaje (caja o sobre, papel, cinta)', d.embalaje], ['🚚', 'Envío', d.envio], ['📱', 'Móvil y SIM (se recupera en cada pedido)', d.negocio]].filter(x => x[2] > 0);
+  const mx = Math.max(0.01, ...L.map(x => x[2]));
+  const can2 = [['Wallapop o en mano', r.recomendado.wallapop, r.beneficio.wallapop], ['Vinted', r.recomendado.vinted, r.beneficio.vinted], ['Etsy', r.recomendado.etsy, r.beneficio.etsy]];
+  return h('div.dg', { 'data-total': String(T) },
+    h('div.dg-cab', h('div', h('span.dg-t', '🧮 FABRICARLO TE CUESTA'), h('b.dg-n', eur(T)), h('small', 'con IVA, embalaje y envío')), h('div.dg-pc', 'Ganancia que buscas: ', h('b', Math.round((pp.margen || 0.3) * 100) + ' %'))),
+    h('div.dg-filas', L.map(([e, t, v]) => h('div.dg-f', h('span.dg-e', e), h('span.dg-l', t), h('span.dg-bar', h('i', { style: { width: Math.max(3, Math.round(v / mx * 100)) + '%' } })), h('b.dg-v', eur(v)), h('span.dg-p', T > 0 ? Math.round(v / T * 100) + ' %' : '')))),
+    h('div.dg-vende', h('div.dg-vt', '💶 Para ganar el ' + Math.round((pp.margen || 0.3) * 100) + ' %, véndelo a:'),
+      h('div.dg-cs', can2.map(([t, v, g]) => h('div.dg-c', h('span', t), h('b', eur(v)), h('small', 'ganas ' + eur(g)))))),
+    pp.etsyVenta !== undefined ? h('p.tiny.muted', 'En Etsy sube porque cobra comisiones (' + (((pp.etsyVenta || 0) + (pp.etsyPago || 0) + (pp.etsyReg || 0)) * 100).toFixed(1) + ' % + ' + eur(pp.etsyFijo || 0) + ' + anuncio).') : null);
+}
 export function priceAssistant(p, costsIn, onPick) {
   const calc = p ? S.t.calculadora.find(c => c.nombre === p.nombre) : null;
   // v11.4: los gramos de filamento NO son el peso de la pieza: Bambu Studio si lo hay; si no, el peso solo como ESTIMACIÓN (y se dice)
@@ -477,7 +553,7 @@ export function priceAssistant(p, costsIn, onPick) {
       h('div.table-wrap', { style: { marginTop: '8px' } }, h('table.t', h('thead', h('tr', h('th', 'Dónde lo vendes'), h('th', 'Precio recomendado'), h('th', 'No bajes de'), h('th.hide-m', 'Ganas (aprox.)'), onPick ? h('th', '') : null)),
         h('tbody', PLATFORMS.map(pl => h('tr', { style: { cursor: 'default' } }, h('td.bold', pl.t), h('td', h('b', eur(r.recomendado[pl.k]))), h('td', eur(r.minimo[pl.k])), h('td.hide-m', eur(r.beneficio[pl.k])), onPick ? h('td', btn('Usar', () => onPick(r.recomendado[pl.k], pl.t, v, r), { cls: 'sm' })) : null))
           .concat([h('tr', { style: { cursor: 'default' } }, h('td.bold', 'Segunda mano'), h('td', h('b', eur(r.segundaMano))), h('td', '—'), h('td.hide-m', '—'), onPick ? h('td', btn('Usar', () => onPick(r.segundaMano, 'Segunda mano', v), { cls: 'sm' })) : null)])))),
-      h('p.small', { style: { marginTop: '10px' } }, `En palabras: fabricarlo os cuesta ${eur(r.desglose.costeTotal)} con IVA (filamento ${eur(r.desglose.filamento)}, luz ${eur(r.desglose.luz)}, mano de obra ${eur(r.desglose.manoObra)}${r.desglose.pintado ? ', pintado ' + eur(r.desglose.pintado) : ''}${r.desglose.gastosExtra ? ', extras ' + eur(r.desglose.gastosExtra) : ''}${r.desglose.negocio ? ', y ' + eur(r.desglose.negocio) + ' para recuperar el móvil y la SIM' : ''}). Para ganar el ${Math.round((S.cfg.precios.margen || 0.3) * 100)}% en Wallapop, véndelo a ${eur(r.recomendado.wallapop)}. En Etsy sube a ${eur(r.recomendado.etsy)} porque cobra comisiones (${((S.cfg.precios.etsyVenta + S.cfg.precios.etsyPago + S.cfg.precios.etsyReg) * 100).toFixed(1)}% + ${eur(S.cfg.precios.etsyFijo)} + anuncio).`),
+      desgloseGrande(r), // 01-11-2026 · Biou: «“fabricarlo cuesta tal, tal” está demasiado pequeñito… en tres líneas no se lee»: ahora, una tabla grande con barras
       hist ? h('p.small', '📊 Se ha vendido ' + hist.n + (hist.n === 1 ? ' vez' : ' veces') + ' a una media de ' + eur(hist.media) + (hist.n > 1 ? ' (entre ' + eur(hist.min) + ' y ' + eur(hist.max) + ')' : '') + '.') : null,
       h('p.tiny.muted', 'Mismas fórmulas que la hoja Productos del Excel · parámetros de ' + (S.cfg.precios.desdeSheet ? 'la hoja Configuración' : 'la configuración de la app') + '. Los precios se redondean hacia arriba a 10 céntimos.'));
     return { r, v };
@@ -488,6 +564,7 @@ export function priceAssistant(p, costsIn, onPick) {
     out,
     p && can('productos.editar') && !onPick ? h('div.row', btn('Guardar costes', async () => { const { v } = calcNow(); await saveProduct(p, {}, v); }, { cls: 'sm' }), btn('Usar precio de Wallapop', async () => { const { r, v } = calcNow(); await saveProduct(p, { precio: r.recomendado.wallapop }, v); }, { cls: 'primary sm' })) : null);
   wrap.getCosts = () => { const v = {}; Object.keys(f).forEach(k => { v[k] = f[k].value; }); return v; };
+  wrap.resultado = () => { const v = wrap.getCosts(); return Number(v.gramos) > 0 || Number(v.horas) > 0 ? CL.prices(v, pricingParams(), gastosMap()) : null; }; // 01-11-2026: para el «véndelo a» grande
   wrap.setCosts = o => { Object.keys(o || {}).forEach(k => { if (f[k] && o[k] !== undefined && o[k] !== '' && o[k] !== null) f[k].value = o[k]; }); calcNow(); }; // v16.2
   calcNow();
   return wrap;
@@ -718,6 +795,22 @@ export function productWizard(p, opc = {}) {
   }
   f.precio.addEventListener('input', pintarPrecios);
   f.precioMin.addEventListener('input', pintarPrecios);
+  // 01-11-2026 · 💶 «VÉNDELO A» en grande, con todo dentro, y si tu precio en redes CUADRA (Biou: «que me pongas en grande el precio al que
+  // lo tengo que vender… y luego yo pongo el mío: si cuadra sigo y si no, que me lo notifique»). Sale de la calculadora de abajo.
+  const heroProd = h('div.pr-hero');
+  function pintaHeroProd() {
+    if (!pa || !can('productos.costes')) return mount(heroProd);
+    const r = pa.resultado(), pv = Number(f.precio.value), pp = S.cfg.precios || {}, minM = Number((S.cfg.alertas && S.cfg.alertas.margenMinimo) || pp.margenMin || 0.15);
+    if (!r || !(r.desglose.costeTotal > 0)) return mount(heroProd, h('div.pi-hero.sin', h('div.pi-hero-v', h('span.pi-hero-t', '💶 VÉNDELO A'), h('b.pi-hero-n', '—')), h('p.small', 'Pon abajo los gramos y las horas (o sube el 3MF) y te digo a cuánto venderlo, con todo dentro.')));
+    const v = r.recomendado.wallapop, T = r.desglose.costeTotal, gana = pv > 0 ? Math.round((pv - T) * 100) / 100 : null, m = pv > 0 ? gana / pv : null;
+    const c = pv > 0 ? (gana < 0 ? ['bad', '⛔ No cuadra: con ' + eur(pv) + ' PIERDES ' + eur(-gana) + '. Lo bueno es ' + eur(v) + '.'] : m < minM ? ['warn', '🟡 Cuadra justo: ganas solo ' + eur(gana) + ' (' + Math.round(m * 100) + ' %). Tu mínimo es un ' + Math.round(minM * 100) + ' %.'] : ['ok', '✅ Cuadra: ganas ' + eur(gana) + ' (' + Math.round(m * 100) + ' %).']) : null;
+    mount(heroProd, h('div.pi-hero',
+      h('div.pi-hero-v', h('span.pi-hero-t', '💶 VÉNDELO A'), h('b.pi-hero-n', eur(v)), h('small', 'orientativo · con todo dentro · Wallapop o en mano'), pv !== v ? h('button.btn.sm.primary.pi-usar', { type: 'button', onclick: () => { f.precio.value = v; minCalc = r.minimo.wallapop || null; pintarPrecios(); pintaHeroProd(); } }, 'Usar ' + eur(v)) : null),
+      h('div.pi-hero-d', h('div.pi-hero-dt', 'Ya lleva dentro:'), h('div.pi-hero-l', h('span', '🧮 Fabricarlo (materiales, luz, IVA, embalaje y envío)'), h('b', eur(Math.round((T - (r.desglose.manoObra || 0)) * 100) / 100))), r.desglose.manoObra > 0 ? h('div.pi-hero-l', h('span', '👥 Vuestro trabajo' + (r.minutosTrabajo ? ' (' + r.minutosTrabajo + ' min)' : '')), h('b', eur(r.desglose.manoObra))) : null, h('div.pi-hero-l.gana', h('span', '💰 Lo que ganas'), h('b', eur(v - T))),
+        h('div.tiny.muted', 'En Vinted: ' + eur(r.recomendado.vinted) + ' · en Etsy: ' + eur(r.recomendado.etsy) + ' (cobran comisión). El detalle, abajo.')),
+      c ? h('div.pi-cuadra.' + c[0], { 'data-nivel': c[0] }, h('span.pi-cuadra-q', 'Tu precio en redes: ' + eur(pv)), h('b', c[1])) : h('div.pi-cuadra.vacio', 'Escribe abajo tu «Precio en redes» y te digo si cuadra.')));
+  }
+  f.precio.addEventListener('input', () => pintaHeroProd());
   const preciosBox = h('div.pr2', h('label.pr2-c.redes', h('span.pr2-t', '💶 Precio en redes'), h('span.pr2-s', 'El que publicas en Vinted, Wallapop, Instagram…'), h('span.pr2-i', f.precio, h('span.u', '€'))),
     h('label.pr2-c.min', h('span.pr2-t', '🤝 Mínimo regateable'), h('span.pr2-s', 'El precio más bajo al que lo venderías. Lo decides tú.'), h('span.pr2-i', f.precioMin, h('span.u', '€'))), precioResumen);
   pintarPrecios();
@@ -752,11 +845,12 @@ export function productWizard(p, opc = {}) {
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),
       h('div.drops', { style: { marginTop: '12px' } }, zones.foto.el, zones.video.el), missingHint(), msg);
     if (step === 2) {
-      if (!pa) pa = priceAssistant(p.id ? p : (opc.copiaDe || null), costesDeArchivo(), (v, plat, vals, r) => { f.precio.value = v; const k = (PLATFORMS.find(x => x.t === plat) || {}).k; minCalc = r && k && r.minimo[k] ? r.minimo[k] : null; pintarPrecios(); toast('Precio en redes ' + eur(v), 'ok'); });
+      if (!pa) { pa = priceAssistant(p.id ? p : (opc.copiaDe || null), costesDeArchivo(), (v, plat, vals, r) => { f.precio.value = v; const k = (PLATFORMS.find(x => x.t === plat) || {}).k; minCalc = r && k && r.minimo[k] ? r.minimo[k] : null; pintarPrecios(); toast('Precio en redes ' + eur(v), 'ok'); pintaHeroProd(); }); pa.addEventListener('input', () => pintaHeroProd()); }
       mount(body, bar, h('h3', titles[2]), h('p.small.muted', 'Rellena lo que sepas: el resto (IVA, margen, luz, mano de obra, comisiones) sale de la Configuración.'),
         a3d && costesDeArchivo() ? h('div.a3d-n', '📦 Gramos' + (a3d.horas ? ' y tiempo' : '') + ' ya puestos desde «' + String(a3d.archivo).split(/[\\/]/).pop() + '»' + (a3d.gramos && !a3d.gramos.real ? ' (gramos ESTIMADOS: cámbialos si los sabes)' : '') + '.') : null,
-        preciosBox, h('details.more', { open: !(Number(f.precio.value) > 0), style: { marginTop: '10px' } }, h('summary', '🧮 ¿No sabes qué precio poner? Que lo calcule el programa'),
+        heroProd, preciosBox, h('details.more', { open: true, style: { marginTop: '10px' } }, h('summary', '🧮 En qué se gasta y a cuánto venderlo (la calculadora)'),
           h('div.in', can('productos.costes') ? pa : h('p.muted', '🔒 No tienes permiso para ver costes.'))), msg);
+      pintaHeroProd();
     }
     mount(foot, step > 0 ? btn('Atrás', () => { step--; draw(); }) : btn('Cancelar', async () => { if (anyFiles() && !await confirmDlg('Descartar', '¿Descartar el producto y los archivos preparados?', 'Descartar', true)) return; m.close(); }), h('span.grow'),
       step < 2 ? btn(isNew ? 'Crear ya' : 'Guardar ya', ev => { if (!f.nombre.value.trim()) { msg.textContent = 'Escribe el nombre del producto.'; return; } saveAll(ev); }, { cls: 'ghost', title: 'Guardar ahora; los archivos y costes se pueden añadir después' }) : null,

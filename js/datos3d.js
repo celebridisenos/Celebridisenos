@@ -113,7 +113,7 @@ export async function analizar3D(buf, nombre) {
   }
   // escala corregida a mano o unidad dudosa: el volumen solo vale si las medidas son creíbles
   const fiable = out.medidas && out.medidas.estado !== 'revisar';
-  if (malla && malla.n && Math.abs(malla.v) > 0 && fiable) out.volumenCm3 = r2(Math.abs(malla.v) / 1000);
+  if (malla && malla.n && Math.abs(malla.v) > 0 && fiable) { out.volumenCm3 = r2(Math.abs(malla.v) / 1000); out.areaCm2 = r2(Math.abs(malla.a) / 100); } // 04-11: la superficie, para el tamaño → precio (tamano.js)
   const L = out.laminado, A = out.ajustes;
   out.material = (L && L.filamentos[0] && L.filamentos[0].tipo) || (A && A.material) || '';
   out.colores = L && L.filamentos.length ? L.filamentos.map(x => x.color).filter(Boolean) : (A ? A.colores.slice(0, 4) : []);

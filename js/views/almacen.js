@@ -14,6 +14,7 @@ import { h, mount, btn, modal, toast, inp, empty, pill, confirmDlg, eur, fdate, 
 import { S, can, api, upsertLocal, emit, pull } from '../store.js';
 import { requestAccess, go } from '../app.js';
 import { levels } from './stock.js';
+import { botonFotoTiquet } from '../tiquet.js'; // 01-11-2026: 📸 foto del tíquet → precio y tipo (reusa el OCR del PC)
 
 const CL = window.CL;
 const n = v => Number(String(v === undefined || v === null ? '' : v).replace(',', '.')) || 0;
@@ -672,8 +673,10 @@ export function heComprado(pre = {}, tras) {
       : h('div.alm2-elegido', m && claseDe(m) !== 'otro' ? h('span.alm2-letra', talla(m).letra) : h('span.alm2-ic', m ? ICONO(m) : C().e), h('b', nombreCosa()), st.nuevo ? pill('nuevo', 'ok') : null);
     const preg = porPaquete() ? '¿Cuántos rollos, botes o paquetes' : cuantas(st.clase);
     setTimeout(() => { const ya = document.activeElement; if (!ya || ya === document.body || !body.contains(ya) || ya.tagName === 'BUTTON') { f.focus(); f.select && f.select(); } pinta3(); }, 30); // (si ya estás escribiendo en otra casilla, no te quita el cursor)
+    const fotoBtn = botonFotoTiquet(r => { if (r && r.precio != null) { st.total = String(r.precio); st.tocado = true; t.value = st.total; pinta3(); } }); // 📸 foto del tíquet rellena el precio
     return h('div', cab, h('p.alm2-preg', preg + ' has comprado?'), h('div.alm-paso', stepper(f, 1)), extra, res,
       h('div.alm2-pago', h('span', 'Has pagado en total'), t, h('span.alm-eur', '€')),
+      fotoBtn ? h('div.alm2-foto-row', fotoBtn) : null,
       h('p.tiny.muted.alm2-pago-n', pu ? 'Puesto como la última vez (' + eur(pu) + ' cada ' + (st.clase === 'filamento' ? 'bobina' : porPaquete() ? 'uno' : C().una) + '). Si no es así, cámbialo.' : 'Si no lo sabes, déjalo vacío: queda apuntado y le pones el precio cuando lo sepas.'), msg,
       h('div.alm-nav', st.mat || st.col || st.nuevo ? btn('← Atrás', () => ir(2)) : h('span'), ok));
     async function guardar(ev) {

@@ -21,8 +21,8 @@ const EJEMPLOS = [
 function facts(prod, o) {
   const out = [], costs = can('productos.costes');
   if (prod) {
-    const calc = (S.t.calculadora || []).find(c => CL.norm(c.nombre) === CL.norm(prod.nombre));
-    const precio = n(prod.precio) || (calc && n(calc.precioVenta)) || 0;
+    // 04-11-2026: sin precio de catálogo, el recomendado de HOY (el «precioVenta» guardado era del Excel viejo: 2,44 € por un gato de 8 €)
+    const precio = n(prod.precio) || n(CL.orderAssist({ producto: prod.nombre, productoId: prod.id, cantidad: 1 }, S.t, S.cfg, S.hoy).recomendado) || 0;
     out.push('Producto: ' + prod.nombre + (prod.tamano ? ' (medidas ' + prod.tamano + ')' : '') + (prod.material ? ', ' + prod.material : '') + (prod.color ? ', color ' + prod.color : ''));
     if (precio) out.push('Precio de venta: ' + precio.toFixed(2).replace('.', ',') + ' €');
     if (costs) {

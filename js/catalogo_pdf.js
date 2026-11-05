@@ -177,6 +177,15 @@ a { color: inherit; text-decoration: none; }
 .se { font-family: Se, 'Instrument Serif', Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; letter-spacing: -.01em; }
 .hoja { width: 210mm; height: 297mm; padding: 15mm 18mm 15mm; position: relative; overflow: hidden; background: #fff; page-break-after: always; break-after: page; }
 .hoja:last-child { page-break-after: auto; break-after: auto; }
+/* 02-11-2026 · «Los que confiaron en nosotros» (las reseñas de verdad) */
+.confian .rs-tit { margin: 10mm 0 7mm; } .confian .rs-tit h2 { font-size: 30pt; line-height: 1.05; margin: 2mm 0 3mm; } .confian .rs-tit p { font-size: 10pt; color: var(--gris); }
+.rs-est { color: var(--cian-t); letter-spacing: .08em; font-size: 10pt; }
+.rs-rej { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; } .rs-rej.n1 { grid-template-columns: 1fr; width: 80mm; } .rs-rej.n2 { grid-template-columns: repeat(2, 1fr); } .rs-rej.n4 { grid-template-columns: repeat(2, 1fr); }
+.rs-c { border: .25mm solid var(--linea); border-radius: 3mm; overflow: hidden; background: #fff; }
+.rs-img { height: 78mm; overflow: hidden; background: var(--placa); } .rs-rej.n1 .rs-img, .rs-rej.n2 .rs-img, .rs-rej.n3 .rs-img { height: 165mm; } .rs-rej.n4 .rs-img { height: 80mm; }
+.rs-img img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+.rs-c figcaption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1.5mm 3mm; padding: 2.5mm 3mm 3mm; font-size: 7.5pt; color: var(--gris); }
+.rs-pl { font-weight: 500; letter-spacing: .14em; text-transform: uppercase; font-size: 6.5pt; color: var(--tinta); } .rs-tx { flex-basis: 100%; font-size: 10pt; color: var(--tinta); line-height: 1.3; }
 .hoja.sangre { padding: 0; }
 .negra { background: var(--negro); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .negra .logo { width: 96mm; height: 96mm; display: block; }
@@ -339,6 +348,16 @@ export function armaCatalogo(o) {
       if (ultima && !conPers) pon(n => `<section class="hoja">${cab(PT, n)}<div class="titsec"><h2 class="se">${PT}</h2><p>${PD}</p></div><div class="rejilla">${PERS}</div></section>`, PT); }
     // la guía de regalos, entre la primera sección y la siguiente (o al final si solo hay una)
     if (plan.regalos.length && (si === conPiezas[0] && conPiezas.length > 1 || conPiezas.length === 1)) regalos(); });
+  // 02-11-2026 · Biou: «en los catálogos, siempre, que salgan abajo los que confiaron en nosotros»: sus reseñas de verdad (las capturas
+  // que sube en «Reseñas ⭐», las mismas del globito de la web), al final de TODOS los catálogos. Sin reseñas subidas, no sale.
+  const RS = (o.resenas || []).filter(r => r && r.src).slice(0, 6);
+  if (RS.length) {
+    const PLAT = { vinted: 'Vinted', wallapop: 'Wallapop', facebook: 'Facebook', milanuncios: 'Milanuncios', opla: 'Opla', etsy: 'Etsy', instagram: 'Instagram', whatsapp: 'WhatsApp', web: 'nuestra web' };
+    const media = Math.round(RS.reduce((a, r) => a + (Number(r.estrellas) || 5), 0) / RS.length * 10) / 10, est = n => '★★★★★'.slice(0, Math.max(1, Math.min(5, Math.round(n || 5))));
+    const total = Math.max(RS.length, Number(o.resenasTotal) || 0);
+    pon(n => `<section class="hoja confian">${cab('Confían en nosotros', n)}<div class="rs-tit"><div class="kicker">Reseñas reales</div><h2 class="se">Los que confiaron en nosotros</h2><p><span class="rs-est">${est(media)}</span> ${String(media).replace('.', ',')} de 5 · ${total} ${total === 1 ? 'reseña' : 'reseñas'} de clientes, tal cual nos las dejaron.</p></div>
+    <div class="rs-rej n${RS.length}">${RS.map(r => `<figure class="rs-c"><div class="rs-img"><img src="${esc(r.src)}" alt=""></div><figcaption><span class="rs-est">${est(r.estrellas)}</span>${PLAT[r.plataforma] ? `<span class="rs-pl">${PLAT[r.plataforma]}</span>` : ''}${r.texto ? `<span class="rs-tx se">«${esc(r.texto)}»</span>` : ''}</figcaption></figure>`).join('')}</div></section>`, 'Confían en nosotros');
+  }
   pon(() => `<section class="hoja negra"><img class="ico" src="${esc(o.icono || '')}" alt=""><h2 class="se">¿Te ha gustado alguna?</h2><p>Escanea el código o escríbeme por WhatsApp<br>y te la preparo.</p><a class="qrbox" href="${esc(wa('Hola, he visto vuestro catálogo y me interesa una pieza'))}">${qrSvgL(wa('Hola, he visto vuestro catálogo y me interesa una pieza'), 'qrf')}</a><a class="tel" href="${WA}">${T.ver}</a><div class="letra">${marca} · Catálogo ${temporada(fecha).replace(' · ', ' ').toLowerCase()} · Precios por pieza, según disponibilidad</div></section>`);
   const IND = indice.map(([t, n]) => `<li><span>${t}</span><b>${String(n).padStart(2, '0')}</b></li>`).join('');
   const ff = Object.keys(o.fuentes || {}).map(w => w === 'serif' ? `@font-face { font-family: Se; src: url('${o.fuentes[w]}') format('woff2'); font-style: italic; font-weight: 400; font-display: block; }`

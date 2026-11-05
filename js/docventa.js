@@ -18,7 +18,12 @@ function precios(p) {
   const out = {};
   try {
     const calc = (S.t.calculadora || []).find(c => CL.norm(c.nombre) === CL.norm(p.nombre));
-    if (calc && S.cfg && S.cfg.precios) { const r = CL.prices(calc, S.cfg.precios, {}); out.rec = r.recomendado; out.coste = r.desglose.costeTotal; }
+    // 04-11-2026: las mismas cuentas que Productos y el «véndelo a» del pedido (con el móvil y la SIM y los gastos extra de la fila)
+    if (calc && S.cfg && S.cfg.precios) {
+      const pp = Object.assign({ gramosBobina: 1000 }, S.cfg.precios, { negocioPedido: CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0 }), g = {};
+      (S.t.gastos || []).forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; });
+      const r = CL.prices(calc, pp, g); out.rec = r.recomendado; out.coste = r.desglose.costeTotal;
+    }
   } catch (e) { }
   out.base = Number(p.precio) || 0;
   return out;

@@ -25,8 +25,11 @@ const VIEWS = {
   puente: () => import('./views/puente.js'), // v18: 🛰️ Puente de mando (la entrada de la «Sala de mando»)
   tallervivo: () => import('./views/tallervivo.js'), // v18: 🏭 el taller en directo (en lugar de los juegos)
   trailer: () => import('./views/trailer.js'), // v18: 🎬 Tráiler del mes
+  celebrimesa: () => import('./views/celebrimesa.js'), // 02-11-2026: el otro programa del mismo sistema
   hoy: () => import('./views/hoy.js'),
   almacen: () => import('./views/almacen.js'), // 26-10-2026: 📦 Mi almacén (lo que tengo y lo que compro, muy fácil)
+  chatsnav: () => import('./views/chatsnav.js'), // 02-11-2026: 💬 la barra y el panel del navegador propio de chats (ventana aparte, --chats)
+  chatsnav: () => import('./views/chatsnav.js'), // 02-11-2026: 💬 la barra y el panel del navegador propio de chats (ventana aparte, --chats)
   tv: () => import('./views/tv.js'), // v12.3: pantalla TV del taller (v13.10: fuera del menú; sigue en #/tv)
   estudio: () => import('./views/estudio.js'), // v13.10: 📸 Estudio de fotos
   reels: () => import('./views/reels.js'), // v15.3: 🎬 Reels con Remotion (el vídeo lo hace el PC)
@@ -58,6 +61,9 @@ const VIEWS = {
   tareas: () => import('./views/tareas.js'),
   noticias: () => import('./views/noticias.js'),
   redes: () => import('./views/redes.js'),
+  responder: () => import('./views/responder.js'), // 01-11-2026: 💬 centro para contestar ventas (mensajes + productos + catálogo + precio)
+  micuentas: () => import('./views/micuentas.js'), // 02-11-2026: 📱 móviles, números, cuentas de Vinted y bancos: quién vende y quién no
+  resenas: () => import('./views/resenas.js'), // 01-11-2026: ⭐ subir la captura de una reseña → sale sola en la web (globito de confianza)
   instagram: () => import('./views/instagram.js'), // v15.3: 📸 Instagram Studio VIP (API oficial de Meta)
   centroia: () => import('./views/centroia.js'), // v15.3: 🧠 Centro de IA (semáforo, biblioteca, prompts, descargas)
   archivos: () => import('./views/archivos.js'),
@@ -83,6 +89,7 @@ export const NAV = [
   { k: 'inteligencia', t: 'Inteligencia 🧠', i: 'sparkles', p: 'pedidos.ver' }, // v17.1: banco de metas, planeta de clientes y tus números (en lugar del calendario)
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes),
   { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas,
+  { k: 'responder', t: 'Chats con clientes 💬', i: 'msg', p: 'pedidos.ver' }, // 01-11-2026: contestar a los compradores con sus productos, precios y catálogo a mano (Biou: «un menú muy muy claro»)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
   { sep: true, t: 'Productos' },
   { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
@@ -101,6 +108,8 @@ export const NAV = [
   { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector),
   { sep: true, t: 'Ventas y web' },
   { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC),
+  { k: 'micuentas', t: 'Mis cuentas 📱', i: 'user', p: 'config.editar' }, // 02-11-2026: móviles, números, Vinted y bancos
+  { k: 'resenas', t: 'Reseñas ⭐', i: 'star', p: 'tienda.gestionar' }, // 01-11-2026: las capturas de las reseñas → el globito de confianza de la web
   { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web,
   { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13,
   { k: 'ingresos', t: 'Ingresos 💶', i: 'euro', p: 'productos.costes' }, // v16,
@@ -109,6 +118,7 @@ export const NAV = [
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
   { k: 'trailer', t: 'Tráiler del mes 🎬', i: 'play', p: 'pedidos.ver' }, // v18
   { sep: true, t: 'Marketing' },
+  { k: 'celebrimesa', t: 'CelebriMesa', i: 'sparkles', d: true }, // 02-11-2026: organizar y crear (solo en el ordenador)
   { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
   { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3,
   { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
@@ -172,6 +182,7 @@ async function route() {
     clear(content);
     current = { name, view: mod.render(content, params) || {}, params };
     window.scrollTo(0, 0);
+    if (name === 'chatsnav') return; // (02-11: esa ventana solo es para los chats: sin estrenos ni nada encima de las páginas)
     entrada(content); // v14.0: el contenido entra suave
     if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); setTimeout(embalajeAuto, 6000); setTimeout(() => import('./r8/pregunta_rodamiento.js').then(m => m.alArrancar()).catch(() => { }), 9000); } // v16.1 · v20.2 · v20.3: «¿cuál de tus rodamientos de prueba gira?»
     if (!route._est && debeEstrenar50()) { route._est = route._inau = true; try { ['cd.estreno18', 'cd.estreno20', 'cd.estreno30', 'cd.inaug14'].forEach(k => localStorage.setItem(k, '1')); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) estrenoCD(); else route._est = false; }, 900); } // 13-10-2026
@@ -279,6 +290,7 @@ function buildShell() {
   const syncEl = h('button.sync', { title: 'Estado de la sincronización', onclick: () => syncPanel() });
   const bell = h('button.btn.ghost.icon.icon-btn', { title: 'Notificaciones', onclick: () => go('notificaciones') }, icon('bell'));
   const actB = h('button.btn.ghost.icon.icon-btn.act-top', { title: 'Buscar actualización · v' + APP_VERSION, 'aria-label': 'Buscar actualización', onclick: () => dialogoActualizar() }, '🔄'); // v16.3.3: fijo y a la vista
+  const chatsB = can('pedidos.ver') ? h('button.chats-top', { type: 'button', title: 'Chats con tus clientes: Facebook, Vinted, Wallapop, Milanuncios, Opla y WhatsApp', 'aria-label': 'Chats con clientes', onclick: e => { const t = e.currentTarget; import('./chats_menu.js').then(m => m.abre(t)); } }, '💬', h('span.t', 'Chats')) : h('span'); // 01-11-2026 · Biou: «no las veo, quiero un menú muy muy claro»
   const chatB = can('chat.usar') ? h('button.btn.ghost.icon.icon-btn.chat-btn', { title: 'Chat del equipo', 'aria-label': 'Chat', onclick: () => go('chat') }, icon('msg')) : h('span');
   const meDot = h('span.st-dot.on');
   const meBtn = h('button.me-chip', { title: 'Tu cuenta', 'aria-label': 'Tu cuenta', onclick: e => accountMenu(e.currentTarget) });
@@ -287,10 +299,11 @@ function buildShell() {
   const topbar = h('header.topbar',
     h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú principal', 'aria-label': 'Abrir el menú principal' }, icon('menu')),
     h('button.btn.ghost.icon.atras-btn', { onclick: () => atras(), title: 'Atrás (vuelve a donde estabas; si no, al menú principal)', 'aria-label': 'Atrás' }, icon('left')),
+    h('button.btn.ghost.casa-btn', { type: 'button', onclick: () => go(PORTADA()), title: 'Volver a Inicio', 'aria-label': 'Volver a Inicio' }, '🏠', h('span.t', 'Inicio')), // 02-11-2026 · Biou: «no hay un botón para volver a casa»
     miga,
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
     quick,
-    h('div.right.row', syncEl, selectorTema(), botonModo(), actB, botonRegalo(), chatB, bell, meBtn));
+    h('div.right.row', chatsB, syncEl, selectorTema(), botonModo(), actB, botonRegalo(), chatB, bell, meBtn));
   const banner = h('div');
   const content = h('main.content', { id: 'main' });
   const tabbar = h('nav.tabbar', { 'aria-label': 'Secciones principales' });
@@ -306,6 +319,7 @@ function buildShell() {
 // (17-10) «← Atrás»: a la pantalla de antes si la hay dentro del programa; si no, el MENÚ PRINCIPAL (ella: «siempre una flecha para atrás,
 // siempre me vuelva al menú principal»). La ruta de arriba: «Menú › Grupo › Sección» (tocar «Menú» lo abre).
 const pila = [];
+window.addEventListener('storage', e => { if (e.key === 'cd.aCasa' && e.newValue && !/^#\/chatsnav/.test(location.hash)) go(PORTADA()); }); // 🏠 de la ventana de Chats (comparten navegador)
 export function atras() { if (document.querySelector('.mp')) return; if (pila.length > 1) { pila.pop(); history.back(); } else abrirMenu(); }
 function pintaMiga(name) { if (!shell || !shell.miga) return; const def = NAV.find(n => n.k === name), g = MP.grupoDe(name), t = def ? def.t.replace(/\s*[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?/gu, '') : name;
   mount(shell.miga, h('button.miga-menu', { type: 'button', onclick: () => abrirMenu(), title: 'Abrir el menú principal' }, 'Menú'), g ? [h('span.miga-sep', '›'), h('button.miga-g', { type: 'button', onclick: () => abrirMenu(), title: 'Ver ' + g.t }, g.t)] : null, h('span.miga-sep', '›'), h('b.miga-s', t)); }
@@ -401,9 +415,9 @@ function refreshShell() {
   const tabs = [es18() ? { k: 'puente', t: 'Puente', i: 'home' } : { k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
   if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
-  // v11.5: barra de acceso rápido · v11.7: «Cámaras» solo en el PC y si hay Bambu Lab vinculadas (nunca botones vacíos)
+  // v11.5: barra de acceso rápido · 03-11-2026, Biou: «productos tiene que estar arriba, cámbialo por cámaras» (las cámaras siguen en Inicio y en #/camaras)
   const emq = S.cfg ? (S.t.pedidos || []).filter(o => CL.phaseOf(S.cfg.pedidos, o.estado) === 'empaquetar').length : 0;
-  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], desktop.on && BAMBU.list.length ? ['camaras', 'Cámaras', 'camera', 'taller.ver'] : null, ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], S.cfg && S.cfg.tienda && S.cfg.tienda.url ? ['mitienda', 'Mi tienda', 'store', 'productos.ver'] : null, ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
+  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], ['productos', 'Productos', 'cube', 'productos.ver'], ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], S.cfg && S.cfg.tienda && S.cfg.tienda.url ? ['mitienda', 'Mi tienda', 'store', 'productos.ver'] : null, ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
   const qSig = JSON.stringify([QB.map(x => x[0]), emq]);
   if (shell.quick && shell.qSig !== qSig) { shell.qSig = qSig; mount(shell.quick, QB.map(x => h('a', { href: '#/' + x[0], dataset: { k: x[0] }, title: x[1] }, icon(x[2], 's'), h('span.t', x[1]), x[4] ? h('span.count', String(x[4])) : null))); }
   markNav(parseHash().name);
@@ -527,6 +541,7 @@ export function accionesPaleta() {
     nav('Reels: hacer un vídeo de un producto', 'play', 'reels', 'productos.ver', 'reel video vídeo instagram tiktok remotion animación anuncio'),
     nav('Centro de IA: ver si todo funciona (🟢🟡🔴), biblioteca, prompts y descargas', 'sparkles', 'centroia', '', 'ia diagnostico estado semaforo solucionar biblioteca medios fotos videos prompt descargar modelos remotion'),
     nav('Instagram Studio: crear, programar y ver estadísticas', 'camera', 'instagram', 'redes.ver', 'instagram publicar post carrusel historia reel programar hashtags estadisticas feed'),
+    nav('CelebriMesa: organizar tareas, páginas, contenido e inventos', 'sparkles', 'celebrimesa', '', 'mesa tareas notas organizar casadrew inventos robots guia'),
     nav('Respuestas rápidas', 'msg', 'rapidas', '', 'whatsapp instagram correo contestar mensaje cliente manual plantilla'),
     nav('Escanear paquete', 'qr', 'escanear/camara', 'pedidos.ver', 'qr cámara lector empaquetar'),
     nav('Ir a Embalaje', 'box', 'embalaje', 'pedidos.ver', 'cajas paquete'),
@@ -731,7 +746,7 @@ export async function start() {
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
   import('./hologramas.js').then(m => m.iniciar()).catch(() => { }); // v16
-  pull().then(() => { startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }) /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
+  pull().then(() => { if (location.hash.startsWith('#/chatsnav')) return; /* (02-11: de avisos, trabajos e impresoras se ocupa la ventana principal) */ startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }) /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); } // v30.7.1: la IA ya no se carga en la tarjeta gráfica al arrancar (ver warmUp)
   if (desktop.on && isAdminUser() && !start._claves) { start._claves = true; setTimeout(() => import('./mudanza.js').then(M => M.clavesPendientes()).catch(() => { }), 4000); } // (28-10) en el ordenador NUEVO de un traslado: poner las claves que vinieron cifradas

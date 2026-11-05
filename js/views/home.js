@@ -1,5 +1,5 @@
 // ================= Inicio: ¿qué pasa hoy y qué necesita mi atención? =================
-import { h, mount, icon, btn, modal, eur, fdate, ago, avatar, sw, pill } from '../ui.js';
+import { h, mount, icon, btn, modal, toast, eur, fdate, ago, avatar, sw, pill } from '../ui.js';
 import { S, can, dash, unreadCount, byId, timing, pwPendientes } from '../store.js';
 import { go } from '../app.js';
 import { BAMBU } from '../bambu.js';
@@ -8,6 +8,8 @@ import { gameCard, checkLevelUp, loadFrases, fraseDelDia, game } from '../game.j
 import { brief, objetivoTexto } from '../ai/celebrity.js';
 import { metaCard } from '../premium.js';
 import { tira17 } from '../v17.js'; // v17: plan de impresión, calendario y colores, a la vista
+import { desktop } from '../desktop.js'; // 01-11-2026: 💬 acceso premium a los mensajes de venta
+import { baldosas as baldosasChats } from '../chats_menu.js'; // 01-11 noche: el menú de chats muy claro
 
 const CL = window.CL;
 
@@ -49,6 +51,21 @@ function greet() {
   return (hr < 6 ? 'Buenas noches' : hr < 14 ? 'Buenos días' : hr < 21 ? 'Buenas tardes' : 'Buenas noches') + ', ' + S.me.nombre.split(' ')[0];
 }
 
+// 💬 Responder ventas (01-11-2026, Biou): acceso premium en Inicio para contestar a los compradores y enseñarles productos.
+const REDES_RAPIDO = [['facebook', '👥 Facebook'], ['wallapop', '🛒 Wallapop'], ['vinted', '👗 Vinted'], ['milanuncios', '📢 Milanuncios'], ['opla', '🏷️ Opla']];
+function abreRed(k, txt) { toast('Abriendo ' + (txt || 'tus mensajes') + '… la primera vez entra con tu cuenta.', 'ok', 4500); desktop.redes(k).catch(e => toast(e.message || String(e), 'bad')); }
+function tarjetaMensajes() {
+  if (!can('pedidos.ver')) return null;
+  return h('section.card.home-msg', { style: { borderLeft: '4px solid var(--brand)' } },
+    h('div.row', { style: { alignItems: 'center', gap: '12px', flexWrap: 'wrap' } },
+      h('div.grow', { style: { minWidth: '220px' } },
+        h('h3', { style: { margin: 0 } }, '💬 Chats con clientes'),
+        h('div.tiny.muted', 'Contesta a tus compradores y enséñales tus productos al momento (Facebook, Vinted, Wallapop, Milanuncios, Opla y WhatsApp).')),
+      desktop.on ? btn('💬 Abrir mis mensajes', () => abreRed('', 'tus mensajes'), { cls: 'primary' }) : null,
+      btn('Productos para enseñar', () => go('responder'), { cls: 'sm' })),
+    h('div', { style: { marginTop: '10px' } }, baldosasChats())); // 01-11 noche: una baldosa grande por plataforma (chats_menu.js)
+}
+
 let frasesLoaded = false, fraseOff = 0, consejoEl = null;
 function draw(root) {
   const d = dash();
@@ -63,6 +80,7 @@ function draw(root) {
     h('div.page-head', h('div', h('h1', greet()), h('div.muted', hoyTxt.charAt(0).toUpperCase() + hoyTxt.slice(1))), h('div.right.row',
       can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
       btn('', () => customize(() => draw(root)), { cls: 'ghost icon', icon: 'settings', title: 'Personalizar el inicio' }))),
+    tarjetaMensajes(),
     tira17(() => draw(root)),
     mods.some(m => m.k === 'kpis') ? kpiStrip(d) : null,
     can('productos.ver') ? (consejoEl || (consejoEl = (() => { const box = h('div.cj-home'); import('../consejos.js').then(C => box.append(C.tarjetaConsejo())); return box; })())) : null, // v13.10: 💡 consejo del día para vender más

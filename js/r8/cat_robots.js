@@ -8,14 +8,20 @@ import * as N from './nucleo.js';
 import { AYUDAS as A } from './cat_utiles.js';
 import { ROBOTS } from './robots_datos.js';
 const { s } = A;
+// 02-11-2026 · él: «búscale el sentido a las dos apps… para que ambas pesen menos»: las piezas y guías de los inventos (28 MB) no van en el programa de
+// vender: viven en CelebriMesa, y el exe solo lleva las miniaturas (build_web.sh). Se mira primero aquí (la fuente y las pruebas las tienen) y luego allí.
 const RAIZ = new URL('../../data/r8/robots/', import.meta.url);
+const MESA = 'http://127.0.0.1:8870/robots/';
 const NODE = typeof document === 'undefined' && typeof process !== 'undefined' && !!(process.versions && process.versions.node);
+const GUIAS = NODE ? RAIZ : MESA;
 const FS = NODE ? await import('node:fs') : null, ZL = NODE ? await import('node:zlib') : null;
 const GRUPOS = new Map(), PIDIENDO = new Map(), FALLO = new Map(), SOPAS = new Map();
 
 const esGzip = u8 => u8.length > 2 && u8[0] === 0x1f && u8[1] === 0x8b;
 async function bajaGrupo(clave) {
-  const r = await fetch(new URL(clave + '.bin.gz', RAIZ).href); if (!r.ok) throw new Error('no está en el programa (' + r.status + ')');
+  const trae = async u => { try { const x = await fetch(u); return x.ok && !String(x.headers.get('content-type')).includes('text/html') ? x : null; } catch (e) { return null; } }; // (el programa contesta su página a lo que no tiene)
+  const r = await trae(new URL(clave + '.bin.gz', RAIZ).href) || await trae(MESA + clave + '.bin.gz');
+  if (!r) throw new Error('están en CelebriMesa: ábrela en este mismo ordenador');
   const ab = await r.arrayBuffer();
   if (!esGzip(new Uint8Array(ab, 0, Math.min(4, ab.byteLength)))) return ab;      // (si el servidor ya lo descomprimió)
   if (typeof DecompressionStream === 'undefined') throw new Error('este navegador no sabe descomprimir: actualízalo');
@@ -39,7 +45,7 @@ function necesita(robot, grupos) {
   const claves = grupos.map(g => robot + '/' + g), faltan = claves.filter(c => !grupoYa(c));
   if (!faltan.length) return;
   const f = faltan.find(c => FALLO.has(c) && !PIDIENDO.has(c));
-  if (f) { const m = FALLO.get(f); FALLO.delete(f); N.mal('No he podido bajar las piezas del robot: ' + m + '. ¿Hay internet? Vuelve a tocar el robot.'); }
+  if (f) { const m = FALLO.get(f); FALLO.delete(f); N.mal('No he podido abrir las piezas: ' + m + '. Luego vuelve a tocar el robot.'); }
   pide(faltan); N.mal('⏳ Bajando las piezas del robot… (se dibuja sola en un momento)');
 }
 // un STL de su paquete → «sopa» de triángulos (lo que lee el motor)
@@ -75,8 +81,8 @@ const QUE = robot => [['montado', '👀 Montado (para verlo: así no se imprime)
   .concat([['pruebas', '🧪 Todas las pruebas de encaje']], ROBOTS[robot].pruebas.map(p => ['p:' + p.id, '🧪 ' + p.id + ' · ' + p.t]), ROBOTS[robot].robot.map(p => ['r:' + p.id, p.id.replace('_', '') + ' · ' + p.t]),
     (ROBOTS[robot].planb || []).map(p => ['b:' + p.id, '🅱️ Plan B · ' + p.id + ' · ' + p.t]));
 // (BICHA y CelebriBot 3 traen además la hoja «lo más importante» y la guía del plan B: cabeza fija, sin motores)
-const enlaces = robot => [['📘 Guía paso a paso', new URL(robot + '/guia.pdf', RAIZ).href], ['🛒 Comprar (con botones)', new URL(robot + '/comprar.html', RAIZ).href]]
-  .concat(ROBOTS[robot].planb ? [['⭐ Lo más importante (1 hoja)', new URL(robot + '/importante.pdf', RAIZ).href], ['🅱️ Plan B: cabeza fija', new URL(robot + '/planb.pdf', RAIZ).href]] : []);
+const enlaces = robot => [['📘 Guía paso a paso', new URL(robot + '/guia.pdf', GUIAS).href], ['🛒 Comprar (con botones)', new URL(robot + '/comprar.html', GUIAS).href]]
+  .concat(ROBOTS[robot].planb ? [['⭐ Lo más importante (1 hoja)', new URL(robot + '/importante.pdf', GUIAS).href], ['🅱️ Plan B: cabeza fija', new URL(robot + '/planb.pdf', GUIAS).href]] : []);
 const nota = (robot, plastico) => v => {
   const q = v.que || 'montado';
   if (q === 'montado') return '👀 Así queda montado: lo impreso en sus colores y lo que se compra (placas, servos, pantalla…) en el suyo. Para imprimir, elige una pieza en «Qué imprimo». '
