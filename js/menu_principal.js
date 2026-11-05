@@ -8,19 +8,15 @@
 // · El menú lateral de siempre sigue: «≡ Lista clásica» dentro de este menú, y fijado (📌) como antes.
 // La lógica (grupos, descripciones, búsqueda) es pura y se prueba en Node: test/unit/menu_principal.mjs.
 
+// 05-11-2026 · Biou: «el menú desplegable, mejorarlo, hay muchas cosas» → de 12 grupos a 6 (dibujo PROPUESTA_MENU_Y_STL.png, «Sí, hazlo así»):
+// lo de CADA DÍA grande y arriba; lo demás por lo que quieres hacer. No se quita ninguna sección: solo se ordena.
 export const GRUPOS = [
-  { k: 'dia', t: 'Empezar el día', e: '☀️', c: '#f59e0b', items: ['puente', 'inicio', 'hoy', 'tallervivo'] },
-  { k: 'chats', t: 'Chats con clientes', e: '💬', c: '#1877f2', items: ['responder', 'micuentas', 'rapidas', 'bandeja'] }, // 01-11-2026 · Biou: «el menú de chats… no las veo, quiero que estén en un menú muy muy claro»
-  { k: 'vender', t: 'Vender y atender', e: '🛒', c: '#ec4899', items: ['pedidos', 'pedidosweb', 'clientes', 'presupuestos', 'facturas'] },
-  { k: 'crear', t: 'Diseñar y crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'escaparate', 'productos', 'catalogo', 'cotizador'] },
-  { k: 'fabricar', t: 'Imprimir y fabricar', e: '🖨️', c: '#0ea5e9', items: ['almacen', 'taller'] }, // 26-10-2026: «no se entiende nada… pocos pasos, muy fácil»
-  { k: 'enviar', t: 'Empaquetar y enviar', e: '📦', c: '#f97316', items: ['embalaje', 'escanear'] },
-  { k: 'web', t: 'Tienda y web', e: '🌐', c: '#14b8a6', items: ['tienda', 'resenas', 'mitienda', 'estanteria'] },
-  { k: 'conocer', t: 'Darte a conocer', e: '📣', c: '#e11d48', items: ['reels', 'instagram', 'redes', 'estudio', 'anuncios', 'trailer'] },
-  { k: 'numeros', t: 'Tus números', e: '📊', c: '#22c55e', items: ['ingresos', 'costes', 'informes', 'inteligencia'] }, // 26-10: «Materiales y costes» es dinero (precio de cada cosa), no almacén
-  { k: 'equipo', t: 'Equipo y ayuda', e: '🤝', c: '#6366f1', items: ['chat', 'tareas', 'noticias', 'archivos', 'ia', 'centroia', 'celebrimesa'] }, // 03-11-2026: CelebriMesa (de la 02-11) con las tareas
-  { k: 'ajustes', t: 'Ajustes', e: '⚙️', c: '#64748b', items: ['config', 'estado'] },
-  { k: 'avanzado', t: 'Avanzado', e: '🧰', c: '#94a3b8', items: ['stock', 'inventario'] }, // las pantallas de antes del almacén, para ver el detalle (el día a día: «Mi almacén»)
+  { k: 'dia', t: 'Cada día', e: '⭐', c: '#00838f', items: ['pedidos', 'productos', 'responder', 'embalaje', 'taller', 'almacen'], grande: true },
+  { k: 'vender', t: 'Vender', e: '🛒', c: '#ec4899', items: ['pedidosweb', 'bandeja', 'clientes', 'presupuestos', 'facturas', 'micuentas', 'rapidas'] },
+  { k: 'crear', t: 'Crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'escaparate', 'catalogo', 'cotizador', 'estudio'] },
+  { k: 'web', t: 'Tienda y redes', e: '🌐', c: '#14b8a6', items: ['tienda', 'resenas', 'mitienda', 'estanteria', 'reels', 'instagram', 'redes', 'anuncios', 'trailer'] },
+  { k: 'numeros', t: 'Números', e: '📊', c: '#22c55e', items: ['ingresos', 'costes', 'informes', 'inteligencia'] },
+  { k: 'otros', t: 'Más', e: '🧰', c: '#64748b', items: ['puente', 'inicio', 'hoy', 'tallervivo', 'escanear', 'chat', 'tareas', 'noticias', 'archivos', 'ia', 'centroia', 'celebrimesa', 'config', 'estado', 'stock', 'inventario'] },
 ];
 // para qué sirve cada sección (una línea, como lo diría ella)
 export const DESCR = {
@@ -97,7 +93,7 @@ export function abre(o) {
         o.buscarEnTodo ? el('button', { type: 'button', class: 'mp-todo', onclick: () => { cierra(); o.buscarEnTodo(q); } }, '🔎 Buscar «' + q + '» en pedidos, clientes y productos →') : null)); return; }
     const rec = recientes().map(k => todas.find(n => n.k === k)).filter(Boolean).slice(0, 6);
     if (rec.length) cuerpo.append(el('div', { class: 'mp-rec' }, el('span', {}, 'Lo último:'), rec.map(n => el('button', { type: 'button', class: 'mp-chip', 'data-k': n.k, onclick: () => ve(n.k) }, emoji(n) + ' ' + n.t.replace(/\s*[\u{1F300}-\u{1FAFF}☀-➿]️?/gu, '')))));
-    cuerpo.append(el('div', { class: 'mp-gs' }, G.map(g => el('section', { class: 'mp-g', style: { '--mp-c': g.c }, 'data-g': g.k }, el('h3', {}, el('span', {}, g.e), g.t), el('div', { class: 'mp-ts' }, g.items.map(n => tarjeta(n, g)))))));
+    cuerpo.append(el('div', { class: 'mp-gs' }, G.map(g => el('section', { class: 'mp-g' + (g.grande ? ' mp-g-dia' : ''), style: { '--mp-c': g.c }, 'data-g': g.k }, el('h3', {}, el('span', {}, g.e), g.t), el('div', { class: 'mp-ts' }, g.items.map(n => tarjeta(n, g)))))));
   }
   function ve(k) { cierra(); o.ir(k); }
   function cierra() { capa.remove(); document.removeEventListener('keydown', tecla, true); }
@@ -106,5 +102,5 @@ export function abre(o) {
   document.addEventListener('keydown', tecla, true); document.body.append(capa); pinta(); try { busca2.focus(); } catch (e) { } setTimeout(() => { try { if (document.activeElement !== busca2) busca2.focus(); } catch (e) { } }, 30); // (18-10: el foco AL MOMENTO: con Ctrl + espacio y a escribir enseguida, las primeras letras se perdían)
   return capa;
 }
-const EMO = { responder: '💬', resenas: '⭐', puente: '🛰️', inicio: '🏠', hoy: '📋', tallervivo: '🏭', pedidos: '🧾', pedidosweb: '🛍️', bandeja: '📬', clientes: '👥', presupuestos: '💬', facturas: '🧮', rapidas: '⚡', celebrir8: '🧊', escaparate: '✨', productos: '📦', catalogo: '📚', cotizador: '💶', taller: '🖨️', stock: '🗄️', inventario: '🧵', costes: '⚖️', embalaje: '🎁', escanear: '📷', tienda: '🌐', mitienda: '🔗', estanteria: '🏬', reels: '🎬', instagram: '📸', redes: '🗓️', estudio: '✨', anuncios: '📣', trailer: '🎞️', ingresos: '💰', informes: '📈', inteligencia: '🧠', chat: '💭', tareas: '✅', noticias: '📰', archivos: '📁', ia: '🤖', centroia: '🪄', config: '⚙️', estado: '🩺' };
+const EMO = { almacen: '🗄️', micuentas: '📱', celebrimesa: '🗂️', /* (05-11-2026: sin dibujo salían con un punto) */ responder: '💬', resenas: '⭐', puente: '🛰️', inicio: '🏠', hoy: '📋', tallervivo: '🏭', pedidos: '🧾', pedidosweb: '🛍️', bandeja: '📬', clientes: '👥', presupuestos: '💬', facturas: '🧮', rapidas: '⚡', celebrir8: '🧊', escaparate: '✨', productos: '📦', catalogo: '📚', cotizador: '💶', taller: '🖨️', stock: '🗄️', inventario: '🧵', costes: '⚖️', embalaje: '🎁', escanear: '📷', tienda: '🌐', mitienda: '🔗', estanteria: '🏬', reels: '🎬', instagram: '📸', redes: '🗓️', estudio: '✨', anuncios: '📣', trailer: '🎞️', ingresos: '💰', informes: '📈', inteligencia: '🧠', chat: '💭', tareas: '✅', noticias: '📰', archivos: '📁', ia: '🤖', centroia: '🪄', config: '⚙️', estado: '🩺' };
 const emoji = n => EMO[n.k] || '•';

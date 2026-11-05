@@ -2286,7 +2286,19 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .mp-t-x small { font-size: 12.5px; color: var(--muted, #6b6475); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mp-t-n { font-style: normal; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; background: #ef4444; color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
 .mp-todo { margin-top: 10px; border: 1px dashed var(--line-2, #d9d3e0); background: transparent; border-radius: 12px; padding: 10px 12px; font: inherit; cursor: pointer; color: var(--brand, #8b5cf6); font-weight: 600; }
-@media (max-width: 700px) { .mp { padding: 0; } .mp-caja { border-radius: 0; min-height: 100%; padding: 16px; } .mp-gs { grid-template-columns: 1fr; } }
+/* 05-11-2026 · «Cada día»: lo de todos los días, GRANDE y arriba (Biou: «el menú… hay muchas cosas») */
+.mp-g-dia { grid-column: 1 / -1; }
+/* 05-11-2026 · soltar un STL o una foto en Productos: el producto de debajo se marca («se le guarda») */
+.prod-suelta .gallery > .card { transition: box-shadow .12s, transform .12s; }
+.prod-suelta .gallery > .card.prod-sobre { box-shadow: 0 0 0 4px var(--brand, #8b5cf6); transform: scale(1.02); }
+.mp-g-dia h3 { font-size: 17px; }
+.mp-g-dia .mp-ts { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.mp-g-dia .mp-t { position: relative; grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 8px; padding: 16px 10px 14px; border-radius: 16px; }
+.mp-g-dia .mp-t-e { width: 58px; height: 58px; border-radius: 16px; font-size: 31px; }
+.mp-g-dia .mp-t-x b { font-size: 17px; }
+.mp-g-dia .mp-t-x small { display: none; }
+.mp-g-dia .mp-t-n { position: absolute; top: 8px; right: 8px; }
+@media (max-width: 700px) { .mp { padding: 0; } .mp-caja { border-radius: 0; min-height: 100%; padding: 16px; } .mp-gs { grid-template-columns: 1fr; } .mp-g-dia .mp-ts { grid-template-columns: repeat(2, 1fr); } }
 @media (pointer: coarse) { .mp-t { padding: 11px 12px; } .mp-x { width: 44px; height: 44px; } }
 /* 20-10-2026 · 🏆 ranking de ventas del equipo (Informes) */
 .rk-lista { display: grid; gap: 6px; margin-top: 10px; }

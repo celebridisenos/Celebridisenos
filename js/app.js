@@ -79,62 +79,61 @@ const VIEWS = {
 };
 // v16: el menú va por GRUPOS que se pliegan (menos desorden, más lógica). Cada apartado es el mismo de siempre.
 export const NAV = [
-  // v16.2: grupos pedidos por la dueña: Pedidos · Productos · Producción · Embalaje y logística · Ventas y web · Marketing · Equipo
+  // 05-11-2026 · Biou: «el menú… hay muchas cosas» → los MISMOS 6 grupos que el ☰ (menu_principal.js): Cada día · Vender · Crear · Tienda y redes · Números · Más.
+  // (antes, v16.2: Pedidos · Productos · Producción · Embalaje y logística · Ventas y web · Marketing · Equipo). No se quita ninguna sección.
   { k: 'puente', t: 'Puente de mando 🛰️', i: 'home' }, // v18
   { k: 'inicio', t: 'Inicio', i: 'home' },
-  { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
-  { k: 'tallervivo', t: 'Taller vivo 🏭', i: 'play', p: 'pedidos.ver' }, // v18: en lugar de «Descanso» (los juegos se retiraron)
-  { sep: true, t: 'Pedidos' },
+  { sep: true, t: 'Cada día' },
   { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' },
-  { k: 'inteligencia', t: 'Inteligencia 🧠', i: 'sparkles', p: 'pedidos.ver' }, // v17.1: banco de metas, planeta de clientes y tus números (en lugar del calendario)
+  { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
+  { k: 'responder', t: 'Chats con clientes 💬', i: 'msg', p: 'pedidos.ver' }, // 01-11-2026: contestar a los compradores con sus productos, precios y catálogo a mano (Biou: «un menú muy muy claro»)
+  { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje,
+  { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
+  { k: 'almacen', t: 'Mi almacén 📦', i: 'box', p: 'productos.ver' }, // 26-10-2026: lo que tengo y lo que compro (sustituye en el menú a Stock, Inventario y Costes)
+  { sep: true, t: 'Vender' },
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes),
   { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas,
-  { k: 'responder', t: 'Chats con clientes 💬', i: 'msg', p: 'pedidos.ver' }, // 01-11-2026: contestar a los compradores con sus productos, precios y catálogo a mano (Biou: «un menú muy muy claro»)
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
-  { sep: true, t: 'Productos' },
-  { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' },
-  { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
-  { k: 'almacen', t: 'Mi almacén 📦', i: 'box', p: 'productos.ver' }, // 26-10-2026: lo que tengo y lo que compro (sustituye en el menú a Stock, Inventario y Costes)
-  { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
-  { sep: true, t: 'Producción' },
-  { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
+  { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
+  { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
+  { k: 'micuentas', t: 'Mis cuentas 📱', i: 'user', p: 'config.editar' }, // 02-11-2026: móviles, números, Vinted y bancos
+  { k: 'rapidas', t: 'Respuestas rápidas 💬', i: 'msg' }, // v13.10: manual para contestar a los clientes,
+  { sep: true, t: 'Crear' },
   { k: 'celebrir8', t: 'CelebriR8 🧊', i: 'cube', p: 'productos.ver' }, // v18: diseñar piezas sin saber de 3D
   { k: 'escaparate', t: 'Escaparate ✨', i: 'sparkles', p: 'productos.ver' }, // 28-10-2026: fotos de estudio y vídeo 360° de tus productos, en tus colores
+  { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
   { k: 'cotizador', t: 'Cotizador 3D ⚡', i: 'cube', p: 'productos.ver' }, // v16.2: en lugar de «Cámaras» (no se usaba; sigue existiendo en #/camaras)
-  { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
-  { sep: true, t: 'Embalaje y logística' },
-  { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje,
-  { k: 'inventario', t: 'Inventario y compras', i: 'box', p: 'productos.ver' }, // v16,
-  { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector),
-  { sep: true, t: 'Ventas y web' },
+  { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»,
+  { sep: true, t: 'Tienda y redes' },
   { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC),
-  { k: 'micuentas', t: 'Mis cuentas 📱', i: 'user', p: 'config.editar' }, // 02-11-2026: móviles, números, Vinted y bancos
   { k: 'resenas', t: 'Reseñas ⭐', i: 'star', p: 'tienda.gestionar' }, // 01-11-2026: las capturas de las reseñas → el globito de confianza de la web
   { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web,
   { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13,
-  { k: 'ingresos', t: 'Ingresos 💶', i: 'euro', p: 'productos.costes' }, // v16,
-  { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
-  { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
-  { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
-  { k: 'trailer', t: 'Tráiler del mes 🎬', i: 'play', p: 'pedidos.ver' }, // v18
-  { sep: true, t: 'Marketing' },
-  { k: 'celebrimesa', t: 'CelebriMesa', i: 'sparkles', d: true }, // 02-11-2026: organizar y crear (solo en el ordenador)
   { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
   { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3,
   { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
-  { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»,
   { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
-  { k: 'rapidas', t: 'Respuestas rápidas 💬', i: 'msg' }, // v13.10: manual para contestar a los clientes,
-  { sep: true, t: 'Equipo' },
+  { k: 'trailer', t: 'Tráiler del mes 🎬', i: 'play', p: 'pedidos.ver' }, // v18
+  { sep: true, t: 'Números' },
+  { k: 'ingresos', t: 'Ingresos 💶', i: 'euro', p: 'productos.costes' }, // v16,
+  { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
+  { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
+  { k: 'inteligencia', t: 'Inteligencia 🧠', i: 'sparkles', p: 'pedidos.ver' }, // v17.1: banco de metas, planeta de clientes y tus números (en lugar del calendario)
+  { sep: true, t: 'Más' },
+  { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
+  { k: 'tallervivo', t: 'Taller vivo 🏭', i: 'play', p: 'pedidos.ver' }, // v18: en lugar de «Descanso» (los juegos se retiraron)
+  { k: 'escanear', t: 'Escanear paquete', i: 'qr', p: 'pedidos.ver' }, // v11.6: QR del paquete (móvil, cámara o lector),
   { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' },
   { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' },
   { k: 'noticias', t: 'Noticias', i: 'news', p: 'noticias.ver' },
   { k: 'archivos', t: 'Archivos', i: 'folder', p: 'archivos.ver' },
   { k: 'ia', t: 'Celeby Nova', i: 'sparkles', p: 'ia.usar' },
   { k: 'centroia', t: 'Centro de IA 🧠', i: 'sparkles' }, // v15.3 // v11.5: Celebrity + CelebryNova en un solo asistente,
-  { sep: true },
+  { k: 'celebrimesa', t: 'CelebriMesa', i: 'sparkles', d: true }, // 02-11-2026: organizar y crear (solo en el ordenador)
   { k: 'config', t: 'Configuración', i: 'settings' },
-  { k: 'estado', t: 'Estado del sistema', i: 'shield', p: 'config.ver' }
+  { k: 'estado', t: 'Estado del sistema', i: 'shield', p: 'config.ver' },
+  { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
+  { k: 'inventario', t: 'Inventario y compras', i: 'box', p: 'productos.ver' }, // v16,
 ];
 
 const app = document.getElementById('app');
@@ -416,8 +415,9 @@ function refreshShell() {
     .filter(n => !n.p || can(n.p)).slice(0, 5);
   if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
   // v11.5: barra de acceso rápido · 03-11-2026, Biou: «productos tiene que estar arriba, cámbialo por cámaras» (las cámaras siguen en Inicio y en #/camaras)
+  // 05-11-2026, Biou: «productos arriba, al lado de pedidos, acceso rápido» → el 2.º
   const emq = S.cfg ? (S.t.pedidos || []).filter(o => CL.phaseOf(S.cfg.pedidos, o.estado) === 'empaquetar').length : 0;
-  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], ['productos', 'Productos', 'cube', 'productos.ver'], ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], S.cfg && S.cfg.tienda && S.cfg.tienda.url ? ['mitienda', 'Mi tienda', 'store', 'productos.ver'] : null, ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
+  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['productos', 'Productos', 'cube', 'productos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], S.cfg && S.cfg.tienda && S.cfg.tienda.url ? ['mitienda', 'Mi tienda', 'store', 'productos.ver'] : null, ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
   const qSig = JSON.stringify([QB.map(x => x[0]), emq]);
   if (shell.quick && shell.qSig !== qSig) { shell.qSig = qSig; mount(shell.quick, QB.map(x => h('a', { href: '#/' + x[0], dataset: { k: x[0] }, title: x[1] }, icon(x[2], 's'), h('span.t', x[1]), x[4] ? h('span.count', String(x[4])) : null))); }
   markNav(parseHash().name);
@@ -696,7 +696,7 @@ export function applyTheme(t) {
 {
   const conArchivos = e => !!(e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files'));
   let fuera = 0;
-  const velo = si => { clearTimeout(fuera); if (si && S.me && shell) { document.body.classList.add('suelta-3d'); document.body.classList.toggle('suelta-r8', current.name === 'celebrir8'); } else fuera = setTimeout(() => document.body.classList.remove('suelta-3d'), 120); };
+  const velo = si => { clearTimeout(fuera); if (si && S.me && shell) { document.body.classList.add('suelta-3d'); document.body.classList.toggle('suelta-r8', current.name === 'celebrir8'); document.body.classList.toggle('suelta-prod', current.name === 'productos'); } else fuera = setTimeout(() => document.body.classList.remove('suelta-3d'), 120); };
   window.addEventListener('dragover', e => { if (!conArchivos(e)) return; if (!e.defaultPrevented) { e.preventDefault(); try { e.dataTransfer.dropEffect = S.me && shell ? 'copy' : 'none'; } catch (x) { } velo(true); } else velo(false); });
   window.addEventListener('dragleave', e => { if (!e.relatedTarget) velo(false); });
   window.addEventListener('drop', e => {
@@ -704,6 +704,7 @@ export function applyTheme(t) {
     if (!conArchivos(e) || e.defaultPrevented) return; // lo recogió la zona de esa pantalla
     e.preventDefault();
     if (!S.me || !shell) return;
+    if (current.name === 'productos' && typeof window.__prodSoltar === 'function') { try { window.__prodSoltar([...e.dataTransfer.files]); } catch (x) { handleError(x); } return; } // 05-11-2026: fotos y 3D, a Productos
     const f = [...(e.dataTransfer.files || [])].find(x => /\.(stl|3mf|obj|glb|gltf)$/i.test(x.name));
     if (!f) return toast('Para saber el precio de una pieza, suelta su archivo STL, 3MF u OBJ.', 'warn', 5000);
     // v30.6.3 · dentro de CelebriR8 el archivo se queda en la herramienta abierta (la dueña, 12-10-2026: «el reparador STL manda al

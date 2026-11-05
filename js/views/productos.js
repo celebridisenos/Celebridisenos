@@ -49,13 +49,38 @@ export function render(el, params) {
     if (!rows.length) return mount(listBox, h('div.card', empty('search', 'No hay productos con estos filtros')));
     mount(listBox, h('div.gallery', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '14px' } }, rows.slice(0, st.limit).map(p => {
       const foto = p.fotoId ? byId('archivos', p.fotoId) : filesOf('productos', p.id).find(a => a.miniatura);
-      return h('div.card.click', { style: { padding: 0, overflow: 'hidden' }, onclick: () => go('productos/' + p.id) },
+      return h('div.card.click', { style: { padding: 0, overflow: 'hidden' }, 'data-prod': p.id, onclick: () => go('productos/' + p.id) },
         h('div', { style: { aspectRatio: '4/3', background: 'var(--surface-2)', display: 'grid', placeItems: 'center', color: 'var(--muted)', position: 'relative' } }, chipsProducto(p, ind), foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', loading: 'lazy', style: { width: '100%', height: '100%', objectFit: 'cover' } }) : icon('cube', 'l'),
           desktop.on ? h('button.prod-bambu', { type: 'button', title: 'Abrir en Bambu Studio (para laminar)', 'aria-label': 'Abrir ' + p.nombre + ' en Bambu Studio', onclick: ev => { ev.stopPropagation(); bambuDeProducto(p); } }, '🖨️') : null),
         h('div', { style: { padding: '10px 12px' } }, h('div.bold.ellipsis', p.nombre), h('div.tiny.muted.ellipsis', (p.sku || p.id) + ' · ' + pretty(p.subcategoria || p.categoria)),
           h('div.row', { style: { marginTop: '6px' } }, pill(pState(p.estado), ST_CLS[pState(p.estado)]), h('span.right', { style: { textAlign: 'right' } }, h('b', p.precio ? eur(p.precio) : ''))), rentaMini(p)));
     })), rows.length > st.limit ? h('div.pager', btn('Mostrar más', () => { st.limit += 120; drawList(); })) : null);
   }
+  // 05-11-2026 · Biou: «poder arrastrar los STL también, igual que las imágenes». Suelta en esta pantalla un STL, 3MF u OBJ o una FOTO:
+  //   · en un hueco → «Nuevo producto» ya relleno (medidas, gramos, horas y precio salen solos del 3D; la foto, en su sitio);
+  //   · ENCIMA de un producto → se le guarda (sin abrir nada).
+  // Lo recoge el «suelta donde sea» de app.js (window.__prodSoltar), que sin esto mandaría el STL al Cotizador.
+  const es3D = n => /\.(stl|3mf|obj)$/i.test(n), esFoto = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(f.name);
+  let sobre = null;
+  const marca = c => { if (sobre && sobre !== c) sobre.classList.remove('prod-sobre'); sobre = c; if (c) c.classList.add('prod-sobre'); el.classList.toggle('prod-suelta', true); };
+  const quita = () => { if (sobre) sobre.classList.remove('prod-sobre'); sobre = null; el.classList.remove('prod-suelta'); };
+  el.addEventListener('dragover', e => { if (!e.dataTransfer || ![...(e.dataTransfer.types || [])].includes('Files')) return; marca(e.target.closest && e.target.closest('[data-prod]')); });
+  el.addEventListener('dragleave', e => { if (!e.relatedTarget || !el.contains(e.relatedTarget)) quita(); });
+  window.__prodSoltar = async files => {
+    const destino = (sobre && sobre.dataset.prod) || (openId && document.querySelector('.drawer') ? openId : null); quita(); // (con la ficha abierta, a ese producto)
+    const L = files.filter(f => es3D(f.name) || esFoto(f));
+    if (!L.length) return toast('Suelta aquí un STL, 3MF u OBJ, o una foto.', 'warn', 5000);
+    if (!can('productos.editar')) return requestAccess('productos.editar', 'productos');
+    if (destino) {
+      const p = byId('productos', destino); if (!p) return;
+      for (const f of L) { try { toast('📎 Guardando «' + f.name + '» en «' + p.nombre + '»…', '', 2500); await uploadFile(f, { entidad: 'productos', entidadId: p.id }); toast('✅ «' + f.name + '» guardado en «' + p.nombre + '»', 'ok', 4000); } catch (x) { toast('No se ha podido guardar «' + f.name + '»: ' + (x.message || x), 'bad', 8000); } }
+      return;
+    }
+    const tres = L.find(f => es3D(f.name)), foto = L.find(esFoto);
+    const nombre = String((tres || foto).name).replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().replace(/(^|\s)\S/g, x => x.toUpperCase());
+    productWizard({ nombre, tipo: tres ? '3D' : '' }, { nuevo: true, archivo: tres || null, foto: foto || null });
+    toast('🧊 «' + (tres || foto).name + '» → producto nuevo' + (tres ? ': medidas, gramos y horas se rellenan solos' : ''), 'ok', 4000);
+  };
   let openId = null, dr = null;
   function applyParams(p) {
     const id = (p || []).find(x => x && !x.startsWith('?')) || '';
@@ -64,7 +89,7 @@ export function render(el, params) {
     else if (id && (id !== openId || !document.querySelector('.drawer'))) { openId = id; dr = productDrawer(id, () => { openId = null; dr = null; history.replaceState(null, '', '#/productos'); }); }
   }
   applyParams(params);
-  return { params: applyParams, update: () => { fill(); drawList(); if (dr) dr.update(); }, destroy: () => { cierra3D(); if (dr) dr.close(); } };
+  return { params: applyParams, update: () => { fill(); drawList(); if (dr) dr.update(); }, destroy: () => { cierra3D(); if (dr) dr.close(); window.__prodSoltar = null; } };
 }
 
 // ---------- Ficha de producto ----------
@@ -818,6 +843,8 @@ export function productWizard(p, opc = {}) {
   let pa = null;
   // v16.2: el Cotizador pasa su archivo: entra en la zona del STL / 3MF como si lo hubieras soltado tú
   if (opc.archivo) setTimeout(() => { try { const i = zones.stl.el.querySelector('input[type=file]'), dt = new DataTransfer(); dt.items.add(opc.archivo); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { } }, 80);
+  // 05-11-2026: la foto soltada en Productos entra en su zona (paso 2) igual
+  if (opc.foto) setTimeout(() => { try { const i = zones.foto.el.querySelector('input[type=file]'), dt = new DataTransfer(); dt.items.add(opc.foto); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { } }, 90);
   // v40.2 · ✨ tres descripciones que venden, AQUÍ (sin salir de la ventana): la IA mira la foto o el 3D recién subido
   const diaNota = inp({ placeholder: 'Opcional: algo que deba saber la IA (para qué sirve, qué lo hace especial…)', maxlength: 160, 'aria-label': 'Algo que deba saber la IA' }), diaCaja = h('div.dia-envuelve', diaNota);
   const fotoGuardada = async () => { try { const L = p.id ? filesOf('productos', p.id).filter(a => a.tipo === 'foto') : [], a = L.find(x => x.id === p.fotoId) || L[0]; if (!a || !a.miniatura) return null; return await (await fetch(a.miniatura)).blob(); } catch (e) { return null; } };
