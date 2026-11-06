@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MiniMonster">
+<meta name="theme-color" content="#111214">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAdbElEQVR42u2d+ZdV1ZXHz7n1agLHiNEYIWYpSRxiG21BMaUlVOFA/oV0tFUQp46JEwoiYMSkTTSIomCGXr2y8ku611KQosABVCS2oUGcbQVXK4kCkWBaBYqq3T+86d579t5nn+G9Gnh3EVNV77z77jvnc797OOfuo4867nitlFJK6dL/Sj9Ufyy9nnk181ulQaZx+s9Em1wjvFm6eeU/KvuT0Yj8ifw46gBgXqv8J/X/6LvSLQFpUvnF+DhAX0r9DJC+CEDeCblrAOPU5b9XWoJSSiV5MtJdx3SfxrpcC8YgDhkaJUMjrxst0/8kB/cWXbqLtPFJVMv0d0BvHm12qua7kRkCzd4axgCk3qeVUirBRl1jp9M4Q/i3Ij42GhnZkVMoNqnBomjQgn8UKzQi5rXlOj0OH5n3acF5NKUC1LgXFNfYJhsUAtpRuq1ksKZEU0YE7QhN/kJcG+SMQ/bTK1KsK4112oZonbUUuvyyLjbJvF75Jf8uotMg/SE6Z9lKQ1G0HdiLmQbYKCcIVrxsaBfjLTQormTkBMNUC108hUZEgpMF6lbQGXnI4aVzV6gzNgSRkPwdLLmXQoyLQn1Ki3hozKxYZUO5yIaTQZGTkQYBb6BpJtwMC948/zI+/LQXIuAj0LjYb0R7g0Iu+uCtiJvPj38HzbeRk4FYFK2tzliIVUkZFp15GVKfXhLpspWBlKJnTYgqvYbZF9wkYUaAMkCkYcp/LtVEKZ2YHlM0b8PX6BjjJiBDpxUob2yQPyO/EP+yMmLIic5LRM7KmF4q8h012TNuN55NPKxhS/YMicDisneY9ep9XA3NqILhZGS/EuadVj2QSD6H8X4jAZP7WdN8aMJQy50P7ZXF0XblTOzOpnkTOMmGlSqt6ZuKICMzJNoITzShIJwXIYpjDQHJeze4F6INYFA+pM6HrVO1XBt4tzRxdUXjyIbI1RCSQXunlCsqtyw4KJrMbZgmxoEPTXZqLrUVSzxst3Yisylaebu8MoOC3kYOZJhpMCRj5mFZbHGsQiXEgw8qK6Ndu1sLtUGgIol4+A1dcZENWYSiuaiCIyPrg5gOKRPNOsSyGnE/cQnJmhiGD8I5tYqHT2/LzX6ZhwJtU2yuaCTZsLoaGhEzTVKjzSQpfo70j/13z02/3jR7XjVw1WYgq5WRBy3Hh+lUpC6GstnAUlfOauZHq+0z78CDUi63SSVM8ai13NI4ox7z1bEVUsg5WPkErNzbMCMUu6shIUNzQm0An8Mig8ic+So3bYlNv6K/AtqgejbIvC87P1uZOEWmbQEsE7YALlO19DwtKKVAjzl+bEbuhHBQ02zI2HP5UNIPJcnA7aW2BbTZ6FgrpfoX3ClRxaY587GpceMnkPABuWYYH5AeLQAOjupo8nBkG4jhqDikKBmubq7VqDEThtrqaigqmWshI+0VlKc5hGRkWmpd/K7Y9K/iEl/pS9Kc821GLs5hbUaPHQYRTZclwpA3TogrbIX5YygpBBkZVzSHRehhIoInORDHh7kN6KgkZofjCQ/NRyseHSQTGC2ZQrTLhqYm4gkyzBNrXAxcxQONF5nEaA5SMzBxEg8+52GTBI9xToRBrIATN13hZUOzgZ6dDJ0ylNysjXIRXo1KSN7ESPhAgyereMiXrvnzgK3n4NaK+vIii6s1uZZNG7eRFrgj3OygVkr3L5jj8Z3K70IQ0TbHAltWoPHGQvFA5Vl7Q5/rveqJEvF7gwRK+natbVhSS9+UgIzQO4m48bUm51ll16CVdvLog4dAy7okCfLNPGwKn9tgbiDGoJhDZ67xjECIZtYta2a9AW5cHL67MwyeMYtxmjHHj/PNcPjnvnA4EC8PgYPMfCABeeklP1MiSIEsyOUS8o8C5J8JKP8H8PwH0DkPPuHhnA2TZTv0mLHjNLOIzRcOARk0HFosGzQZriFJMCjzLXzknnHBGkBAQkyUDRPCUW5gwhEna+4sGzI4yAhF47Mk9T+aZs8D5DGhHB9CONzFI2oe3REOnowQOLSWTKNQsjHwk0FmAvHm7phHi4dtwsXbsmBPxXlblqhw8GS4wqGZVdrVvw9BLLKI3JXzPLwtC5g81c6y1BuOqDZl4J671LA6ktvvGlqWZdjA4WJTBu6Zp4btkcyaWz/LEgxHMkR70ciXjwAylFIDC+chC8L0UB2Eo8eOcyiyUDflMGwKLBzeWOT7fdbcCG5HNOXAxYOGo6bpr/sWZrrqltkMHLBwvhqhh77tThKOn92daXrTrPqnwuLDYSEjh0W6p26ZbcIB945YMlJ8ZOHIYZFFpJ5uR/3g0D9fKOqsW+cUP7XWWDTPX0iuk8j3uDowd1aNEZmjQMFPF0gaw49njSg49C/udeopuHdB9AEozLvHrYIIXVrpwF13DK7ewI9n1QGOwhBU2ohkFO76ia1qBR0q0BVUqqcFODBv9og1eXVQDifZiHI0zb1bdPFo7t+pLlvq5uufX1dK4Ee3HYzKETSHLn56j6wBkRYMSfmlyqffuaBESW1WCIxA5aiPbDTNmR8rDo8VDdZhzQD86LaGcsgeOhqCFwYw6EsIgjy24Xvpyex5OsIi6/LNRIeygReplBoYnogkw5WMO+bFYYKvIRyJkjhX21AO0QoJj6mqqjYAAPHUBI0CuZ7KcWHH8FppkNQp4oq5KsL+mSnvCvxLmwvem3fo4lz/IHTs8FaO5Pa5JcGAYm0MXf6xKglKaQUSWcmKR6VoMJ0+F449WXY+tXojuX2ugtLcfcPniMC4njUXuTshwMNQRuETgOo/hgwPm4IV8NCz5oamzxsOqW8/EpaF54N3Nayrt52/150Ht3JUOtBXPBx7EHBFISkAQykyOkKOOv4eZ0rK6znizLoN75Vgwln7TMfxT6yE7hjEPMUKfNzrss+N/ekVp7nGGkzJ4l8hya0+C9FJy2C7kTEHc/EkbgfyFRDjguyklPunyPZ5c8R2GllALFNMTN86p0Y96ai4g7HA2G09x61zzL62bKaFCyxkuQK3SBVtZm59xYS4Eg+14qI68VGXGauh6ZCCA+bAex42PninQ0gGJxuQ29rN91uP0FDWUTZmU44e5yCaDwKlG+f4ACBRoHABMMgg9IORDfRxyNwq2qEkHkktYhN/MtK9Y3V9TPGgjIu5h6OTn48XmQTbZA0JAV3GtLQQX9pd9//UOatbQzjSa5/pIQG/S7xlNvBdz0IDvHHJ2hfgbUpWTsBwbhmDAkIIsAalJjff4XVj4h5VyKxQwll0+QyFHG3qIHsEFG5VEM/DYlyK3wjy8QliU1JMQC6gUSAyKIS3AUrmhYj5cOhhflYIu+WS8vNUMPT8UfpuA9K4kHwA+isexYKpBmA4L1IyWAxAqCt17v/Sd0lqlRIFcJYNYHMFOfEAhBGaD8PEVFSED5EhbUcAtyyW+DYbLtGykXeGXMQDapMwTSIAhl1W8sDPxGTczt1ZwHscQLob1IbhYAw+KR2Ai4wCu4dFGRS2Tf4UN90uHcVcb1MV0CPDYd6LNTVAQIWsGATARS4EH4hZkRiWLC40GVaDAkwarB59iyXObXDETKIDOMjGTbPIGwi1x4xxofjgEbHm22gsbGRQBkXibZSfrL9plqd4hCXOK3AEeUMAARE2+s2BEg5w4wP4rAYglEgsC5X5cCADCPMCcZZuQCQZAj+fAyBqxhf30bCcB9CvY94iGFkNThxsliUrGEjmgyGDsoVAOOAQr28DSEnsKUjHbEfyy38VzjszqywsAAFqxEHhc9ASRGS3RA4LfIoH8heCX5JoFrAUhcjEQ9TzeIaDhwMwtyM4ZoknHjbhMPkAJEJBsl4CIEgsIJ9Yw8gAVjhiy4ZnnELt1OR3KUS3SmWjvDDMKh7ArUah+CBMDCCGhEqP5pKkQEUuOb+DI0Oyhxc9USNbSpcsus9nGT0xBknklf7+eBniAbjxEPCBSggaxDp6HDksiCyGhAxl2/2vJtNpjuteC7nvHmGlv3wxOoDSOvMkYuqRg2oDpbRSk86e8OtFD/r1ydW33LzuxRdLm32q4maZ4kp+5jw9KKXUxRdOvn+BTx2Rlzf99/dnzqTrjZJhINx4qzDpHONZiorPAdL0Pp8NwzVNoHJYUoZ1PhyPS6d0EelwsEgHYC2L5+zqirqWCSzr2sTikR8FAOe58jIPiTRDAm4zxsHGhQPH9ZjS0dHa0ozbEp4OwukYPar9/HPPDSUDWYoay6DI18GAQyjr5li4XzrceCsrHjbnw+sYPWrUBZMmEeksH6djSsf5rS0t8VwuYusMhViWKHGD8O5OxPJgcUubHrzPO9WPdldcPi6d0o1JhfAuzAvJtK7u2GTgT135ffemB3/u74qmSEg8HxOK60jn+UCTRUEfdMGkSaPa291sCmFZDj/ssElnnx1p9XRGJgGidiyA1BWVmRWwrP0Ji2kHfniLvTyGsjinfkdba+vkjvPByaYQVmhqZ2ehEOUBdLA/QGX0c74PnSNYhxA3EaRRbc4LQES6gcoNBB/Turqy4YfopKaMTOvuVjV4jigkQnEZFIErCmwSzKoNuQaIkZP7PZzzEZOP8yZMOOyQQ13tSo6NMV866uwzvlNbMmhXQx4TNi3+hfQ9dINEFrWCUzrEP+q18BF0NDc3T+3sDPQ5Lpk8JUmSSMJBk8H0m//EoeTJzYwPlHBJmaiex8C/3GxdR8/xEQORS3NRhrvPMa27qx5ksE97pHsymrchWs8hEQ9vuyissYTyITh+/5//wTeYeNZZRx15hHco+5VjjvmHU09TdF78Lx9/7La+XkZGpN6Wy0bZrDDhr0g8ApanR+fj3W3bLJY4SS6ePMXbrEzr6mbmkF55/Y1DRo/2LjTEDL+3QfGVjRIlBfyUGhSYRaIrU3GlibHCQ/eHFP1E5uvSs3DVZtJaox9s394/MNDE+gSXdnX/7g9/8PNxp03l4pQ333lbDkcQGTJKmsqjc+CaGz1kIwtHatSJedrU2x6+P6gQrDsfkg4pNBXe27b1GyeexLQ58/TTj/3y0R/t2KGUEpesBKXUCePGnTz+G5xubd0qnJuuAxnmYB245odOslFKn4MYJaWgsOSBwsMPOKe/brjJJ7h17IvRo0dtef0NZamFry8pptKlHmnJsnyveypz2p27du359NOQxwWcnEWmP2lEHigseUAuG0bxFpvnUVjyy/gVg+PxMaqtffNrr9qtQ3c3iMGoeB2XsPMpL2/aNHrUqJqQEbWicmkEBbJRzZC6iIcaHD4EV9Le3rbxlc3WZqedfPK4rx4vZkMppb41fvyJJ5zAnHPDn15uL87diNcqh5ARbUUeLRtYhpQWjxDZIPM8Vj5cuqG9rX3r++/v2LVTIB5dTlfPT8MCwNoXXmhva3V+XMCfDAgRD2GdiISLWWOKB3jy4XKbtLe1KlBPrV0ngGMqv7Q4t0L9UnY+ZfNrr+3YubOluTU85VNrMuSykU+CAf2ceOGRRZHXFNeAj5bmFqVgeW+PteX4E0886etfF172GaeddvxxxzENVq5erRS0tBTqQkaEo/mRRVQ1ACAX+8TJc4mr/jnxIbiU5uaCUmrTli3b//JnQdJiqji9wbUcGBjoeXpNMZAOWcInJiOqG4ifE1/sQy31hTrxweRPZcoBoAYGYEVvr8iyCPzRJNEXT57CrybfuWsXgAqZkKvmM+pHBjD1TWzrOWpTqta+5CnFhysilTU4T/TYLcvXxo499ZsnW/H4xzO+8+Wjj2bOs6J3dXnbhcQPCzw7zpMBNaOEXM/BeaYx3Q0hH64SopNSgvJ/tm595913ZelwCx3T2NxXf39/7zNPW3eotXvp9SeD9kOx51ZYz7Rv+vWDyIcQkaakqaLMT6yyi8cl7ESaUqqpqemiyZOZButfeulve/Z43EKZL1V3MlKjCWRxJHLKvkbGxcoHXaFcwkeSVCdlVqxaZX3Lcccee8a3T2di2EkTJh55xBGcTVndK30mmxIM7ivX1JqYBgXJc6DRCvLATQTxwEq5IZvi+K5g0Kq6R/CfP/po4+bNMreUPL439SLm1X379z/17LP+1pf9poCVpYtCSXkcmXplZrSClk2KJRzsQnM7H66LXAAUwPJVq6xtL+7qoqKMlpaWrs5O5r3PrV//f5995qEcaFV1y8OuNdiz0iwsYszKAlmOz/w1SDxsfHAmxqtHetasPnDgAN/m6KOOmnDmmahRuWDSJH59xpO9q+I8XZLbm0VABoTLBmtQyGgFdwlSfPTNcEaktPCE2/QELf8X1PV/27Pn+Q0brM0o2zGNtSlffPHFs88/H/e5I9zJwMjwWGbVN+N6kwy+XlkClt0h8I1n+mZc3zfjBlcNs216AuS+fL7HEz0rrW0umjK50NSUk432trYLOzqYdz29bt0Xe/fGEgy7k1E2vx590Tfjhr4Z1wtKo+YpKRDLwDLFOXJVMyrtS3xo1SyeeUGWluVXmgGAsQ05CCtEQG5p2TPr1n3++eej2JUWhx92+HkTz1m3/oX0H7su6Gxva+NsyuregBjBJhj2TYAETFx9A12uk98EIuWQcgWBmcjW1fY5bJoEzNZ8whRCsTO/2Lt3zdq19pjloousf0kfn/7978+9+GI+aeF+uSkPIzIZkr3DyNKoKrsSDBgmCOfDZ06fKR+LV5N17HBAKFkusCxdnZ3pkgqHHXpoB1t+Y82zz+7fvz9NYcg6fH4/OYwM8JqRF5dGLf+WGKXZBM6Hl34UHr4fKakWXUKMwPKFP/7xk927+TcdMnr0uRMmVn6dckFnc3MzG6f0Yh8aXzAUVvBUvIZXXBqVqGSX4PsLKb4UGlIjy0PlgNl3TeFbWnhkO/oPHFi5ZrW1+YUdHRUl6L7wQqblJ7t3v/hfLznUq8TTBGDNfGClcD1rCNE/0bUvoRLKAgidD7RonzS4BXxTHFlWIyBmefJJa5vOju9Wcl/nnXMO07L36af6bemT0FRpzpSA862YGhFA7nHW1ahcUmJZQmopOu6+JogvLxwexGJ386YtWz7cvp1/31eOOfZbJ41XABPPOouPU1aYidfSJ/perUUwvIIAkJABfNHchK4LC3YPwzHBXnpuAtt3jZMQ36AlDYpkhce5Eycopb57DueK7ti580+bNimnMsjyDDq6DUO2812WeZv3rVvR3ISe2uH4AF8+lDL21QJBhfKwVJgCkFiWb59yqlJq0sSJilsu2jvQ3x+aNSew4EyJs89hOovORXMTc68yy24VBB9906/zimiRgsAhW0JQFL23betb77zNv/e0U045/NBDvzl+vJtNCaSX2p0jYP6zNBYuZKCP/SeUuwd8eS7wqJCQfmYO8ERd6CYHkI5+c+9+/ElLwuOEceM6OzqY5T8fbt/+yquvEoYLfKbseQ/DsCwONoUhQ+QWALEZD1eUPgIf7NaNMivjUlSjMn7Le3r4hJXW+oarZ7LLRXsxICJhYQqG/2ZZLBlAvQho8RZAjYsrH31XXef1PUwJgVi9lAblo48/ennjRr7puLFjudzXqh5/IKi8DbpNmCRFRtmU8igEkFHiIWG20HXiA5ye5RVt3YhZXnuvczIjmaSljve2bXvz7bdZMXBPTaF2BPCcesFldjOYjOKUPdA1gVz4cI5Y7Fs3kvtguMaxlaNn9eq+vj4/OJ6k0ht+SVIwRITdgNJn/iqIjHISDJhawY587JdZluZHFom2bpRu4igFZc+ePc9lp+blx4qeleYztIGWzopFJfMhXBRR7n9fMrI3b2LfTsuRD5/lP6INYCFKKfjHBQkP83jzrbe2vv9+0F4FVCDIYuHpjnqTka9gbN20gOfDyH/sv+pa6bO8SrK7p5twIDtzZY9n1q797LPPnGUDfQrG2PPL485Q1n1JHWTjWiSH4UUGQG7K3o8P5TMthI8+rtXgOn0D7C5ue/fuXV1+Rs3N4WB3gINYWOAhrtdMrKEfTmTkp+zrzEfzo4vwGXwGEa+n/HL/nnC0LJu3vPLh9u228rWugEj3JW1+dNGgkJHeOjQWH6CU2n/ltWI+HoyX+FLs9krVY/2GDbv++lf5SZf39IBEpuJuV1siQ7qtXbnPIRYZqfUc3nxQu/0q98UvcRGht3DrHxhY2btKeK6BgYGVxXVfeL2wADr47Wp9aioBoh++ZGR8DummWmbsm+Oj6JbKxWPpg9SWnHmnwS31SBeTBPX4CqlleXnjxh07diqy/GB8tah0QvNSJ9nAtz/2IQNfJohXGJLzkQ1brrzGgQ9611bnQbAPH2ze8sr/fvCBzKas5C7BixMrFtU+EZFxDbX9sScZ5XohCVMTU84H4YKETDwQ8/geaBB3u8Qt7e/vX7VmDSdDgUJC7mKsgpaL5kXEhwx8JZgbH6wLsv8KJ/EArtcgMBeZd0SeWLHC+ub1Gzbs/mQ3ssdsqFnhsQAH2bjiGouT4UuGsYZUwgf9mC9uYsRH89LFyOSk79msg/Petq2vv2Gphb185coI+XuGDszANC9d7B+mMfvWGsPHk6GU0kd+aYwy1jUoo5BR+sfyfzT+rsyLWinV8quH5d+y76rr0u/F9hXXzE7jmvouNToARJkOcxIA8ECjeZkDGWVhBuxhNuAnRqxkEHDk+rT8M8YHiYjOYuLMB0oDRQm9/YEmVvXE2lIP5FuE8gvuik6oHxlWwVCKI4MutF1w2f6i0rHFz9PG49WpxtVnrwMMs6qcJTXQlfNVz6xTf7QPngYI8vkc2jHudLDnjlaHtO3ORBa5wPokca9g7+CCVByG/VfMdHA+li0GynczPRJgs15SH9V1rzduLge5GMrbSBHiKBszEafFz8mgp7ITrx0OUDDpKMb9/mhZtphIBrCUgOL2dgz3LO1JUip5b4TW2RdaPMhQfFQiczLYRQ6Ez2HzPwzDrXkXpPXXS/yGo7h6RVu8CdqH0A5/9bQtQr8Dr/vphkXl2PfPM502+vMgQ7KXPacfIhMT9vxPy7LF6QyDQC3c73XXbXksOmRRkbSG+JFheejcMCV+ZMiUw0FC8Cim9TePBAaMqQVE2nLv61gi4V0VRKohLcseCvnUfZdf7RaVuGAhVg43F4SQkLCjZdlDuZuevHVFIhHV6aDPDWgaH5SCUDLwpYFZ5y+QDEflYPWDkpDW3zwasQ+qk73a1fuolcshKime+v+Wx6Jhse/yq0WC4UWGo3Kg+5PZJSTmUe1ZwuHwCT6Dw1mjCRnNRiTDQTDQ/ToER8HfFTKyZNlEmZEfi8pHVUIgk97K9pyul3DY3Y7YWKjaCUaAcggqEgc+QStGhDXydFQSIBzg6nYU/1QTMhQrGMFkBCiHKRQ50YCaT3u1PPZweamLckieq+CMvku74kXWce4vDha+Dqmjl6qUavu3pbXuoNIs1CDEsaRZcZpr9PFGL5tO7IUXh4xg5RBISH2O4kjk1xbhCqFjcoD9rdZY1FowYisHJRvlX+sgHth0dp3YqCcTxWPvD6bXfMONaMqBSghS17yuQoJTArX6rEE7YgtGzZSDdkSE4rHv8hnRU2fVycxI0tHyqyXRL2/f5TOE37oqGzXDovZwYFaGQWTfZdPTSwBrwQfGilAeltT0YvZdPqMiaa2/fdQBi5qRUXs4ZIjs/cF0TQQaTE+NjGPfZTNQg9f626WDiEUd4WB9VevfRjAf+y6bgWTNwGMftOEORxAi+Ttp+GMx3aHwTN2xGCQ4qPGXUTICEDGxEDFRXyxU6NxK3CVM2Jyh+QQ1esMNUzK458PtOxWNYOXwEpL0K8NOQopYWIZ4sKViSMLhjshwoUTExNDDYujB4UuJqnt6XnlkuIcPE0MbDh4IFpRBp8TOBErAEMNiyMMxrCgZSUwMKziEQNAv1QgUCxDUwA9tIIYzHHJHpAaseNIwrIBQNZyyV4MxVY2iQI1H+BICgJjNGnAMwrooCoKwveJGMApqqGRI65aENf8ptfefrvKxKcV30acdeUdBHWwHQL3f2FCO4XXs/f6VNW3fgKNxNOA46MXj4JSNYZ7niHS0/ftjDSwacDggcpBj0YCjcTR8jsbRgKNxNOBoHA04GkcDjsbRgKNxNOBoHA04GkcDjsbRgKNxNI4GHI3D9fh/iH69WVyGNf0AAAAASUVORK5CYII=">
+<link rel="icon" href="data:image/png;base64,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">
+<title>MiniMonster</title>
+<!-- MiniMonster · © CelebriDiseños 06-11-2026 · el monster por internet (también con datos móviles).
+     Hecho a mano, sin librerías: MQTT por WebSocket a un buzón público (broker.emqx.io y broker.hivemq.com, los dos a la vez) y cada
+     orden FIRMADA (HMAC-SHA256) y CIFRADA (AES-CTR) con la llave del monster, que va en el enlace después de «#» (no sale del móvil). -->
+<style>
+:root{--fondo:#111214;--tarjeta:#1b1d21;--tarjeta2:#24272c;--linea:#2e3238;--texto:#f2f3f5;--suave:#8d939c;--tq:#19b5b0;--tq2:#0f7f7b;--rojo:#ff5a52;--ambar:#ffb020;--verde:#3ddc84}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{margin:0;background:var(--fondo);color:var(--texto);font:16px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+body{padding:calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 24px);max-width:560px;margin:0 auto}
+header{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+.logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(145deg,#1fd0ca,#0e6d6a);display:grid;place-items:center;font-weight:900;font-size:20px;color:#061514}
+h1{font-size:22px;margin:0;letter-spacing:-.3px;flex:1}
+h1 small{display:block;font-size:12px;color:var(--suave);font-weight:600;letter-spacing:0}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:7px 11px;border-radius:99px;background:var(--tarjeta2);color:var(--suave);white-space:nowrap}
+.chip i{width:8px;height:8px;border-radius:50%;background:#555;display:block}
+.chip.ok{color:var(--verde)} .chip.ok i{background:var(--verde);box-shadow:0 0 10px var(--verde)}
+.chip.busca i{background:var(--ambar);animation:lat 1s infinite}
+@keyframes lat{50%{opacity:.25}}
+.tarjeta{background:var(--tarjeta);border:1px solid var(--linea);border-radius:22px;padding:16px;margin:0 0 14px}
+.tit{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 12px}
+.tit b{font-size:13px;letter-spacing:.8px;text-transform:uppercase;color:var(--suave)}
+.tit span{font-size:12px;color:var(--suave)}
+.cam{aspect-ratio:16/9;border-radius:16px;background:radial-gradient(120% 90% at 30% 20%,#23302f,#121416);display:grid;place-items:center;text-align:center;color:var(--suave);font-size:14px;position:relative;overflow:hidden}
+.cam b{display:block;color:var(--texto);font-size:16px;margin-bottom:4px}
+.fila{display:grid;gap:10px}
+.f2{grid-template-columns:1fr 1fr}.f3{grid-template-columns:1fr 1fr 1fr}.f4{grid-template-columns:repeat(4,1fr)}
+button{font:inherit;color:var(--texto);background:var(--tarjeta2);border:1px solid var(--linea);border-radius:16px;padding:14px 8px;font-weight:700;font-size:15px;cursor:pointer;transition:transform .08s,background .15s,border-color .15s}
+button:active{transform:scale(.96)}
+button .ic{display:block;font-size:22px;margin-bottom:4px}
+button.on{background:linear-gradient(145deg,#1fd0ca,#11918d);color:#061514;border-color:transparent}
+button.rojo.on{background:linear-gradient(145deg,#ff7a6e,#d63a32);color:#fff}
+button.ambar.on{background:linear-gradient(145deg,#ffc94d,#e08a00);color:#2a1a00}
+button:disabled{opacity:.35}
+.hablar{width:100%;padding:22px;border-radius:22px;font-size:19px;background:linear-gradient(145deg,#1fd0ca,#0f7f7b);color:#061514;border:0;display:flex;align-items:center;justify-content:center;gap:12px}
+.hablar.vivo{background:linear-gradient(145deg,#ff7a6e,#d63a32);color:#fff;box-shadow:0 0 0 6px rgba(255,90,82,.18)}
+.hablar .ic{display:inline;font-size:26px;margin:0}
+.nivel{height:6px;border-radius:9px;background:var(--tarjeta2);margin-top:10px;overflow:hidden}.nivel i{display:block;height:100%;width:0;background:var(--verde);transition:width .08s}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--tarjeta2);border-radius:16px;padding:4px;gap:4px}
+.seg button{border:0;background:transparent;padding:13px 6px}
+.seg button.on{background:var(--texto);color:#111}
+.seg button.sport.on{background:linear-gradient(145deg,#ff7a6e,#d63a32);color:#fff}
+.frases{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.frases button{text-align:left;padding:13px 13px;font-size:14px;font-weight:650;line-height:1.25;min-height:58px}
+.frases button.dice{border-color:var(--tq);box-shadow:inset 0 0 0 1px var(--tq)}
+.fuera input{width:100%;box-sizing:border-box;font-size:17px;padding:12px;border-radius:12px;border:1px solid var(--linea);background:rgba(255,255,255,.06);color:inherit;margin:6px 0 4px}
+.fuera label{display:block;font-size:13px;color:var(--suave);margin-top:8px}
+.fuera .manda{width:100%;margin-top:12px;padding:14px;border-radius:14px;font-weight:800;font-size:16px;background:var(--tq);color:#061514}
+#wEstado{margin-top:10px;font-weight:700;text-align:center}
+.nota{font-size:12.5px;color:var(--suave);margin:10px 2px 0}
+.pasos{counter-reset:p;margin:0;padding:0;list-style:none}
+.pasos li{counter-increment:p;display:flex;gap:12px;align-items:flex-start;margin:0 0 12px;font-size:15px}
+.pasos li:before{content:counter(p);flex:0 0 28px;height:28px;border-radius:50%;background:var(--tq);color:#061514;font-weight:900;display:grid;place-items:center}
+.aviso{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%) translateY(40px);opacity:0;background:#f2f3f5;color:#111;font-weight:700;padding:11px 16px;border-radius:14px;transition:.25s;max-width:90vw;text-align:center;z-index:9}
+.aviso.ver{opacity:1;transform:translateX(-50%) translateY(0)}
+#sinLlave{display:none}
+.sinllave #sinLlave{display:block}.sinllave #app{display:none}
+details summary{cursor:pointer;color:var(--suave);font-weight:700;list-style:none}
+code{font-size:12px;color:var(--suave);word-break:break-all}
+[hidden]{display:none!important}
+#camLienzo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:none}
+.cam.viva #camLienzo{display:block}.cam.viva #camTxt{display:none}
+.cam.parada #camLienzo{opacity:.45}
+.camIzq{position:absolute;left:10px;bottom:10px;display:flex;gap:8px}
+.camIzq button{padding:9px 12px;border-radius:13px;font-size:17px;background:rgba(17,18,20,.75);backdrop-filter:blur(6px)}
+.camIzq button.on{background:var(--tq);color:#061514}
+#camGrandeV{position:fixed;inset:0;background:#000;z-index:15;display:none}
+#camGrandeV.ver{display:block}
+#camGrandeV canvas{position:absolute;left:50%;top:50%;width:100vw;height:100vh;object-fit:contain;transform:translate(-50%,-50%)}
+@media (orientation:portrait){#camGrandeV canvas{width:100vh;height:100vw;transform:translate(-50%,-50%) rotate(90deg)}}
+#camGrandeV span{position:absolute;right:14px;top:calc(env(safe-area-inset-top) + 12px);background:rgba(17,18,20,.75);color:#fff;padding:9px 14px;border-radius:13px;font-weight:700}
+.camBtn{position:absolute;right:10px;bottom:10px;padding:10px 14px;border-radius:13px;font-size:14px;background:rgba(17,18,20,.75);backdrop-filter:blur(6px)}
+/* ---------- MODO GAFAS VR ---------- */
+#vr{position:fixed;inset:0;background:#000;z-index:20;display:none;touch-action:none}
+#vr.ver{display:block}
+#vr canvas{position:absolute;inset:0;width:100%;height:100%}
+#vrGira{position:absolute;inset:0;display:none;place-items:center;text-align:center;color:#fff;font-size:20px;font-weight:700;padding:30px;background:#000}
+@media (orientation:portrait){#vr.ver #vrGira{display:grid}}
+#vrPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,520px);max-height:92vh;overflow:auto;background:rgba(20,21,24,.94);border:1px solid #333;border-radius:20px;padding:16px 18px;color:#fff;display:none}
+#vrPanel.ver{display:block}
+#vrPanel h3{margin:0 0 6px;font-size:17px}
+.aj{display:grid;grid-template-columns:118px 1fr 62px;align-items:center;gap:10px;margin:9px 0;font-size:14px;font-weight:600}
+.aj input{width:100%;accent-color:var(--tq)}
+.aj output{text-align:right;color:var(--suave);font-variant-numeric:tabular-nums}
+.vrBotones{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.vrBotones button{padding:11px 6px;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">M</div>
+  <h1>MiniMonster<small>CelebriDiseños</small></h1>
+  <span class="chip" id="bat" hidden>🔋 —</span>
+  <span class="chip busca" id="estado"><i></i><span>Buscando…</span></span>
+</header>
+
+<div id="sinLlave" class="tarjeta">
+  <div class="tit"><b>Falta tu enlace</b></div>
+  <p>Abre esta app con <b>tu enlace de MiniMonster</b> (el del archivo <i>MINIMONSTER_TU_ENLACE</i> o el botón «Abrir la app» de la página del monster). Lleva la llave de tu monster.</p>
+</div>
+
+<main id="app">
+  <section class="tarjeta">
+    <div class="tit"><b>Cámara</b><span id="camEstado">buscando…</span></div>
+    <div class="cam" id="cam"><canvas id="camLienzo"></canvas><div id="camTxt"><b>📷 Despertando la cámara…</b><span id="camAyuda">Un momento: la cámara se está conectando.</span></div>
+      <div class="camIzq"><button id="camLuz" title="Luz de la cámara">💡</button><button id="camGira" title="Dar la vuelta">🔄</button><button id="camGrande" title="En grande">⛶</button></div>
+      <button class="camBtn" id="vrAbre">🥽 Gafas VR</button></div>
+  </section>
+
+  <section class="tarjeta">
+    <button class="hablar" id="hablar"><span class="ic">🎤</span><span id="hablarTxt">Mantén pulsado para hablar</span></button>
+    <div class="nivel"><i id="nivel"></i></div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tit"><b>Sonido del motor</b></div>
+    <div class="seg"><button data-s="0" id="s0">🍃 ECO · sin motor</button><button data-s="1" id="s1" class="sport">🔥 SPORT</button></div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tit"><b>Luces</b></div>
+    <div class="fila f4">
+      <button data-l="2" id="l2"><span class="ic">💡</span>Todas</button>
+      <button data-l="1" id="l1"><span class="ic">🔦</span>Faros</button>
+      <button data-l="0" id="l0"><span class="ic">⚫</span>Nada</button>
+      <button data-l="3"><span class="ic">✨</span>Pim pim</button>
+    </div>
+    <div class="fila f3" style="margin-top:10px">
+      <button data-i="1" id="i1" class="ambar"><span class="ic">⬅️</span>Izquierda</button>
+      <button data-i="3" id="i3" class="ambar"><span class="ic">⚠️</span>Las 4</button>
+      <button data-i="2" id="i2" class="ambar"><span class="ic">➡️</span>Derecha</button>
+    </div>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tit"><b>Caja</b><span id="cajaTxt"></span></div>
+    <div class="fila f3">
+      <button data-k="1"><span class="ic">⬆️</span>Subir</button>
+      <button data-k="0"><span class="ic">⬇️</span>Bajar</button>
+      <button id="claxon" class="rojo"><span class="ic">📯</span>Claxon</button>
+    </div>
+    <p class="nota">La caja solo sube con el monster <b>parado</b> y la <b>emisora encendida</b> (por seguridad).</p>
+  </section>
+
+  <section class="tarjeta">
+    <div class="tit"><b>Frases</b><span>toca y lo dice</span></div>
+    <div class="frases" id="frases"></div>
+  </section>
+
+  <section class="tarjeta fuera">
+    <div class="tit"><b>🌍 Fuera de casa</b><span>con los datos del móvil</span></div>
+    <ol class="pasos">
+      <li><b>Una vez, en casa:</b> escribe aquí el nombre y la clave de <b>Compartir internet</b> de tu iPhone y pulsa Mandar.</li>
+      <li><b>En la calle:</b> activa <b>Compartir internet</b> (con <b>Maximizar compatibilidad</b>) y enciende el monster. En 1 minuto sale <b>● En línea</b>.</li>
+    </ol>
+    <label>Nombre del wifi de tu móvil (Ajustes → General → Información → Nombre)</label><input id="wNom" autocapitalize="off" autocomplete="off" placeholder="p. ej. iPhone de Biou">
+    <label>Clave (Ajustes → Compartir internet → Contraseña del wifi)</label><input id="wClave" type="password" autocapitalize="off" autocomplete="off">
+    <button class="manda" id="wManda">📶 Mandar al monster y a la cámara</button>
+    <div id="wEstado"></div>
+  </section>
+
+  <section class="tarjeta">
+    <details>
+      <summary>⚙️ Conectar el monster a internet</summary>
+      <ol class="pasos" style="margin-top:14px">
+        <li>Enciende el monster. En el wifi del móvil sale <b>«MiniMonster»</b> (clave <b>celebrimonster</b>): conéctate.</li>
+        <li>Se abre su página (si no, 192.168.4.1). Elige <b>tu wifi de casa</b> o el de tu móvil (<b>Compartir internet</b>) y escribe su clave.</li>
+        <li>Vuelve a tus datos o a tu wifi y abre esta app: arriba saldrá <b>● En línea</b>. Lo recuerda solo (hasta 3 redes).</li>
+      </ol>
+      <p class="nota">Fuera de casa: activa <b>Compartir internet</b> en tu móvil con el monster cerca. Monster: <code id="mid"></code></p>
+    </details>
+  </section>
+</main>
+<div class="aviso" id="aviso"></div>
+<div id="camGrandeV"><canvas id="camLienzo2"></canvas><span>✕ Cerrar</span></div>
+<div id="vr">
+  <canvas id="vrLienzo"></canvas>
+  <div id="vrGira"><div>📱↻<br><br>Gira el móvil en horizontal<br>y mételo en las gafas</div></div>
+  <div id="vrPanel">
+    <h3>🥽 Ajusta las gafas a tus ojos</h3>
+    <p class="nota" style="margin:0 0 8px">Mira por las gafas: mueve hasta ver <b>UNA sola cruz</b> y nítida. Se guarda solo. Toca la pantalla para esconder esto.</p>
+    <div class="aj"><span>↔ Separación</span><input type="range" id="vSep" min="40" max="80" step="0.5"><output id="oSep"></output></div>
+    <div class="aj"><span>🔍 Tamaño</span><input type="range" id="vTam" min="50" max="140" step="1"><output id="oTam"></output></div>
+    <div class="aj"><span>↕ Altura</span><input type="range" id="vAlt" min="-25" max="25" step="0.5"><output id="oAlt"></output></div>
+    <div class="aj"><span>◎ Lente</span><input type="range" id="vLen" min="0" max="60" step="1"><output id="oLen"></output></div>
+    <div class="aj"><span>👓 Nitidez</span><input type="range" id="vNit" min="0" max="100" step="1"><output id="oNit"></output></div>
+    <div class="aj"><span>☀ Brillo</span><input type="range" id="vBri" min="60" max="160" step="1"><output id="oBri"></output></div>
+    <div class="vrBotones"><button id="vrPrueba">✚ Cruz de prueba</button><button id="vrNormal">↺ Normal</button><button id="vrSal" class="rojo on">✕ Salir</button></div>
+    <p class="nota">Tu graduación: primero las ruedecitas de enfoque de las gafas (si las tienen) o tus gafas puestas dentro. Luego <b>Tamaño</b> y <b>Nitidez</b> lo afinan. Ninguna app puede cambiar la graduación de verdad.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+const FRASES = [{"i": 4, "k": "HOLA", "texto": "¡Hola! Soy el monster"}, {"i": 21, "k": "QUE_TAL", "texto": "¡Hola! ¿Qué tal?"}, {"i": 11, "k": "BUENAS", "texto": "¿Alguien ha pedido un paquete?"}, {"i": 10, "k": "CAMINO", "texto": "¡Paquete en camino!"}, {"i": 2, "k": "ENTREGADO", "texto": "¡Paquete entregado!"}, {"i": 9, "k": "APARTA", "texto": "¡Apártate, que voy!"}, {"i": 22, "k": "PASO", "texto": "¡Paso, que llevo prisa!"}, {"i": 13, "k": "SUELTO", "texto": "¡Monster suelto!"}, {"i": 20, "k": "ATENCION", "texto": "¡Monster en la zona!"}, {"i": 14, "k": "TURBO", "texto": "¡Turbo activado!"}, {"i": 15, "k": "BESTIA", "texto": "¡Modo bestia!"}, {"i": 16, "k": "VAMOS", "texto": "¡Vamos, vamos!"}, {"i": 23, "k": "GANADOR", "texto": "¡El ganador es… el monster!"}, {"i": 12, "k": "MARCA", "texto": "¡Esto es CelebriDiseños!"}, {"i": 19, "k": "CUMPLE", "texto": "¡Feliz cumpleaños!"}, {"i": 24, "k": "CENA", "texto": "¡A cenar!"}, {"i": 17, "k": "GRACIAS", "texto": "¡Gracias! ¡Hasta la próxima!"}, {"i": 18, "k": "ADIOS", "texto": "¡Adiós! Me vuelvo a casa."}, {"i": 0, "k": "LISTO", "texto": "¡Monster listo!"}, {"i": 8, "k": "BATERIA", "texto": "¡Batería baja!"}];
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+const $ = s => document.querySelector(s);
+const aviso = (t, ms = 1800) => { const a = $('#aviso'); a.textContent = t; a.classList.add('ver'); clearTimeout(aviso.t); aviso.t = setTimeout(() => a.classList.remove('ver'), ms); };
+
+// ---------- la llave: del enlace (#m=…&k=…) o la guardada ----------
+function leeLlave() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  let m = h.get('m'), k = h.get('k');
+  try { if (m && k) localStorage.setItem('mm', JSON.stringify({ m, k })); else ({ m, k } = JSON.parse(localStorage.getItem('mm') || '{}')); } catch (e) {}
+  if (!m || !k) return null;
+  const b = Uint8Array.from(atob(k.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((k.length + 3) % 4)), c => c.charCodeAt(0));
+  if (b.length !== 48) return null;
+  return { id: m, kh: b.slice(0, 32), ka: b.slice(32, 48) };
+}
+const LL = leeLlave();
+if (!LL) document.body.classList.add('sinllave');
+
+// ---------- MQTT 3.1.1 por WebSocket (QoS 0): lo justo ----------
+const te = new TextEncoder(), td = new TextDecoder();
+const str = s => { const b = te.encode(s); return [b.length >> 8, b.length & 255, ...b]; };
+function paquete(tipo, cuerpo) { const h = [tipo]; let L = cuerpo.length; do { let b = L % 128; L = Math.floor(L / 128); if (L) b |= 128; h.push(b); } while (L); const o = new Uint8Array(h.length + cuerpo.length); o.set(h); o.set(cuerpo, h.length); return o; }
+class Buzon {
+  constructor(url, alMensaje, alCambio) { this.url = url; this.alMensaje = alMensaje; this.alCambio = alCambio; this.ok = false; this.resto = new Uint8Array(0); this.abre(); }
+  abre() {
+    let ws; try { ws = new WebSocket(this.url, ['mqtt']); } catch (e) { return setTimeout(() => this.abre(), 5000); }
+    this.ws = ws; ws.binaryType = 'arraybuffer';
+    ws.onopen = () => ws.send(paquete(0x10, [0, 4, 77, 81, 84, 84, 4, 2, 0, 40, ...str('mmapp-' + Math.random().toString(36).slice(2, 10))]));
+    ws.onmessage = e => this.datos(new Uint8Array(e.data));
+    ws.onclose = ws.onerror = () => { if (this.ws !== ws) return; this.ws = null; this.ok = false; this.alCambio(); clearInterval(this.ping); setTimeout(() => this.abre(), 3000); };
+  }
+  datos(d) {
+    let b = new Uint8Array(this.resto.length + d.length); b.set(this.resto); b.set(d, this.resto.length);
+    for (;;) {
+      if (b.length < 2) break;
+      let L = 0, mul = 1, i = 1, c; do { if (i >= b.length) { c = -1; break; } c = b[i++]; L += (c & 127) * mul; mul *= 128; } while (c & 128);
+      if (c === -1 || b.length < i + L) break;
+      const tipo = b[0], cu = b.slice(i, i + L); b = b.slice(i + L);
+      if (tipo === 0x20 && cu[1] === 0) { this.ok = true; this.alCambio(); this.ws.send(paquete(0x82, [0, 1, ...str(`cdmm/${LL.id}/e`), 0, ...str(`cdmm/${LL.id}/c`), 0, ...str(`cdmm/${LL.id}/ce`), 0])); clearInterval(this.ping); this.ping = setInterval(() => this.ws && this.ws.readyState === 1 && this.ws.send(new Uint8Array([0xC0, 0])), 25000); }
+      else if ((tipo & 0xF0) === 0x30) { const tl = (cu[0] << 8) | cu[1]; this.alMensaje(td.decode(cu.slice(2, 2 + tl)), cu.slice(2 + tl)); }
+    }
+    this.resto = b;
+  }
+  publica(top, datos) { if (!this.ok || !this.ws || this.ws.readyState !== 1) return false; this.ws.send(paquete(0x30, [...str(top), ...datos])); return true; }
+}
+
+// ---------- las órdenes: [tipo][hora 8][firma 16][cuerpo cifrado] ----------
+let kHmac, kAes, ultimaT = 0;
+async function preparaLlaves() {
+  kHmac = await crypto.subtle.importKey('raw', LL.kh, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  kAes = await crypto.subtle.importKey('raw', LL.ka, { name: 'AES-CTR' }, false, ['encrypt']);
+}
+async function orden(tipo, cuerpo) {
+  if (!kHmac) return false;
+  const t = Math.max(Date.now(), ultimaT + 1); ultimaT = t;
+  const cab = new Uint8Array(9); cab[0] = tipo.charCodeAt(0); new DataView(cab.buffer).setBigUint64(1, BigInt(t));
+  const iv = new Uint8Array(16); iv.set(cab.slice(1, 9));
+  const cif = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CTR', counter: iv, length: 64 }, kAes, new Uint8Array(cuerpo)));
+  const fir = new Uint8Array(await crypto.subtle.sign('HMAC', kHmac, new Uint8Array([...cab, ...cif]))).slice(0, 16);
+  const m = new Uint8Array(25 + cif.length); m.set(cab); m.set(fir, 9); m.set(cif, 25);
+  let alguno = false; for (const b of buzones) alguno = b.publica(`cdmm/${LL.id}/o`, m) || alguno;
+  return alguno;
+}
+
+// ---------- el estado del monster ----------
+let est = null, estT = 0;
+function pinta() {
+  const vivo = est && Date.now() - estT < 9000, red = buzones.some(b => b.ok);
+  const e = $('#estado'); e.className = 'chip ' + (vivo ? 'ok' : 'busca');
+  e.querySelector('span').textContent = vivo ? 'En línea' : red ? 'Buscando el monster…' : 'Sin internet…';
+  if (!est) return;
+  for (const n of [0, 1, 2]) $('#l' + n).classList.toggle('on', vivo && est.luces === n);
+  for (const n of [0, 1]) $('#s' + n).classList.toggle('on', vivo && est.sonido === n);
+  for (const n of [1, 2, 3]) $('#i' + n).classList.toggle('on', vivo && est.inter === n);
+  $('#cajaTxt').textContent = !vivo ? '' : est.caja ? 'arriba' : 'abajo' + (est.emisora ? '' : ' · enciende la emisora');
+  const b = $('#bat'); if (vivo && est.bat > 0) { b.hidden = false; b.textContent = '🔋 ' + est.bat.toFixed(1) + ' V'; } else b.hidden = true;
+}
+function alMensaje(top, datos) {
+  if (top === `cdmm/${LL.id}/c`) return camFoto(datos);
+  if (top === `cdmm/${LL.id}/ce`) { try { camEst = JSON.parse(td.decode(datos)); camEstT = Date.now(); camPinta(); } catch (e) {} return; }
+  if (top !== `cdmm/${LL.id}/e`) return; try { est = JSON.parse(td.decode(datos)); estT = Date.now(); pinta(); } catch (e) {} }
+
+// (06-11 noche) EL COLOR de su cámara: la lente pierde rojo hacia los bordes → cada zona corregida (camara_monster/calibracion) y franja derecha fuera
+const CAL={"w":15,"h":10,"r":[2.5,2.5,1.7,1.23,1.13,1.05,1.02,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,2.5,1.37,1.18,1.07,1.01,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,2.0,1.34,1.14,1.04,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,1.69,1.34,1.13,1.02,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,1.81,1.36,1.12,1.02,1.0,0.99,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,1.88,1.41,1.15,1.02,1.0,0.99,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,2.06,1.47,1.19,1.04,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,2.5,1.54,1.25,1.08,1.02,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,2.5,1.58,1.29,1.12,1.05,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,2.5,2.5,1.8,1.35,1.18,1.08,1.04,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],"b":[1.42,1.25,1.08,0.99,0.99,1.0,0.97,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.31,1.15,1.02,0.99,0.98,0.98,0.97,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.25,1.09,1.01,0.98,0.99,0.98,0.99,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.21,1.06,1.01,1.01,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.21,1.08,1.02,1.01,0.99,1.01,1.01,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.23,1.09,1.04,1.03,1.0,1.01,1.02,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.28,1.1,1.05,1.04,1.0,1.0,1.02,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.29,1.15,1.06,1.06,1.02,1.0,1.0,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.31,1.18,1.06,1.05,1.03,1.01,0.99,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93,1.35,1.23,1.08,1.03,1.04,1.02,1.0,1.0,1.0,1.0,1.0,0.99,0.97,0.95,0.93],"y":[1.5,1.5,1.5,1.46,1.31,1.21,1.16,1.12,1.1,1.11,1.16,1.21,1.3,1.42,1.5,1.5,1.5,1.5,1.36,1.23,1.16,1.09,1.06,1.05,1.06,1.09,1.15,1.22,1.33,1.45,1.5,1.5,1.45,1.29,1.19,1.11,1.06,1.03,1.02,1.02,1.04,1.09,1.16,1.25,1.37,1.5,1.5,1.39,1.25,1.16,1.09,1.04,1.01,1.0,1.0,1.01,1.05,1.11,1.2,1.31,1.5,1.5,1.36,1.23,1.15,1.08,1.04,1.01,1.0,1.0,1.0,1.03,1.09,1.17,1.28,1.5,1.5,1.36,1.23,1.15,1.07,1.03,1.0,1.0,1.0,1.0,1.02,1.08,1.17,1.28,1.5,1.5,1.37,1.24,1.15,1.08,1.03,1.0,1.0,1.0,1.0,1.03,1.1,1.19,1.3,1.5,1.5,1.42,1.27,1.18,1.09,1.04,1.01,1.0,1.0,1.02,1.06,1.13,1.22,1.34,1.5,1.5,1.49,1.33,1.21,1.13,1.07,1.04,1.02,1.02,1.05,1.1,1.18,1.28,1.41,1.5,1.5,1.5,1.41,1.27,1.18,1.12,1.08,1.07,1.08,1.11,1.17,1.25,1.36,1.49],"corte":0.1},calCache={};function calGanancias(w,h,giro){const k=w+"x"+h+"x"+giro;if(calCache[k])return calCache[k];const G=new Float32Array(w*h*3);for(let y=0;y<h;y++)for(let x=0;x<w;x++){const sx=giro?w-1-x:x,sy=giro?h-1-y:y;let u=Math.max(0,Math.min(CAL.w-1.001,(sx+.5)/w*CAL.w-.5)),v=Math.max(0,Math.min(CAL.h-1.001,(sy+.5)/h*CAL.h-.5));const i0=u|0,j0=v|0,fu=u-i0,fv=v-j0,s=a=>(a[j0*CAL.w+i0]*(1-fu)+a[j0*CAL.w+i0+1]*fu)*(1-fv)+(a[(j0+1)*CAL.w+i0]*(1-fu)+a[(j0+1)*CAL.w+i0+1]*fu)*fv;const yy=s(CAL.y),o=(y*w+x)*3;G[o]=s(CAL.r)*yy;G[o+1]=yy;G[o+2]=s(CAL.b)*yy;}return calCache[k]=G;}function calPinta(src,lz,giro){const w=src.naturalWidth||src.width,h=src.naturalHeight||src.height;if(!w||!h)return false;const cw=Math.round(w*(1-CAL.corte)),off=giro?0:w-cw;if(lz.width!==cw||lz.height!==h){lz.width=cw;lz.height=h;}const c=lz.getContext("2d",{willReadFrequently:true});c.drawImage(src,-off,0);let d;try{d=c.getImageData(0,0,cw,h);}catch(e){return true;}const p=d.data,G=calGanancias(w,h,giro?1:0);for(let y=0;y<h;y++){let q=y*cw*4,o=(y*w+off)*3;for(let x=0;x<cw;x++,q+=4,o+=3){p[q]*=G[o];p[q+1]*=G[o+1];p[q+2]*=G[o+2];}}c.putImageData(d,0,0);return true;}
+// ---------- LA CÁMARA por internet (06-11 noche): fotos JPEG cifradas y firmadas con la misma llave ----------
+// [J][hora 8][firma 16][JPEG cifrado] en cdmm/<ID>/c · la cámara solo manda mientras la app le dice «W» (mirando) cada pocos segundos.
+let camOcupada = false, camUltT = 0, camT = 0, camUrl = null, camEst = null, camEstT = 0, camLuzN = 0, camGiro = 0, camGrande = false;
+try { camGiro = +(localStorage.getItem('mmGiro') || 0); } catch (e) {}
+async function camFoto(d) {
+  if (camOcupada || !kHmac || d.length < 200 || d[0] !== 74) return;
+  camOcupada = true;
+  try {
+    const cab = d.slice(0, 9), t = Number(new DataView(cab.buffer).getBigUint64(1));
+    if (t <= camUltT) return;
+    const cif = d.slice(25), todo = new Uint8Array(9 + cif.length); todo.set(cab); todo.set(cif, 9);
+    const fir = new Uint8Array(await crypto.subtle.sign('HMAC', kHmac, todo));
+    for (let i = 0; i < 16; i++) if (fir[i] !== d[9 + i]) return;          // (no es de tu cámara)
+    const iv = new Uint8Array(16); iv.set(cab.slice(1, 9));
+    const jpg = await crypto.subtle.encrypt({ name: 'AES-CTR', counter: iv, length: 64 }, kAes, cif);
+    camUltT = t;
+    const url = URL.createObjectURL(new Blob([jpg], { type: 'image/jpeg' }));
+    const im = new Image(); im.src = url; await im.decode();
+    const giro = camEst && camEst.girada != null ? camEst.girada : camGiro;
+    calPinta(im, $('#camLienzo'), giro); if (camGrande) camCopiaGrande();
+    window.mmFoto = $('#camLienzo');                                       // (el modo VR la pinta, ya corregida)
+    if (camUrl) setTimeout(u => URL.revokeObjectURL(u), 1500, camUrl); camUrl = url;
+    camT = Date.now(); camPinta();
+  } catch (e) {} finally { camOcupada = false; }
+}
+function camPinta() {
+  const viva = Date.now() - camT < 4000, despierta = camEst && Date.now() - camEstT < 15000, c = $('#cam');
+  c.classList.toggle('viva', camT > 0); c.classList.toggle('parada', camT > 0 && !viva);
+  $('#camEstado').textContent = viva ? 'en directo' : despierta ? 'despertando…' : 'sin conexión';
+  if (!camT || !viva) {
+    $('#camTxt').querySelector('b').textContent = despierta ? '📷 Despertando la cámara…' : '📷 La cámara no está en internet';
+    $('#camAyuda').textContent = despierta ? 'Un momento: ya contesta, llegan las fotos enseguida.' : 'Mira que esté encendida y con tu wifi (wifi Monster-CAM → 192.168.4.1 → 🌐 Internet).';
+  }
+  $('#camLuz').classList.toggle('on', camLuzN > 0); $('#camLuz').textContent = ['💡', '💡¹', '💡²', '💡³'][camLuzN];
+  $('#camGira').classList.toggle('on', camGiro === 1);
+}
+function camMira() { if (!document.hidden && buzones.some(b => b.ok)) orden('W', [12]); }
+$('#camLuz').onclick = () => { camLuzN = (camLuzN + 1) % 4; orden('Z', [camLuzN]); camPinta(); };
+$('#camGira').onclick = () => { camGiro = (camEst && camEst.girada != null ? camEst.girada : camGiro) ^ 1; try { localStorage.setItem('mmGiro', camGiro); } catch (e) {} orden('G', [camGiro]); camPinta(); };
+function camCopiaGrande() { const a = $('#camLienzo'), b = $('#camLienzo2'); if (b.width !== a.width || b.height !== a.height) { b.width = a.width; b.height = a.height; } b.getContext('2d').drawImage(a, 0, 0); }
+$('#camGrande').onclick = () => { camGrande = true; camCopiaGrande(); $('#camGrandeV').classList.add('ver'); camMira(); };
+$('#camGrandeV').onclick = () => { camGrande = false; $('#camGrandeV').classList.remove('ver'); };
+// ---------- FUERA DE CASA (06-11 noche): el wifi del móvil se manda CIFRADO al monster y a la cámara (orden «N» = nombre\0clave) ----------
+let wM0 = 0, wC0 = 0, wEsperando = false;
+$('#wManda').onclick = async () => {
+  const s = $('#wNom').value.trim(), p = $('#wClave').value;
+  if (!s) { aviso('Escribe el nombre del wifi de tu móvil'); return; }
+  if (p.length < 8) { aviso('La clave tiene 8 letras o más'); return; }
+  wM0 = est && est.nuevas || 0; wC0 = camEst && camEst.nuevas || 0; wEsperando = true;
+  const ok = await orden('N', [...te.encode(s), 0, ...te.encode(p)]);
+  $('#wClave').value = '';
+  $('#wEstado').textContent = ok ? 'Mandado… esperando a que lo guarden' : '❌ Sin internet: prueba otra vez';
+  if (!ok) wEsperando = false;
+};
+function wPinta() {
+  if (!wEsperando) return;
+  const m = est && (est.nuevas || 0) > wM0, c = camEst && (camEst.nuevas || 0) > wC0;
+  $('#wEstado').textContent = (m ? '✅' : '⏳') + ' Monster   ' + (c ? '✅' : '⏳') + ' Cámara';
+  if (m && c) { wEsperando = false; aviso('¡Guardado! Ya puedes salir a la calle'); }
+}
+setInterval(wPinta, 1000);
+let buzones = [];
+if (LL) {
+  $('#mid').textContent = LL.id;
+  preparaLlaves().then(() => { buzones = BROKERS.map(u => new Buzon(u, alMensaje, pinta)); });
+  setInterval(pinta, 1500);
+  setInterval(camPinta, 1500); setInterval(camMira, 4000); setTimeout(camMira, 2500);
+  setInterval(() => { if (!est || Date.now() - estT > 6000) orden('P', [0]); }, 4000);
+}
+const manda = async (tipo, cuerpo, txt) => { const ok = await orden(tipo, cuerpo); if (!ok) aviso('Sin conexión con el monster'); else if (txt) aviso(txt, 1100); if (navigator.vibrate) navigator.vibrate(12); };
+
+// ---------- botones ----------
+document.querySelectorAll('[data-l]').forEach(b => b.onclick = () => manda('L', [+b.dataset.l], b.textContent.trim()));
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { manda('S', [+b.dataset.s], +b.dataset.s ? 'Modo SPORT 🔥' : 'Modo ECO 🍃'); if (est) { est.sonido = +b.dataset.s; pinta(); } });
+document.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { const v = +b.dataset.i, nuevo = est && est.inter === v ? 0 : v; manda('I', [nuevo], nuevo ? 'Intermitente' : 'Intermitente apagado'); if (est) { est.inter = nuevo; pinta(); } });
+document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => manda('K', [+b.dataset.k], +b.dataset.k ? 'Caja arriba ⬆️' : 'Caja abajo ⬇️'));
+const fr = $('#frases');
+for (const f of FRASES) { const b = document.createElement('button'); b.textContent = f.texto; b.onclick = () => { manda('F', [f.i]); b.classList.add('dice'); setTimeout(() => b.classList.remove('dice'), 1400); }; fr.appendChild(b); }
+// claxon: mientras lo mantienes (se repite cada 0,4 s; el monster lo para solo)
+let clx; const cl = $('#claxon');
+const clOn = e => { e.preventDefault(); cl.classList.add('on'); manda('C', [6]); clearInterval(clx); clx = setInterval(() => orden('C', [6]), 400); };
+const clOff = () => { cl.classList.remove('on'); clearInterval(clx); };
+cl.addEventListener('pointerdown', clOn); ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => cl.addEventListener(ev, clOff));
+
+// ---------- HABLAR: el micro a 8 000 por segundo, 8 bits, en trozos de 0,25 s ----------
+let ctx, fuente, proc, flujo, hablando = false, trozo = [], posR = 0;
+async function empiezaHablar(e) {
+  e.preventDefault(); if (hablando) return;
+  try {
+    if (!flujo) flujo = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); await ctx.resume();
+    fuente = ctx.createMediaStreamSource(flujo); proc = ctx.createScriptProcessor(2048, 1, 1);
+    const paso = ctx.sampleRate / 8000; let acum = 0, n = 0;
+    proc.onaudioprocess = ev => {
+      const x = ev.inputBuffer.getChannelData(0); let pico = 0;
+      for (let i = 0; i < x.length; i++) {
+        acum += x[i]; n++; posR += 1;
+        if (posR >= paso) { posR -= paso; let v = acum / n * 2.2; acum = 0; n = 0; v = v / (1 + Math.abs(v)) * 1.3; pico = Math.max(pico, Math.abs(v)); trozo.push(Math.max(-127, Math.min(127, Math.round(v * 127))) & 255); }
+      }
+      $('#nivel').style.width = Math.min(100, pico * 140) + '%';
+      while (trozo.length >= 2000) orden('V', trozo.splice(0, 2000));
+    };
+    fuente.connect(proc); proc.connect(ctx.destination);
+    hablando = true; $('#hablar').classList.add('vivo'); $('#hablarTxt').textContent = 'Te está oyendo… suelta para parar';
+  } catch (err) { aviso('Deja usar el micrófono (Ajustes → Safari → Micrófono)', 3500); }
+}
+function paraHablar() {
+  if (!hablando) return; hablando = false;
+  try { proc.disconnect(); fuente.disconnect(); } catch (e) {}
+  if (trozo.length) orden('V', trozo.splice(0)); trozo = []; $('#nivel').style.width = '0';
+  $('#hablar').classList.remove('vivo'); $('#hablarTxt').textContent = 'Mantén pulsado para hablar';
+}
+const hb = $('#hablar');
+hb.addEventListener('pointerdown', empiezaHablar); ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => hb.addEventListener(ev, paraHablar));
+document.addEventListener('visibilitychange', () => { if (document.hidden) { paraHablar(); clOff(); } else camMira(); });
+
+// ---------- MODO GAFAS VR: la imagen dos veces (un ojo cada una), con su lente corregida, ajustable y guardado ----------
+// Fuente: la cámara (fase 2: window.mmFoto = la última foto que llegue) o la CRUZ DE PRUEBA para ajustar.
+const VR_NORMAL = { sep: 63, tam: 95, alt: 0, len: 22, nit: 25, bri: 100 };
+let vr = Object.assign({}, VR_NORMAL); try { Object.assign(vr, JSON.parse(localStorage.getItem('mmVR') || '{}')); } catch (e) {}
+const AJ = { sep: ['vSep', 'oSep', v => v + ' mm'], tam: ['vTam', 'oTam', v => v + ' %'], alt: ['vAlt', 'oAlt', v => (v > 0 ? '+' : '') + v], len: ['vLen', 'oLen', v => v], nit: ['vNit', 'oNit', v => v], bri: ['vBri', 'oBri', v => v + ' %'] };
+function vrPintaAjustes() { for (const [k, [i, o, f]] of Object.entries(AJ)) { $('#' + i).value = vr[k]; $('#' + o).textContent = f(vr[k]); } }
+for (const [k, [i, o, f]] of Object.entries(AJ)) $('#' + i).addEventListener('input', e => { vr[k] = +e.target.value; $('#' + o).textContent = f(vr[k]); try { localStorage.setItem('mmVR', JSON.stringify(vr)); } catch (er) {} });
+const fuente2d = document.createElement('canvas'); fuente2d.width = 1280; fuente2d.height = 720;
+let vrCruz = true, vrVivo = false, gl, prog, tex, wake;
+function dibujaCruz() {
+  const c = fuente2d.getContext('2d'), W = 1280, H = 720;
+  const g = c.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, 760); g.addColorStop(0, '#1d3433'); g.addColorStop(1, '#0b0c0d'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.strokeStyle = 'rgba(25,181,176,.35)'; c.lineWidth = 2;
+  for (let x = 0; x <= W; x += 80) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
+  for (let y = 40; y <= H; y += 80) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  c.strokeStyle = '#fff'; c.lineWidth = 6; c.beginPath(); c.moveTo(W / 2 - 90, H / 2); c.lineTo(W / 2 + 90, H / 2); c.moveTo(W / 2, H / 2 - 90); c.lineTo(W / 2, H / 2 + 90); c.stroke();
+  for (const r of [160, 260]) { c.beginPath(); c.arc(W / 2, H / 2, r, 0, 7); c.stroke(); }
+  c.fillStyle = '#fff'; c.font = '700 40px system-ui,sans-serif'; c.textAlign = 'center';
+  c.fillText('¿Ves UNA sola cruz, nítida y redonda?', W / 2, 90); c.font = '600 28px system-ui,sans-serif'; c.fillStyle = '#9aa';
+  c.fillText('Separación → una sola cruz · Lente → círculos redondos · Tamaño → que quepa', W / 2, H - 50);
+}
+function vrGL() {
+  const cv = $('#vrLienzo'); gl = cv.getContext('webgl', { antialias: false }); if (!gl) return false;
+  const vs = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+  const fs = `precision mediump float;uniform sampler2D t;uniform vec2 cen,img,tx;uniform float k,mitad,bri,nit;
+    vec3 m(vec2 u){return texture2D(t,u).rgb;}
+    void main(){vec2 p=(gl_FragCoord.xy-cen)/mitad;float r2=dot(p,p);vec2 q=p*(1.+k*r2+.6*k*r2*r2)*mitad;
+      vec2 u=vec2(.5+q.x/img.x,.5-q.y/img.y);if(u.x<0.||u.x>1.||u.y<0.||u.y>1.){gl_FragColor=vec4(0.,0.,0.,1.);return;}
+      vec3 c=m(u),a=(m(u+vec2(tx.x,0.))+m(u-vec2(tx.x,0.))+m(u+vec2(0.,tx.y))+m(u-vec2(0.,tx.y)))*.25;
+      gl_FragColor=vec4(clamp((c+nit*(c-a))*bri,0.,1.),1.);}`;
+  const sh = (tipo, src) => { const s = gl.createShader(tipo); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog); gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const lp = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(lp); gl.vertexAttribPointer(lp, 2, gl.FLOAT, false, 0, 0);
+  tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  for (const [a, b] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, a, b);
+  return true;
+}
+function vrCuadro() {
+  if (!vrVivo) return; requestAnimationFrame(vrCuadro);
+  const cv = $('#vrLienzo'), dpr = window.devicePixelRatio || 1, W = Math.round(innerWidth * dpr), H = Math.round(innerHeight * dpr);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const foto = !vrCruz && window.mmFoto && (window.mmFoto.naturalWidth || window.mmFoto.width) ? window.mmFoto : null;
+  if (foto) { const fw = foto.naturalWidth || foto.width, fh = foto.naturalHeight || foto.height, c = fuente2d.getContext('2d'), s = Math.min(1280 / fw, 720 / fh), w = fw * s, hh = fh * s;
+    c.fillStyle = '#000'; c.fillRect(0, 0, 1280, 720); c.drawImage(foto, (1280 - w) / 2, (720 - hh) / 2, w, hh); } else dibujaCruz();
+  gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, fuente2d);
+  const mm = 6.4 * dpr, ojoW = W / 2, imgW = ojoW * vr.tam / 100, imgH = imgW * 9 / 16;
+  const u = n => gl.getUniformLocation(prog, n);
+  gl.uniform2f(u('img'), imgW, imgH); gl.uniform2f(u('tx'), 1 / 1280, 1 / 720);
+  gl.uniform1f(u('k'), vr.len / 100); gl.uniform1f(u('mitad'), ojoW / 2); gl.uniform1f(u('bri'), vr.bri / 100); gl.uniform1f(u('nit'), vr.nit / 40);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  for (const lado of [-1, 1]) {                                       // izquierdo y derecho: cada ojo en su mitad, centrado en su lente
+    gl.viewport(lado < 0 ? 0 : ojoW, 0, ojoW, H);
+    gl.uniform2f(u('cen'), W / 2 + lado * vr.sep * mm / 2, H / 2 + vr.alt * mm);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+}
+async function vrAbre() {
+  if (!gl && !vrGL()) { aviso('Este móvil no puede hacer el modo VR'); return; }
+  vrCruz = !(camT && Date.now() - camT < 5000); $('#vrPrueba').classList.toggle('on', vrCruz);
+  $('#vr').classList.add('ver'); $('#vrPanel').classList.add('ver'); vrPintaAjustes(); vrVivo = true; vrCuadro();
+  try { await document.documentElement.requestFullscreen(); } catch (e) {}
+  try { await screen.orientation.lock('landscape'); } catch (e) {}
+  try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+}
+function vrCierra() { vrVivo = false; $('#vr').classList.remove('ver'); try { document.exitFullscreen(); } catch (e) {} try { wake && wake.release(); } catch (e) {} }
+$('#vrAbre').onclick = vrAbre; $('#vrSal').onclick = vrCierra;
+$('#vrLienzo').onclick = () => $('#vrPanel').classList.toggle('ver');
+$('#vrPrueba').onclick = () => { vrCruz = !vrCruz; $('#vrPrueba').classList.toggle('on', vrCruz); };
+$('#vrNormal').onclick = () => { vr = Object.assign({}, VR_NORMAL); try { localStorage.setItem('mmVR', JSON.stringify(vr)); } catch (e) {} vrPintaAjustes(); };
+$('#vrPrueba').classList.add('on');
+</script>
+</body>
+</html>
