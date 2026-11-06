@@ -194,7 +194,7 @@ code{font-size:12px;color:var(--suave);word-break:break-all}
     <section class="tarjeta">
       <div class="tit"><b>Cámara</b><span id="camEstado">buscando…</span></div>
       <div class="cam" id="cam"><canvas id="camLienzo"></canvas><div id="camTxt"><b>📷 Despertando la cámara…</b><span id="camAyuda">Un momento: la cámara se está conectando.</span></div>
-        <div class="camIzq"><button id="camLuz" title="Luz de la cámara">💡</button><button id="camGira" title="Dar la vuelta">🔄</button><button id="camGrande" title="En grande">⛶</button></div>
+        <div class="camIzq"><button id="camLuz" title="Luz de la cámara">💡</button><button id="camGira" title="Dar la vuelta">🔄</button><button id="camGrande" title="En grande">⛶</button><button id="camCal" title="Calidad de la imagen">⭐</button></div>
         <button class="camBtn" id="vrAbre">🥽 Gafas VR</button></div>
     </section>
 
@@ -292,6 +292,11 @@ code{font-size:12px;color:var(--suave);word-break:break-all}
       <button class="linea" id="cdInv">↔️ Volante al revés <em id="cdInvTxt">no</em></button>
       <div class="seg s3 vel"><button data-v="40">🐢 Despacio</button><button data-v="70">🚗 Normal</button><button data-v="100">🐇 Rápido</button></div>
     </section>
+    <section class="tarjeta">
+      <div class="tit"><b>📷 Calidad de la cámara</b><span id="calTxt"></span></div>
+      <div class="seg s3 calSeg"><button data-cal="0">🔋 Ahorro</button><button data-cal="1">⭐ Buena</button><button data-cal="2">💎 Máxima</button></div>
+      <p class="nota">🔋 gasta menos datos (en la calle) · ⭐ la de siempre, más nítida · 💎 la más nítida: con wifi bueno.</p>
+    </section>
     <section class="tarjeta fuera">
       <div class="tit"><b>🌍 Fuera de casa</b><span>con los datos del móvil</span></div>
       <ol class="pasos">
@@ -366,7 +371,7 @@ code{font-size:12px;color:var(--suave);word-break:break-all}
 <script>
 'use strict';
 const FRASES = [{"i": 4, "k": "HOLA", "texto": "¡Hola! Soy el monster"}, {"i": 21, "k": "QUE_TAL", "texto": "¡Hola! ¿Qué tal?"}, {"i": 11, "k": "BUENAS", "texto": "¿Alguien ha pedido un paquete?"}, {"i": 10, "k": "CAMINO", "texto": "¡Paquete en camino!"}, {"i": 2, "k": "ENTREGADO", "texto": "¡Paquete entregado!"}, {"i": 9, "k": "APARTA", "texto": "¡Apártate, que voy!"}, {"i": 22, "k": "PASO", "texto": "¡Paso, que llevo prisa!"}, {"i": 13, "k": "SUELTO", "texto": "¡Monster suelto!"}, {"i": 20, "k": "ATENCION", "texto": "¡Monster en la zona!"}, {"i": 14, "k": "TURBO", "texto": "¡Turbo activado!"}, {"i": 15, "k": "BESTIA", "texto": "¡Modo bestia!"}, {"i": 16, "k": "VAMOS", "texto": "¡Vamos, vamos!"}, {"i": 23, "k": "GANADOR", "texto": "¡El ganador es… el monster!"}, {"i": 12, "k": "MARCA", "texto": "¡Esto es CelebriDiseños!"}, {"i": 19, "k": "CUMPLE", "texto": "¡Feliz cumpleaños!"}, {"i": 24, "k": "CENA", "texto": "¡A cenar!"}, {"i": 17, "k": "GRACIAS", "texto": "¡Gracias! ¡Hasta la próxima!"}, {"i": 18, "k": "ADIOS", "texto": "¡Adiós! Me vuelvo a casa."}, {"i": 0, "k": "LISTO", "texto": "¡Monster listo!"}, {"i": 8, "k": "BATERIA", "texto": "¡Batería baja!"}];
-const VERSION = '2.0 · 06-11-2026';
+const VERSION = '2.1 · 06-11-2026';
 const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const aviso = (t, ms = 1800) => { const a = $('#aviso'); a.textContent = t; a.classList.add('ver'); clearTimeout(aviso.t); aviso.t = setTimeout(() => a.classList.remove('ver'), ms); };
@@ -436,6 +441,8 @@ async function ordenYa(tipo, cuerpo) {
   const fir = new Uint8Array(await crypto.subtle.sign('HMAC', kHmac, todo)).slice(0, 16);
   const m = new Uint8Array(25 + cif.length); m.set(cab); m.set(fir, 9); m.set(cif, 25);
   let alguno = false; for (const b of buzones) alguno = b.publica(`cdmm/${LL.id}/o`, m) || alguno;
+  // (2.1) la cámara tiene SU buzón (/oc): así no le llegan la voz, los efectos ni conducir, que la frenaban (medido: de 6 fotos/s a 1)
+  if ('WZGN'.includes(tipo)) for (const b of buzones) b.publica(`cdmm/${LL.id}/oc`, m);
   return alguno;
 }
 function orden(tipo, cuerpo) { const p = cola.then(() => ordenYa(tipo, cuerpo)); cola = p.catch(() => {}); return p; }
@@ -445,7 +452,10 @@ const manda = async (tipo, cuerpo, txt) => { const ok = await orden(tipo, cuerpo
 let est = null, estT = 0;
 const vivoM = () => !!est && Date.now() - estT < 9000;
 const num = v => (typeof v === 'number' && isFinite(v) ? v : null);     // (el estado llega sin cifrar por un buzón público: solo números)
+let rrAvisado = false;
+function avisaReinicio() { if (!vivoM() || rrAvisado) return; if (num(est.rr) === 9 && num(est.up) !== null && est.up < 90) { rrAvisado = true; aviso('⚠️ El monster se ha reiniciado: le faltó corriente', 4000); } }
 function pinta() {
+  avisaReinicio();
   const vivo = vivoM(), red = enRed();
   for (const e of [$('#estado'), $('#mvEstado')]) { e.className = 'chip ' + (vivo ? 'ok' : 'busca'); e.querySelector('span').textContent = vivo ? 'En línea' : red ? 'Buscando…' : 'Sin internet'; }
   const sen = vivo ? num(est.senal) : null, s = $('#senal');
@@ -474,7 +484,11 @@ function pintaInfo() {
   fila('Manda ahora', v ? (est.mov ? 'el móvil' : 'la emisora') : '—');
   fila('Caja', v ? (est.caja ? 'arriba' : 'abajo') : '—');
   fila('Wifis guardados', redes !== null ? redes + ' de 3' : '—');
-  fila('Cámara', camT && Date.now() - camT < 4000 ? 'en directo' : camEst && Date.now() - camEstT < 15000 ? 'despierta' : 'sin conexión');
+  fila('Cámara', camT && Date.now() - camT < 4000 ? 'en directo · ' + camFps() + ' fotos/s · ' + CAL_NOM[camCal] : camEst && Date.now() - camEstT < 15000 ? 'despierta' : 'sin conexión');
+  // (2.1) si el cerebro se ha reiniciado SOLO (le faltó corriente: rr 9 = brownout) lo dice, con cuánto lleva encendido
+  const rr = v ? num(est.rr) : null, up = v ? num(est.up) : null;
+  if (up !== null) fila('Encendido hace', up < 60 ? up + ' s' : up < 3600 ? Math.floor(up / 60) + ' min' : Math.floor(up / 3600) + ' h ' + Math.floor(up % 3600 / 60) + ' min');
+  if (rr === 9) fila('Último reinicio', '⚠️ le faltó corriente');
   fila('App', VERSION);
 }
 function alMensaje(top, datos) {
@@ -517,14 +531,14 @@ async function camFoto(d) {
     if (mandoAbierto) { camCopia($('#camLienzo3')); $('#mandoV').classList.add('conCam'); }
     window.mmFoto = $('#camLienzo');                                       // (el modo VR la pinta, ya corregida)
     if (camUrl) setTimeout(u => URL.revokeObjectURL(u), 1500, camUrl); camUrl = url;
-    camT = Date.now(); camPinta();
+    camT = Date.now(); camTs.push(camT); camPinta();
   } catch (e) {} finally { camOcupada = false; }
 }
 function camPinta() {
   const viva = Date.now() - camT < 4000, despierta = camEst && Date.now() - camEstT < 15000, c = $('#cam');
   c.classList.toggle('viva', camT > 0); c.classList.toggle('parada', camT > 0 && !viva);
   if (!viva) $('#mandoV').classList.remove('conCam');
-  $('#camEstado').textContent = viva ? 'en directo' : despierta ? 'despertando…' : 'sin conexión';
+  $('#camEstado').textContent = viva ? 'en directo · ' + camFps() + ' fotos/s' : despierta ? 'despertando…' : 'sin conexión';
   if (!camT || !viva) {
     $('#camTxt').querySelector('b').textContent = despierta ? '📷 Despertando la cámara…' : '📷 La cámara no está en internet';
     $('#camAyuda').textContent = despierta ? 'Un momento: ya contesta, llegan las fotos enseguida.' : 'Mira que esté encendida y con tu wifi (wifi Monster-CAM → 192.168.4.1 → 🌐 Internet).';
@@ -533,7 +547,16 @@ function camPinta() {
   $('#camGira').classList.toggle('on', camGiro === 1);
 }
 // (v2) solo pide fotos si las estás viendo: ahorra datos del móvil en la calle
-function camMira() { if (!document.hidden && enRed() && (pagina === 'mando' || mandoAbierto || camGrande || vrVivo)) orden('W', [12]); }
+function camMira() { if (!document.hidden && enRed() && (pagina === 'mando' || mandoAbierto || camGrande || vrVivo)) orden('W', [12, camCal]); }
+// (2.1) LA CALIDAD de la cámara: 0 ahorro (320x240) · 1 buena (480x320, más nítida que antes) · 2 máxima (640x480)
+let camCal = [0, 1, 2].includes(+lee('mmCamCal', 1)) ? +lee('mmCamCal', 1) : 1;
+const CAL_NOM = ['🔋 Ahorro', '⭐ Buena', '💎 Máxima'], CAL_IC = ['🔋', '⭐', '💎'];
+function ponCal(n, avisa) { camCal = n; guarda('mmCamCal', n); pintaCal(); camMira(); if (avisa) aviso('📷 Calidad: ' + CAL_NOM[n], 1300); }
+function pintaCal() { $('#camCal').textContent = CAL_IC[camCal]; $$('[data-cal]').forEach(b => b.classList.toggle('on', +b.dataset.cal === camCal)); $('#calTxt').textContent = CAL_NOM[camCal]; }
+$('#camCal').onclick = () => ponCal((camCal + 1) % 3, true);
+$$('[data-cal]').forEach(b => b.onclick = () => ponCal(+b.dataset.cal, true));
+const camTs = [];                                         // (cuándo llegó cada foto: para las fotos por segundo)
+function camFps() { const a = Date.now() - 3000; while (camTs.length && camTs[0] < a) camTs.shift(); return Math.round(camTs.length / 3); }
 $('#camLuz').onclick = () => { camLuzN = (camLuzN + 1) % 4; orden('Z', [camLuzN]); camPinta(); };
 $('#camGira').onclick = () => { camGiro = (camEst && camEst.girada != null ? camEst.girada : camGiro) ^ 1; guarda('mmGiro', camGiro); orden('G', [camGiro]); camPinta(); };
 function camCopia(b) { const a = $('#camLienzo'); if (!a.width) return; if (b.width !== a.width || b.height !== a.height) { b.width = a.width; b.height = a.height; } b.getContext('2d').drawImage(a, 0, 0); }
@@ -830,6 +853,7 @@ if (LL) {
   verPagina(lee('mmPag', 'mando'));
   preparaLlaves().then(() => { buzones = BROKERS.map(u => new Buzon(u, alMensaje, pinta)); });
   setInterval(pinta, 1500);
+  pintaCal();
   setInterval(camPinta, 1500); setInterval(camMira, 4000); setTimeout(camMira, 2500);
   setInterval(() => { if (!est || Date.now() - estT > 6000) orden('P', [0]); }, 4000);
 }
@@ -837,4 +861,4 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { cdA
 </script>
 </body>
 </html>
-<!-- MiniMonster versión 2 · 06-11-2026 22:36 -->
+<!-- MiniMonster versión 2.1 · 06-11-2026 23:15 -->
