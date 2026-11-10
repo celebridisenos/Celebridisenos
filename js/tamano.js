@@ -9,8 +9,10 @@
 // Sin malla (un producto de tu ficha) se usa la regla media s^2,5: entre «todo pared» (s²) y «todo macizo» (s³).
 // TODO es ESTIMADO: el número de verdad sale laminando la pieza a ese tamaño en Bambu Studio.
 import { estimarGramos, estimarHoras } from './datos3d.js';
+import { IMPRESORAS, cabeEn } from './cotizar.js'; // 10-11-2026: sus TRES impresoras (con la A1 nueva) salen de un solo sitio
 
-export const CAMAS = [{ nombre: 'A1 mini', lado: 180 }, { nombre: 'P1P', lado: 256 }]; // las dos de Biou: volumen de impresión en mm
+// 10-11-2026: A1 mini (18 cm), P1P (23,6 cm útiles por su esquina prohibida; 25,6 de alto) y la A1 NUEVA (25,6 cm)
+export const CAMAS = IMPRESORAS.map(I => ({ nombre: I.nombre, lado: Math.min(I.x, I.y), x: I.x, y: I.y, z: I.z }));
 export const EXPONENTE = 2.5;
 export const ATAJOS = [75, 100, 125, 150, 200];
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
@@ -43,7 +45,7 @@ export function aTamano(base, pct) {
   }
   const medidas = m && num(m.x) > 0 ? { x: r1(num(m.x) * s), y: r1(num(m.y) * s), z: r1(num(m.z) * s) } : null;
   const mayor = medidas ? Math.max(medidas.x, medidas.y, medidas.z) : 0;
-  const cabe = medidas ? CAMAS.map(c => ({ nombre: c.nombre, lado: c.lado, cabe: mayor <= c.lado })) : [];
+  const cabe = medidas ? CAMAS.map(c => ({ nombre: c.nombre, lado: c.lado, cabe: cabeEn(c, medidas) })) : [];
   return { pct: Math.round(s * 100), s, gramos, horas, medidas, de, cabe, mayor };
 }
 
@@ -51,7 +53,7 @@ export function aTamano(base, pct) {
 export function textoCabe(r) {
   if (!r || !r.medidas) return '';
   const si = r.cabe.filter(c => c.cabe).map(c => c.nombre);
-  if (si.length === r.cabe.length) return '✅ Cabe en tus dos impresoras.';
+  if (si.length === r.cabe.length) return '✅ Cabe en tus tres impresoras.';
   if (si.length) return '⚠️ Solo cabe en la ' + si.join(' y la ') + ' (la ' + r.cabe.filter(c => !c.cabe).map(c => c.nombre + ' llega a ' + String(c.lado / 10).replace('.', ',') + ' cm').join(', ') + ').';
-  return '⛔ No cabe en ninguna de tus impresoras: mide ' + String(r1(r.mayor / 10)).replace('.', ',') + ' cm y la P1P llega a 25,6 cm. Habría que partirla en piezas.';
+  return '⛔ No cabe en ninguna de tus impresoras: mide ' + String(r1(r.mayor / 10)).replace('.', ',') + ' cm y la A1 llega a 25,6 cm. Habría que partirla en piezas.';
 }

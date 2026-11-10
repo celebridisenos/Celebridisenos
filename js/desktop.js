@@ -13,6 +13,7 @@ async function call(path, opts = {}) {
   return ct.includes('json') ? r.json() : r;
 }
 const q = o => new URLSearchParams(o).toString();
+const limpio = o => { const r = {}; Object.keys(o || {}).forEach(k => { if (o[k] !== undefined && o[k] !== null && o[k] !== '') r[k] = o[k]; }); return r; }; // 10-11: sin «undefined» en la dirección
 export const desktop = {
   on: !!H,
   name: H ? H.name : '',
@@ -122,7 +123,8 @@ export const desktop = {
   cuentasInicio: () => call('cuentas-inicio'), // 02-11-2026: las cuentas de partida (archivo local de la torre, nunca en el código)
   cuentasInicioHechas: () => call('cuentas-inicio', { method: 'POST' }),
   redesPendiente: () => call('redes-pendiente'), // 02-11-2026: la ventana de chats pregunta si le han pedido otra pestaña
-  acabado: (ruta, imp, receta) => call('acabado?' + q({ ruta, imp, receta }), { method: 'POST' }), // 01-11-2026: abrir Bambu con la receta de acabado (rapido/normal/fino/fuerte)
+  acabado: (ruta, imp, receta, extra) => call('acabado?' + q(Object.assign({ ruta, imp, receta }, limpio(extra))), { method: 'POST' }), // 10-11: extra = { v: 2, escala, paredes, relleno } (los 5 acabados nuevos y lo del cotizador)
+  cotizarMedir: (ruta, imp, receta, extra) => call('cotizar-medir?' + q(Object.assign({ ruta, imp, receta }, limpio(extra))), { method: 'POST' }), // 10-11: 💶 lamina con su Bambu y dice gramos, tiempo y avisos // 01-11-2026: abrir Bambu con la receta de acabado (rapido/normal/fino/fuerte)
   repara: (ruta, modo) => call('repara?' + q({ ruta, modo: modo || 'decor' }), { method: 'POST' }), // 01-11-2026: reparar por fragilidad (decor engorda / encaje no toca la medida)
   mudanza: (que, cuerpo) => call('mudanza/' + que, cuerpo ? { method: 'POST', body: JSON.stringify(cuerpo) } : undefined), // v30.7.1: la copia para llevar el programa a otro ordenador
   ocr: blob => call('ocr', { method: 'POST', body: blob }), // v30.7.1: leer las letras de una etiqueta con el lector de Windows (gratis, sin internet)

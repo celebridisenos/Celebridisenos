@@ -214,6 +214,7 @@ export function render(el) {
       h('div.row.wrap',
         can('pedidos.crear') ? btn('🧾 Hacer pedido con este precio', hacerPedido, { cls: 'primary' }) : null,
         !E.prod && can('productos.editar') ? btn('➕ Crear producto con esto', crearProducto, { icon: 'cube' }) : null,
+        E.prod ? btn('💪 Más fuerte o mejor acabado', () => import('./cotizar_ui.js').then(m => m.abrirCotizador(E.prod, { escala: E.pct })), { cls: 'cz-cotizar', title: 'El cotizador del producto: tamaño, peso (resistencia), acabado e impresora, con mis consejos' }) : null,
         btn('Otro archivo', () => elegir.click(), { cls: 'ghost' }), btn('Vaciar', () => { E = null; pinta(); }, { cls: 'ghost' })));
     pintaTamano();
     pintaResultados();

@@ -18,6 +18,7 @@ const ES_3D = n => ['stl', '3mf', 'obj'].includes(extOf(n));
 const primero3MF = (a, b) => (extOf(b) === '3mf') - (extOf(a) === '3mf');
 // ¿este error es de «aquí no se puede» (y la torre sí puede)?
 export const noSePuedeAqui = e => /failed to fetch|networkerror|load failed|no est[áa] instalado|no encuentro (bambu|blender)|que est[ée] en este pc|error local 40[45]|sin conexi[óo]n con el programa/i.test(String((e && e.message) || e));
+const NOMBRE_ACABADO = { prueba: 'Prueba', rapida: 'Rápida', normal: 'Normal', maxima: 'Máxima calidad', premium: 'Premium top', rapido: 'Rápido', fino: 'Fino', fuerte: 'Fuerte' };
 const QUE = { acabado: 'prepare el acabado', bambu: 'abra la pieza en Bambu Studio', reforzar: 'refuerce la pieza' };
 
 // ---------- el aparato que lo pide ----------
@@ -37,7 +38,7 @@ export async function encargarPieza(p, modo, extra = {}) {
     api('pc.recibido', { id: r.__id }, { quiet: true }).catch(() => { });
     const en = r.en || quien;
     if (modo === 'reforzar') toast('🛠️ Reforzada en ' + en + (r.paredMin ? ' (la pared más fina era ' + r.paredMin + ' mm)' : '') + '. El STL reforzado ya está en el producto: «' + (r.nombre || 'reforzado.stl') + '».', 'ok', 12000);
-    else toast('✅ Abierta en Bambu Studio de ' + en + (modo === 'acabado' ? ' con el acabado «' + (extra.receta || '') + '» puesto' : '') + '. Ve a la torre para laminar e imprimir.', 'ok', 12000);
+    else toast('✅ Abierta en Bambu Studio de ' + en + (modo === 'acabado' ? ' con el acabado «' + (NOMBRE_ACABADO[extra.receta] || extra.receta || '') + '» puesto' : '') + '. Ve a la torre para laminar e imprimir.', 'ok', 12000);
     return r;
   } catch (e) {
     t.remove();
@@ -49,6 +50,8 @@ export async function encargarPieza(p, modo, extra = {}) {
 
 // ---------- la torre: hace el encargo ----------
 // el archivo 3D de la pieza, EN ESTE PC: el subido al producto (si se guardó aquí, su ruta; si no, se baja) o el de su carpeta
+// 10-11-2026: también lo usa el 💶 cotizador (laminar el producto con su Bambu)
+export const rutaDePieza = p => rutaLocal({}, p, false);
 async function rutaLocal(e, p, soloSTL) {
   const ok = n => soloSTL ? extOf(n) === 'stl' : ES_3D(n);
   const subidos = (p ? filesOf('productos', p.id) : []).filter(a => ok(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
@@ -62,7 +65,8 @@ export async function atiendePieza(job, progreso) {
   const e = job.entrada || {}, modo = String(e.modo || '').replace(/^pieza_/, ''), p = e.productoId ? byId('productos', e.productoId) : null;
   progreso(5);
   const f = await rutaLocal(e, p, modo === 'reforzar'); progreso(30);
-  if (modo === 'acabado') { const r = await desktop.acabado(f.ruta, e.imp === 'p1p' ? 'p1p' : 'a1m', e.receta || 'normal'); progreso(95); return { abierto: true, proyecto: (r && r.archivo) || '', nombre: f.nombre, en: desktop.name }; } // («proyecto», no «archivo»: «archivo» es un archivo del programa)
+  // 10-11-2026: la A1 y los 5 acabados nuevos (con v: 2, tamaño y fuerza del cotizador)
+  if (modo === 'acabado') { const r = await desktop.acabado(f.ruta, ['a1m', 'p1p', 'a1'].includes(e.imp) ? e.imp : 'a1m', e.receta || 'normal', Number(e.v) === 2 ? { v: 2, escala: e.escala, paredes: e.paredes, relleno: e.relleno } : null); progreso(95); return { abierto: true, proyecto: (r && r.archivo) || '', nombre: f.nombre, en: desktop.name }; } // («proyecto», no «archivo»: «archivo» es un archivo del programa)
   if (modo === 'bambu') { const r = await desktop.bambuAbrirRuta(f.ruta, true); progreso(95); if (r && r.abierto === false) throw new Error('En este PC no encuentro Bambu Studio.'); return { abierto: true, nombre: f.nombre, en: desktop.name }; }
   if (modo === 'reforzar') {
     const r = await desktop.repara(f.ruta, e.modoR || 'decor'); progreso(80);
