@@ -6,12 +6,14 @@
 // Con el programa del PC y el 3D del producto, cada opción se LAMINA con su Bambu (sello «MEDIDO»); si no, cuentas calibradas
 // («ESTIMADO»). Las cuentas están en ../cotizar.js; los precios, con las mismas fórmulas de siempre (CL.prices).
 import { h, mount, modal, toast, eur, copyText, btn, inp } from '../ui.js';
-import { S, can } from '../store.js';
+import { S, can, mutate, upsertLocal, emit } from '../store.js';
 import { desktop } from '../desktop.js';
 import { filesOf, fetchFile, extOf } from '../files.js';
 import { textoMedidas } from '../medidas3d.js';
 import { analizar3D, horasTxt } from '../datos3d.js';
-import { ACABADOS, IMPRESORAS, CALIBRADO, acabadoPorK, impPorK, estimar, consejos, mejorImpresora, geoDe, recordar, recordado, cabeEn } from '../cotizar.js';
+import { ACABADOS, IMPRESORAS, CALIBRADO, acabadoPorK, impPorK, estimar, consejos, mejorImpresora, geoDe, recordar, recordado, cabeEn, escalaParaMedida, medidasDeCm } from '../cotizar.js';
+import { sumaMovil, ponMovil, cuotaMovil, variantesDe, puedeGuardar } from '../variantes.js'; // 11-11-2026: 📱 con o sin móvil y 🏷️ variantes
+import { ventanaGuardar, nombreDe, igualQue } from './variantes_ui.js';
 import { elegirAcabado, dibujoImpresora, ajustesTxt } from '../acabado_ui.js';
 import { rutaDePieza } from '../pieza_taller.js';
 
@@ -33,10 +35,11 @@ export function baseDe(p) {
 }
 
 // precio con las fórmulas de siempre (CL.prices, como el Cotizador y Productos → Costes)
-export function precioDe(gramos, horas, horasMO) {
+// (11-11-2026: movil = sumar lo que se recupera del móvil y la SIM en cada pedido, como «Me cuesta» de la ficha)
+export function precioDe(gramos, horas, horasMO, movil) {
   if (!(gramos > 0)) return null;
   const gastos = {}; (S.t.gastos || []).forEach(x => { gastos[CL.norm(x.nombre)] = Number(x.coste) || 0; });
-  const r = CL.prices({ gramos, horas, horasMO: horasMO || 0, pintado: 'No' }, Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}), gastos);
+  const r = CL.prices({ gramos, horas, horasMO: horasMO || 0, pintado: 'No' }, Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: movil ? cuotaMovil() : 0 }), gastos);
   return { r, coste: r.desglose.costeTotal, rec: r.recomendado.wallapop, min: r.minimo.wallapop, vinted: r.recomendado.vinted };
 }
 
@@ -54,7 +57,7 @@ export function fraseCliente(p, e, r, precio, dias) {
 
 export async function abrirCotizador(p, opts = {}) {
   const B = baseDe(p);
-  const E = { acabado: 'normal', imp: '', escala: 100, fuerza: 0, cant: 1, autoImp: true };
+  const E = { acabado: 'normal', imp: '', escala: 100, fuerza: 0, cant: 1, autoImp: true, movil: sumaMovil(p.id) };
   const dias = (S.cfg.pedidos && S.cfg.pedidos.plazoDias) || 7;
   const costes = can('productos.costes');
   let ruta = null, puedeMedir = false; const MED = new Map(); let turno = 0, temp = null;
@@ -64,21 +67,55 @@ export async function abrirCotizador(p, opts = {}) {
   let foto = null; try { const R = await import('./responder.js'); const f = R.fotoDe(p); foto = f ? R.fotoImg(f, p) : null; } catch (e) { }
   const cab = h('div.cq-cab', h('div.cq-foto', foto || h('span', '📦')), h('div.grow',
     h('b.cq-nombre', p.nombre), h('div.cq-ahora', 'Así lo vendes ahora: ', h('b', Number(p.precio) > 0 ? eur(p.precio) : 'sin precio'), B.gramos > 0 ? ' · ' + coma(B.gramos) + ' g' : '', B.horas > 0 ? ' · ' + tiempoTxt(B.horas) : '', B.medidas ? ' · ' + medTxt(B.medidas) : ''),
-    h('div.cq-fuente', h('span.cq-sello'))));
-  const sello = cab.querySelector('.cq-sello');
+    h('div.cq-fuente', h('span.cq-sello')), h('div.cq-vars')));
+  const sello = cab.querySelector('.cq-sello'), varsEl = cab.querySelector('.cq-vars');
+  // 11-11-2026 · 🏷️ las variantes que ya vende: un clic y el cotizador se pone así
+  function pintaVars() {
+    const L = variantesDe(p.id);
+    mount(varsEl, L.length ? [h('span.cq-vars-t', '🏷️ Ya lo vendes así:'), L.slice(0, 8).map(v => h('button.cq-var' + (igualQue(p, E) === v ? '.on' : ''), { type: 'button', 'data-id': v.id, title: 'Poner el cotizador como esta variante', onclick: () => cargaVariante(v) }, nombreDe(v), h('b', eur(v.pr))))] : []);
+  }
+  function cargaVariante(v) {
+    if (!B.medidas && Array.isArray(v.med) && v.med[0] > 0) { const k = 100 / (Number(v.esc) || 100); B.medidas = { x: v.med[0] * k, y: v.med[1] * k, z: v.med[2] * k }; }
+    const o = { escala: Number(v.esc) || 100, fuerza: Number(v.fz) || 0, acabado: v.ac || 'normal' };
+    if (v.imp) { o.imp = v.imp; o.autoImp = false; }
+    cambia(o);
+  }
   // ---------- lo que pide el cliente ----------
   const izq = h('div.cq-izq'), der = h('div.cq-der');
   mount(body, cab, h('div.cq-cuerpo', izq, der));
   const sec = (ic, t, sub, ...kids) => h('section.cq-sec', h('h3', h('span.cq-ic', ic), t, sub ? h('small', sub) : null), ...kids);
-  const altoIn = inp({ type: 'number', min: 1, step: 0.5, inputmode: 'decimal', 'aria-label': 'Alto en cm', placeholder: 'cm' });
+  // 11-11-2026 · 📐 medidas a mano: las tres de DESTINO (se agranda igual en todo: escribes una y las otras se ajustan) y, si la ficha no
+  // tiene medidas, las de AHORA (para saber si cabe y qué medidas saldrán). Biou: «que me deje también manualmente las medidas y que haga el cálculo».
+  const caja = (lbl) => inp({ type: 'number', min: 0.1, step: 0.1, inputmode: 'decimal', 'aria-label': lbl, placeholder: 'cm' });
+  const anchoIn = caja('Ancho en cm'), largoIn = caja('Largo en cm'), altoIn = caja('Alto en cm');
+  const bX = caja('Ancho de ahora en cm'), bY = caja('Largo de ahora en cm'), bZ = caja('Alto de ahora en cm');
+  let editaBase = false;
+  const gIn = inp({ type: 'number', min: 0, step: 0.1, inputmode: 'decimal', 'aria-label': 'Gramos a mano', placeholder: 'g' });
+  const hIn = inp({ type: 'number', min: 0, step: 0.05, inputmode: 'decimal', 'aria-label': 'Horas a mano', placeholder: 'h' });
+  [gIn, hIn].forEach(x => { x.onchange = () => { const g = numero(gIn.value), hh = numero(hIn.value); if (g > 0) { B.gramos = g; B.gramosMano = true; } if (hh > 0) B.horas = hh; cambia({}); }; });
+  [bX, bY, bZ].forEach(x => { x.onchange = () => { const m = medidasDeCm(bX.value, bY.value, bZ.value); if (m) { B.medidas = m; B.medMano = true; editaBase = false; cambia({}); } }; });
+  async function guardaMedidasFicha() {
+    const m = B.medidas; if (!m) return;
+    try {
+      const datos = { dimX: m.x, dimY: m.y, dimZ: m.z, dimEstado: 'manual' }, orig = { dimX: p.dimX ?? '', dimY: p.dimY ?? '', dimZ: p.dimZ ?? '', dimEstado: p.dimEstado ?? '' };
+      const r = await mutate('productos.guardar', { id: p.id, datos, orig }, { onlineOnly: true, label: 'Medidas de ' + p.nombre });
+      if (r && r.id) { upsertLocal('productos', r); emit(); Object.assign(p, datos); }
+      B.medMano = false; toast('📐 Medidas guardadas en la ficha', 'ok'); pintaIzq();
+    } catch (e) { toast(e.message || String(e), 'bad'); }
+  }
   const pctIn = inp({ type: 'number', min: 10, max: 1000, step: 5, inputmode: 'numeric', 'aria-label': 'Tamaño en %', placeholder: '%' });
   function pintaIzq() {
     const r = estimar(Object.assign({ base: B }, E));
     mount(izq,
       sec('📏', 'Más grande', '¿qué tamaño quiere?',
         h('div.cq-chips', TAM.map(t => h('button.cq-chip' + (E.escala === t ? '.on' : ''), { type: 'button', 'data-tam': t, onclick: () => cambia({ escala: t }) }, t === 100 ? 'Igual' : t === 200 ? 'El doble' : '+' + (t - 100) + ' %'))),
-        h('div.cq-fila', h('label', 'Tamaño ', pctIn, ' %'), B.medidas ? h('label', 'o que mida de alto ', altoIn, ' cm') : null),
-        r.medidas ? h('div.cq-med', '📐 ', h('b', medTxt(r.medidas))) : h('div.tiny.muted', 'Sin medidas en la ficha: el precio sí cambia, pero no sé si cabe.')),
+        h('div.cq-fila', h('label', 'Tamaño ', pctIn, ' %')),
+        B.medidas && !editaBase ? h('div.cq-mide', h('span.cq-mide-t', 'o que mida (cm):'), h('label', 'Ancho ', anchoIn), h('label', 'Largo ', largoIn), h('label', 'Alto ', altoIn), h('small.tiny.muted', 'Escribe una y las otras se ajustan solas: se agranda igual en todo.')) : null,
+        B.medidas && !editaBase ? h('div.cq-med', '📐 ', h('b', medTxt(r.medidas)), B.medMano ? h('span.cq-mano', ' · ahora mide ' + medTxt(B.medidas) + ' (escrito por ti) ',
+          h('button.cq-link', { type: 'button', onclick: () => { editaBase = true; pintaIzq(); } }, '✏️ cambiar'),
+          can('productos.editar') ? h('button.cq-link.cq-guarda-med', { type: 'button', onclick: guardaMedidasFicha }, '💾 guardar en la ficha') : null) : null)
+          : h('div.cq-base', h('b', '📐 ¿Cuánto mide ahora?'), h('span.tiny.muted', ' (la ficha no tiene medidas: escríbelas y te digo si cabe y qué medidas saldrán)'),
+            h('div.cq-mide', h('label', 'Ancho ', bX), h('label', 'Largo ', bY), h('label', 'Alto ', bZ), h('small.tiny.muted', 'en cm, como sale hoy')))),
       sec('💪', 'Más fuerte', 'más peso = paredes más gruesas y más relleno',
         h('div.cq-chips', PESO.map(w => { const f = estimar(Object.assign({ base: B }, E, { fuerza: w })).fuerza, mal = w > 0 && (f.pasaLimite || f.noLlega);
           return h('button.cq-chip' + (E.fuerza === w ? '.on' : '') + (mal ? '.ojo' : ''), { type: 'button', 'data-peso': w, title: mal ? 'No lo recomiendo: más allá de +' + f.limitePct + ' % solo se añade relleno' : '', onclick: () => cambia({ fuerza: w }) }, w === 0 ? 'Igual' : '+' + w + ' %', mal ? h('i', '⚠️') : null); })),
@@ -89,9 +126,11 @@ export async function abrirCotizador(p, opts = {}) {
         h('div.cq-imps', IMPRESORAS.map(I => { const no = !!r.medidas && !cabeEn(I, r.medidas);
           return h('button.cq-imp' + (E.imp === I.k ? '.on' : '') + (no ? '.no' : ''), { type: 'button', 'data-k': I.k, style: '--c:' + I.color, disabled: no, onclick: () => cambia({ imp: I.k, autoImp: false }) }, dibujoImpresora(I.k), h('b', I.nombre, I.nueva ? h('em', 'NUEVA') : null), h('small', no ? 'no cabe' : coma(I.x / 10) + ' cm')); }))),
       sec('🔢', 'Unidades', '', h('div.cq-fila', h('input.inp.cq-cant', { type: 'number', min: 1, step: 1, value: E.cant, 'aria-label': 'Unidades', onchange: ev => cambia({ cant: Math.max(1, Math.round(numero(ev.target.value)) || 1) }) }))));
-    pctIn.value = E.escala; if (B.medidas) altoIn.value = Math.round(B.medidas.z * E.escala / 100) / 10;
+    pctIn.value = E.escala;
+    if (B.medidas) { anchoIn.value = Math.round(B.medidas.x * E.escala / 100) / 10; largoIn.value = Math.round(B.medidas.y * E.escala / 100) / 10; altoIn.value = Math.round(B.medidas.z * E.escala / 100) / 10;
+      if (editaBase) { bX.value = Math.round(B.medidas.x) / 10; bY.value = Math.round(B.medidas.y) / 10; bZ.value = Math.round(B.medidas.z) / 10; } }
     pctIn.onchange = () => cambia({ escala: Math.min(1000, Math.max(10, Math.round(numero(pctIn.value)) || 100)) });
-    altoIn.onchange = () => { const a = numero(altoIn.value); if (a > 0 && B.medidas) cambia({ escala: Math.round(a * 10 / B.medidas.z * 100) }); };
+    [[anchoIn, 'x'], [largoIn, 'y'], [altoIn, 'z']].forEach(([el, eje]) => { el.onchange = () => { const s = escalaParaMedida(B.medidas, eje, el.value); if (s) cambia({ escala: s }); }; });
   }
   // ---------- el resultado ----------
   function clave() { const r = estimar(Object.assign({ base: B }, E)); return [E.acabado, E.imp, E.escala, r.ajustes.paredes, r.ajustes.relleno].join('|'); }
@@ -100,12 +139,12 @@ export async function abrirCotizador(p, opts = {}) {
     // medido: gramos y tiempo de SU Bambu; la proporción frente a lo medido «normal» se aplica a lo del producto (si no, lo medido tal cual)
     let g = r.gramos, hh = r.horas, de = 'ESTIMADO';
     if (m && m.ok) { g = Math.round(m.gramos * 10) / 10; hh = Math.round(m.segundos / 36) / 100; de = 'MEDIDO'; }
-    const pr = costes ? precioDe(g, hh, B.horasMO) : null;
+    const pr = costes ? precioDe(g, hh, B.horasMO, E.movil) : null;
     const refG = de === 'MEDIDO' && mBase && mBase.ok ? mBase.gramos : B.gramos; // (lo medido, frente a lo medido)
     // el precio PARTE DE LO QUE COBRA AHORA y le suma lo que cuesta de más (plástico, luz y tiempo con sus precios); nunca baja del mínimo.
     // (si no, un producto que vende a 12 € y su calculadora dice 6,50 € saldría «más fuerte: pídele 7 €»)
     const ahora = Number(p.precio) || 0;
-    const prBase = pr ? (de === 'MEDIDO' && mBase && mBase.ok ? precioDe(mBase.gramos, mBase.segundos / 3600, B.horasMO) : precioDe(B.gramos, B.horas, B.horasMO)) : null;
+    const prBase = pr ? (de === 'MEDIDO' && mBase && mBase.ok ? precioDe(mBase.gramos, mBase.segundos / 3600, B.horasMO, E.movil) : precioDe(B.gramos, B.horas, B.horasMO, E.movil)) : null;
     if (pr && prBase && ahora > 0) {
       const extra = pr.rec - prBase.rec, calc = pr.rec;
       pr.calc = calc; pr.extra = extra; pr.rec = Math.max(pr.min, Math.round((ahora + extra) * 10) / 10);
@@ -118,13 +157,23 @@ export async function abrirCotizador(p, opts = {}) {
     sello.textContent = de === 'MEDIDO' ? '✅ MEDIDO con tu Bambu (laminada así)' : (m && m.midiendo ? '⏳ Laminando con tu Bambu…' : (puedeMedir ? '≈ ESTIMADO · en un momento lo mido con tu Bambu' : '≈ ESTIMADO (calibrado con tus laminados)'));
     sello.className = 'cq-sello ' + (de === 'MEDIDO' ? 'medido' : 'estimado');
     const dif = pr && ahora > 0 ? Math.round((pr.rec - ahora) * 100) / 100 : null;
-    const I = impPorK(E.imp), a = acabadoPorK(E.acabado);
+    const I = impPorK(E.imp), a = acabadoPorK(E.acabado), cuota = cuotaMovil();
+    const sinMv = pr ? precioDe(g, hh, B.horasMO, false) : null, ya = igualQue(p, E);
+    const ponMv = async si => { if (si === E.movil) return; E.movil = si; pintaDer();
+      if (puedeGuardar()) { try { await ponMovil(p.id, si); toast(si ? '📱 A este producto le sumo el móvil y la SIM' : '📱 A este producto ya no le sumo el móvil y la SIM', 'ok'); } catch (e) { toast(e.message || String(e), 'bad'); } }
+      else toast('Solo para este cálculo: para guardarlo hace falta el permiso «Cambiar la configuración».', 'warn'); };
+    const manoG = h('div.cq-mano-g', h('span', '✏️ Gramos y horas (los dice Bambu Studio al laminar): '), h('label', gIn, ' g'), h('label', hIn, ' h'));
+    if (B.gramosMano) { gIn.value = B.gramos || ''; hIn.value = B.horas || ''; }
     mount(der,
       !costes ? h('div.cq-precio', h('p.muted', '🔒 Para ver precios hace falta el permiso «Ver costes».'))
-        : !pr ? h('div.cq-precio', h('p', '⚖️ Este producto no tiene sus gramos apuntados en la calculadora. ' + (puedeMedir ? 'Espera: lo estoy midiendo con tu Bambu.' : 'Ponlos en Precio y costes (los dice Bambu Studio).')))
+        : !pr ? h('div.cq-precio', h('p', '⚖️ Este producto no tiene sus gramos apuntados en la calculadora. ' + (puedeMedir ? 'Espera: lo estoy midiendo con tu Bambu. O escríbelos tú:' : 'Escríbelos y te calculo el precio:')), manoG)
         : h('div.cq-precio', h('small', 'PÍDELE'), h('b.cq-rec', eur(pr.rec * E.cant)),
           dif !== null && Math.abs(dif) >= 0.05 ? h('span.cq-dif' + (dif > 0 ? '.mas' : '.menos'), (dif > 0 ? '+' : '−') + eur(Math.abs(dif)) + ' sobre tu precio de ahora') : null,
-          h('div.cq-precio-l', h('span', 'No bajes de ', h('b', eur(pr.min * E.cant))), h('span', 'Te cuesta ', h('b', eur(pr.coste * E.cant))), h('span', 'Vinted ', h('b', eur(pr.vinted * E.cant))), pr.calc ? h('span', 'Tu calculadora ', h('b', eur(pr.calc * E.cant))) : null)),
+          h('div.cq-precio-l', h('span', 'No bajes de ', h('b', eur(pr.min * E.cant))), h('span', 'Te cuesta ', h('b', eur(pr.coste * E.cant))), h('span', 'Vinted ', h('b', eur(pr.vinted * E.cant))), pr.calc ? h('span', 'Tu calculadora ', h('b', eur(pr.calc * E.cant))) : null),
+          cuota > 0 ? h('div.cq-movil', h('button.cq-mv' + (!E.movil ? '.on' : ''), { type: 'button', 'data-mv': 'no', onclick: () => ponMv(false) }, h('small', 'Sin móvil'), h('b', eur(sinMv.coste * E.cant))),
+            h('button.cq-mv' + (E.movil ? '.on' : ''), { type: 'button', 'data-mv': 'si', onclick: () => ponMv(true) }, h('small', 'Con móvil y SIM'), h('b', eur((sinMv.coste + cuota) * E.cant))),
+            h('span.tiny', E.movil ? '📱 Te cuesta con el móvil y la SIM (' + eur(cuota) + ' por pedido)' : '📱 Te cuesta sin el móvil y la SIM')) : null,
+          B.gramosMano ? manoG : null),
       h('div.cq-datos',
         h('div', h('i', '⚖️'), h('small', 'Plástico'), h('b', g > 0 ? coma(g) + ' g' : '—'), refG > 0 && g > 0 && Math.abs(g / refG - 1) >= 0.005 ? h('em', (g >= refG ? '+' : '−') + Math.abs(Math.round((g / refG - 1) * 100)) + ' %') : null),
         h('div', h('i', '⏱️'), h('small', 'Tiempo'), h('b', tiempoTxt(hh))),
@@ -133,17 +182,19 @@ export async function abrirCotizador(p, opts = {}) {
       h('div.cq-consejos', h('h4', '💡 Mis consejos'), C.map(c => h('div.cq-c.' + c.n, h('i', c.n === 'ok' ? '✅' : c.n === 'ojo' ? '⚠️' : '⛔'), h('span', c.t)))),
       h('div.cq-cliente', h('div.row', h('h4.grow', '📋 Para mandarle al cliente'), btn('Copiar', () => copyText(fraseCliente(p, E, r, pr, dias)), { cls: 'primary sm cq-copiar', icon: 'copy' })), h('pre.cq-frase', fraseCliente(p, E, r, pr, dias))),
       h('div.cq-botones',
+        costes && pr ? btn(ya ? '🏷️ Ya guardada como «' + nombreDe(ya) + '» · cambiar' : '🏷️ Guardar y poner a la venta', () => ventanaGuardar(p, { E: Object.assign({}, E), r, g, hh, de, precio: pr.rec, minimo: pr.min, coste: pr.coste, movil: E.movil }, ya, () => { pintaVars(); pintaDer(); }),
+          { cls: 'primary cq-variante', title: 'Lo apunta como VARIANTE de este producto: su tamaño, fuerza y acabado, su precio y dónde lo vendes. Se ve en la ficha.' }) : null,
         btn('🖨️ Abrir en Bambu así', abrirBambuAsi, { cls: 'cq-bambu', title: 'Se abre con este tamaño, esta fuerza, este acabado y esta impresora' }),
-        can('pedidos.crear') ? btn('🧾 Hacer pedido con este precio', () => hacerPedido(r, pr), { cls: 'primary cq-pedido' }) : null),
+        can('pedidos.crear') ? btn('🧾 Hacer pedido con este precio', () => hacerPedido(r, pr), { cls: 'cq-pedido' }) : null),
       h('p.tiny.muted.cq-nota', de === 'MEDIDO' ? 'Gramos y tiempo de tu Bambu Studio, laminada exactamente así (' + ajustesTxt(a, r.ajustes) + ', en la ' + I.nombre + '). ' + (pr && pr.calc ? 'El precio parte de lo que lo vendes ahora (' + eur(ahora) + ') y le suma lo que cuesta de más. ' : '') + 'El precio es ORIENTATIVO, con tus precios de Configuración.'
         : 'ESTIMADO con cuentas calibradas contra ' + CALIBRADO.laminados + ' laminados de tu Bambu (' + CALIBRADO.piezas + ' productos tuyos): se equivocan de media un ' + CALIBRADO.errorG + ' % en gramos y un ' + CALIBRADO.errorT + ' % en tiempo. Parte de cómo lo vendes ahora (acabado Normal)' + (pr && pr.calc ? ': el precio es tu precio de ahora (' + eur(ahora) + ') más lo que cuesta de más' : '') + '. El precio es ORIENTATIVO, con tus precios de Configuración.'));
-    window.__cotizar = { E: Object.assign({}, E), r, g, hh, de, precio: pr && pr.rec, calc: pr && pr.calc, minimo: pr && pr.min, consejos: C.map(c => c.n + ':' + c.t), medido: !!(m && m.ok) };
+    window.__cotizar = { E: Object.assign({}, E), r, g, hh, de, precio: pr && pr.rec, calc: pr && pr.calc, minimo: pr && pr.min, coste: pr && pr.coste, costeSin: sinMv && sinMv.coste, cuota, movil: E.movil, variantes: variantesDe(p.id).length, ya: ya && ya.id, consejos: C.map(c => c.n + ':' + c.t), medido: !!(m && m.ok) };
   }
   function cambia(o) {
     Object.assign(E, o);
     if (E.autoImp || !cabeEn(impPorK(E.imp), estimar(Object.assign({ base: B }, E)).medidas)) { E.imp = mejorImpresora(estimar(Object.assign({ base: B }, E)).medidas) || 'a1'; }
     recordar('imp', E.imp);
-    pintaIzq(); pintaDer(); programaMedida();
+    pintaIzq(); pintaDer(); pintaVars(); programaMedida();
   }
   // ---------- medir con su Bambu (con el programa del PC y el 3D del producto) ----------
   function programaMedida() {
@@ -169,7 +220,7 @@ export async function abrirCotizador(p, opts = {}) {
   async function hacerPedido(r, pr) {
     const P = await import('./pedidos.js'), a = acabadoPorK(E.acabado);
     const pers = [E.escala !== 100 ? 'Tamaño ' + E.escala + ' %' + (r.medidas ? ' (' + medTxt(r.medidas) + ')' : '') : '', E.fuerza > 0 ? 'Reforzada: ' + r.ajustes.paredes + ' paredes y ' + r.ajustes.relleno + ' % de relleno' : '', E.acabado !== 'normal' ? 'Acabado ' + a.nombre : '', 'Impresora ' + impPorK(E.imp).nombre].filter(Boolean).join(' · ');
-    const prN = precioDe(B.gramos, B.horas, B.horasMO), extra = pr && prN ? Math.round((pr.coste - prN.coste) * E.cant * 100) / 100 : 0;
+    const prN = precioDe(B.gramos, B.horas, B.horasMO, E.movil), extra = pr && prN ? Math.round((pr.coste - prN.coste) * E.cant * 100) / 100 : 0;
     md.close();
     P.orderForm({ producto: p.nombre, productoId: p.id, cantidad: E.cant, precio: pr ? pr.rec : p.precio, personalizacion: pers, plazoDias: dias,
       gastosPedido: extra > 0 ? [{ concepto: 'Cotizado: ' + pers + ' (plástico y luz de más)', coste: extra }] : [] }, true);
@@ -178,7 +229,9 @@ export async function abrirCotizador(p, opts = {}) {
   E.imp = recordado('imp') && cabeEn(impPorK(recordado('imp')), B.medidas) ? recordado('imp') : (mejorImpresora(B.medidas) || 'a1');
   E.autoImp = !recordado('imp'); B.imp = E.imp; // (las horas de ahora cuentan como de esta impresora)
   if (opts.escala) E.escala = opts.escala; if (opts.fuerza) E.fuerza = opts.fuerza; if (opts.acabado) E.acabado = opts.acabado;
-  pintaIzq(); pintaDer();
+  if (opts.variante) { const v = opts.variante; E.escala = Number(v.esc) || 100; E.fuerza = Number(v.fz) || 0; E.acabado = v.ac || 'normal'; if (v.imp) { E.imp = v.imp; E.autoImp = false; }
+    if (!B.medidas && Array.isArray(v.med) && v.med[0] > 0) { const k = 100 / E.escala; B.medidas = { x: v.med[0] * k, y: v.med[1] * k, z: v.med[2] * k }; } }
+  pintaIzq(); pintaDer(); pintaVars();
   // la forma de la pieza (para estimar mejor) y, en el PC con Bambu, medir lo que se vaya pidiendo
   (async () => {
     try {

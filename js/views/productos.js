@@ -15,6 +15,8 @@ import { accionTxt, resumenDetalle } from './pedidos.js';
 import { generate, asText, docxBlob, docName, PLATAFORMAS } from '../docventa.js';
 import { download, uploadFile } from '../files.js';
 import { copyText } from '../ui.js';
+import { sumaMovil, ponMovil, cuotaMovil, firmaDe, puedeGuardar as puedeGuardarFz } from '../variantes.js'; // 11-11-2026: 📱 con o sin móvil, por producto
+import { tarjetaVariantes } from './variantes_ui.js'; // 11-11-2026: 🏷️ variantes a la venta
 
 const CL = window.CL;
 // v11: un diseño bajo demanda se vende muchas veces: IDEA → PUBLICADO → ARCHIVADO (los antiguos se convierten solos)
@@ -107,7 +109,7 @@ function productDrawer(id, onClose) {
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
       const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], can('tienda.gestionar') || (p.web && p.web.publicado) ? ['web', '🛍️ Tienda web'] : null, ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
-      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('💶 Cotizar', () => import('./cotizar_ui.js').then(m => m.abrirCotizador(p)), { cls: 'sm primary prod-cotizar', title: 'Más grande, más fuerte o mejor acabado: cuánto pedirle, con mis consejos y la frase para el cliente' }), conPieza() ? btn('🛠️ Reforzar', () => reforzarDeProducto(p), { cls: 'sm', title: 'Reparar por fragilidad: engordar lo débil sin tocar los encajes' + (desktop.on ? '' : ' (lo hace la torre)') }) : null, conPieza() ? btn('🖨️ Bambu', () => bambuDeProducto(p), { cls: 'sm prod-bambu-cab', title: 'Abrir en Bambu: te pregunta el acabado y la impresora y lo abre listo para imprimir' + (desktop.on ? '' : ' (se abre en la torre)') }) : null, btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
+      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('💶 Cotizar', () => import('./cotizar_ui.js').then(m => m.abrirCotizador(p)), { cls: 'sm primary prod-cotizar', title: 'Más grande, más fuerte o mejor acabado: cuánto pedirle, con mis consejos y la frase para el cliente' }), desktop.on ? btn('🪄 Menos soportes', () => import('../sinsoportes_ui.js').then(m => m.menosSoportesDeProducto(p)), { cls: 'sm prod-soportes', title: 'Prueba la pieza en varias posturas laminando con tu Bambu y te dice cuál necesita menos soportes (o ninguno)' }) : null, conPieza() ? btn('🛠️ Reforzar', () => reforzarDeProducto(p), { cls: 'sm', title: 'Reparar por fragilidad: engordar lo débil sin tocar los encajes' + (desktop.on ? '' : ' (lo hace la torre)') }) : null, conPieza() ? btn('🖨️ Bambu', () => bambuDeProducto(p), { cls: 'sm prod-bambu-cab', title: 'Abrir en Bambu: te pregunta el acabado y la impresora y lo abre listo para imprimir' + (desktop.on ? '' : ' (se abre en la torre)') }) : null, btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), barra(p), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Publicado']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
@@ -127,7 +129,7 @@ function productDrawer(id, onClose) {
     };
     // v30.7.1 · la ficha solo se rehace si ESTE producto ha cambiado de verdad (sus datos, sus archivos, sus pedidos o sus costes):
     // antes se rehacía entera con cualquier cambio de cualquier tabla (el 3D se recargaba y lo que estabas mirando se iba).
-    const firma = () => { const p = byId('productos', id); if (!p) return 'no'; try { return JSON.stringify([p, filesOf('productos', p.id).map(a => [a.id, a.nombre, a.estado, a.url, a.rutaLocal]), S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre)).map(o => [o.id, o.estado, o.precio, o.rev]), (S.t.calculadora || []).filter(c => c.nombre === p.nombre), ['stock', 'fabricacion', 'trabajos', 'embalajes', 'materiales', 'historial'].map(k => (S.meta[k] || {}).hash || (S.t[k] || []).length), can('productos.costes'), can('productos.editar')]); } catch (e) { return String(Math.random()); } };
+    const firma = () => { const p = byId('productos', id); if (!p) return 'no'; try { return JSON.stringify([p, filesOf('productos', p.id).map(a => [a.id, a.nombre, a.estado, a.url, a.rutaLocal]), S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre)).map(o => [o.id, o.estado, o.precio, o.rev]), (S.t.calculadora || []).filter(c => c.nombre === p.nombre), ['stock', 'fabricacion', 'trabajos', 'embalajes', 'materiales', 'historial'].map(k => (S.meta[k] || {}).hash || (S.t[k] || []).length), can('productos.costes'), can('productos.editar'), firmaDe(p.id)]); } catch (e) { return String(Math.random()); } };
     let vista = '';
     const draw0 = draw; draw = () => { vista = firma(); draw0(); };
     res.update = () => { if (tab !== 'web' && firma() !== vista) draw(); }; draw(); // v12: la ficha web tiene un formulario: no se rehace al sincronizar
@@ -138,7 +140,7 @@ const PTABS = {
   resumen(el, p) {
     const foto = p.fotoId ? byId('archivos', p.fotoId) : null;
     mount(el, foto && foto.miniatura ? h('img', { src: foto.miniatura, alt: '', style: { width: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '12px', background: 'var(--surface-2)', cursor: 'pointer' }, onclick: () => openFile(foto) }) : null,
-      precioFicha(p), medidasFicha(p),
+      precioFicha(p), tarjetaVariantes(p), medidasFicha(p),
       h('div.facts', { style: { marginTop: '12px' } }, fact('Categoría', pretty(p.categoria) || na('')), fact('Subcategoría', pretty(p.subcategoria) || na('')), fact('Tipo', p.tipo || na('')),
         fact('SKU', p.sku || p.id), fact('📦 Embalaje', nombreEmbalaje(p.embalajeId) || 'Automático (por medidas)'), fact('Tallas', na(p.tallas)), fact('Colores', coloresDeProducto(p).length ? h('span.pcol-ficha', coloresDeProducto(p).map(c => h('span', punto(c, 13), ' ' + c))) : na(p.color)), fact('Material', na(p.material)), !(Number(p.dimX) > 0) ? fact('Tamaño', na(p.tamano)) : null, fact('Peso del producto (la pieza)', p.pesoG ? p.pesoG + ' g' : na('')), fact('Plataforma', na(p.plataforma)), fact('Fecha', p.fecha ? fdate(p.fecha) : na(''))),
       p.descripcion ? h('div', { style: { marginTop: '12px' } }, h('div.row', { style: { alignItems: 'center', gap: '8px' } }, h('div.lbl.grow', 'Descripción'), btn('Copiar', () => copyText(p.descripcion), { cls: 'sm ghost pdesc-copiar', icon: 'copy', title: 'Copiar la descripción (con los colores disponibles) para pegarla en el anuncio' })), h('p.pdesc', { style: { whiteSpace: 'pre-wrap' } }, p.descripcion)) : null,
@@ -150,7 +152,7 @@ const PTABS = {
     const box = h('div.col', { style: { gap: '14px' } }, h('p.muted.small', 'Cargando…'));
     mount(el, box);
     const cotiza = h('div.card.cq-tarjeta', h('div.grow', h('b', '💶 ¿Más grande, más fuerte o mejor acabado?'), h('div.tiny.muted', 'Te digo cuánto pedirle, con mis consejos y la frase para el cliente.')), btn('Cotizar este producto', () => import('./cotizar_ui.js').then(m => m.abrirCotizador(p)), { cls: 'primary prod-cotizar2' }));
-    import('./costes.js').then(C => mount(box, cotiza, bambuCard(p), C.productCostCard(p), h('details', h('summary.small', 'Calculadora del Excel (hoja Productos)'), priceAssistant(p))));
+    import('./costes.js').then(C => mount(box, cotiza, tarjetaVariantes(p), bambuCard(p), C.productCostCard(p), h('details', h('summary.small', 'Calculadora del Excel (hoja Productos)'), priceAssistant(p))));
   },
   // v10: textos listos para Vinted, Wallapop, Etsy, Instagram y TikTok + documento Word
   venta(el, p) {
@@ -294,9 +296,13 @@ export function precioMinDe(p) {
 export function rentabilidad(p) {
   const c = (S.t.calculadora || []).find(x => CL.norm(x.nombre) === CL.norm(p.nombre));
   const puede = can('productos.costes') && c && (Number(c.gramos) > 0 || Number(c.horas) > 0);
-  const r = puede ? CL.prices(c, pricingParams(), gastosMap()) : null, r2 = v => Math.round(v * 100) / 100;
+  const r = puede ? CL.prices(c, pricingParams(p), gastosMap()) : null, r2 = v => Math.round(v * 100) / 100;
+  // 11-11-2026 · Biou: «que estuviese dividido lo que cuesta con el móvil y sin el móvil… si quiero aplicárselo o no»: las dos cifras,
+  // y la elegida para ESTE producto (finanzas.sinMovil) es la que manda en el coste, el recomendado y lo que ganas.
+  const movil = sumaMovil(p.id), cuota = cuotaMovil();
+  const costeSin = r ? r2(r.desglose.costeTotal - r.desglose.negocio) : null, costeCon = r ? r2(costeSin + cuota) : null;
   const coste = r ? r.desglose.costeTotal : null, minimo = Number(p.precioMin) > 0 ? Number(p.precioMin) : null, precio = Number(p.precio) > 0 ? Number(p.precio) : null;
-  return { coste, desglose: r ? r.desglose : null, minimo, precio,
+  return { coste, costeSin, costeCon, movil, cuota, desglose: r ? r.desglose : null, minimo, precio,
     ganaMin: coste != null && minimo != null ? r2(minimo - coste) : null,
     ganaPrecio: coste != null && precio != null ? r2(precio - coste) : null,
     recomendado: r ? r.recomendado.wallapop : null, ganaRec: r ? r2(r.recomendado.wallapop - coste) : null,
@@ -318,6 +324,7 @@ function precioFicha(p) {
   const d = x.desglose;
   return h('div.rt',
     x.coste != null ? h('div.rt-c.coste', h('span.rt-t', 'ME CUESTA'), h('span.rt-v', eur(x.coste)),
+      x.cuota > 0 ? pestanaMovil(p, x) : null,
       h('details.rt-d', h('summary', 'Ver desglose'), h('div.rt-dl', [['Filamento', d.filamento], ['Electricidad', d.luz], ['Mano de obra', d.manoObra], ['Pintado', d.pintado], ['Extras', d.gastosExtra], ['IVA', d.iva], ['Embalaje (sumado al precio)', d.embalaje], ['Envío', d.envio], ['📱 Móvil, SIM… (se recupera en cada pedido)', d.negocio]].filter(l => l[1] > 0).map(l => h('div', h('span', l[0]), h('b', eur(l[1]))))))) : null,
     h('div.rt-c.min', h('span.rt-t', 'PUEDES BAJAR HASTA'), h('span.rt-v', x.minimo != null ? eur(x.minimo) : '—'),
       x.minimo != null ? gana(x.ganaMin) : h('span.rt-s', can('productos.editar') ? 'Pon tu mínimo en Editar → paso 3' + (x.sugerido ? ' (por costes, no menos de ' + eur(x.sugerido) + ')' : '') : 'Sin mínimo puesto')),
@@ -326,6 +333,16 @@ function precioFicha(p) {
     x.canales.length ? h('div.rt-can', x.canales.map(c => h('span', c.t + ' ', h('b', eur(c.v))))) : null,
     x.minimo != null && x.precio && x.minimo > x.precio ? h('div.rt-av', '⚠️ Tu mínimo (' + eur(x.minimo) + ') es más alto que el precio al que lo publicas.') : null,
     x.minimo != null && x.coste != null && x.minimo < x.coste ? h('div.rt-av', '⚠️ A tu mínimo pierdes dinero: fabricarlo cuesta ' + eur(x.coste) + '.') : null);
+}
+// 11-11-2026 · 📱 la pestañita: «Sin móvil 4,02 €» / «Con móvil y SIM 7,15 €». Se guarda para ESTE producto y manda en todo su precio.
+export function pestanaMovil(p, x, alCambiar) {
+  const puede = puedeGuardarFz();
+  const pon = async si => { if (si === x.movil) return; if (!puede) { toast('Para cambiarlo hace falta el permiso «Cambiar la configuración».', 'warn'); return; }
+    try { await ponMovil(p.id, si); toast(si ? '📱 A este producto le sumo el móvil y la SIM' : '📱 A este producto ya no le sumo el móvil y la SIM', 'ok'); alCambiar && alCambiar(si); } catch (e) { toast(e.message || String(e), 'bad'); } };
+  return h('div.rt-movil', { title: 'Lo que se recupera del móvil y la SIM en cada pedido: ' + eur(x.cuota) + '. Elige si se suma al precio de este producto.' },
+    h('button.rt-mv' + (!x.movil ? '.on' : ''), { type: 'button', 'data-mv': 'no', onclick: () => pon(false) }, h('small', 'Sin móvil'), h('b', eur(x.costeSin))),
+    h('button.rt-mv' + (x.movil ? '.on' : ''), { type: 'button', 'data-mv': 'si', onclick: () => pon(true) }, h('small', 'Con móvil y SIM'), h('b', eur(x.costeCon))),
+    h('span.rt-mvt', x.movil ? '📱 El precio lleva el móvil y la SIM (' + eur(x.cuota) + ')' : '📱 El precio NO lleva el móvil y la SIM'));
 }
 function medidasFicha(p) {
   if (!(Number(p.dimX) > 0)) return null;
@@ -398,7 +415,7 @@ export const medidasDe = p => Number(p && p.dimX) > 0 && Number(p.dimY) > 0 && N
 const remotoDe = p => (imp, rec, extra) => encargarPieza(p, 'acabado', Object.assign({ imp, receta: rec }, extra || {}));
 export async function abrirConAcabado(x, o = {}) {
   const remoto = x.p ? remotoDe(x.p) : null; // 02-11: si aquí no se puede, la torre
-  const base = Object.assign({ medidas: x.p ? medidasDe(x.p) : null }, o);
+  const base = Object.assign({ medidas: x.p ? medidasDe(x.p) : null, pid: x.p && x.p.id, cargar3D: async () => ({ buf: await leeDatos3D(x), nombre: x.nombre }) }, o); // (11-11: 🌈 el taller de colores necesita la pieza)
   if (!desktop.on) return remoto ? elegirAcabado(null, x.nombre, Object.assign({}, base, { remoto })) : toast('El acabado se prepara en el programa del PC.', 'warn', 6000);
   try {
     let ruta = x.ruta || (x.a && x.a.rutaLocal);
@@ -417,7 +434,8 @@ export async function abrirConAcabado(x, o = {}) {
 // 02-11-2026: los botones de la pieza salen también en la tablet y el móvil (lo hace la torre por encargo)
 const conPieza = () => desktop.on || can('archivos.subir');
 export async function acabadoDeProducto(p, o = {}) {
-  const remoto = remotoDe(p), base = Object.assign({ medidas: medidasDe(p) }, o); // 02-11-2026: portátil, tablet y móvil → la torre
+  const remoto = remotoDe(p), sub0 = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre))[0];
+  const base = Object.assign({ medidas: medidasDe(p), pid: p.id }, sub0 ? { cargar3D: async () => ({ buf: await (await fetchFile(sub0)).arrayBuffer(), nombre: sub0.nombre }) } : {}, o); // 02-11-2026: portátil, tablet y móvil → la torre
   if (!desktop.on) return elegirAcabado(null, p.nombre, Object.assign({}, base, { remoto }));
   const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
   if (subidos.length) return abrirConAcabado({ nombre: subidos[0].nombre, a: subidos[0], p }, o);
@@ -444,7 +462,7 @@ export async function reforzarDeProducto(p) {
 // 10-11-2026 · Biou: «que cada producto, cuando se vaya a abrir en Bambu, me pregunte cómo quieres el acabado… y la impresora».
 export async function bambuDeProducto(p) {
   const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
-  if (!desktop.on) return subidos.length ? elegirAcabado(null, p.nombre, { remoto: remotoDe(p), medidas: medidasDe(p), talCual: () => encargarPieza(p, 'bambu') }) : toast('Este producto no tiene su archivo 3D en el programa: súbelo (STL o 3MF) y se abre en la torre.', 'warn', 8000); // 02-11: tablet/móvil → la torre
+  if (!desktop.on) return subidos.length ? elegirAcabado(null, p.nombre, { remoto: remotoDe(p), medidas: medidasDe(p), pid: p.id, cargar3D: async () => ({ buf: await (await fetchFile(subidos[0])).arrayBuffer(), nombre: subidos[0].nombre }), talCual: () => encargarPieza(p, 'bambu') }) : toast('Este producto no tiene su archivo 3D en el programa: súbelo (STL o 3MF) y se abre en la torre.', 'warn', 8000); // 02-11: tablet/móvil → la torre
   if (subidos.length) { const x = { nombre: subidos[0].nombre, a: subidos[0], p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); }
   if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) { const x = { nombre: L[0].name, ruta: L[0].path, p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); } } catch (e) { /* sin su carpeta: se pide el archivo */ } }
   const elegir = h('input', { type: 'file', accept: '.stl,.3mf,.obj', hidden: true });
@@ -535,14 +553,14 @@ async function view3DLocal(path, name) {
   const c = h('canvas.stl-view');
   const info = h('p.small.muted', 'Cargando…');
   const sim = h('div.row.wrap', { style: { gap: '6px' } });
-  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim), close => [desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu({ nombre: name, ruta: path }), { cls: 'v3d-bambu' }) : null, btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
+  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim), close => [desktop.on ? btn('🪄 Menos soportes', () => import('../sinsoportes_ui.js').then(m => m.abrirMenosSoportes({ nombre: name, ruta: path })), { cls: 'v3d-soportes' }) : null, desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu({ nombre: name, ruta: path }), { cls: 'v3d-bambu' }) : null, btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
   try { const pos = await parse3D(await desktop.file(path), name), v = viewer(c, pos); info.textContent = v.dims.map(x => x.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos';
     mount(sim, btn('▶️ Ver cómo se imprime', () => import('../simulacion.js').then(SM => SM.simularImpresion(pos, { nombre: name })), { cls: 'primary sm' })); }
   catch (e) { info.textContent = 'No se pudo mostrar: ' + e.message; }
 }
 
 // ---------- Asistente de precio (usa lo que ya hay: costes, Configuración, ventas) ----------
-function pricingParams() { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0 }); } // (28-10: + lo que se recupera del móvil y la SIM en cada pedido)
+function pricingParams(p) { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: p && p.id && !sumaMovil(p.id) ? 0 : (CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0) }); } // (11-11: sin el móvil si a ESTE producto no se le suma) // (28-10: + lo que se recupera del móvil y la SIM en cada pedido)
 function gastosMap() { const g = {}; S.t.gastos.forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; }); return g; }
 // 01-11-2026 · 🧮 EN QUÉ SE GASTA CADA PRODUCTO, grande y ordenado: una fila por gasto, con su barra, el total arriba y a cuánto venderlo.
 // Mismos números de siempre (CL.prices): solo cambia cómo se ven. Lo que vale 0 no sale.
@@ -577,7 +595,7 @@ export function priceAssistant(p, costsIn, onPick) {
   const orders = p ? S.t.pedidos.filter(o => (o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre)) && !CL.stateOf(S.cfg.pedidos, o.estado).cancelled && Number(o.precio) > 0) : [];
   const calcNow = () => {
     const v = {}; Object.keys(f).forEach(k => { v[k] = f[k].value; });
-    const r = CL.prices(v, pricingParams(), gastosMap());
+    const r = CL.prices(v, pricingParams(p), gastosMap());
     const faltan = []; if (!Number(v.gramos)) faltan.push('los gramos de filamento'); if (!Number(v.horas)) faltan.push('las horas de impresión');
     const hist = orders.length ? { n: orders.length, media: orders.reduce((s, o) => s + Number(o.precio), 0) / orders.length, min: Math.min(...orders.map(o => Number(o.precio))), max: Math.max(...orders.map(o => Number(o.precio))) } : null;
     mount(out,
@@ -596,7 +614,7 @@ export function priceAssistant(p, costsIn, onPick) {
     out,
     p && can('productos.editar') && !onPick ? h('div.row', btn('Guardar costes', async () => { const { v } = calcNow(); await saveProduct(p, {}, v); }, { cls: 'sm' }), btn('Usar precio de Wallapop', async () => { const { r, v } = calcNow(); await saveProduct(p, { precio: r.recomendado.wallapop }, v); }, { cls: 'primary sm' })) : null);
   wrap.getCosts = () => { const v = {}; Object.keys(f).forEach(k => { v[k] = f[k].value; }); return v; };
-  wrap.resultado = () => { const v = wrap.getCosts(); return Number(v.gramos) > 0 || Number(v.horas) > 0 ? CL.prices(v, pricingParams(), gastosMap()) : null; }; // 01-11-2026: para el «véndelo a» grande
+  wrap.resultado = () => { const v = wrap.getCosts(); return Number(v.gramos) > 0 || Number(v.horas) > 0 ? CL.prices(v, pricingParams(p), gastosMap()) : null; }; // 01-11-2026: para el «véndelo a» grande
   wrap.setCosts = o => { Object.keys(o || {}).forEach(k => { if (f[k] && o[k] !== undefined && o[k] !== '' && o[k] !== null) f[k].value = o[k]; }); calcNow(); }; // v16.2
   calcNow();
   return wrap;

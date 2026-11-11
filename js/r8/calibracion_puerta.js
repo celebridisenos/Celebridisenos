@@ -14,7 +14,7 @@ import { dibujo } from './calibracion_ui.js';
 
 const LS = 'cd.r8.calibrando', DIA = 24 * 3600e3;
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES');
-export const IMPRESORAS = [['P1P', 'Bambu P1P', 256, 'p1p'], ['A1 mini', 'Bambu A1 mini', 180, 'a1m']], MATERIALES = ['PLA', 'PETG', 'TPU'];
+export const IMPRESORAS = [['P1P', 'Bambu P1P', 256, 'p1p'], ['A1 mini', 'Bambu A1 mini', 180, 'a1m'], ['A1', 'Bambu A1', 256, 'a1']], MATERIALES = ['PLA', 'PETG', 'TPU'];
 const nuevo = () => ({ imp: 'P1P', mat: 'PLA', n: 1, enviada: 0, lam: null, med: [{}, {}, {}], cal: { cero: 0, medido: '' } }); // v30.7.1: n = cuántas probetas lleva la placa (1, 2 o 3)
 export function estado() { try { const e = Object.assign(nuevo(), JSON.parse(localStorage.getItem(LS) || '{}')); if (!Array.isArray(e.med) || e.med.length !== 3) e.med = [{}, {}, {}]; if (e.enviada && !('n' in JSON.parse(localStorage.getItem(LS) || '{}'))) e.n = 3; /* una placa mandada con la 30.6.3 era de 3 */ e.n = [1, 2, 3].includes(Number(e.n)) ? Number(e.n) : 1; return e; } catch (x) { return nuevo(); } }
 const apunta = e => { try { localStorage.setItem(LS, JSON.stringify(e)); } catch (x) { } };
@@ -57,7 +57,7 @@ export function puerta(el, alPasar, o = {}) {
       window.__cpuPlaca = { bytes: blob.size, cama, imp: impK, n: E.n };
       const d = await import('../desktop.js').catch(() => null), pc = !!(d && d.desktop && d.desktop.on);
       if (como === 'laminado' && pc) {
-        const res = await d.desktop.bambuAbrir(blob, nomPlaca(), true, { laminar: '1', imp: impK, mat: E.mat, proc: '0.16mm CelebriR8 PRECISION @' + (impK === 'a1m' ? 'A1mini' : 'P1P') });
+        const res = await d.desktop.bambuAbrir(blob, nomPlaca(), true, { laminar: '1', imp: impK, mat: E.mat, proc: CPR.procCal(impK) });
         E.enviada = Date.now(); E.lam = res && res.laminado ? { seg: res.segundos || 0, g: res.gramos || 0 } : null; guarda();
         toast(res && res.laminado ? '🖨️ La placa se ha abierto en Bambu Studio, ya laminada: pulsa «Imprimir placa».' : '🖨️ La placa se ha abierto en Bambu Studio' + (res && res.motivoLaminado ? ' sin laminar (' + res.motivoLaminado + ')' : '') + ': pulsa Laminar placa e Imprimir.', 'ok', 12000);
       } else {

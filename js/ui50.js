@@ -128,7 +128,7 @@ export function estreno50(opts = {}) {
   };
   const NOV = opts.novedades || [];
   const final = h('div.e50-final', h('div.e50-tarjeta',
-    h('small.e50-kick', 'Bienvenida a tu nuevo'), h('h2', h('span', 'CelebriDiseños')),
+    h('small.e50-kick', 'Bienvenido a tu nuevo'), h('h2', h('span', 'CelebriDiseños')),
     h('p', 'Tus pedidos, clientes y productos siguen exactamente donde estaban. Ha cambiado todo lo demás.'),
     h('div.e50-nov', NOV.map(([e, t, d, r]) => h('button', { type: 'button', onclick: () => cerrar(r) }, h('span', e), h('b', t), h('small', d)))),
     h('div.e50-acc', btn('Empezar', () => cerrar('puente'), { cls: 'primary' })),

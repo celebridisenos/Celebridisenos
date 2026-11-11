@@ -66,7 +66,7 @@ export async function atiendePieza(job, progreso) {
   progreso(5);
   const f = await rutaLocal(e, p, modo === 'reforzar'); progreso(30);
   // 10-11-2026: la A1 y los 5 acabados nuevos (con v: 2, tamaño y fuerza del cotizador)
-  if (modo === 'acabado') { const r = await desktop.acabado(f.ruta, ['a1m', 'p1p', 'a1'].includes(e.imp) ? e.imp : 'a1m', e.receta || 'normal', Number(e.v) === 2 ? { v: 2, escala: e.escala, paredes: e.paredes, relleno: e.relleno } : null); progreso(95); return { abierto: true, proyecto: (r && r.archivo) || '', nombre: f.nombre, en: desktop.name }; } // («proyecto», no «archivo»: «archivo» es un archivo del programa)
+  if (modo === 'acabado') { const r = await desktop.acabado(f.ruta, ['a1m', 'p1p', 'a1'].includes(e.imp) ? e.imp : 'a1m', e.receta || 'normal', Number(e.v) === 2 ? { v: 2, escala: e.escala, paredes: e.paredes, relleno: e.relleno, pausas: e.pausas, cal: e.cal } : null); progreso(95); return { abierto: true, proyecto: (r && r.archivo) || '', nombre: f.nombre, en: desktop.name }; } // («proyecto», no «archivo»: «archivo» es un archivo del programa)
   if (modo === 'bambu') { const r = await desktop.bambuAbrirRuta(f.ruta, true); progreso(95); if (r && r.abierto === false) throw new Error('En este PC no encuentro Bambu Studio.'); return { abierto: true, nombre: f.nombre, en: desktop.name }; }
   if (modo === 'reforzar') {
     const r = await desktop.repara(f.ruta, e.modoR || 'decor'); progreso(80);

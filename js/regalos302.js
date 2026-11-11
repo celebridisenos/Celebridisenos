@@ -36,7 +36,7 @@ export function regalos(o = {}) {
     confeti,
     h('div.rg302-panel',
       caja,
-      h('div.rg302-tit', h('small', '✨ Inauguración de CelebriDiseños 30.2 · hecha mientras dormías'), h('h2', '🎁 ¡Bienvenida! Tus 4 regalos premium'), h('p', 'Hechos esta noche y probados uno a uno. Toca cualquiera y te llevo a estrenarlo. (Vuelven a estar en el Inicio de CelebriR8: «🎁 Tus 4 regalos».)')),
+      h('div.rg302-tit', h('small', '✨ Inauguración de CelebriDiseños 30.2 · hecha mientras dormías'), h('h2', '🎁 ¡Bienvenido! Tus 4 regalos premium'), h('p', 'Hechos esta noche y probados uno a uno. Toca cualquiera y te llevo a estrenarlo. (Vuelven a estar en el Inicio de CelebriR8: «🎁 Tus 4 regalos».)')),
       tarjetas,
       h('div.rg302-pie', h('small', 'Y además: la barra de herramientas del Estudio ya cabe entera (en el PC y en la tablet), la tablet en vertical ya enseña bien la vista 3D, y más arreglos de la revisión de todas las pantallas.'), btn('¡Gracias! A trabajar', cerrar, { cls: 'primary rg302-ok' }))));
   function cerrar() { guardar(VISTO, '1'); capa.classList.add('fuera'); document.removeEventListener('keydown', tecla); setTimeout(() => capa.remove(), 380); o.alCerrar && o.alCerrar(); }

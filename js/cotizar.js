@@ -146,7 +146,7 @@ export function consejos(e, r) {
     const no = IMPRESORAS.filter(I => !r.caben.includes(I.k));
     if (!r.caben.length) L.push({ n: 'no', t: 'A este tamaño no cabe en ninguna de tus impresoras (mide ' + String(r1(Math.max(r.medidas.x, r.medidas.y, r.medidas.z) / 10)).replace('.', ',') + ' cm y la A1 llega a 25,6 cm). No lo recomiendo: habría que partirla en piezas y pegarla.' });
     else if (no.length) L.push({ n: 'ojo', t: 'A este tamaño no cabe en la ' + no.map(I => I.nombre).join(' ni en la ') + ': imprímela en la ' + IMPRESORAS.filter(I => r.caben.includes(I.k)).map(I => I.nombre).join(' o la ') + '.' });
-  } else if (esc !== 100) L.push({ n: 'ojo', t: 'Este producto no tiene sus medidas en la ficha: no sé si a este tamaño cabe en la impresora. Ponlas en «Editar».' });
+  } else if (esc !== 100) L.push({ n: 'ojo', t: 'Este producto no tiene sus medidas en la ficha: no sé si a este tamaño cabe en la impresora. Escríbelas arriba, en «¿Cuánto mide ahora?».' });
   if (esc > 100) {
     const veces = r.razonG > 0 ? String(Math.round(r.razonG / Math.max(0.01, (fz ? r.fuerza.razon : 1)) * 10) / 10).replace('.', ',') : '';
     L.push({ n: esc > 200 ? 'ojo' : 'ok', t: 'Al ' + esc + ' % gasta unas ' + veces + ' veces el plástico (no ' + String(esc / 100).replace('.', ',') + '): al agrandar, el plástico crece más que el tamaño. ' + (esc > 200 ? 'Por encima del doble, el tiempo se dispara: cóbralo bien o pide señal.' : 'El precio ya lo lleva.') });
@@ -173,3 +173,41 @@ export function recordado(k) { try { return localStorage.getItem('cd.cotizar.' +
 // forma de la pieza (volumen y superficie) a partir de lo que devuelve analizar3D
 export function geoDe(A) { return A && A.volumenCm3 > 0 && A.areaCm2 > 0 ? { V: A.volumenCm3 * 1000, A: A.areaCm2 * 100, h: A.medidas && Number(A.medidas.z) > 0 ? Number(A.medidas.z) : 0 } : null; }
 
+
+// ================= 11-11-2026 · 📐 MEDIDAS A MANO y 🏷️ VARIANTES (lo que se vende de un mismo producto, a otro precio y en otro sitio) =================
+// Biou: «el cotizador me tiene que dejar también manualmente las medidas y que haga el cálculo, y si he cotizado una pieza y lo pongo a la
+// venta tiene que estar registrado, es decir mismo producto pero diferente precio, dónde lo vendo…».
+// Bambu agranda IGUAL en todo (--scale): al escribir UNA medida, las otras dos se ajustan solas. Devuelve el % entero (10–1000).
+export function escalaParaMedida(base, eje, cm) {
+  const b = base && num(base[eje]), v = num(cm) * 10;
+  if (!(b > 0) || !(v > 0)) return 0;
+  return Math.min(1000, Math.max(10, Math.round(v / b * 100)));
+}
+// las tres medidas escritas a mano (cm) → mm, solo si están las tres
+export function medidasDeCm(x, y, z) {
+  const m = { x: num(x) * 10, y: num(y) * 10, z: num(z) * 10 };
+  return m.x > 0 && m.y > 0 && m.z > 0 ? { x: r1(m.x), y: r1(m.y), z: r1(m.z) } : null;
+}
+// dónde lo vende (las piezas impresas: Cults y MakerWorld venden ARCHIVOS, no piezas, y no van aquí)
+export const SITIOS = [
+  { k: 'tienda', e: '🛍️', t: 'Tienda web' }, { k: 'wallapop', e: '🟢', t: 'Wallapop' }, { k: 'vinted', e: '🟦', t: 'Vinted' },
+  { k: 'etsy', e: '🟠', t: 'Etsy' }, { k: 'instagram', e: '📸', t: 'Instagram' }, { k: 'mano', e: '🤝', t: 'En mano o encargo' }, { k: 'otro', e: '➕', t: 'Otro' },
+];
+export const sitioPorK = k => SITIOS.find(x => x.k === k) || { k, e: '•', t: k };
+// una variante es la misma si cambia lo mismo (tamaño, fuerza y acabado); la impresora es cómo se fabrica, no lo que se vende
+export const claveVariante = v => [num(v.esc ?? v.escala) || 100, num(v.fz ?? v.fuerza) || 0, v.ac ?? v.acabado ?? 'normal'].join('|');
+// en palabras, corto: «+20 % de tamaño · más fuerte (+20 %) · Premium top»
+export function resumenVariante(v) {
+  const esc = num(v.esc ?? v.escala) || 100, fz = num(v.fz ?? v.fuerza) || 0, a = acabadoPorK(v.ac ?? v.acabado);
+  const L = [esc !== 100 ? (esc > 100 ? '+' + (esc - 100) : '−' + (100 - esc)) + ' % de tamaño' : '', fz > 0 ? 'más fuerte (+' + fz + ' %)' : '', a.k !== 'normal' ? a.nombre : ''].filter(Boolean);
+  return L.length ? L.join(' · ') : 'Como se vende ahora';
+}
+// lo que se guarda (corto: va en la configuración del negocio, que tiene sitio limitado)
+export function nuevaVariante(o) {
+  const m = o.medidas;
+  return { id: o.id || ('v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)), pid: o.pid, f: o.fecha, n: String(o.nombre || '').trim().slice(0, 60),
+    esc: num(o.escala) || 100, fz: num(o.fuerza) || 0, w: num(o.paredes) || 0, i: num(o.relleno) || 0, ac: o.acabado || 'normal', imp: o.imp || '',
+    med: m && num(m.x) > 0 ? [r1(num(m.x)), r1(num(m.y)), r1(num(m.z))] : null, g: r1(num(o.gramos)), h: r2(num(o.horas)), de: o.de === 'MEDIDO' ? 'M' : 'E',
+    pr: r2(num(o.precio)), min: r2(num(o.minimo)), co: r2(num(o.coste)), mv: o.movil ? 1 : 0, d: (o.sitios || []).filter(Boolean).slice(0, 8),
+    nota: String(o.nota || '').trim().slice(0, 140), por: String(o.por || '').slice(0, 30) };
+}

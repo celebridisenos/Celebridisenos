@@ -7,6 +7,7 @@ import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNue
 import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30, es50, selectorTema } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
 import { debeEstrenar20 } from './estreno20.js';
 import { pintaRail, marcaRail, lanzador, debeEstrenar50 } from './ui50.js'; // 13-10-2026 · la cara «CelebriDiseños»: barra lateral, lanzador y estreno
+import { debeEstrenarFinal } from './marca.js'; // 11-11-2026 · ✍️ el estreno de la versión final (CELEBRIDISEÑOS By Noorko), va antes que todos
 import { debeRegalar } from './regalos302.js'; // v30.2 · 🎁 los 4 regalos (sale una vez, después del estreno)
 import { debeEstrenar30 } from './estreno30.js'; // v30: el estreno de la 30 (va antes que el de la 20) // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
 import { desktop } from './desktop.js';
@@ -184,7 +185,8 @@ async function route() {
     if (name === 'chatsnav') return; // (02-11: esa ventana solo es para los chats: sin estrenos ni nada encima de las páginas)
     entrada(content); // v14.0: el contenido entra suave
     if (!route._calor) { route._calor = true; setTimeout(precalentar, 2500); setTimeout(embalajeAuto, 6000); setTimeout(() => import('./r8/pregunta_rodamiento.js').then(m => m.alArrancar()).catch(() => { }), 9000); } // v16.1 · v20.2 · v20.3: «¿cuál de tus rodamientos de prueba gira?»
-    if (!route._est && debeEstrenar50()) { route._est = route._inau = true; try { ['cd.estreno18', 'cd.estreno20', 'cd.estreno30', 'cd.inaug14'].forEach(k => localStorage.setItem(k, '1')); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) estrenoCD(); else route._est = false; }, 900); } // 13-10-2026
+    if (!route._est && debeEstrenarFinal()) { route._est = route._inau = true; try { ['cd.estreno18', 'cd.estreno20', 'cd.estreno30', 'cd.inaug14', 'cd.estreno50', 'cd.regalos302.v2'].forEach(k => localStorage.setItem(k, '1')); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./marca.js').then(m => m.estrenoFinal({ ir: go })); else route._est = false; }, 700); } // 11-11-2026: los estrenos de antes ya no salen
+    else if (!route._est && debeEstrenar50()) { route._est = route._inau = true; try { ['cd.estreno18', 'cd.estreno20', 'cd.estreno30', 'cd.inaug14'].forEach(k => localStorage.setItem(k, '1')); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) estrenoCD(); else route._est = false; }, 900); } // 13-10-2026
     else if (!route._est && debeEstrenar()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer')) estreno({ ir: go }); else route._est = false; }, 900); }
     else if (!route._est && debeEstrenar30()) { route._est = route._inau = true; try { localStorage.setItem('cd.estreno20', '1'); } catch (e) { } setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno30.js').then(m => m.estreno30({ ir: go })); else route._est = false; }, 900); } // v30
     else if (!route._est && debeEstrenar20()) { route._est = route._inau = true; setTimeout(() => { if (S.me && !document.querySelector('.modal, .lockbox-full, .drawer, .r8vis')) import('./estreno20.js').then(m => m.estreno20({ ir: go })); else route._est = false; }, 900); } // v20.1 (la 18 va primero si no se vio)

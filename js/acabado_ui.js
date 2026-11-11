@@ -6,7 +6,13 @@
 //   2 · ¿En qué impresora?  (A1 mini · P1P · A1 NUEVA — las tres SIN AMS; la que no cabe, tachada)
 //   → «Abrir en Bambu listo para imprimir»: la torre saca un proyecto de SU Bambu con capa, paredes, relleno, impresora y placa ya
 //     puestas (desktop/host/acabado.go) y lo abre. Desde el cotizador llegan también el TAMAÑO y la FUERZA presupuestados.
+//   3 · (11-11-2026) ¿De un color o CON COLORES (AMS manual)? Biou: «que en el mismo me diga ¿quieres con AMS manual? qué zonas quieres
+//     de color… y haga las pausas automáticamente… siempre con el acabado perfecto… que me traslade a R8 a colorear y de ahí me devuelva».
+//     «Con colores» abre el TALLER DE COLORES de CelebriR8 sobre la pieza (r8/colores_taller.js: franjas de color por capas, pausas que
+//     se arrastran) a su TAMAÑO y con la capa de ESE acabado; al guardar vuelve aquí y el proyecto sale con las paradas puestas (M400 U1
+//     al empezar cada capa: comprobado con su Bambu en desktop/host/acabado_colores_test.go). Las zonas se recuerdan por producto.
 import { h, mount, modal, toast } from './ui.js';
+import { paraArchivo, capaDe, nombreColor } from './r8/colores_capas.js';
 import { desktop } from './desktop.js';
 import { noSePuedeAqui } from './pieza_taller.js'; // 02-11-2026: si este aparato no puede, se encarga a la torre
 import { ACABADOS, IMPRESORAS, cabeEn, acabadoPorK, impPorK, recordar, recordado } from './cotizar.js';
@@ -39,6 +45,76 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
   let rec = acabadoPorK(opts.acabado || recordado('acabado') || 'normal').k;
   let imp = opts.imp && caben.some(I => I.k === opts.imp) ? opts.imp : (caben.find(I => I.k === recordado('imp')) || caben[0] || IMPRESORAS[0]).k;
   const extra = { v: 2 }; if (esc !== 100) extra.escala = esc; if (opts.paredes) extra.paredes = opts.paredes; if (opts.relleno) extra.relleno = opts.relleno;
+  // ---- 3 · 🌈 AMS manual: las zonas de color se guardan a tamaño 100 % (z100) y se pasan al tamaño y la capa de cada momento
+  const CK = 'cd.colores.' + (opts.pid || nombre || ruta || 'pieza'), r3 = v => Math.round(v * 1000) / 1000, k = esc / 100;
+  let col = (() => { try { const x = JSON.parse(localStorage.getItem(CK) || 'null'); return x && Array.isArray(x.cambios) ? x : { base: '', cambios: [] }; } catch (e) { return { base: '', cambios: [] }; } })();
+  const guardaCol = () => { try { localStorage.setItem(CK, JSON.stringify(col)); } catch (e) { } };
+  let ams = col.cambios.length > 0;
+  const aTam = () => col.cambios.map(c => Object.assign({}, c, { z: r3(c.z100 * k) }));
+  const paradas = () => paraArchivo(aTam(), acabadoPorK(rec).capa); // (lo que va a su Bambu: la altura de la capa donde empieza el color)
+  // para enseñarlo: la capa donde EMPIEZA cada color y su altura de abajo (la misma cuenta que paraArchivo)
+  const paradasVista = () => aTam().filter(c => c.activa !== false).sort((a, b) => a.z - b.z).map(c => { const K = capaDe(c.z, acabadoPorK(rec).capa); return { color: c.color, tipo: c.tipo, capa: K.capa, desde: K.desde }; });
+  const coloresEl = h('div.ab-colores');
+  // ---- 2 bis · 🎯 la CALIBRACIÓN de cada impresora (11-11-2026, Biou: «prueba de calibre para cada máquina, rápida… así ya tienes los
+  // ajustes perfectos de cada una»): lo medido con la probeta en ESA impresora va puesto (agujeros, contorno, pie de elefante).
+  let CAL = null; const calEl = h('div.ab-calrow');
+  import('./r8/calibracion.js').then(m => { CAL = m; pinta(); }).catch(() => { });
+  import('./r8/calibracion_puerta.js').then(m => m.traeDeLaNube()).then(x => { if (x) pinta(); }).catch(() => { });
+  const calDe = k => { try { return CAL ? CAL.paraAcabado(k, 'PLA') : null; } catch (e) { return null; } };
+  async function calibrar() {
+    const U = await import('./r8/calibracion_ui.js');
+    U.abrir({ imp, mat: 'PLA', rapida: true, alGuardar: () => pinta(), alCerrar: () => pinta() });
+  }
+  function pintaCal() {
+    const I = impPorK(imp), c = calDe(imp), t = CAL ? CAL.TIEMPO_PROBETA.rapida : null;
+    window.__acabadoCal = c;
+    mount(calEl, c
+      ? h('div.ab-cal-si', h('span', '🎯 '), h('div', h('b', 'Tu ' + I.nombre + ' está calibrada' + (c.fecha ? ' (' + c.fecha.split('-').reverse().join('-') + ')' : '') + (c.estimada ? ' · estimada' : '')),
+          h('small', 'Va puesto: agujeros ' + coma(c.claves.xy_hole_compensation) + ' · contorno ' + coma(c.claves.xy_contour_compensation) + ' · pie de elefante ' + coma(c.claves.elefant_foot_compensation) + ' mm')),
+        h('button.btn.ghost.sm.ab-calibrar', { type: 'button', onclick: calibrar }, 'Volver a calibrar'))
+      : h('div.ab-cal-no', h('span', '🎯 '), h('div', h('b', 'Tu ' + I.nombre + ' está sin calibrar'), h('small', 'Sale bien igual; calibrada, los encajes y agujeros salen a la medida.')),
+        h('button.btn.sm.ab-calibrar', { type: 'button', onclick: calibrar }, '⚡ Calibrarla' + (t ? ' (' + t[imp] + ' min, ' + coma(t.g) + ' g)' : ''))));
+  }
+  async function abrirTaller() {
+    const puede = typeof opts.cargar3D === 'function' || (ruta && desktop.on);
+    if (!puede) return toast('Para elegir las zonas de color necesito el archivo 3D de la pieza (súbelo al producto).', 'warn', 7000);
+    toast('🎨 Abriendo el taller de colores sobre la pieza…', '', 3000);
+    try {
+      const d = typeof opts.cargar3D === 'function' ? await opts.cargar3D() : { buf: await desktop.file(ruta), nombre };
+      const [{ parse3D }, N, T] = await Promise.all([import('./stl.js'), import('./r8/nucleo.js'), import('./r8/colores_taller.js')]);
+      await N.cargar();
+      const pos = await parse3D(d.buf, d.nombre || nombre || 'pieza.stl'), sopa = new Float32Array(pos.length);
+      for (let i = 0; i < pos.length; i++) sopa[i] = pos[i] * k; // (al tamaño que se va a imprimir)
+      const est = { base: col.base || '#f4f4f0', cambios: col.cambios.map(c => { const x = { id: c.id, z: r3(c.z100 * k), color: c.color }; if (c.tipo) x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }) };
+      window.__acabadoTaller = true;
+      const r = await T.abrirColores({ sopa, nombre: (nombre || 'Pieza') + (esc !== 100 ? ' · al ' + esc + ' %' : ''), est, capa: acabadoPorK(rec).capa, colorBase: est.base, prop: [], impresora: impPorK(imp).nombre });
+      window.__acabadoTaller = false;
+      if (r) {
+        col = { base: r.base || est.base, cambios: (r.cambios || []).map(c => { const x = { id: c.id, z100: r3(c.z / k), color: c.color }; if (c.tipo) x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }) };
+        guardaCol(); ams = true; pintaColores(); pinta();
+        toast(col.cambios.length ? '🌈 ' + col.cambios.length + (col.cambios.length === 1 ? ' cambio de color guardado' : ' cambios de color guardados') + ': ya puedes abrirlo en Bambu.' : 'Sin cambios de color: saldrá de un color.', 'ok', 5000);
+      }
+    } catch (e) { window.__acabadoTaller = false; toast('No se pudo abrir el taller de colores: ' + (e.message || e), 'bad', 8000); }
+  }
+  function pintaColores() {
+    const a = acabadoPorK(rec), L = paradasVista(), base = col.base || '#f4f4f0';
+    const punto = c => h('i.ab-pt', { style: 'background:' + c });
+    mount(coloresEl,
+      h('div.ab-ams',
+        h('button.ab-am' + (!ams ? '.on' : ''), { type: 'button', 'data-ams': 'no', onclick: () => { ams = false; pintaColores(); pinta(); } }, h('span.ab-e', '⚪'), h('b', 'De un color'), h('small', 'Sin paradas: la imprime de principio a fin')),
+        h('button.ab-am' + (ams ? '.on' : ''), { type: 'button', 'data-ams': 'si', onclick: () => { ams = true; pintaColores(); pinta(); if (!col.cambios.length) abrirTaller(); } }, h('span.ab-e', '🌈'), h('b', 'Con colores (AMS manual)'), h('small', 'Se para sola en cada zona y cambias tú la bobina'))),
+      ams ? h('div.ab-zonas',
+        L.length ? h('div.ab-lista', h('span.ab-z', punto(base), h('b', nombreColor(base)), ' desde la cama'),
+          L.map(p => h('span.ab-z', '→ ', punto(p.color), h('b', p.tipo === 'pausa' ? '⏸ pausa' : nombreColor(p.color)), ' desde ' + coma(Math.round(p.desde * 100) / 100) + ' mm (capa ' + p.capa + ')')))
+          : h('p.small.ab-sin', 'Todavía no has elegido las zonas de color.'),
+        h('button.btn.ab-taller' + (L.length ? '' : '.primary'), { type: 'button', onclick: abrirTaller }, L.length ? '🎨 Cambiar las zonas de color' : '🎨 Elegir las zonas de color sobre la pieza'),
+        h('ul.ab-consejos',
+          h('li', '🧵 Cuando se pare: en la pantalla de la impresora, ', h('b', 'Filamento → Descargar'), ', mete la bobina nueva y ', h('b', 'Cargar'), ' (purga sola el color de antes). Quita el hilo que cuelgue de la punta y ', h('b', 'Reanudar'), '.'),
+          h('li', '✨ El cambio queda más limpio donde cambia la forma o empieza una cara plana: en el taller lo ves sobre la pieza.'),
+          a.capa >= 0.24 ? h('li.ojo', '⚠️ Con «' + a.nombre + '» (capa ' + coma(a.capa) + ') el borde del color se nota escalonado: para colores, mejor Normal, Máxima calidad o Premium.') : null,
+          a.planchado ? h('li', '👑 Con Premium la cara de arriba se plancha: el último color queda liso.') : null,
+          esc !== 100 ? h('li', '📏 Las zonas van al tamaño que imprimes (' + esc + ' %).') : null)) : null);
+  }
   const body = h('div.ab');
   const md = modal(opts.titulo || '🖨️ Abrir en Bambu', body, null, { size: 'wide' });
   const tiles = h('div.ab-acab'), imps = h('div.ab-imps'), resumen = h('div.ab-resumen');
@@ -48,21 +124,29 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     mount(imps, IMPRESORAS.map(I => {
       const no = med && !cabeEn(I, med);
       return h('button.ab-imp' + (imp === I.k ? '.on' : '') + (no ? '.no' : ''), { type: 'button', 'data-k': I.k, style: '--c:' + I.color, disabled: no, title: no ? 'No cabe: la pieza mide más que su cama' : '', onclick: () => { imp = I.k; pinta(); } },
-        dibujoImpresora(I.k), h('b', I.nombre, I.nueva ? h('em.ab-nueva', 'NUEVA') : null), h('span.ab-cama', no ? '⛔ No cabe' : 'cama ' + coma(I.x / 10) + ' cm'));
+        dibujoImpresora(I.k), h('b', I.nombre, I.nueva ? h('em.ab-nueva', 'NUEVA') : null), h('span.ab-cama', no ? '⛔ No cabe' : 'cama ' + coma(I.x / 10) + ' cm'),
+        CAL ? h('span.ab-cal' + (calDe(I.k) ? '.si' : ''), calDe(I.k) ? '🎯 calibrada' : 'sin calibrar') : null);
     }));
     const a = acabadoPorK(rec), I = impPorK(imp);
-    mount(resumen, h('span', a.e + ' ' + a.nombre + ' · ' + I.nombre + (esc !== 100 ? ' · tamaño ' + esc + ' %' : '') + (opts.paredes || opts.relleno ? ' · reforzada' : '')), h('span.tiny.muted', ajustesTxt(a, extra) + ' · placa texturizada · sin AMS: los colores, con pausa'));
+    const np = ams ? paradas().length : 0;
+    mount(resumen, h('span', a.e + ' ' + a.nombre + ' · ' + I.nombre + (esc !== 100 ? ' · tamaño ' + esc + ' %' : '') + (opts.paredes || opts.relleno ? ' · reforzada' : '') + (np ? ' · 🌈 ' + (np + 1) + ' colores (' + np + (np === 1 ? ' parada)' : ' paradas)') : '') + (calDe(imp) ? ' · 🎯 calibrada' : '')), h('span.tiny.muted', ajustesTxt(a, extra) + ' · placa texturizada · ' + (np ? 'se para sola en cada cambio de color' : 'de un color')));
+    pintaColores(); pintaCal();
   }
   async function abrir() {
+    const L = ams ? paradas() : [];
+    if (ams && !L.length) { toast('Elige las zonas de color (o marca «De un color»).', 'warn', 6000); return abrirTaller(); }
+    if (L.length) extra.pausas = JSON.stringify(L); else delete extra.pausas;
+    const cal = calDe(imp); if (cal) extra.cal = JSON.stringify(cal.claves); else delete extra.cal;
     md.close();
     recordar('acabado', rec); recordar('imp', imp);
     const a = acabadoPorK(rec), I = impPorK(imp);
+    window.__acabadoPedido = { rec, imp, extra: Object.assign({}, extra) };
     if (remoto) return opts.remoto(imp, rec, extra);
     toast('Preparando «' + a.nombre + '» para la ' + I.nombre + ' y abriendo Bambu Studio…', 'ok', 5000);
     try {
       const r = await desktop.acabado(ruta, imp, rec, extra);
       window.__acabadoAbierto = r || null;
-      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar. Sin AMS: los cambios de color, con pausa.', 'ok', 8000);
+      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color puestas (las ves en la barra de capas).' : ''), 'ok', 9000);
     } catch (e) {
       if (typeof opts.siNoAqui === 'function' && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): se lo encargo a la torre.', 'warn', 6000); return opts.siNoAqui(imp, rec, extra); }
       toast('No se pudo preparar el acabado: ' + (e.message || e), 'bad', 8000);
@@ -73,7 +157,8 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     nombre ? h('p.ab-pieza', '📦 ' + nombre + (esc !== 100 ? ' · al ' + esc + ' %' : '')) : null,
     remoto ? h('p.small.ab-remoto', '🖥️ Lo prepara la torre y se abre allí, en su Bambu Studio.') : null,
     h('h3.ab-paso', h('i', '1'), '¿Qué acabado?'), tiles,
-    h('h3.ab-paso', h('i', '2'), '¿En qué impresora?'), imps,
+    h('h3.ab-paso', h('i', '2'), '¿En qué impresora?'), imps, calEl,
+    h('h3.ab-paso', h('i', '3'), '¿De un color o con colores?', h('small.ab-paso-s', 'sin AMS: se para y cambias tú la bobina')), coloresEl,
     resumen,
     h('div.ab-pie', h('button.btn.primary.ab-abrir', { type: 'button', onclick: abrir }, '🖨️ Abrir en Bambu listo para imprimir'),
       typeof opts.talCual === 'function' ? h('button.btn.ghost.sm.ab-talcual', { type: 'button', onclick: () => { md.close(); opts.talCual(); } }, 'Abrirlo tal cual, sin tocar nada') : null),

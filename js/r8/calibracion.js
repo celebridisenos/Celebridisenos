@@ -53,16 +53,29 @@ export const COTAS = [
   { k: 'K', nombre: 'Ranura', d: 4, tipo: 'dentro', donde: 'Ranura K de la base, de lado a lado (lo estrecho), con las puntas de dentro.' }
 ];
 export const GEO = { base: [-35, 35, -20, 20, 3], bloque: [-30, 10, -10, 10, 12], agujeros: [['F', -22, 0, 5], ['G', -10, 0, 8], ['H', 3, 0, 10]], salientes: [['I', 24, -8, 5, 12], ['J', 24, 8, 10, 12]], ranura: [-28, -12, -18, -14] };
-export function probeta() {
-  const M = N.MF(), caja = (x0, x1, y0, y1, z0, z1) => M.cube([x1 - x0, y1 - y0, z1 - z0], false).translate([x0, y0, z0]), cil = (x, y, d, z0, z1) => M.cylinder(z1 - z0, d / 2, d / 2, Math.max(48, Math.round(d * 10))).translate([x, y, z0]);
-  const [bx0, bx1, by0, by1, bz] = GEO.base, [kx0, kx1, ky0, ky1, kz] = GEO.bloque;
+// 11-11-2026 · ⚡ LA PROBETA RÁPIDA (Biou: «prueba de calibre para cada máquina, rápida… pero una prueba precisa pero eficaz»).
+// Las MISMAS cotas y medidas que la normal (A 40, B 20, D 70, agujeros Ø5/Ø8/Ø10, salientes Ø5/Ø10, ranura 4): misma precisión con
+// el calibre. Lo que tardaba era la base ancha y alta: aquí la base es una tira de 70 × 24 × 1,6 y el bloque y los salientes miden
+// 6 de alto (el alto C = 6). Los salientes y la ranura cambian de sitio para caber en la tira. Lleva una «R» grabada.
+export const GEO_R = { base: [-35, 35, -12, 12, 1.6], bloque: [-30, 10, -10, 10, 6], agujeros: GEO.agujeros, salientes: [['I', 24, -7.5, 5, 6], ['J', 24, 5.5, 10, 6]], ranura: [12.5, 16.5, -8, 8], rapida: true };
+// laminadas con su Bambu Studio (11-11-2026; de lo que tarda, unos 7 min son de preparar la impresora: nivelar, calentar, limpiar)
+//   normal: A1 mini 41 min · P1P 37 · A1 37 · 12,5 g      rápida: A1 mini 25 min · P1P 23 · A1 23 · 5,6 g      (0 avisos)
+export const TIEMPO_PROBETA = { normal: { a1m: 41, p1p: 37, a1: 37, g: 12.5 }, rapida: { a1m: 25, p1p: 23, a1: 23, g: 5.6 } };
+export const procCal = impK => impK === 'a1m' ? '0.16mm CelebriR8 PRECISION @A1mini' : impK === 'a1' ? '0.16mm Optimal @BBL A1' : '0.16mm CelebriR8 PRECISION @P1P';
+export const geoDe = o => (o && o.rapida ? GEO_R : GEO);
+export const altoDe = o => geoDe(o).bloque[4];
+export function probeta(o = {}) {
+  const G = geoDe(o), M = N.MF(), caja = (x0, x1, y0, y1, z0, z1) => M.cube([x1 - x0, y1 - y0, z1 - z0], false).translate([x0, y0, z0]), cil = (x, y, d, z0, z1) => M.cylinder(z1 - z0, d / 2, d / 2, Math.max(48, Math.round(d * 10))).translate([x, y, z0]);
+  const [bx0, bx1, by0, by1, bz] = G.base, [kx0, kx1, ky0, ky1, kz] = G.bloque;
   let m = caja(bx0, bx1, by0, by1, 0, bz).add(caja(kx0, kx1, ky0, ky1, 0, kz));
-  GEO.salientes.forEach(([, x, y, d, z]) => { m = m.add(cil(x, y, d, 0, z)); });
-  GEO.agujeros.forEach(([, x, y, d]) => { m = m.subtract(cil(x, y, d, -1, kz + 1)); });
-  const [rx0, rx1, ry0, ry1] = GEO.ranura; m = m.subtract(caja(rx0, rx1, ry0, ry1, -1, bz + 1));
+  G.salientes.forEach(([, x, y, d, z]) => { m = m.add(cil(x, y, d, 0, z)); });
+  G.agujeros.forEach(([, x, y, d]) => { m = m.subtract(cil(x, y, d, -1, kz + 1)); });
+  const [rx0, rx1, ry0, ry1] = G.ranura; m = m.subtract(caja(rx0, rx1, ry0, ry1, -1, bz + 1));
   // las LETRAS GRABADAS (0,6 mm hacia dentro): la cara de arriba queda PLANA (si fueran en relieve, el alto «C» mediría 12,6)
-  const letra = (t, x, y, z) => N.centraCS(N.texto2(t, 'gorda', 4)).extrude(0.61).translate([x, y, z - 0.6]);
-  const L = GEO.agujeros.map(([k, x]) => letra(k, x, -7.4, kz)).concat([letra('I', 31.5, -8, bz), letra('J', 31.5, 8, bz), letra('K', -8, -16, bz), letra('A', -27, 7.4, kz), letra('B', 7.2, 6.8, kz), letra('D', -32, -16, bz)]);
+  const letra = (t, x, y, z, tam = 4) => N.centraCS(N.texto2(t, 'gorda', tam)).extrude(0.61).translate([x, y, z - 0.6]);
+  const L = G.agujeros.map(([k, x]) => letra(k, x, -7.4, kz)).concat([letra('A', -27, 7.4, kz), letra('B', 7.2, 6.8, kz)]).concat(G.rapida
+    ? [letra('I', 31.5, -7.5, bz, 3.2), letra('J', 32, 5.5, bz, 3.2), letra('K', 14.5, -10, bz, 2.6), letra('D', -32.5, -6, bz, 3.2), letra('R', -32.5, 6, bz, 3.2)]
+    : [letra('I', 31.5, -8, bz), letra('J', 31.5, 8, bz), letra('K', -8, -16, bz), letra('D', -32, -16, bz)]);
   m = m.subtract(N.union(L));
   return m;
 }
@@ -80,7 +93,7 @@ export const sitiosN = (cama = 256, n = 3) => { const [dx, dy] = cama <= 190 ? [
 export function placaN(cama = 256, n = 3) { return N.union(sitiosN(cama, n).map(s => { let m = probetaN(s.n); if (s.giro) m = m.rotate([0, 0, s.giro]); return m.translate([s.x, s.y, 0]); })); }
 export const TIEMPO_PLACA = { 1: ['35 min', '12 g'], 2: ['1 h 5 min', '25 g'], 3: ['1 h 40 min', '37 g'] }; // (laminadas con su Bambu, perfil PRECISION; redondeado)
 // meds = [{ A: …, B: … }, { … }, { … }] (lo medido en la probeta 1, 2 y 3; una probeta entera en blanco no cuenta)
-export function calcula3(meds, off = 0) {
+export function calcula3(meds, off = 0, o = {}) {
   const num = x => { const v = Number(String(x ?? '').replace(',', '.')); return v > 0 ? v : null; };
   const L = [0, 1, 2].map(i => { const m = (meds || [])[i] || {}; return { n: i + 1, m, tiene: COTAS.filter(c => num(m[c.k]) != null).map(c => c.k) }; });
   const enteras = L.filter(p => p.tiene.length === COTAS.length), amedias = L.filter(p => p.tiene.length && p.tiene.length < COTAS.length);
@@ -89,7 +102,7 @@ export function calcula3(meds, off = 0) {
   const med = {}, dudosas = [], reparto = [];
   COTAS.forEach(c => { const V = enteras.map(p => ({ n: p.n, v: num(p.m[c.k]) })).sort((a, b) => a.v - b.v), medio = V.length % 2 ? V[(V.length - 1) / 2].v : (V[V.length / 2 - 1].v + V[V.length / 2].v) / 2; med[c.k] = medio;
     if (V.length > 1) { const sp = V[V.length - 1].v - V[0].v; reparto.push(sp); if (sp > 0.1) { const peor = V.slice().sort((a, b) => Math.abs(b.v - medio) - Math.abs(a.v - medio))[0]; dudosas.push({ k: c.k, n: peor.n, v: peor.v, medio, sp }); } } });
-  const R = calcula(med, off); reparto.sort((a, b) => a - b);
+  const R = calcula(med, off, o); reparto.sort((a, b) => a - b);
   R.probetas = enteras.map(p => p.n); R.repite = reparto.length ? reparto[Math.floor(reparto.length / 2)] : null; R.dudosas = dudosas; R.med = med;
   if (dudosas.length) R.avisos.push('No cuadran entre probetas: ' + dudosas.map(d => d.k + ' de la probeta ' + d.n + ' (' + n2(d.v) + ' frente a ' + n2(d.medio) + ')').join('; ') + '. Mídelas otra vez; de momento se usa el valor del medio.');
   return R;
@@ -97,7 +110,8 @@ export function calcula3(meds, off = 0) {
 
 // ---------- 3) LAS CUENTAS ----------
 // med = { A: 40.1, … } (lo que marca TU calibre) · off = desvío del calibre → { s, sz, c, h, f, claves, escala, avisos, res }
-export function calcula(med, off = 0) {
+export function calcula(med, off = 0, o = {}) {
+  const alto = altoDe(o);
   const v = k => { const x = Number(String(med[k] ?? '').replace(',', '.')); return x > 0 ? x - off : null; }, falta = COTAS.filter(c => v(c.k) == null).map(c => c.k);
   if (falta.length) N.mal('Faltan medidas: ' + falta.join(', ') + '.');
   // fuera: m = s·d + 2c (mínimos cuadrados con A, B, I, J) · dentro: m = s·d − 2h
@@ -105,11 +119,11 @@ export function calcula(med, off = 0) {
   const s = (n * Sxy - Sx * Sy) / (n * Sxx - Sx * Sx), c = (Sy - s * Sx) / n / 2;
   const resF = F.map(([d, m, k]) => ({ k, r: m - (s * d + 2 * c) })), D = COTAS.filter(x => x.tipo === 'dentro').map(x => ({ k: x.k, h: (s * x.d - v(x.k)) / 2 }));
   const h = D.reduce((a, x) => a + x.h, 0) / D.length, resD = D.map(x => ({ k: x.k, r: x.h - h }));
-  const sz = v('C') / 12, f = Math.max(0, (v('D') - (70 * s + 2 * c)) / 2), avisos = [];
+  const sz = v('C') / alto, f = Math.max(0, (v('D') - (70 * s + 2 * c)) / 2), avisos = [];
   const malF = resF.filter(x => Math.abs(x.r) > 0.08), malD = resD.filter(x => Math.abs(x.r) > 0.08);
   if (malF.length) avisos.push('No cuadra' + (malF.length > 1 ? 'n' : '') + ' con las demás: ' + malF.map(x => x.k).join(', ') + ' (más de 0,08 mm). Mídela' + (malF.length > 1 ? 's' : '') + ' otra vez.');
   if (malD.length) avisos.push('Los agujeros no cuadran entre sí: ' + malD.map(x => x.k).join(', ') + '. Mide otra vez con las puntas de dentro, sin forzar.');
-  if (Math.abs(v('C') - 12) > 0.1) avisos.push('El alto (C) sale ' + n2(v('C')) + ' en vez de 12: eso suele ser la PRIMERA CAPA (muy aplastada o despegada), no que encoja. No se corrige solo: revisa la nivelación / el «Z offset» y vuelve a imprimirla.');
+  if (Math.abs(v('C') - alto) > 0.1) avisos.push('El alto (C) sale ' + n2(v('C')) + ' en vez de ' + alto + ': eso suele ser la PRIMERA CAPA (muy aplastada o despegada), no que encoja. No se corrige solo: revisa la nivelación / el «Z offset» y vuelve a imprimirla.');
   if (Math.abs(1 - s) > 0.02 || Math.abs(1 - sz) > 0.03) avisos.push('Sale mucho (' + n2((1 - s) * 100) + ' % en XY): ¿la probeta es la de esta pantalla y la has medido en mm?');
   const { claves, escala } = clavesDe(s, c, h, f);
   return { s, sz, c, h, f, claves, escala, avisos, res: resF.concat(resD) };
@@ -143,8 +157,11 @@ export const texto = P => (P.escala && Math.abs(P.escala[0] - 1) > 1e-6 ? (P.s <
 // v30.7.1 · la calibración QUE TOCA: la de la impresora y el material con los que se va a imprimir ESTA pieza (antes se aplicaba
 // siempre «la que está en uso», aunque fuera de la otra impresora o de otro plástico). Si ese material no está medido en esa
 // impresora pero otro sí, se estima a partir del medido. Si de esa impresora no hay nada, se usa la que esté en uso.
+// 11-11-2026: tres impresoras (A1 mini, P1P y la A1 NUEVA). Antes todo lo que llevaba «a1» se tomaba por la A1 mini.
+export const IMP_CAL = [['A1 mini', 'a1m', 'Bambu A1 mini', 180], ['P1P', 'p1p', 'Bambu P1P', 256], ['A1', 'a1', 'Bambu A1', 256]];
+export function impCal(imp) { const s = String(imp || '').trim().toLowerCase().replace(/^bambu\s+/, ''); if (s === 'a1' || s === 'a1 nueva') return 'A1'; if (/a1\s*m|a1mini|a1 mini/.test(s)) return 'A1 mini'; if (/p1p/.test(s)) return 'P1P'; return /a1/.test(s) ? 'A1 mini' : 'P1P'; }
 export function perfilPara(imp, mat) {
-  if (!imp && !mat) return null; const g = guardado(), I = /a1/i.test(String(imp || '')) ? 'A1 mini' : 'P1P', M = String(mat || 'PLA').toUpperCase().replace(/[^A-Z]/g, '') || 'PLA', k = I + ' · ' + M;
+  if (!imp && !mat) return null; const g = guardado(), I = impCal(imp), M = String(mat || 'PLA').toUpperCase().replace(/[^A-Z]/g, '') || 'PLA', k = I + ' · ' + M;
   if (g.perfiles[k]) return Object.assign({ clave: k }, g.perfiles[k]);
   for (const m of ['PLA', 'PETG', 'TPU']) { const p = g.perfiles[I + ' · ' + m]; if (p && !p.estimada) { const e = estimaMaterial(p, m, M); if (e) return Object.assign({ clave: k + ' (estimada desde ' + m + ')', estimada: true }, e); } }
   return null;
@@ -161,4 +178,14 @@ export function paraImprimir(partes, ajustes, o = {}) {
       const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2; for (let i = 0; i < S.length; i += 3) { out[i] = cx + (S[i] - cx) * sx; out[i + 1] = cy + (S[i + 1] - cy) * sy; out[i + 2] = z0 + (S[i + 2] - z0) * sz; } return Object.assign({}, p, { malla: out }); }
     return p; });
   return { partes: P2, ajustes: Object.assign({}, ajustes || {}, A.claves), aplicada: A.clave };
+}
+
+// ---------- 5) 11-11-2026 · PARA «ABRIR EN BAMBU» CON ACABADO (el cotizador y los productos) ----------
+// Lo medido en ESA impresora (o estimado desde otro material de ESA impresora) va como ajustes de Bambu: compensación de agujeros,
+// de contorno y pie de elefante. (La escala en XY no se manda por aquí: el acabado escala la pieza entera, también en alto; lo que
+// encoge en XY se sigue corrigiendo en lo que sale de CelebriR8.) Si esa impresora no está calibrada: null (no se usa la de otra).
+export function paraAcabado(imp, mat = 'PLA') {
+  const P = perfilPara(imp, mat); if (!P || !P.claves) return null;
+  const c = {}; ['xy_hole_compensation', 'xy_contour_compensation', 'elefant_foot_compensation'].forEach(k => { if (P.claves[k] != null) c[k] = String(P.claves[k]); });
+  return { claves: c, clave: P.clave, fecha: P.fecha || '', estimada: !!P.estimada, rapida: !!P.rapida, h: P.h, c: P.c, f: P.f };
 }

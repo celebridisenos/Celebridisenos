@@ -6,10 +6,10 @@ import * as N from './nucleo.js';
 import * as CPR from './calibracion.js';
 
 const n2 = x => (Math.round(x * 100) / 100).toLocaleString('es-ES');
-const IMPRESORAS = [['P1P', 'Bambu P1P'], ['A1 mini', 'Bambu A1 mini'], ['otra', 'Otra']], MATERIALES = ['PETG', 'PLA', 'TPU', 'ABS', 'ASA', 'Otro'];
+const IMPRESORAS = [['P1P', 'Bambu P1P'], ['A1 mini', 'Bambu A1 mini'], ['A1', 'Bambu A1'], ['otra', 'Otra']], MATERIALES = ['PETG', 'PLA', 'TPU', 'ABS', 'ASA', 'Otro'];
 // el dibujo de la probeta, vista de ARRIBA y de LADO, con sus letras (sale de las mismas medidas que la probeta)
-export function dibujo() {
-  const G = CPR.GEO, E = 5, X = x => (x + 38) * E, Y = y => (22 - y) * E, W = 76 * E, H = 44 * E, ns = 'http://www.w3.org/2000/svg';
+export function dibujo(o = {}) {
+  const G = CPR.geoDe(o), bz = G.base[4], kz = G.bloque[4], E = 5, X = x => (x + 38) * E, Y = y => (22 - y) * E, W = 76 * E, H = 44 * E, ns = 'http://www.w3.org/2000/svg';
   const el = (t, a, txt) => { const e = document.createElementNS(ns, t); Object.entries(a).forEach(([k, v]) => e.setAttribute(k, v)); if (txt) e.textContent = txt; return e; };
   const svg = el('svg', { viewBox: '0 0 ' + W + ' ' + (H + 110), class: 'cpr-dib', role: 'img', 'aria-label': 'Dónde se mide cada letra' });
   const [bx0, bx1, by0, by1] = G.base, [kx0, kx1, ky0, ky1] = G.bloque;
@@ -19,23 +19,26 @@ export function dibujo() {
   G.salientes.forEach(([k, x, y, d]) => svg.append(el('circle', { cx: X(x), cy: Y(y), r: d / 2 * E, class: 'cpr-saliente' }), el('text', { x: X(x) + d / 2 * E + 14, y: Y(y) + 6, class: 'cpr-l' }, k)));
   const cota = (x1, y1, x2, y2, t, dx = 0, dy = 0) => { svg.append(el('line', { x1: x1 + dx, y1: y1 + dy, x2: x2 + dx, y2: y2 + dy, class: 'cpr-cota', 'marker-start': 'url(#f)', 'marker-end': 'url(#f)' }), el('text', { x: (x1 + x2) / 2 + dx + (x1 === x2 ? 14 : 0), y: (y1 + y2) / 2 + dy + (y1 === y2 ? -6 : 5), class: 'cpr-l cpr-lc' }, t)); };
   const defs = el('defs', {}), mk = el('marker', { id: 'f', viewBox: '0 0 10 10', refX: 5, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }); mk.append(el('path', { d: 'M0 0 L10 5 L0 10 z', class: 'cpr-flecha' })); defs.append(mk); svg.prepend(defs);
-  cota(X(kx0), Y(ky1), X(kx1), Y(ky1), 'A', 0, -12); cota(X(kx1), Y(ky1), X(kx1), Y(ky0), 'B', 14, 0);
+  cota(X(kx0), Y(ky1), X(kx1), Y(ky1), 'A', 0, -12); if (G.rapida) cota(X(kx0), Y(ky1), X(kx0), Y(ky0), 'B', -26, 0); else cota(X(kx1), Y(ky1), X(kx1), Y(ky0), 'B', 14, 0); // (en la rápida la ranura K está pegada al lado derecho)
   // de lado: el alto C y la base D (abajo del todo)
-  const yb = H + 80, zE = 4; svg.append(el('rect', { x: X(bx0), y: yb - 3 * zE, width: (bx1 - bx0) * E, height: 3 * zE, class: 'cpr-base' }), el('rect', { x: X(kx0), y: yb - 12 * zE, width: (kx1 - kx0) * E, height: 12 * zE, class: 'cpr-bloque' }), el('text', { x: X(bx1) - 4, y: yb - 54, class: 'cpr-sub', 'text-anchor': 'end' }, 'de lado'));
-  cota(X(kx0), yb, X(kx0), yb - 12 * zE, 'C', -16, 0); cota(X(bx0), yb, X(bx1), yb, 'D', 0, 14);
+  const yb = H + 80, zE = 4; svg.append(el('rect', { x: X(bx0), y: yb - bz * zE, width: (bx1 - bx0) * E, height: bz * zE, class: 'cpr-base' }), el('rect', { x: X(kx0), y: yb - kz * zE, width: (kx1 - kx0) * E, height: kz * zE, class: 'cpr-bloque' }), el('text', { x: X(bx1) - 4, y: yb - 54, class: 'cpr-sub', 'text-anchor': 'end' }, 'de lado'));
+  cota(X(kx0), yb, X(kx0), yb - kz * zE, 'C', -16, 0); cota(X(bx0), yb, X(bx1), yb, 'D', 0, 14);
   svg.append(el('text', { x: 6, y: 16, class: 'cpr-sub' }, 'desde arriba'));
   return svg;
 }
 export function abrir(o = {}) {
-  const g0 = CPR.guardado(), estado = { cal: { cero: 0, refs: [{ k: 'c20', medido: '' }] }, imp: 'P1P', mat: 'PETG', med: {}, R: null, calibre: g0.calibre };
+  const g0 = CPR.guardado(), estado = { cal: { cero: 0, refs: [{ k: 'c20', medido: '' }] }, imp: o.imp ? CPR.impCal(o.imp) : 'P1P', mat: o.mat || 'PETG', med: {}, R: null, calibre: g0.calibre, rapida: !!o.rapida };
+  // 11-11-2026 · ⚡ la probeta RÁPIDA (mismas cotas, la mitad de plástico y de tiempo de impresión) o la NORMAL (la de siempre)
+  const T = () => CPR.TIEMPO_PROBETA[estado.rapida ? 'rapida' : 'normal'], impK = () => (CPR.IMP_CAL.find(i => i[0] === estado.imp) || [])[1] || '';
+  const tiempoTxt = v => { const t = CPR.TIEMPO_PROBETA[v]; return 'unos ' + Math.min(t.a1m, t.p1p, t.a1) + '–' + Math.max(t.a1m, t.p1p, t.a1) + ' min y ' + String(t.g).replace('.', ',') + ' g'; };
   let cerrar = () => { };
   const cuerpo = h('div.cpr'), pinta = () => mount(cuerpo, contenido());
   const num = (o, k, t, ph, extra) => h('label.cpr-c', h('span', t), h('input.inp', { type: 'number', step: 0.01, min: k === 'cero' ? -5 : 0, value: o[k] ?? '', placeholder: ph || '', 'data-k': k, oninput: e => { o[k] = e.target.value === '' ? '' : Number(String(e.target.value).replace(',', '.')); } }), extra || null);
   function contenido() {
     const C = estado.calibre, act = CPR.activa(), g = CPR.guardado();
     return [
-      h('div.cpr-placa3', h('div', h('b', '🎯 Lo mejor: la placa de 3 probetas'), h('small', 'Tres probetas numeradas en una sola placa: de cada medida se usa la del medio de las tres y se ve cuánto repite tu impresora.')), btn('Calibrar con la placa de 3', () => { cerrar(); import('./calibracion_puerta.js').then(m => m.abrirPlaca3({ alCerrar: o.alCerrar })); }, { cls: 'primary sm cpr-abre3' })),
-      h('p.small', 'O con UNA probeta, como hasta ahora: compruebas el calibre, la imprimes y la mides. Cada pieza que mandes a Bambu con esa impresora y ese material sale corregida SOLA (tus perfiles no se tocan).'),
+      o.rapida ? null : h('div.cpr-placa3', h('div', h('b', '🎯 Lo mejor: la placa de 3 probetas'), h('small', 'Tres probetas numeradas en una sola placa: de cada medida se usa la del medio de las tres y se ve cuánto repite tu impresora.')), btn('Calibrar con la placa de 3', () => { cerrar(); import('./calibracion_puerta.js').then(m => m.abrirPlaca3({ alCerrar: o.alCerrar })); }, { cls: 'primary sm cpr-abre3' })),
+      o.rapida ? h('p.small', '⚡ Una probeta RÁPIDA para tu ' + estado.imp + ': compruebas el calibre con una moneda, la imprimes y escribes lo que marca. Desde ese momento, todo lo que mandes a Bambu con esa impresora sale corregido SOLO.') : h('p.small', 'O con UNA probeta, como hasta ahora: compruebas el calibre, la imprimes y la mides. Cada pieza que mandes a Bambu con esa impresora y ese material sale corregida SOLA (tus perfiles no se tocan).'),
       act ? h('p.cpr-ok', '🎯 Ahora se usa: «' + act.clave + '» (' + act.fecha + ') · ' + CPR.texto(act)) : h('p.small.muted', 'Todavía no hay ninguna calibración en uso.'),
       // 1 · el calibre
       h('details.cpr-sec', { open: !C }, h('summary', h('b', '1 · Tu calibre'), C ? h('small', C.ok ? ' ✅ comprobado (' + C.fecha + ')' : ' ⚠️ se desvía ' + n2(C.off) + ' mm (' + C.fecha + ')') : h('small', ' sin comprobar')),
@@ -50,12 +53,14 @@ export function abrir(o = {}) {
         btn('Comprobar el calibre', () => { const r = CPR.calibre(CPR.medidasDe(estado.cal)); CPR.guardaCalibre(r); estado.calibre = CPR.guardado().calibre; toast(r.ok ? '✅ Tu calibre mide bien' + (r.monedas.length ? ' (con ' + r.monedas.length + ' referencia' + (r.monedas.length > 1 ? 's' : '') + ')' : '') : '⚠️ ' + r.avisos.join(' '), r.ok ? 'ok' : 'warn', 9000); pinta(); }, { cls: 'sm primary cpr-compcal' })),
       // 2 · la probeta
       h('details.cpr-sec', { open: !!C && !act }, h('summary', h('b', '2 · Imprime la probeta')),
-        h('p.small', 'Con TU perfil y TU filamento de siempre (la impresora y el material de abajo). La probeta va sin compensaciones para medir tu impresora tal cual. Laminada con tu perfil PRECISION en PETG: 33 min en la P1P, 36 min en la A1 mini, unos 12 g, sin soportes.'),
-        h('div.cpr-fila', h('label.cpr-c', h('span', 'Impresora'), h('select.inp', { 'data-k': 'imp', onchange: e => { estado.imp = e.target.value; } }, IMPRESORAS.map(([k, t]) => h('option', { value: k, selected: estado.imp === k }, t)))), h('label.cpr-c', h('span', 'Material'), h('select.inp', { 'data-k': 'mat', onchange: e => { estado.mat = e.target.value; } }, MATERIALES.map(t => h('option', { value: t, selected: estado.mat === t }, t))))),
+        h('div.cpr-tipo', ['rapida', 'normal'].map(v => h('button.cpr-tp' + ((v === 'rapida') === estado.rapida ? '.on' : ''), { type: 'button', 'data-tipo': v, onclick: () => { estado.rapida = v === 'rapida'; estado.R = null; pinta(); } },
+          h('b', v === 'rapida' ? '⚡ Rápida' : '🎯 Normal'), h('small', tiempoTxt(v)), h('small.muted', v === 'rapida' ? 'Mismas medidas, más baja (lleva una R)' : 'La de siempre, 12 mm de alto')))),
+        h('p.small', 'Con TU filamento de siempre (la impresora y el material de abajo). La probeta va sin compensaciones para medir tu impresora tal cual; en el PC se abre YA LAMINADA con el perfil de precisión: solo «Imprimir». ' + (impK() ? 'En tu ' + estado.imp + ': ' + T()[impK()] + ' min (unos 7 son de preparar la impresora), ' + String(T().g).replace('.', ',') + ' g, sin soportes.' : '')),
+        h('div.cpr-fila', h('label.cpr-c', h('span', 'Impresora'), h('select.inp', { 'data-k': 'imp', onchange: e => { estado.imp = e.target.value; pinta(); } }, IMPRESORAS.map(([k, t]) => h('option', { value: k, selected: estado.imp === k }, t)))), h('label.cpr-c', h('span', 'Material'), h('select.inp', { 'data-k': 'mat', onchange: e => { estado.mat = e.target.value; } }, MATERIALES.map(t => h('option', { value: t, selected: estado.mat === t }, t))))),
         h('div.row.wrap', btn('🖨️ Mandar a Bambu Studio', () => manda(true), { cls: 'sm primary cpr-manda' }), btn('⬇️ Descargar el 3MF', () => manda(false), { cls: 'sm ghost cpr-baja' }))),
       // 3 · las medidas
       h('details.cpr-sec', { open: !!C }, h('summary', h('b', '3 · Mídela y escribe lo que marca tu calibre')),
-        h('div.cpr-med', h('div.cpr-dibw', dibujo()), h('div.cpr-lista', CPR.COTAS.map(c => h('label.cpr-m', h('b', c.k), h('span', h('span', c.nombre + ' '), h('small.muted', '(diseño ' + n2(c.d) + ' mm) · ' + c.donde)), h('input.inp', { type: 'number', step: 0.01, min: 0, 'data-cota': c.k, value: estado.med[c.k] ?? '', oninput: e => { estado.med[c.k] = e.target.value; } }))))),
+        h('div.cpr-med', h('div.cpr-dibw', dibujo({ rapida: estado.rapida })), h('div.cpr-lista', CPR.COTAS.map(c => h('label.cpr-m', h('b', c.k), h('span', h('span', c.nombre + ' '), h('small.muted', '(diseño ' + n2(c.k === 'C' ? CPR.altoDe({ rapida: estado.rapida }) : c.d) + ' mm) · ' + c.donde)), h('input.inp', { type: 'number', step: 0.01, min: 0, 'data-cota': c.k, value: estado.med[c.k] ?? '', oninput: e => { estado.med[c.k] = e.target.value; } }))))),
         btn('🧮 Calcular', calcular, { cls: 'primary cpr-calcula' }),
         estado.R ? resultado() : null),
       // las guardadas
@@ -72,15 +77,20 @@ export function abrir(o = {}) {
         h('li', 'Los agujeros salen ' + n2(Math.abs(R.h)) + ' mm por lado más ' + (R.h >= 0 ? 'pequeños' : 'grandes') + ' → «compensación de agujeros» ' + R.claves.xy_hole_compensation + '.'),
         h('li', 'Pie de elefante: ' + n2(R.f) + ' mm → «compensación del pie de elefante» ' + R.claves.elefant_foot_compensation + '.')),
       R.avisos.length ? h('p.r8e-mal.small', '⚠️ ' + R.avisos.join(' ')) : h('p.small.cpr-ok', '✅ Las medidas cuadran entre sí (ninguna se aparta más de 0,08 mm del resto).'),
-      btn('✅ Guardar y usar para «' + clave + '»', () => { CPR.guarda(clave, R, { impresora: estado.imp, material: estado.mat, calibre: estado.calibre ? estado.calibre.off : 0 }); toast('🎯 Guardado. Desde ahora, todo lo que mandes a Bambu (3MF) sale corregido para «' + clave + '». Para comprobarlo: imprime otra vez la probeta y mídela.', 'ok', 10000); estado.R = null; pinta(); }, { cls: 'primary cpr-guarda' }));
+      btn('✅ Guardar y usar para «' + clave + '»', async () => { CPR.guarda(clave, R, { impresora: estado.imp, material: estado.mat, calibre: estado.calibre ? estado.calibre.off : 0, rapida: estado.rapida }); const nube = await import('./calibracion_puerta.js').then(m => m.llevaALaNube()).catch(() => false); toast('🎯 Guardado. Desde ahora, todo lo que mandes a Bambu con la ' + estado.imp + ' sale corregido para «' + clave + '»' + (nube ? ' (en todos tus aparatos)' : '') + '. Para comprobarlo: imprime otra vez la probeta y mídela.', 'ok', 10000); estado.R = null; pinta(); if (o.alGuardar) o.alGuardar(clave); }, { cls: 'primary cpr-guarda' }));
   }
-  function calcular() { try { estado.R = CPR.calcula(estado.med, (estado.calibre && estado.calibre.off) || 0); } catch (e) { toast(e.message || String(e), 'warn', 7000); estado.R = null; } pinta(); }
+  function calcular() { try { estado.R = CPR.calcula(estado.med, (estado.calibre && estado.calibre.off) || 0, { rapida: estado.rapida }); } catch (e) { toast(e.message || String(e), 'warn', 7000); estado.R = null; } pinta(); }
   async function manda(abrirBambu) {
     try { await N.cargar(); const CAT = await import('./catalogo.js'), A = await import('./consejos3d.js'), D = CAT.DISENOS.pruebaPrecision; let blob;
-      try { blob = N.tresMF([{ m: N.aLaCama(CAT.genera('pruebaPrecision', {})), color: D.color, nombre: D.t }], 'Probeta_precision', Object.assign(A.claves({ acabado: 'equilibrado', uso: 'encaje', soporte: 'no', balsa: 'no' }), D.bambu)); } finally { N.limpia(); }
+      const nom = 'Probeta_precision' + (estado.rapida ? '_rapida' : '') + (impK() ? '_' + impK() : '');
+      try { blob = N.tresMF([{ m: N.aLaCama(estado.rapida ? CPR.probeta({ rapida: true }) : CAT.genera('pruebaPrecision', {})), color: D.color, nombre: D.t + (estado.rapida ? ' (rápida)' : '') }], nom, Object.assign(A.claves({ acabado: 'equilibrado', uso: 'encaje', soporte: 'no', balsa: 'no' }), D.bambu)); } finally { N.limpia(); }
       const d = await import('../desktop.js').catch(() => null);
-      if (abrirBambu && d && d.desktop && d.desktop.on) { const r = await d.desktop.bambuAbrir(blob, 'Probeta_precision'); toast(r && r.abierto ? '🖨️ Probeta abierta en Bambu Studio: elige tu impresora, tu filamento y tu perfil de siempre.' : '📦 Guardada en ' + (r && r.path), 'ok', 9000); }
-      else { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: 'Probeta_precision.3mf' }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); toast('⬇️ Probeta descargada (3MF): ábrela con Bambu Studio.', 'ok', 7000); }
+      window.__cprManda = { rapida: estado.rapida, imp: impK(), bytes: blob.size };
+      if (abrirBambu && d && d.desktop && d.desktop.on) {
+        // (11-11) en el PC: YA LAMINADA con el perfil de precisión de ESA impresora (como la placa de la puerta), solo «Imprimir»
+        const r = await d.desktop.bambuAbrir(blob, nom, true, impK() ? { laminar: '1', imp: impK(), mat: estado.mat, proc: CPR.procCal(impK()) } : null);
+        toast(r && r.laminado ? '🖨️ Probeta abierta en Bambu Studio, ya laminada para tu ' + estado.imp + ': pulsa «Imprimir placa».' : r && r.abierto ? '🖨️ Probeta abierta en Bambu Studio: elige tu impresora, tu filamento y tu perfil de siempre.' : '📦 Guardada en ' + (r && r.path), 'ok', 9000); }
+      else { const u = URL.createObjectURL(blob), a = h('a', { href: u, download: nom + '.3mf' }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); toast('⬇️ Probeta descargada (3MF): ábrela con Bambu Studio.', 'ok', 7000); }
       window.__cprProbeta = blob.size;
     } catch (e) { toast(e.message || String(e), 'bad'); }
   }

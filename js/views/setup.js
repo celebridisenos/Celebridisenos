@@ -4,8 +4,9 @@ import { S, api, setServer, afterLogin, pull, login, passHashes, checkNewPasswor
 import { rolePicker, ROLE_INFO } from '../roles.js';
 import { iaSetupStep } from '../ai/models.js';
 import { desktop } from '../desktop.js';
+import { marcaFinal } from '../marca.js';
 
-function page(...kids) { return h('div.center-page', ...kids); }
+function page(...kids) { return h('div.center-page', marcaFinal('auth-marca', 'Versión final'), ...kids); } // 11-11-2026 · ✍️ CELEBRIDISEÑOS By Noorko (solo en la portada)
 function logo() { let src = 'icons/icon-192.png'; try { src = localStorage.getItem('cd.logo') || src; } catch (e) { } return h('div.brand', { style: { padding: '0 0 12px' } }, h('div.logo', h('img', { src, alt: '', style: { objectFit: 'contain' } })), h('div', h('b', 'CelebriDiseños'), h('small', 'Gestión del negocio'))); }
 function errBox() { return h('p.bad-t', { role: 'alert' }); }
 

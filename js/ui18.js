@@ -131,7 +131,7 @@ export function estreno(opts = {}) {
     ['⚡', 'Más rápido', 'Guardar ya no hace esperar', 'puente']
   ];
   const final = h('div.est18-final', h('div.est18-tarjeta',
-    h('div.est18-sello', 'VERSIÓN 18'), h('h2', 'Bienvenida a tu programa nuevo'),
+    h('div.est18-sello', 'VERSIÓN 18'), h('h2', 'Bienvenido a tu programa nuevo'),
     h('p', 'Todo lo tuyo sigue en su sitio: pedidos, clientes, productos. Lo que cambia es todo lo demás.'),
     h('div.est18-nov', NOV.map(([e, t, d, r]) => h('button', { type: 'button', onclick: () => cerrar(r) }, h('span', e), h('b', t), h('small', d)))),
     h('div.row.wrap', { style: { gap: '10px', justifyContent: 'center' } }, btn('🚀 Entrar al Puente de mando', () => cerrar('puente'), { cls: 'primary' })),
