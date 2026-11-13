@@ -102,3 +102,34 @@
 .ct-aviso-c[hidden] { display: none } .ct-aviso-c b { font-size: 16px } .ct-aviso-c p { margin: 6px 0 10px }
 .ct-aviso-b { display: flex; gap: 8px; flex-wrap: wrap }
 .ct-convertir { width: 100%; margin-top: 10px; border-color: #f08c00 !important }
+
+/* ---------- 11-11-2026 · 🪄 MODO FÁCIL: zonas (se toca una zona y un color) ---------- */
+.ct-modos.tres { grid-template-columns: 1fr 1fr 1fr }
+.ct-modos.tres button { padding-left: 4px; padding-right: 4px; font-size: 12.5px }
+.ct-facil-nota { margin: 0 }
+.ct-zonas { display: flex; flex-direction: column; gap: 6px }
+.ct-zona { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; border: 2px solid color-mix(in srgb, var(--text, #fff) 16%, transparent); background: color-mix(in srgb, var(--text, #fff) 5%, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer }
+.ct-zona:hover { border-color: var(--accent, #7c6cff) }
+.ct-zona.on { border-color: #ffe14a; background: color-mix(in srgb, #ffe14a 16%, transparent) }
+.ct-zona i { flex: none; width: 30px; height: 30px; border-radius: 9px; border: 2px solid rgba(128, 128, 128, .55) }
+.ct-zona span { display: flex; flex-direction: column; min-width: 0 }
+.ct-zona b { font-size: 14px }
+.ct-zona small { font-size: 11.5px; opacity: .78 }
+.ct-zherr button { flex: 1 1 46%; padding: 8px 6px; font-size: 12.5px }
+.ct-zherr button.on { background: #ffe14a; color: #1b1b1f; border-color: transparent; font-weight: 700 }
+.ct-zherr button:disabled { opacity: .4; cursor: default }
+.ct-borde { flex-wrap: wrap }
+.ct-borde button { border: 1px solid color-mix(in srgb, var(--text, #fff) 18%, transparent); background: color-mix(in srgb, var(--text, #fff) 5%, transparent); color: inherit; border-radius: 8px; padding: 5px 9px; cursor: pointer }
+.ct-paleta.grande { grid-template-columns: repeat(5, 1fr); gap: 8px }
+.ct-paleta.grande .ct-col { aspect-ratio: auto; height: 46px; border-radius: 12px }
+.ct-combos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
+.ct-combos button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 4px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text, #fff) 18%, transparent); background: color-mix(in srgb, var(--text, #fff) 5%, transparent); color: inherit; font: inherit; font-size: 12px; cursor: pointer }
+.ct-combos button:hover { border-color: var(--accent, #7c6cff) }
+.ct-combos span { display: flex }
+.ct-combos i { width: 22px; height: 16px; border: 1px solid rgba(128, 128, 128, .6) }
+.ct-combos i:first-child { border-radius: 6px 0 0 6px } .ct-combos i:last-child { border-radius: 0 6px 6px 0 }
+.ct-paso { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; background: color-mix(in srgb, var(--text, #fff) 5%, transparent); font-size: 13px; margin-bottom: 5px }
+.ct-paso > b { flex: none; width: 20px; text-align: center }
+.ct-paso i { flex: none; width: 18px; height: 18px; border-radius: 6px; border: 1px solid rgba(128, 128, 128, .6); font-style: normal; font-size: 12px; text-align: center; line-height: 18px }
+.ct-facil .ct-regla, .ct-facil .ct-corte-c { display: none }
+.ct-cortando .ct-cv, .ct-cortando .ct-tira { cursor: crosshair }

@@ -17,6 +17,7 @@ import { h, mount, btn, toast } from '../ui.js';
 import * as N from './nucleo.js';
 import { crearEscena } from './escena3d.js';
 import { COLORES as PALETA, capaDe } from './colores_capas.js';
+import { cortesAuto, zonasDe, zonaDeCapa, cortesIguales, COMBOS, coloresDeCombo, nombreZona } from './colores_zonas.js'; // 11-11-2026 · 🪄 modo fácil: zonas automáticas
 
 export const TIPOS = { color: ['🎨', 'Cambio de color', 'La impresora se para, cambias la bobina por la del color nuevo y sigue'], pausa: ['⏸', 'Pausa', 'Se para para que metas algo (un imán, una tuerca) y sigue con el mismo color'],
   filamento: ['🧵', 'Cambio de bobina', 'Se para para poner otra bobina del MISMO color (se acaba la que hay)'], gcode: ['⌨', 'Orden propia', 'Una orden de tu impresora (G-code) en esa capa: solo si sabes cuál'] };
@@ -128,13 +129,23 @@ export function abrirColores(o) {
     let M = null, rota = ''; try { M = N.guarda(N.deSopa(s)); } catch (e) { rota = e.message || String(e); } N.limpia();
     const E = JSON.parse(JSON.stringify({ base: o.est.base || baseDef, cambios: (o.est.cambios || []).map(c => Object.assign({ id: nuevoId(), tipo: 'color', activa: true }, c)), caras: o.est.caras || null, propio: o.est.propio || o.est.base || baseDef })); // (propio = el color de la pieza antes de pasar lo pintado a capas)
     let pal = (() => { try { return JSON.parse(localStorage.getItem('cd.r8.paleta') || '[]'); } catch (e) { return []; } })();
-    let sel = { a: Math.min(n, Math.max(2, Math.round(n / 2))), b: Math.min(n, Math.max(2, Math.round(n / 2))) }, color = '#1b1b1f', modo = 'capas', herr = 'cara', grados = 25, radio = 4, selId = null, escena = null, vivo = true;
-    const hist = [JSON.stringify(E)]; let hi = 0;
+    let sel = { a: Math.min(n, Math.max(2, Math.round(n / 2))), b: Math.min(n, Math.max(2, Math.round(n / 2))) }, color = '#1b1b1f', herr = 'cara', grados = 25, radio = 4, selId = null, escena = null, vivo = true;
+    // 11-11-2026 · 🪄 MODO FÁCIL (el de serie): la pieza partida en ZONAS; se toca una zona y un color, y queda pintada entera
+    const MODOS = ['facil', 'capas', 'caras']; let modo = MODOS.includes(o.modo) ? o.modo : (() => { try { const m = localStorage.getItem('cd.ct.modo'); return MODOS.includes(m) ? m : 'facil'; } catch (e) { return 'facil'; } })();
+    const AUTO = cortesAuto(s, n, capa, primera); let cortando = false;
+    const capasCambio = () => eventos(E, capa, primera).filter(e => e.tipo === 'color' && e.activa && e.capa >= 2 && e.capa <= n).map(e => e.capa);
+    // los cortes (capas donde empieza una zona): los guardados o, si no hay, los escalones que encuentra el motor; y siempre, donde ya cambia el color
+    let cortes = Array.isArray(o.est.cortes) ? o.est.cortes.map(z => capaDeZ(z, capa, primera)) : AUTO.map(c => c.capa);
+    const zonas = () => zonasDe(cortes.concat(capasCambio()), n);
+    const ponZona = i => { const Z = zonas(); i = Math.max(0, Math.min(Z.length - 1, i)); sel = { a: Z[i].a, b: Z[i].b }; return Z[i]; };
+    const zonaSel = () => { const Z = zonas(); return zonaDeCapa(Z, sel.a); };
+    if (modo === 'facil') ponZona(zonas().length - 1); // (empieza por la de arriba: en un relieve son las letras)
+    let hist = [JSON.stringify(E)], hi = 0;
     // caras pintadas
     let TOPO = null, triCol = new Uint8Array(nT), triSel = new Uint8Array(nT), colCaras = E.caras && E.caras.colores ? E.caras.colores.slice() : [];
     if (E.caras && E.caras.tris === nT && E.caras.rle) triCol = deRle(E.caras.rle, nT); else if (E.caras && E.caras.tris) { E.caras = null; colCaras = []; setTimeout(() => toast('La pieza ha cambiado desde que pintaste sus caras: esa pintura ya no vale (las capas y las pausas, sí).', 'warn', 8000), 600); }
-    const apunta = () => { E.caras = triCol.some(v => v) ? { tris: nT, colores: colCaras, rle: aRle(triCol) } : null; hist.length = hi + 1; hist.push(JSON.stringify(E)); hi = hist.length - 1; if (hist.length > 80) { hist.shift(); hi--; } todo(); };
-    const vuelve = d => { const k = hi + d; if (k < 0 || k >= hist.length) return; hi = k; const X = JSON.parse(hist[hi]); E.base = X.base; E.cambios = X.cambios; E.caras = X.caras; colCaras = X.caras ? X.caras.colores.slice() : []; triCol = X.caras ? deRle(X.caras.rle, nT) : new Uint8Array(nT); if (selId && !E.cambios.some(c => c.id === selId)) selId = null; todo(); };
+    const apunta = () => { E.caras = triCol.some(v => v) ? { tris: nT, colores: colCaras, rle: aRle(triCol) } : null; E.cortes = cortes.slice(); hist.length = hi + 1; hist.push(JSON.stringify(E)); hi = hist.length - 1; if (hist.length > 80) { hist.shift(); hi--; } todo(); };
+    const vuelve = d => { const k = hi + d; if (k < 0 || k >= hist.length) return; hi = k; const X = JSON.parse(hist[hi]); E.base = X.base; E.cambios = X.cambios; E.caras = X.caras; if (Array.isArray(X.cortes)) cortes = X.cortes.slice(); if (modo === 'facil') ponZona(zonaSel()); colCaras = X.caras ? X.caras.colores.slice() : []; triCol = X.caras ? deRle(X.caras.rle, nT) : new Uint8Array(nT); if (selId && !E.cambios.some(c => c.id === selId)) selId = null; todo(); };
 
     // ---- la ventana ----
     const lienzo = h('canvas.ct-cv'), etiquetas = h('div.ct-etis'), izq = h('div.ct-izq'), der = h('div.ct-der'), abajo = h('div.ct-abajo'), cabeza = h('div.ct-cab'), regla = h('div.ct-regla'), cubo = h('div.ct-cubo'), caja = h('div.ct-caja');
@@ -146,7 +157,7 @@ export function abrirColores(o) {
     const fondoV = h('div.ct-fondo', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Colores y pausas' }, h('div.ct', cabeza, h('div.ct-medio', izq, h('div.ct-vista', lienzo, etiquetas, caja, regla, cubo, avisoC), der), abajo));
     document.body.append(fondoV);
     const cerrar = guardar => { if (!vivo) return; vivo = false; document.removeEventListener('keydown', tecla, true); window.removeEventListener('pointerup', alSoltar); window.removeEventListener('resize', alCambiarTam);
-      if (guardar) { o.est.base = E.base; o.est.cambios = E.cambios.map(c => { const x = { id: c.id, z: c.z, color: c.color }; if (c.tipo && c.tipo !== 'color') x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }); if (E.caras) o.est.caras = E.caras; else delete o.est.caras; if (E.propio) o.est.propio = E.propio; o.alGuardar && o.alGuardar(o.est); }
+      if (guardar) { o.est.base = E.base; o.est.cambios = E.cambios.map(c => { const x = { id: c.id, z: c.z, color: c.color }; if (c.tipo && c.tipo !== 'color') x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }); if (E.caras) o.est.caras = E.caras; else delete o.est.caras; if (E.propio) o.est.propio = E.propio; o.est.cortes = [...new Set(cortes)].sort((x, y) => x - y).map(k => zSuelo(k, capa, primera)); o.alGuardar && o.alGuardar(o.est); }
       try { escena && escena.destruir(); } catch (e) { } if (M) N.suelta(M); fondoV.remove(); window.__r8ct = null; resolve(guardar ? o.est : null); };
     try { escena = crearEscena(lienzo, { cama: Math.max(120, Math.ceil(Math.max(ancho, fondo) * 1.5 / 10) * 10), dia: document.documentElement.getAttribute('data-modo') === 'dia' }); try { escena.cuboVistas(cubo, 84); } catch (e) { } } catch (e) { toast('Este aparato no deja ver en 3D: ' + (e.message || e), 'bad'); cerrar(false); return; }
 
@@ -164,6 +175,9 @@ export function abrirColores(o) {
         if (modo === 'caras' || !M) partes.push({ id: 'pieza', vista: vistaCaras(C), color: E.base, acabado: 'mate' });
         N.enAmbito(() => {
           if (M && modo !== 'caras') { let k0 = 1; for (let k = 2; k <= n + 1; k++) if (k > n || C[k] !== C[k0]) { const za = k0 === 1 ? -1 : zSuelo(k0, capa, primera), zb = k > n ? alto + 1 : zSuelo(k, capa, primera), b = M.trimByPlane([0, 0, 1], za).trimByPlane([0, 0, -1], -zb); if (!b.isEmpty()) partes.push({ id: 'f' + k0, vista: N.aVista(b), color: C[k0], acabado: 'mate' }); k0 = k; } }
+          if (M && modo === 'facil') { const g = Math.max(0.5, Math.max(ancho, fondo) * 0.008), gr = Math.max(0.24, capa), aro = (z, ancho2, id, colr, res) => { try { const cs = M.slice(Math.max(0.01, Math.min(alto - 0.01, z))); if (cs.isEmpty()) return; partes.push({ id, vista: N.aVista(cs.offset(g * ancho2, 'Round').subtract(cs.offset(-g * 0.3, 'Round')).extrude(gr * ancho2).translate([0, 0, z - gr * ancho2 / 2])), color: colr, acabado: 'mate', resalta: !!res }); } catch (x) { } };
+            const Z = zonas(), ev = capasCambio(); Z.slice(1).forEach(z => { if (!ev.includes(z.a)) aro(zSuelo(z.a, capa, primera) + 0.02, 0.7, 'corte' + z.a, '#aeb6c8'); });
+            if (Z.length > 1) { if (sel.a > 1) aro(zSuelo(sel.a, capa, primera) + 0.03, 1.15, 'selA', '#ffe14a'); if (sel.b < n) aro(zTecho(sel.b, capa, primera) - 0.03, 1.15, 'selB', '#ffe14a'); } }
           if (M && modo === 'capas') { const za = zSuelo(sel.a, capa, primera), zb = zTecho(sel.b, capa, primera), b = M.trimByPlane([0, 0, 1], za).trimByPlane([0, 0, -1], -zb); if (!b.isEmpty()) partes.push({ id: 'sel', vista: N.aVista(b), color: '#ffe14a', resalta: true }); }
           if (M) eventos(E, capa, primera).filter(e => e.capa >= 2 && e.capa <= n).forEach(e => { try { const cs = M.slice(Math.min(alto - 0.01, e.z + 0.02)); if (cs.isEmpty()) return; const g = Math.max(0.5, Math.max(ancho, fondo) * 0.008), aro = cs.offset(g, 'Round').subtract(cs.offset(-g * 0.3, 'Round')).extrude(Math.max(0.24, capa)).translate([0, 0, e.z - Math.max(0.24, capa) / 2]); partes.push({ id: 'aro' + e.id, vista: N.aVista(aro), color: e.id === selId ? '#ff7a1a' : e.activa ? '#ffffff' : '#666a75', acabado: 'mate' }); } catch (x) { } });
         });
@@ -173,7 +187,7 @@ export function abrirColores(o) {
     // ---- las etiquetas de las pausas, pegadas a su altura (se arrastran) ----
     let etiArr = false; // (mientras se arrastra una, no se rehacen)
     const xEti = () => ancho / 2 + Math.max(4, ancho * 0.12);
-    function colocaEtiquetas() { if (!vivo || !escena) return; const L = eventos(E, capa, primera); etiquetas.querySelectorAll('.ct-eti').forEach(el => { const e = L.find(x => x.id === el.dataset.eti); if (!e) return; const p = escena.aPantalla([xEti(), 0, e.z]); el.style.display = p.delante ? '' : 'none'; el.style.left = Math.round(p.x) + 'px'; el.style.top = Math.round(p.y) + 'px'; el.dataset.y = String(Math.round(p.y)); const sp = el.querySelector('span'); if (sp) sp.textContent = 'capa ' + e.capa; });
+    function colocaEtiquetas() { if (!vivo || !escena) return; const L = eventos(E, capa, primera); etiquetas.querySelectorAll('.ct-eti').forEach(el => { const e = L.find(x => x.id === el.dataset.eti); if (!e) return; const p = escena.aPantalla([xEti(), 0, e.z]); el.style.display = p.delante ? '' : 'none'; el.style.left = Math.round(Math.max(8, Math.min(p.x, lienzo.clientWidth - 118))) + 'px'; el.style.top = Math.round(p.y) + 'px'; el.dataset.y = String(Math.round(p.y)); const sp = el.querySelector('span'); if (sp) sp.textContent = 'capa ' + e.capa; });
       // las que caen casi a la misma altura se corren a la derecha, para que no se tapen
       let yAnt = -99, col = 0; [...etiquetas.querySelectorAll('.ct-eti')].filter(el => el.style.display !== 'none').sort((a, b) => Number(b.dataset.y) - Number(a.dataset.y)).forEach(el => { const y = Number(el.dataset.y); col = Math.abs(y - yAnt) < 26 ? col + 1 : 0; yAnt = y; el.style.marginLeft = (col * 104) + 'px'; }); }
     function pintaEtiquetas() {
@@ -187,15 +201,15 @@ export function abrirColores(o) {
         return el; }));
       colocaEtiquetas();
     }
-    function mueveA(id, k, sinApuntar) { const c = E.cambios.find(x => x.id === id); if (!c) return; mueveEvento(E, id, k, n, capa, primera); sel = { a: capaDeZ(c.z, capa, primera), b: capaDeZ(c.z, capa, primera) }; if (sinApuntar) { pide3d(); pintaDer(); pintaIzq(); pintaAbajo(); } else apunta(); }
+    function mueveA(id, k, sinApuntar) { const c = E.cambios.find(x => x.id === id); if (!c) return; const kAntes = capaDeZ(c.z, capa, primera); mueveEvento(E, id, k, n, capa, primera); const kDespues = capaDeZ(c.z, capa, primera); cortes = cortes.filter(q => q !== kAntes); sel = { a: kDespues, b: kDespues }; if (modo === 'facil') ponZona(zonaDeCapa(zonas(), kDespues)); if (sinApuntar) { pide3d(); pintaDer(); pintaIzq(); pintaAbajo(); } else apunta(); }
 
     // ---- izquierda: la regla de capas o las herramientas de caras ----
     const numero = (v, min, max, paso, alCambiar, extra) => h('input.inp.ct-num', Object.assign({ type: 'number', min, max, step: paso, value: v, onchange: e => { const x = Number(String(e.target.value).replace(',', '.')); if (isFinite(x)) alCambiar(x); } }, extra || {}));
     const ponSel = (a, b) => { sel = { a: Math.max(1, Math.min(n, Math.round(Math.min(a, b)))), b: Math.max(1, Math.min(n, Math.round(Math.max(a, b)))) }; todo(true); };
     function pintaIzq() {
       const k = sel.b, uno = sel.a === sel.b;
-      mount(izq, h('div.ct-modos', [['capas', '🧱 Por capas', 'Lo que se imprime de verdad con una bobina cada vez'], ['caras', '🖌️ Pintar caras', 'Para verlo y enseñarlo: no cambia cómo se imprime']].map(([m, t, tt]) => h('button' + (modo === m ? '.on' : ''), { type: 'button', 'data-modo': m, title: tt, onclick: () => { modo = m; triSel.fill(0); if (m === 'caras' && !TOPO) TOPO = topologia(s); todo(); } }, t))),
-        modo === 'capas' ? [
+      mount(izq, h('div.ct-modos.tres', [['facil', '🪄 Fácil', 'Por zonas: tocas una zona y un color'], ['capas', '🧱 Capa a capa', 'Para afinar: capa a capa, pausas y órdenes propias'], ['caras', '🖌️ Caras', 'Pintar caras, para verlo y enseñarlo: no cambia cómo se imprime']].map(([m, t, tt]) => h('button' + (modo === m ? '.on' : ''), { type: 'button', 'data-modo': m, title: tt, onclick: () => { modo = m; cortando = false; try { localStorage.setItem('cd.ct.modo', m); } catch (e) { } triSel.fill(0); if (m === 'caras' && !TOPO) TOPO = topologia(s); if (m === 'facil') ponZona(zonaDeCapa(zonas(), sel.b)); todo(); } }, t))),
+        modo === 'facil' ? panelZonas() : modo === 'capas' ? [
           h('div.ct-capa', h('small', 'CAPA ELEGIDA'), h('div.ct-capa-n', h('b', { 'data-ct': 'capa' }, uno ? String(k) : sel.a + '–' + sel.b), h('span', ' de ' + n)),
             h('div.ct-capa-d', h('span', 'Altura Z ', h('b', { 'data-ct': 'z' }, f2(zSuelo(sel.a, capa, primera)) + (uno ? '' : ' – ' + f2(zTecho(sel.b, capa, primera))) + ' mm')), h('span', 'Altura de capa ', h('b', f2(capa) + ' mm'), ' (la 1.ª, ' + f2(primera) + ')'))),
           h('div.ct-pasos', [['⏮', 1 - k, 'La primera'], ['−10', -10, '10 capas abajo'], ['◀', -1, 'La de abajo (flecha ↓)'], ['▶', 1, 'La de arriba (flecha ↑)'], ['+10', 10, '10 capas arriba'], ['⏭', n - k, 'La última']].map(([t, d, tt]) => h('button', { type: 'button', title: tt, 'data-paso': String(d), onclick: () => ponSel(k + d, k + d) }, t))),
@@ -214,8 +228,34 @@ export function abrirColores(o) {
           h('div.ct-rango-b', h('button', { type: 'button', 'data-ct': 'limpia', onclick: () => { triSel.fill(0); todo(true); } }, 'Soltar lo elegido (Esc)')),
           h('p.ct-ayuda', 'Toca para elegir (con Mayús, se suma). Luego pulsa «Pintar lo elegido» a la derecha. Con el pincel y el recuadro, arrastra; para girar la pieza, usa el botón derecho.')]);
     }
+    // ---- 11-11-2026 · 🪄 MODO FÁCIL: las zonas ----
+    function pintaZona(c) { const Z = zonas(), i = zonaSel(), z = Z[i]; color = c; cortes = [...new Set(cortes.concat(capasCambio()))]; pintaCapas(E, z.a, z.b, c, n, capa, primera, baseDef); apunta(); toast('🎨 ' + nombreZona(i, Z.length) + ' en ' + nombreColor(c).toLowerCase(), 'ok', 1600); }
+    function cortaEn(k) { k = Math.max(2, Math.min(n, Math.round(k))); cortando = false; if (zonas().some(z => z.a === k)) { ponZona(zonaDeCapa(zonas(), k)); return todo(); } cortes = [...new Set(cortes.concat(capasCambio(), [k]))]; ponZona(zonaDeCapa(zonas(), k)); apunta(); toast('✂️ Cortada a ' + f2(zSuelo(k, capa, primera)) + ' mm: ahora son ' + zonas().length + ' zonas', 'ok', 2200); }
+    function uneAbajo() { const Z = zonas(), i = zonaSel(); if (i < 1) return; const z = Z[i], C = coloresPorCapa(E, n, capa, primera, baseDef); cortes = [...new Set(cortes.concat(capasCambio()))].filter(k => k !== z.a); pintaCapas(E, z.a, z.b, C[z.a - 1], n, capa, primera, baseDef); ponZona(zonaDeCapa(zonas(), z.a - 1)); apunta(); }
+    function mueveBorde(k) { const Z = zonas(), i = zonaSel(); if (i < 1) return; const z = Z[i], ab = Z[i - 1]; k = Math.max(ab.a + 1, Math.min(z.b, Math.round(k))); if (k === z.a) return; const C = coloresPorCapa(E, n, capa, primera, baseDef), cAb = C[z.a - 1], cEs = C[z.a];
+      cortes = [...new Set(cortes.concat(capasCambio()))].filter(q => q !== z.a).concat([k]); if (k > z.a) pintaCapas(E, z.a, k - 1, cAb, n, capa, primera, baseDef); else pintaCapas(E, k, z.a - 1, cEs, n, capa, primera, baseDef); ponZona(zonaDeCapa(zonas(), k)); apunta(); }
+    function ponCortes(L, aviso) { cortes = [...new Set(L.concat(capasCambio()))]; ponZona(zonas().length - 1); apunta(); if (aviso) toast(aviso, 'ok', 3500); }
+    function ponCombo(cols) { const Z = zonas(); cortes = [...new Set(cortes.concat(capasCambio()))]; coloresDeCombo(cols, Z.length).forEach((c, i) => pintaCapas(E, Z[i].a, Z[i].b, c, n, capa, primera, baseDef)); apunta(); }
+    function panelZonas() {
+      const Z = zonas(), zi = zonaSel(), C = coloresPorCapa(E, n, capa, primera, baseDef), z = Z[zi];
+      return [
+        h('p.ct-aviso.ct-facil-nota', 'Sin AMS el color cambia ', h('b', 'por alturas'), ', de abajo arriba. Cada zona es un trozo de altura de la pieza.'),
+        h('small.ct-tit', '① TOCA UNA ZONA (aquí o en la pieza)'),
+        h('div.ct-zonas', Z.map((q, i) => h('button.ct-zona' + (i === zi ? '.on' : ''), { type: 'button', 'data-zona': String(i), onclick: () => { cortando = false; ponZona(i); todo(true); } }, h('i', { style: { background: C[q.a] } }), h('span', h('b', nombreZona(i, Z.length)), h('small', 'de ' + f2(zSuelo(q.a, capa, primera)) + ' a ' + f2(Math.min(alto, zTecho(q.b, capa, primera))) + ' mm · ' + nombreColor(C[q.a]).toLowerCase())))).reverse()),
+        Z.length === 1 ? h('p.ct-ayuda', { 'data-ct': 'sin-escalones' }, AUTO.length ? 'Ahora es una sola zona. Pártela con los botones de abajo.' : 'Esta pieza no tiene escalones planos donde cortar sola: pártela tú, con «✂️ Cortar» o en partes iguales.') : null,
+        h('small.ct-tit', 'CAMBIAR LAS ZONAS'),
+        h('div.ct-rango-b.ct-zherr',
+          h('button' + (cortando ? '.on' : ''), { type: 'button', 'data-ct': 'cortar', title: 'Pulsa aquí y luego toca la pieza a la altura donde quieres partirla', onclick: () => { cortando = !cortando; todo(true); } }, cortando ? '✂️ Toca la pieza donde cortar…' : '✂️ Cortar donde toque'),
+          h('button', { type: 'button', 'data-ct': 'unir', disabled: zi < 1, title: 'Junta la zona elegida con la de debajo', onclick: uneAbajo }, '🧲 Unir con la de abajo'),
+          h('button', { type: 'button', 'data-ct': 'auto', title: 'El programa busca los escalones de la pieza (caras planas) y la parte por ahí', onclick: () => ponCortes(AUTO.map(c => c.capa), AUTO.length ? '🪄 ' + (AUTO.length + 1) + ' zonas, por los escalones de la pieza' : '🪄 Esta pieza no tiene escalones planos: pártela tú') }, '🪄 Zonas automáticas'),
+          h('button', { type: 'button', 'data-ct': 'partes2', onclick: () => ponCortes(cortesIguales(n, 2), '➗ En 2 partes iguales de altura') }, '➗ En 2 partes'),
+          h('button', { type: 'button', 'data-ct': 'partes3', onclick: () => ponCortes(cortesIguales(n, 3), '➗ En 3 partes iguales de altura') }, '➗ En 3 partes')),
+        zi > 0 ? h('label.ct-campo.ct-borde', h('span', 'Esta zona empieza a'), numero(r3(zSuelo(z.a, capa, primera)), 0, r3(alto), 0.01, v => mueveBorde(capaDeZ(Math.max(primera, v), capa, primera)), { 'data-ct': 'borde' }), h('small', 'mm'),
+          h('button', { type: 'button', 'data-ct': 'bordeBaja', title: 'Una capa más abajo', onclick: () => mueveBorde(z.a - 1) }, '▼'), h('button', { type: 'button', 'data-ct': 'bordeSube', title: 'Una capa más arriba', onclick: () => mueveBorde(z.a + 1) }, '▲')) : null,
+        h('p.ct-ayuda', 'Las etiquetas con número que salen junto a la pieza son las paradas: también se pueden arrastrar arriba y abajo.')];
+    }
     // ---- derecha: paleta, pintar y la lista de pausas ----
-    function ponColor(c) { color = c; pintaDer(); }
+    function ponColor(c) { color = c; if (modo === 'facil') return pintaZona(c); pintaDer(); }
     function pinta() { // pintar lo elegido (capas o caras)
       if (modo === 'capas') { pintaCapas(E, sel.a, sel.b, color, n, capa, primera, baseDef); apunta(); toast('🎨 Capas ' + sel.a + (sel.a === sel.b ? '' : '–' + sel.b) + ' en ' + nombreColor(color).toLowerCase(), 'ok', 1800); }
       else { if (!triSel.some(v => v)) return toast('Toca antes la pieza para elegir qué pintas.', 'warn'); let i = colCaras.findIndex(c => c.toLowerCase() === color.toLowerCase()); if (i < 0) { if (colCaras.length >= 250) return toast('Demasiados colores distintos.', 'warn'); colCaras.push(color); i = colCaras.length - 1; } for (let t = 0; t < nT; t++) if (triSel[t]) triCol[t] = i + 1; triSel.fill(0); apunta(); }
@@ -235,14 +275,18 @@ export function abrirColores(o) {
     function pintaDer() {
       const L = eventos(E, capa, primera), V = valida(E, n, capa, primera), R = resumen(E, n, capa, primera, baseDef), todos = PALETA.map(x => x[0]).concat(pal.filter(c => !PALETA.some(x => x[0].toLowerCase() === c.toLowerCase())));
       const nCaras = new Map(); if (modo === 'caras') for (let t = 0; t < nT; t++) if (triCol[t]) nCaras.set(triCol[t], (nCaras.get(triCol[t]) || 0) + 1);
-      mount(der, h('small.ct-tit', 'COLOR'), h('div.ct-paleta', todos.map(c => h('button.ct-col' + (c.toLowerCase() === color.toLowerCase() ? '.on' : ''), { type: 'button', 'data-col': c, title: nombreColor(c), style: { background: c }, onclick: () => ponColor(c) })),
+      mount(der, h('small.ct-tit', modo === 'facil' ? '② TOCA UN COLOR: pinta la zona elegida' : 'COLOR'), h('div.ct-paleta' + (modo === 'facil' ? '.grande' : ''), todos.map(c => h('button.ct-col' + (c.toLowerCase() === color.toLowerCase() ? '.on' : ''), { type: 'button', 'data-col': c, title: nombreColor(c), style: { background: c }, onclick: () => ponColor(c) })),
           h('label.ct-col.ct-otro', { title: 'Otro color (se guarda en tu paleta)' }, '＋', h('input', { type: 'color', value: color, 'data-ct': 'otro', onchange: e => { const c = e.target.value; if (!todos.some(x => x.toLowerCase() === c.toLowerCase())) { pal = pal.concat([c]).slice(-12); try { localStorage.setItem('cd.r8.paleta', JSON.stringify(pal)); } catch (x) { } } ponColor(c); } }))),
-        h('div.ct-actual', h('i', { style: { background: color } }), h('b', nombreColor(color)), h('code', color.toUpperCase())),
-        modo === 'capas' ? [h('button.btn.primary.ct-pintar', { type: 'button', 'data-ct': 'pintar', onclick: pinta }, '🎨 Pintar ' + (sel.a === sel.b ? 'la capa ' + sel.a : 'las capas ' + sel.a + '–' + sel.b)),
+        modo === 'facil' ? null : h('div.ct-actual', h('i', { style: { background: color } }), h('b', nombreColor(color)), h('code', color.toUpperCase())),
+        modo === 'facil' ? [h('small.ct-tit', 'O UNA COMBINACIÓN YA HECHA'), h('div.ct-combos', COMBOS.map(([t, cols], i) => h('button', { type: 'button', 'data-combo': String(i), title: 'Reparte estos colores por las zonas, de abajo arriba', onclick: () => ponCombo(cols) }, h('span', cols.map(c => h('i', { style: { background: c } }))), t))),
+          h('div.ct-lista', h('small.ct-tit', 'LO QUE HARÁ LA IMPRESORA'), L.filter(e => e.activa).length ? [h('div.ct-paso', { 'data-paso-f': '0' }, h('b', '▶'), h('i', { style: { background: E.base } }), h('span', 'Empieza con ', h('b', nombreColor(E.base).toLowerCase()))),
+            L.filter(e => e.activa).map((e, i) => h('div.ct-paso', { 'data-paso-f': String(i + 1) }, h('b', '✋'), h('i', { style: { background: e.tipo === 'color' ? e.color : 'transparent' } }, e.tipo === 'color' ? '' : TIPOS[e.tipo][0]), h('span', 'Se para a ' + f2(e.z) + ' mm', e.tipo === 'color' ? [' → pones ', h('b', nombreColor(e.color).toLowerCase())] : ' (' + TIPOS[e.tipo][1].toLowerCase() + ')')))]
+            : h('p.ct-ayuda', 'Todavía de un solo color: no se para. Elige una zona y toca un color.'))]
+        : modo === 'capas' ? [h('button.btn.primary.ct-pintar', { type: 'button', 'data-ct': 'pintar', onclick: pinta }, '🎨 Pintar ' + (sel.a === sel.b ? 'la capa ' + sel.a : 'las capas ' + sel.a + '–' + sel.b)),
           h('div.ct-mas', h('small', 'PARAR EN LA CAPA ' + Math.max(2, sel.a) + ' SIN CAMBIAR DE COLOR'), h('div.ct-rango-b', ['pausa', 'filamento', 'gcode'].map(t => h('button', { type: 'button', 'data-nueva': t, title: TIPOS[t][2], onclick: () => nuevaPausa(t) }, TIPOS[t][0] + ' ' + TIPOS[t][1]))))]
           : [h('button.btn.primary.ct-pintar', { type: 'button', 'data-ct': 'pintar', onclick: pinta }, '🖌️ Pintar lo elegido'), h('div.ct-rango-b', h('button', { type: 'button', 'data-ct': 'quita', onclick: quitaPintura }, 'Quitar la pintura de lo elegido')),
             triCol.some(v => v) ? h('button.btn.ct-convertir', { type: 'button', 'data-ct': 'convertir', title: 'La impresora cambia de color por capas (de abajo arriba). Esto mira lo que has pintado en las caras planas y lo convierte en esas paradas.', onclick: convierte }, '🪄 Pasarlo a colores POR CAPAS (lo que se imprime)') : null],
-        modo === 'caras' ? h('div.ct-lista', h('small.ct-tit', 'CARAS PINTADAS'), colCaras.map((c, i) => nCaras.get(i + 1) ? h('div.ct-res', { 'data-cara': c }, h('i', { style: { background: c } }), h('span', nombreColor(c)), h('b', nCaras.get(i + 1) + ' triángulos'), h('button', { type: 'button', title: 'Elegir todo lo de este color (para cambiarlo o quitarlo)', onclick: () => { for (let t = 0; t < nT; t++) triSel[t] = triCol[t] === i + 1 ? 1 : 0; todo(true); } }, '☝')) : null), nCaras.size ? null : h('p.ct-ayuda', 'Todavía no hay ninguna cara pintada.'))
+        modo === 'facil' ? null : modo === 'caras' ? h('div.ct-lista', h('small.ct-tit', 'CARAS PINTADAS'), colCaras.map((c, i) => nCaras.get(i + 1) ? h('div.ct-res', { 'data-cara': c }, h('i', { style: { background: c } }), h('span', nombreColor(c)), h('b', nCaras.get(i + 1) + ' triángulos'), h('button', { type: 'button', title: 'Elegir todo lo de este color (para cambiarlo o quitarlo)', onclick: () => { for (let t = 0; t < nT; t++) triSel[t] = triCol[t] === i + 1 ? 1 : 0; todo(true); } }, '☝')) : null), nCaras.size ? null : h('p.ct-ayuda', 'Todavía no hay ninguna cara pintada.'))
         : h('div.ct-lista', h('small.ct-tit', 'PARADAS · ' + L.length), L.length ? L.map((e, i) => h('div.ct-pausa' + (e.id === selId ? '.on' : '') + (e.activa ? '' : '.off'), { 'data-pausa': e.id, onclick: ev => { if (ev.target.closest('button,input,select,textarea,label')) return; selId = e.id; sel = { a: e.capa, b: e.capa }; todo(true); } },
           h('div.ct-p1', h('b.ct-pn', String(i + 1)), h('i', { style: { background: e.tipo === 'color' ? e.color : 'transparent' } }, e.tipo === 'color' ? '' : TIPOS[e.tipo][0]), h('span', TIPOS[e.tipo][1] + (e.tipo === 'color' ? ' → ' + nombreColor(e.color).toLowerCase() : '')),
             h('label.ct-act', { title: 'Activa: si la quitas, se guarda pero no se manda a la impresora' }, h('input', { type: 'checkbox', checked: e.activa, 'data-ct': 'activa', onchange: ev => { e.ref.activa = ev.target.checked; apunta(); } }))),
@@ -266,7 +310,8 @@ export function abrirColores(o) {
       const x = k => (k - 1) / n * W;
       for (let k = 1; k <= n; k++) { g.fillStyle = C[k]; g.fillRect(Math.floor(x(k)), 14, Math.ceil(W / n) + 1, H - 14); }
       if (perfil) { g.fillStyle = 'rgba(0,0,0,.34)'; g.beginPath(); g.moveTo(0, H); perfil.forEach((a, i) => g.lineTo((i + 0.5) / perfil.length * W, H - 4 - a * (H - 22))); g.lineTo(W, H); g.closePath(); g.fill(); }
-      g.fillStyle = 'rgba(255,225,74,.55)'; g.fillRect(x(sel.a), 14, Math.max(2, x(sel.b + 1) - x(sel.a)), H - 14); g.strokeStyle = '#ffe14a'; g.lineWidth = 2; g.strokeRect(x(sel.a) + 1, 15, Math.max(2, x(sel.b + 1) - x(sel.a)) - 2, H - 16);
+      g.fillStyle = modo === 'facil' ? 'rgba(255,225,74,.14)' : 'rgba(255,225,74,.55)'; g.fillRect(x(sel.a), 14, Math.max(2, x(sel.b + 1) - x(sel.a)), H - 14); g.strokeStyle = '#ffe14a'; g.lineWidth = 2; g.strokeRect(x(sel.a) + 1, 15, Math.max(2, x(sel.b + 1) - x(sel.a)) - 2, H - 16);
+      if (modo === 'facil') { g.fillStyle = 'rgba(20,24,40,.85)'; zonas().slice(1).forEach(z => g.fillRect(Math.round(x(z.a)) - 1, 14, 2, H - 14)); }
       eventos(E, capa, primera).forEach((e, i) => { const px = x(e.capa); g.fillStyle = e.id === selId ? '#ff7a1a' : e.activa ? '#fff' : '#777'; g.beginPath(); g.moveTo(px, 13); g.lineTo(px - 6, 1); g.lineTo(px + 6, 1); g.closePath(); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1; g.stroke(); g.fillStyle = '#000'; g.font = 'bold 8px system-ui'; g.textAlign = 'center'; g.fillText(String(i + 1), px, 9); });
       // el corte de la capa elegida, visto desde arriba, con su color
       const g2 = corte.getContext('2d'); g2.clearRect(0, 0, 150, 110);
@@ -274,8 +319,8 @@ export function abrirColores(o) {
       const ct = abajo.querySelector('.ct-corte-t'); if (ct) ct.textContent = 'Capa ' + sel.b + ' desde arriba';
     }
     const capaDeX = ev => { const r = tira.getBoundingClientRect(); return Math.max(1, Math.min(n, 1 + Math.floor((ev.clientX - r.left) / r.width * n))); };
-    tira.addEventListener('pointerdown', ev => { const k0 = capaDeX(ev); tira.setPointerCapture(ev.pointerId); sel = ev.shiftKey ? { a: Math.min(sel.a, k0), b: Math.max(sel.a, k0) } : { a: k0, b: k0 }; todo(true); const mueve = e2 => { const k = capaDeX(e2); sel = { a: Math.min(k0, k), b: Math.max(k0, k) }; todo(true); }, fin = () => { tira.removeEventListener('pointermove', mueve); tira.removeEventListener('pointerup', fin); }; tira.addEventListener('pointermove', mueve); tira.addEventListener('pointerup', fin); });
-    mount(abajo, h('div.ct-corte-c', corte, h('small.ct-corte-t', '')), h('div.ct-tira-c', h('div.ct-tira-l', h('span', '⬇ capa 1 (la cama)'), h('b', 'Arrastra aquí para elegir capas · los triángulos son las paradas'), h('span', 'capa ' + n + ' (la punta) ⬆')), tira));
+    tira.addEventListener('pointerdown', ev => { const k0 = capaDeX(ev); if (modo === 'facil') { if (cortando) return cortaEn(k0); ponZona(zonaDeCapa(zonas(), k0)); return todo(true); } tira.setPointerCapture(ev.pointerId); sel = ev.shiftKey ? { a: Math.min(sel.a, k0), b: Math.max(sel.a, k0) } : { a: k0, b: k0 }; todo(true); const mueve = e2 => { const k = capaDeX(e2); sel = { a: Math.min(k0, k), b: Math.max(k0, k) }; todo(true); }, fin = () => { tira.removeEventListener('pointermove', mueve); tira.removeEventListener('pointerup', fin); }; tira.addEventListener('pointermove', mueve); tira.addEventListener('pointerup', fin); });
+    mount(abajo, h('div.ct-corte-c', corte, h('small.ct-corte-t', '')), h('div.ct-tira-c', h('div.ct-tira-l', h('span', '⬇ capa 1 (la cama)'), h('b.ct-tira-txt', 'Arrastra aquí para elegir capas · los triángulos son las paradas'), h('span', 'capa ' + n + ' (la punta) ⬆')), tira));
     // ---- la regla vertical junto a la pieza ----
     const desl = h('input.ct-desl', { type: 'range', min: 1, max: n, step: 1, value: sel.b, 'aria-label': 'Capa elegida', 'data-ct': 'desl', oninput: e => { const k = Number(e.target.value); sel = { a: k, b: k }; todo(true); } });
     mount(regla, h('small', 'capa ' + n), desl, h('small', 'capa 1'));
@@ -284,8 +329,8 @@ export function abrirColores(o) {
       rota ? h('span.ct-rota', { title: rota }, '⚠️ Malla rota: se ve aproximado') : null,
       h('div.ct-botones', h('button.btn.sm.ghost', { type: 'button', 'data-ct': 'deshacer', disabled: hi <= 0, title: 'Deshacer (Ctrl+Z)', onclick: () => vuelve(-1) }, '↶ Deshacer'), h('button.btn.sm.ghost', { type: 'button', 'data-ct': 'rehacer', disabled: hi >= hist.length - 1, title: 'Rehacer (Ctrl+Y)', onclick: () => vuelve(1) }, '↷ Rehacer'),
         h('button.btn.sm.ghost', { type: 'button', 'data-ct': 'cancelar', onclick: () => cerrar(false) }, 'Cancelar'), h('button.btn.sm.primary', { type: 'button', 'data-ct': 'guardar', onclick: () => { const V = valida(E, n, capa, primera); if (!V.ok) return toast('⛔ ' + V.errores[0], 'bad', 7000); if (soloCaras()) return avisaCaras(); cerrar(true); } }, '✔ Guardar'))); }
-    function todo(ligero) { if (!vivo) return; if (desl.value !== String(sel.b)) desl.value = sel.b; pintaCab(); pintaIzq(); pintaDer(); pintaAbajo(); pide3d();
-      window.__r8ct = { n, capa, primera, alto, sel: Object.assign({}, sel), color, modo, herr, selId, base: E.base, eventos: eventos(E, capa, primera).map(e => ({ id: e.id, capa: e.capa, z: e.z, color: e.color, tipo: e.tipo, activa: e.activa })), colores: coloresPorCapa(E, n, capa, primera, baseDef), valida: valida(E, n, capa, primera), elegidos: triSel.reduce((a, v) => a + v, 0), pintados: triCol.reduce((a, v) => a + (v ? 1 : 0), 0), deshacer: hi, rota: !!rota, tris: nT, partes: 0 }; void ligero; }
+    function todo(ligero) { if (!vivo) return; if (desl.value !== String(sel.b)) desl.value = sel.b; fondoV.classList.toggle('ct-facil', modo === 'facil'); fondoV.classList.toggle('ct-cortando', modo === 'facil' && cortando); { const tt = abajo.querySelector('.ct-tira-txt'); if (tt) tt.textContent = modo === 'facil' ? 'Toca aquí o en la pieza para elegir una zona · los triángulos son las paradas' : 'Arrastra aquí para elegir capas · los triángulos son las paradas'; } pintaCab(); pintaIzq(); pintaDer(); pintaAbajo(); pide3d();
+      window.__r8ct = { n, capa, primera, alto, sel: Object.assign({}, sel), color, modo, herr, selId, base: E.base, eventos: eventos(E, capa, primera).map(e => ({ id: e.id, capa: e.capa, z: e.z, color: e.color, tipo: e.tipo, activa: e.activa })), colores: coloresPorCapa(E, n, capa, primera, baseDef), valida: valida(E, n, capa, primera), elegidos: triSel.reduce((a, v) => a + v, 0), pintados: triCol.reduce((a, v) => a + (v ? 1 : 0), 0), deshacer: hi, rota: !!rota, tris: nT, partes: 0, cortando, auto: AUTO.map(c => ({ capa: c.capa, z: c.z, area: c.area, tipo: c.tipo })), zona: modo === 'facil' ? zonaSel() : -1, zonas: (() => { const C = coloresPorCapa(E, n, capa, primera, baseDef); return zonas().map(z => ({ a: z.a, b: z.b, z0: zSuelo(z.a, capa, primera), z1: Math.min(alto, zTecho(z.b, capa, primera)), color: C[z.a] })); })() }; void ligero; }
 
     // ---- tocar la pieza ----
     let abajoEn = null, arrastre = null;
@@ -300,18 +345,23 @@ export function abrirColores(o) {
           if (xb - xa > 4 && yb - ya > 4) { if (!ev.shiftKey) triSel.fill(0); const cam = escena.cam.position; for (let t = 0; t < nT; t++) { const q = t * 9, px = (s[q] + s[q + 3] + s[q + 6]) / 3, py = (s[q + 1] + s[q + 4] + s[q + 7]) / 3, pz = (s[q + 2] + s[q + 5] + s[q + 8]) / 3; if (TOPO.nor[t * 3] * (cam.x - px) + TOPO.nor[t * 3 + 1] * (cam.y - py) + TOPO.nor[t * 3 + 2] * (cam.z - pz) <= 0) continue; const p = escena.aPantalla([px, py, pz]); if (p.delante && p.x >= xa && p.x <= xb && p.y >= ya && p.y <= yb) triSel[t] = 1; } todo(true); } } arrastre = null; abajoEn = null; return; }
       if (!abajoEn || ev.target !== lienzo) { abajoEn = null; return; } const quieto = Math.hypot(ev.clientX - abajoEn.x, ev.clientY - abajoEn.y) < 5; abajoEn = null; if (!quieto) return;
       if (modo === 'caras') return tocaCaras(ev, ev.shiftKey);
-      const c = escena.caraEn(ev); if (!c) return; const k = Math.max(1, Math.min(n, capaEnAltura(c.p[2] + 1e-6, capa, primera))); sel = ev.shiftKey ? { a: Math.min(sel.a, k), b: Math.max(sel.b, k) } : { a: k, b: k }; todo(true); };
+      const c = escena.caraEn(ev); if (!c) return; const k = Math.max(1, Math.min(n, capaEnAltura(c.p[2] + 1e-6, capa, primera)));
+      if (modo === 'facil') { if (cortando) return cortaEn(2 + Math.round((c.p[2] - primera) / capa));
+        // la cara de ARRIBA de un escalón es de la zona de debajo (el plástico está debajo de lo que tocas); la de abajo de un vuelo, de la de encima
+        const nz = (c.n && c.n[2]) || 0;
+        const zt = c.p[2] + (nz > 0.7 ? -capa * 0.5 : nz < -0.7 ? capa * 0.5 : 0); ponZona(zonaDeCapa(zonas(), Math.max(1, Math.min(n, capaEnAltura(zt + 1e-6, capa, primera))))); return todo(true); }
+      sel = ev.shiftKey ? { a: Math.min(sel.a, k), b: Math.max(sel.b, k) } : { a: k, b: k }; todo(true); };
     const alCambiarTam = () => { if (vivo) pintaAbajo(); };
     window.addEventListener('pointerup', alSoltar); window.addEventListener('resize', alCambiarTam);
     const tecla = ev => { if (!vivo) return; const enCampo = /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '') && ev.target.type !== 'range';
-      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); if (triSel.some(v => v)) { triSel.fill(0); todo(true); } else cerrar(false); return; }
+      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); if (cortando) { cortando = false; todo(true); } else if (triSel.some(v => v)) { triSel.fill(0); todo(true); } else cerrar(false); return; }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); ev.stopPropagation(); vuelve(ev.shiftKey ? 1 : -1); return; } if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'y') { ev.preventDefault(); ev.stopPropagation(); vuelve(1); return; }
       if (enCampo) return; ev.stopPropagation();
-      if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') { ev.preventDefault(); const d = (ev.key === 'ArrowUp' ? 1 : -1) * (ev.shiftKey ? 10 : 1); if (selId && ev.altKey) { const e = eventos(E, capa, primera).find(x => x.id === selId); if (e) mueveA(selId, e.capa + d); } else ponSel(sel.b + d, sel.b + d); }
-      else if (ev.key === 'Enter' || ev.key.toLowerCase() === 'p') { ev.preventDefault(); pinta(); } else if (ev.key === 'Delete' && selId) { E.cambios = E.cambios.filter(c => c.id !== selId); selId = null; apunta(); } };
+      if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') { ev.preventDefault(); const d = (ev.key === 'ArrowUp' ? 1 : -1) * (ev.shiftKey ? 10 : 1); if (selId && ev.altKey) { const e = eventos(E, capa, primera).find(x => x.id === selId); if (e) mueveA(selId, e.capa + d); } else if (modo === 'facil') { ponZona(zonaSel() + (d > 0 ? 1 : -1)); todo(true); } else ponSel(sel.b + d, sel.b + d); }
+      else if (ev.key === 'Enter' || ev.key.toLowerCase() === 'p') { ev.preventDefault(); if (modo === 'facil') pintaZona(color); else pinta(); } else if (ev.key === 'Delete' && selId) { E.cambios = E.cambios.filter(c => c.id !== selId); selId = null; apunta(); } };
     document.addEventListener('keydown', tecla, true);
     escena.alDibujar = colocaEtiquetas;
     calculaPerfil(); todo(); setTimeout(() => { try { escena.encuadrar('iso'); } catch (e) { } pintaAbajo(); }, 120);
-    window.__r8ctApi = { cerrar, ponSel, pinta, nuevaPausa, mueveA, ponColor, vuelve, convierte, get sopa() { return s; }, get E() { return E; }, escena, get triSel() { return triSel; }, ponModo: m => { modo = m; if (m === 'caras' && !TOPO) TOPO = topologia(s); todo(); }, ponHerr: q => { herr = q; pintaIzq(); } };
+    window.__r8ctApi = { cerrar, ponSel, pinta, nuevaPausa, mueveA, ponColor, vuelve, convierte, get sopa() { return s; }, get E() { return E; }, escena, get triSel() { return triSel; }, ponModo: m => { modo = m; cortando = false; if (m === 'caras' && !TOPO) TOPO = topologia(s); if (m === 'facil') ponZona(zonaDeCapa(zonas(), sel.b)); todo(); }, ponZona: i => { ponZona(i); todo(true); }, pintaZona, cortaEn, uneAbajo, mueveBorde, ponCortes, ponCombo, zonas, ponHerr: q => { herr = q; pintaIzq(); } };
   });
 }

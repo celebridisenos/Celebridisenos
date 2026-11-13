@@ -55,6 +55,22 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
   // para enseñarlo: la capa donde EMPIEZA cada color y su altura de abajo (la misma cuenta que paraArchivo)
   const paradasVista = () => aTam().filter(c => c.activa !== false).sort((a, b) => a.z - b.z).map(c => { const K = capaDe(c.z, acabadoPorK(rec).capa); return { color: c.color, tipo: c.tipo, capa: K.capa, desde: K.desde }; });
   const coloresEl = h('div.ab-colores');
+  // ---- 4 · 🪄 MENOS SOPORTES (12-11-2026, Biou: «lo de quitar soporte tiene que estar en la pestaña Abrir en Bambu, tiene más sentido debajo
+  // de color»). Antes era un botón suelto en la ficha. Elige «🪄 Menos soportes» y el botón de abajo prueba las posturas con SU Bambu
+  // (sinsoportes_ui.js) con el acabado y la impresora de arriba. Solo en el PC con el archivo; con colores no (las paradas van por altura).
+  const puedeSop = !remoto && desktop.on && typeof desktop.soportesMedir === 'function' && !!ruta;
+  const sopNo = () => ams ? 'Con colores, la pieza se queda en su postura: las paradas van por altura.' : esc !== 100 || opts.paredes || opts.relleno ? 'Con otro tamaño o reforzada, de momento no: ábrela al 100 % sin reforzar.' : '';
+  let sop = false;
+  const sopEl = h('div.ab-sopw');
+  const bAbrir = h('button.btn.primary.ab-abrir', { type: 'button', onclick: () => abrir() }, '🖨️ Abrir en Bambu listo para imprimir');
+  function pintaSop() {
+    if (!puedeSop) return;
+    const no = sopNo(); if (no) sop = false;
+    mount(sopEl, h('div.ab-ams',
+      h('button.ab-am.ab-sop' + (!sop ? '.on' : ''), { type: 'button', 'data-sop': 'no', onclick: () => { sop = false; pintaSop(); } }, h('span.ab-e', '📦'), h('b', 'Tal como está'), h('small', 'En la postura en que está guardada')),
+      h('button.ab-am.ab-sop' + (sop ? '.on' : ''), { type: 'button', 'data-sop': 'si', disabled: !!no, onclick: () => { sop = true; pintaSop(); } }, h('span.ab-e', '🪄'), h('b', 'Menos soportes'), h('small', no || 'Prueba varias posturas con tu Bambu y te enseña la de menos soporte (o ninguno)'))));
+    bAbrir.textContent = sop ? '🪄 Buscar la postura con menos soportes' : '🖨️ Abrir en Bambu listo para imprimir';
+  }
   // ---- 2 bis · 🎯 la CALIBRACIÓN de cada impresora (11-11-2026, Biou: «prueba de calibre para cada máquina, rápida… así ya tienes los
   // ajustes perfectos de cada una»): lo medido con la probeta en ESA impresora va puesto (agujeros, contorno, pie de elefante).
   let CAL = null; const calEl = h('div.ab-calrow');
@@ -86,11 +102,13 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
       const pos = await parse3D(d.buf, d.nombre || nombre || 'pieza.stl'), sopa = new Float32Array(pos.length);
       for (let i = 0; i < pos.length; i++) sopa[i] = pos[i] * k; // (al tamaño que se va a imprimir)
       const est = { base: col.base || '#f4f4f0', cambios: col.cambios.map(c => { const x = { id: c.id, z: r3(c.z100 * k), color: c.color }; if (c.tipo) x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }) };
+      if (Array.isArray(col.cortes100)) est.cortes = col.cortes100.map(z => r3(z * k)); // 11-11-2026 · las zonas del modo fácil
       window.__acabadoTaller = true;
       const r = await T.abrirColores({ sopa, nombre: (nombre || 'Pieza') + (esc !== 100 ? ' · al ' + esc + ' %' : ''), est, capa: acabadoPorK(rec).capa, colorBase: est.base, prop: [], impresora: impPorK(imp).nombre });
       window.__acabadoTaller = false;
       if (r) {
         col = { base: r.base || est.base, cambios: (r.cambios || []).map(c => { const x = { id: c.id, z100: r3(c.z / k), color: c.color }; if (c.tipo) x.tipo = c.tipo; if (c.activa === false) x.activa = false; if (c.gcode) x.gcode = c.gcode; return x; }) };
+        if (Array.isArray(r.cortes)) col.cortes100 = r.cortes.map(z => r3(z / k));
         guardaCol(); ams = true; pintaColores(); pinta();
         toast(col.cambios.length ? '🌈 ' + col.cambios.length + (col.cambios.length === 1 ? ' cambio de color guardado' : ' cambios de color guardados') + ': ya puedes abrirlo en Bambu.' : 'Sin cambios de color: saldrá de un color.', 'ok', 5000);
       }
@@ -130,9 +148,14 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     const a = acabadoPorK(rec), I = impPorK(imp);
     const np = ams ? paradas().length : 0;
     mount(resumen, h('span', a.e + ' ' + a.nombre + ' · ' + I.nombre + (esc !== 100 ? ' · tamaño ' + esc + ' %' : '') + (opts.paredes || opts.relleno ? ' · reforzada' : '') + (np ? ' · 🌈 ' + (np + 1) + ' colores (' + np + (np === 1 ? ' parada)' : ' paradas)') : '') + (calDe(imp) ? ' · 🎯 calibrada' : '')), h('span.tiny.muted', ajustesTxt(a, extra) + ' · placa texturizada · ' + (np ? 'se para sola en cada cambio de color' : 'de un color')));
-    pintaColores(); pintaCal();
+    pintaColores(); pintaCal(); pintaSop();
   }
   async function abrir() {
+    if (sop && puedeSop && !sopNo()) { // 🪄 con el acabado y la impresora elegidos: prueba las posturas y la abre así, laminada
+      md.close(); recordar('acabado', rec); recordar('imp', imp);
+      window.__acabadoPedido = { rec, imp, sop: true };
+      return import('./sinsoportes_ui.js').then(M => M.abrirMenosSoportes({ nombre: nombre || 'Pieza', ruta }, { imp, receta: rec }));
+    }
     const L = ams ? paradas() : [];
     if (ams && !L.length) { toast('Elige las zonas de color (o marca «De un color»).', 'warn', 6000); return abrirTaller(); }
     if (L.length) extra.pausas = JSON.stringify(L); else delete extra.pausas;
@@ -146,7 +169,7 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     try {
       const r = await desktop.acabado(ruta, imp, rec, extra);
       window.__acabadoAbierto = r || null;
-      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color puestas (las ves en la barra de capas).' : ''), 'ok', 9000);
+      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color puestas (las ves en la barra de capas).' : '') + (r && r.posturaNombre ? ' 📐 Colocada: ' + r.posturaNombre + (r.soporte >= 0.3 ? (r.delDisenador ? ' · con el soporte de su diseñador, que gasta menos (≈ ' : ' · con soporte fácil de quitar (≈ ') + Math.round(r.soporte * 10) / 10 + ' g).' : ' · sin soporte.') + (r.recolocada ? ' Recolocada para que quepa en tu cama, con todas sus piezas.' : '') : ''), 'ok', 11000); // (12-11: cómo la ha colocado)
     } catch (e) {
       if (typeof opts.siNoAqui === 'function' && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): se lo encargo a la torre.', 'warn', 6000); return opts.siNoAqui(imp, rec, extra); }
       toast('No se pudo preparar el acabado: ' + (e.message || e), 'bad', 8000);
@@ -159,8 +182,9 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     h('h3.ab-paso', h('i', '1'), '¿Qué acabado?'), tiles,
     h('h3.ab-paso', h('i', '2'), '¿En qué impresora?'), imps, calEl,
     h('h3.ab-paso', h('i', '3'), '¿De un color o con colores?', h('small.ab-paso-s', 'sin AMS: se para y cambias tú la bobina')), coloresEl,
+    puedeSop ? h('h3.ab-paso.ab-paso-sop', h('i', '4'), '¿Con menos soportes?', h('small.ab-paso-s', 'la gira hasta que necesite el mínimo')) : null, puedeSop ? sopEl : null,
     resumen,
-    h('div.ab-pie', h('button.btn.primary.ab-abrir', { type: 'button', onclick: abrir }, '🖨️ Abrir en Bambu listo para imprimir'),
+    h('div.ab-pie', bAbrir,
       typeof opts.talCual === 'function' ? h('button.btn.ghost.sm.ab-talcual', { type: 'button', onclick: () => { md.close(); opts.talCual(); } }, 'Abrirlo tal cual, sin tocar nada') : null),
     h('p.tiny.muted.ab-nota', 'Usa el perfil de serie de esa impresora con estos ajustes (probado con tu Bambu Studio: 0 avisos). No cambia nada de tu Bambu Studio.'));
   return md;

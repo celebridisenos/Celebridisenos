@@ -2790,3 +2790,13 @@ tr.cli-grupo.cg:hover, .item.cli-grupo.cg:hover { background: var(--brand-soft);
 .chn-panel { grid-template-rows: auto auto auto minmax(0, 1fr) auto; } /* (+ la fila de 💤 dormidos, vacía si no hay) */
 .chn-dorm-caja:empty, .chn-dorm-caja:has(> [hidden]) { display: block; height: 0; }
 .chn-dorm[hidden] { display: none !important; }
+
+/* 12-11-2026 · iPad: «escribo y no aparece» (Biou, 12-11). Safari del iPad/iPhone tiene un fallo con el cristal difuminado
+   (backdrop-filter): lo que se escribe en una casilla que está DENTRO de algo difuminado no se pinta hasta salir de ella. La interfaz
+   que trae la tablet de serie (ui14) difumina las ventanas (.overlay + .modal), los paneles (.drawer) y la barra de arriba (buscador).
+   Solo en Safari de iOS/iPadOS (-webkit-touch-callout solo existe ahí): sin difuminado y con fondo opaco. En el PC y Android, igual que antes. */
+@supports (-webkit-touch-callout: none) {
+  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  html .modal, html .drawer, html .drawer-h, html .topbar, html .rail50 { background-color: var(--surface) !important; background-image: none !important; }
+  html .topbar { background-color: var(--bg) !important; }
+}

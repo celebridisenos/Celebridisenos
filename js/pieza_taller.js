@@ -17,7 +17,49 @@ import { encargarAlPC, refArchivo, registrarTrabajo } from './trabajospc.js';
 const ES_3D = n => ['stl', '3mf', 'obj'].includes(extOf(n));
 const primero3MF = (a, b) => (extOf(b) === '3mf') - (extOf(a) === '3mf');
 // ¿este error es de «aquí no se puede» (y la torre sí puede)?
-export const noSePuedeAqui = e => /failed to fetch|networkerror|load failed|no est[áa] instalado|no encuentro (bambu|blender)|que est[ée] en este pc|error local 40[45]|sin conexi[óo]n con el programa/i.test(String((e && e.message) || e));
+// 12-11-2026 · Biou: «en el portátil no me deja abrir en Bambu, no encuentra el STL». El archivo subido desde la torre guarda la ruta
+// de la TORRE (rutaLocal): en el portátil no existe. Antes de usarla se mira que el archivo esté de verdad en ESTE PC; si no, se baja de
+// la nube y se abre aquí. (Antes solo se miraba la carpeta, y si el portátil tenía la misma carpeta pero no el archivo, fallaba.)
+// 12-11-2026 · 💻 PORTÁTIL (Biou: «tarda mucho la comunicación con Bambu en mi portátil, no me deja»): la pieza de la torre se coge por la
+// RED de casa (la torre comparte su carpeta CELEBRIDISENOS: \\NOORKO-SERVER\CELEBRIDISENOS), sin bajarla de Google (su Google tarda 2–18 s).
+// Primero la carpeta de productos que tenga puesta este PC (Configuración › Carpetas), si es una CELEBRIDISENOS; luego la de la torre.
+// Con tiempo máximo: si la torre está apagada no se queda esperando (y no lo vuelve a intentar en 2 minutos).
+const conTiempo = (pr, ms) => Promise.race([Promise.resolve(pr).catch(() => null), new Promise(r => setTimeout(() => r(null), ms))]);
+export const TORRE_RED = '\\\\NOORKO-SERVER\\CELEBRIDISENOS';
+const vivas = new Map(); // carpeta de red → { ok, t }: si la torre no contesta, no se vuelve a esperar en 2 minutos
+async function viva(base) { const v = vivas.get(base); if (v && Date.now() - v.t < 120000) return v.ok; const ok = !!(await conTiempo(desktop.list(base).then(() => true), 4000)); vivas.set(base, { ok, t: Date.now() }); return ok; }
+export async function rutaEnLaRed(ruta, carpeta = false) {
+  if (!ruta || !desktop.on) return null;
+  const m = String(ruta).match(/[\\/]CELEBRIDISENOS(?:[\\/](.*))?$/i); if (!m) return null;
+  const rel = (m[1] || '').replace(/\//g, '\\'), L = [];
+  const root = desktop.getConfig ? await conTiempo(desktop.getConfig('productRoot'), 3000) : null;
+  if (root && /CELEBRIDISENOS[\\/]?$/i.test(root)) L.push(String(root).replace(/[\\/]+$/, ''));
+  L.push(TORRE_RED);
+  for (const base of [...new Set(L)]) {
+    const c = rel ? base + '\\' + rel : base;
+    if (c.toLowerCase() === String(ruta).toLowerCase()) continue;
+    if (!await viva(base)) continue;
+    const ok = carpeta ? await conTiempo(desktop.list(c).then(() => c), 5000) : await conTiempo(rutaQueExiste(c), 5000);
+    if (ok) return ok;
+  }
+  return null;
+}
+// la pieza EN ESTE PC: su ruta si está aquí, o por la red de casa (portátil); si no, null (y se baja de la nube)
+export async function rutaAqui(ruta) { return (await rutaQueExiste(ruta)) || (await rutaEnLaRed(ruta)); }
+export async function carpetaAqui(ruta) {
+  if (!ruta || !desktop.on) return null;
+  if (await conTiempo(desktop.list(ruta).then(() => true), 5000)) return ruta;
+  return rutaEnLaRed(ruta, true);
+}
+export async function rutaQueExiste(ruta) {
+  if (!ruta || !desktop.on || !/^[a-z]:[\\/]|^[\\/]{2}|^\//i.test(ruta)) return null;
+  try {
+    const dir = ruta.replace(/[\\/][^\\/]+$/, ''), nom = ruta.split(/[\\/]/).pop().toLowerCase();
+    const r = await desktop.list(dir);
+    return (r.entries || []).some(x => x.type === 'file' && String(x.name).toLowerCase() === nom) ? ruta : null;
+  } catch (e) { return null; }
+}
+export const noSePuedeAqui = e => /failed to fetch|networkerror|load failed|no est[áa] instalado|no encuentro (bambu|blender)|que est[ée] en este pc|solo est[áa] en la carpeta del ordenador|error local 40[45]|sin conexi[óo]n con el programa/i.test(String((e && e.message) || e));
 const NOMBRE_ACABADO = { prueba: 'Prueba', rapida: 'Rápida', normal: 'Normal', maxima: 'Máxima calidad', premium: 'Premium top', rapido: 'Rápido', fino: 'Fino', fuerte: 'Fuerte' };
 const QUE = { acabado: 'prepare el acabado', bambu: 'abra la pieza en Bambu Studio', reforzar: 'refuerce la pieza' };
 
@@ -56,8 +98,9 @@ async function rutaLocal(e, p, soloSTL) {
   const ok = n => soloSTL ? extOf(n) === 'stl' : ES_3D(n);
   const subidos = (p ? filesOf('productos', p.id) : []).filter(a => ok(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
   const a = (e.archivo3d && ok(e.archivo3d.nombre) && (byId('archivos', e.archivo3d.id) || e.archivo3d)) || subidos[0];
-  if (a && a.rutaLocal) { try { await desktop.list(a.rutaLocal.replace(/[\\/][^\\/]+$/, '')); return { ruta: a.rutaLocal, nombre: a.nombre }; } catch (x) { } }
-  if (p && p.ruta) { try { const r = await desktop.list(p.ruta); const f = (r.entries || []).filter(x => x.type === 'file' && ok(x.name)).sort((x, y) => primero3MF(x.name, y.name))[0]; if (f) return { ruta: f.path, nombre: f.name }; } catch (x) { } }
+  const aq = a && a.rutaLocal ? await rutaAqui(a.rutaLocal) : null; if (aq) return { ruta: aq, nombre: a.nombre };
+  const pr = p && p.ruta ? await carpetaAqui(p.ruta) : null;
+  if (pr) { try { const r = await desktop.list(pr); const f = (r.entries || []).filter(x => x.type === 'file' && ok(x.name)).sort((x, y) => primero3MF(x.name, y.name))[0]; if (f) return { ruta: f.path, nombre: f.name }; } catch (x) { } }
   if (a && (a.driveId || a.id)) { const blob = await fetchFile(byId('archivos', a.id) || a); const r = await desktop.bambuAbrir(blob, a.nombre, false); if (r && r.path) return { ruta: r.path, nombre: a.nombre }; }
   throw new Error(soloSTL ? 'Esta pieza no tiene STL (reforzar necesita el STL).' : 'Esta pieza no tiene su archivo 3D ni aquí ni en el programa.');
 }

@@ -313,3 +313,6 @@ html.ui60 .pm-flujo .n, html.ui60 .pm-flujo b { font-family: var(--font-d); }
 .cpr-tp { flex: 1 1 160px; display: grid; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line, #d9dbe6); background: transparent; color: inherit; cursor: pointer; font: inherit; }
 .cpr-tp.on { border-color: #00a4e4; background: color-mix(in srgb, #00a4e4 10%, transparent); }
 .cpr-tp small { font-size: 12px; }
+/* 12-11-2026 · paso 4 de «Abrir en Bambu»: 🪄 menos soportes */
+.ab-am:disabled { opacity: .55; cursor: not-allowed; }
+.ab-am.ab-sop[data-sop="si"].on { border-color: #2a9d8f; background: color-mix(in srgb, #2a9d8f 10%, var(--surface)); box-shadow: 0 0 0 3px color-mix(in srgb, #2a9d8f 22%, transparent); }

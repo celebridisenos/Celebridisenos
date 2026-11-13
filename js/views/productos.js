@@ -6,7 +6,7 @@ import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf, fetch
 import { desktop } from '../desktop.js';
 import { elegirAcabado } from '../acabado_ui.js'; // 01-11-2026: 🎚️ abrir en Bambu con receta de acabado
 import { repararFragilidad } from '../reparar_ui.js'; // 01-11-2026: 🛠️ reparar por fragilidad
-import { encargarPieza, noSePuedeAqui } from '../pieza_taller.js'; // 02-11-2026: desde el portátil o la tablet, lo hace la torre
+import { encargarPieza, noSePuedeAqui, rutaAqui, carpetaAqui } from '../pieza_taller.js'; // 02-11-2026: desde el portátil o la tablet, lo hace la torre
 import { parse3D, viewer, unzip } from '../stl.js';
 import { medir3D, esArchivo3D, escalar, textoMedidas, EJES, cm } from '../medidas3d.js'; // v16: medidas reales (Ancho · Largo · Alto)
 import { analizar3D, estimarGramos, estimarHoras } from '../datos3d.js'; // v16.2: gramos, tiempo y material que ya trae el archivo
@@ -109,7 +109,7 @@ function productDrawer(id, onClose) {
       const orders = S.t.pedidos.filter(o => o.productoId === p.id || CL.norm(o.producto) === CL.norm(p.nombre));
       const tabs = [['resumen', 'Resumen'], ['pedidos', 'Rendimiento'], can('productos.costes') ? ['precio', 'Precio y costes'] : null, ['archivos', 'Fotos, vídeos y STL (' + filesOf('productos', p.id).length + ')'], ['venta', '📄 Textos de venta'], can('tienda.gestionar') || (p.web && p.web.publicado) ? ['web', '🛍️ Tienda web'] : null, ['historial', 'Historial']].filter(Boolean);
       const body = h('div');
-      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('💶 Cotizar', () => import('./cotizar_ui.js').then(m => m.abrirCotizador(p)), { cls: 'sm primary prod-cotizar', title: 'Más grande, más fuerte o mejor acabado: cuánto pedirle, con mis consejos y la frase para el cliente' }), desktop.on ? btn('🪄 Menos soportes', () => import('../sinsoportes_ui.js').then(m => m.menosSoportesDeProducto(p)), { cls: 'sm prod-soportes', title: 'Prueba la pieza en varias posturas laminando con tu Bambu y te dice cuál necesita menos soportes (o ninguno)' }) : null, conPieza() ? btn('🛠️ Reforzar', () => reforzarDeProducto(p), { cls: 'sm', title: 'Reparar por fragilidad: engordar lo débil sin tocar los encajes' + (desktop.on ? '' : ' (lo hace la torre)') }) : null, conPieza() ? btn('🖨️ Bambu', () => bambuDeProducto(p), { cls: 'sm prod-bambu-cab', title: 'Abrir en Bambu: te pregunta el acabado y la impresora y lo abre listo para imprimir' + (desktop.on ? '' : ' (se abre en la torre)') }) : null, btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
+      mount(d, h('div.drawer-h', h('div.grow', h('h2.ellipsis', p.nombre), h('div.row', { style: { marginTop: '4px' } }, h('span.tiny.muted', 'SKU ' + (p.sku || p.id)), pill(pState(p.estado), ST_CLS[pState(p.estado)]))), btn('💶 Cotizar', () => import('./cotizar_ui.js').then(m => m.abrirCotizador(p)), { cls: 'sm primary prod-cotizar', title: 'Más grande, más fuerte o mejor acabado: cuánto pedirle, con mis consejos y la frase para el cliente' }), conPieza() ? btn('🛠️ Reforzar', () => reforzarDeProducto(p), { cls: 'sm', title: 'Reparar por fragilidad: engordar lo débil sin tocar los encajes' + (desktop.on ? '' : ' (lo hace la torre)') }) : null, conPieza() ? btn('🖨️ Bambu', () => bambuDeProducto(p), { cls: 'sm prod-bambu-cab', title: 'Abrir en Bambu: te pregunta el acabado y la impresora y lo abre listo para imprimir' + (desktop.on ? '' : ' (se abre en la torre)') }) : null, btn('', closeAll, { cls: 'ghost icon', icon: 'x' })),
         h('div.drawer-b.col', { style: { gap: '14px' } }, barraWeb(p, () => { tab = 'web'; draw(); }), barra(p), h('div.tabs', tabs.map(x => h('button' + (tab === x[0] ? '.on' : ''), { onclick: () => { tab = x[0]; draw(); } }, x[1]))), body,
           h('div.row.wrap', { style: { borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             can('productos.editar') ? h('div.row.wrap', (NEXT[pState(p.estado)] || ['Publicado']).map(s => btn('→ ' + s, () => changeState(p, s), { cls: 'sm' })), h('select.inp.sm', { style: { width: 'auto' }, onchange: e => { if (e.target.value) changeState(p, e.target.value); } }, h('option', { value: '' }, 'Estado…'), STATES.filter(s => s !== pState(p.estado)).map(s => h('option', { value: s }, s)))) : null, h('span.grow'),
@@ -393,8 +393,9 @@ export async function abrirEnBambu(x) {
   if (!desktop.on) return toast('«Abrir en Bambu Studio» funciona en el programa del PC. Aquí puedes descargarlo.', 'warn', 6000);
   try {
     toast('🖨️ Abriendo «' + x.nombre + '» en Bambu Studio…', '', 4000);
-    const r = x.ruta ? await desktop.bambuAbrirRuta(x.ruta) : x.a.rutaLocal ? await desktop.bambuAbrirRuta(x.a.rutaLocal) : await desktop.bambuAbrir(await fetchFile(x.a), x.nombre);
-    if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio' + (x.ruta || (x.a && x.a.rutaLocal) ? '' : ' (copia en Documentos › CelebriDiseños_R8)'), 'ok', 6000);
+    const aqui = x.ruta || await rutaAqui(x.a && x.a.rutaLocal); // 12-11: la ruta de la torre no vale en el portátil → se baja de la nube
+    const r = aqui ? await desktop.bambuAbrirRuta(aqui) : await desktop.bambuAbrir(await fetchFile(x.a), x.nombre);
+    if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio' + (aqui ? '' : ' (copia en Documentos › CelebriDiseños_R8)'), 'ok', 6000);
     else if (x.p) { toast('En este PC no está Bambu Studio: se la abro en la torre.', 'warn', 6000); encargarPieza(x.p, 'bambu'); } // 02-11
     else toast('No encuentro Bambu Studio en este PC. El archivo está en ' + ((r && r.path) || 'Documentos › CelebriDiseños_R8') + '.', 'warn', 9000);
     if (window.__prod3d) window.__prod3d.bambu = r || null;
@@ -418,7 +419,7 @@ export async function abrirConAcabado(x, o = {}) {
   const base = Object.assign({ medidas: x.p ? medidasDe(x.p) : null, pid: x.p && x.p.id, cargar3D: async () => ({ buf: await leeDatos3D(x), nombre: x.nombre }) }, o); // (11-11: 🌈 el taller de colores necesita la pieza)
   if (!desktop.on) return remoto ? elegirAcabado(null, x.nombre, Object.assign({}, base, { remoto })) : toast('El acabado se prepara en el programa del PC.', 'warn', 6000);
   try {
-    let ruta = x.ruta || (x.a && x.a.rutaLocal);
+    let ruta = x.ruta || await rutaAqui(x.a && x.a.rutaLocal); // 12-11: en el portátil la ruta de la torre no existe
     if (!ruta) {
       toast('Guardando la pieza para preparar el acabado…', '', 3000);
       const r = await desktop.bambuAbrir(await fetchFile(x.a), x.nombre, false); // abrir=0: solo la guarda y da la ruta en el PC
@@ -451,8 +452,7 @@ export async function reforzarDeProducto(p) {
   const stls = filesOf('productos', p.id).filter(a => extOf(a.nombre) === 'stl');
   if (stls.length) {
     const a = stls[0];
-    let ruta = a.rutaLocal;
-    try { if (ruta) await desktop.list(ruta.replace(/[\\/][^\\/]+$/, '')); } catch (e) { ruta = null; } // (esa ruta puede ser de otro PC)
+    const ruta0 = await rutaAqui(a.rutaLocal); let ruta = ruta0; // (esa ruta puede ser de otro PC: 12-11, se mira el archivo, no solo la carpeta)
     if (!ruta) { try { toast('Guardando la pieza…', '', 3000); const r = await desktop.bambuAbrir(await fetchFile(a), a.nombre, false); ruta = r && r.path; } catch (e) { if (noSePuedeAqui(e)) return repararFragilidad(null, p.nombre, T); throw e; } }
     return repararFragilidad(ruta, a.nombre, local);
   }
@@ -464,7 +464,8 @@ export async function bambuDeProducto(p) {
   const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
   if (!desktop.on) return subidos.length ? elegirAcabado(null, p.nombre, { remoto: remotoDe(p), medidas: medidasDe(p), pid: p.id, cargar3D: async () => ({ buf: await (await fetchFile(subidos[0])).arrayBuffer(), nombre: subidos[0].nombre }), talCual: () => encargarPieza(p, 'bambu') }) : toast('Este producto no tiene su archivo 3D en el programa: súbelo (STL o 3MF) y se abre en la torre.', 'warn', 8000); // 02-11: tablet/móvil → la torre
   if (subidos.length) { const x = { nombre: subidos[0].nombre, a: subidos[0], p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); }
-  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) { const x = { nombre: L[0].name, ruta: L[0].path, p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); } } catch (e) { /* sin su carpeta: se pide el archivo */ } }
+  const pr = p.ruta ? await carpetaAqui(p.ruta) : null; // 12-11: en el portátil, la carpeta de la torre por la red de casa
+  if (pr) { try { const r = await desktop.list(pr); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) { const x = { nombre: L[0].name, ruta: L[0].path, p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); } } catch (e) { /* sin su carpeta: se pide el archivo */ } }
   const elegir = h('input', { type: 'file', accept: '.stl,.3mf,.obj', hidden: true });
   let cerrar = () => { };
   const usa = async f => {

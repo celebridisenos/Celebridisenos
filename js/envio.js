@@ -220,6 +220,23 @@ function cropRotate(src, portrait) {
   o.drawImage(src, x0, y0, cw, ch, 0, 0, cw, ch);
   return { canvas: out, recorte, giro };
 }
+// 12-11-2026 · Biou: «los QR de Wallapop… se pueden poner más centrados, más medianos: sale enorme». Lo que queda después de recortar
+// es casi CUADRADO (un QR solo, como el de Wallapop): en vez de estirarlo a todo lo ancho de la etiqueta (100 mm), va centrado en
+// la etiqueta de 100 × 150 y a la MITAD de ancho (50 mm), con blanco alrededor. Las etiquetas normales (alargadas) no cambian.
+export function qrMediano(r, ancho = 0.5) {
+  const c = r && r.canvas; if (!c || !c.width || !c.height) return r;
+  const a = c.width / c.height; if (a < 0.85 || a > 1.18) return r;
+  // y que sea un QR de verdad: casi la mitad en negro. Una página con letras o una etiqueta con barras se queda muy por debajo
+  // (la «toda la página» de un A4 recortada sale casi cuadrada y NO se puede encoger: las barras dejarían de leerse)
+  try { const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data; let n = 0, k = 0;
+    for (let i = 0; i < d.length; i += 4 * 7) { n++; if (d[i] + d[i + 1] + d[i + 2] < 300) k++; }
+    if (!n || k / n < 0.3) return r; } catch (e) { return r; }
+  const W = Math.round(c.width / ancho), H = Math.round(W * 1.5);
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const g = out.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.drawImage(c, Math.round((W - c.width) / 2), Math.round((H - c.height) / 2));
+  return Object.assign({}, r, { canvas: out, qrMediano: true });
+}
 const officialCache = new Map(), pageCache = new Map();
 // La página entera de la etiqueta (PDF a 300 ppp o la foto), sin tocar
 export async function paginaEtiqueta(o, opts = {}) {
@@ -266,6 +283,7 @@ export async function officialCanvas(o, opts = {}) {
     if (auto) { r = cropRotate(RC.aplicar(pg.src, auto), true); r.recorte = true; r.recortada = true; r.auto = true; }
     else r = cropRotate(pg.src, true);
   }
+  if (opts.recortar !== false) r = qrMediano(r);
   const out = Object.assign(r, { paginas: pg.paginas, pagina: pg.pagina, page: pg.src });
   officialCache.set(key, out); if (officialCache.size > 20) officialCache.delete(officialCache.keys().next().value);
   return out;

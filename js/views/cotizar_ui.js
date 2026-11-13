@@ -11,7 +11,7 @@ import { desktop } from '../desktop.js';
 import { filesOf, fetchFile, extOf } from '../files.js';
 import { textoMedidas } from '../medidas3d.js';
 import { analizar3D, horasTxt } from '../datos3d.js';
-import { ACABADOS, IMPRESORAS, CALIBRADO, acabadoPorK, impPorK, estimar, consejos, mejorImpresora, geoDe, recordar, recordado, cabeEn, escalaParaMedida, medidasDeCm } from '../cotizar.js';
+import { ACABADOS, IMPRESORAS, CALIBRADO, horasNormal, acabadoPorK, impPorK, estimar, consejos, mejorImpresora, geoDe, recordar, recordado, cabeEn, escalaParaMedida, medidasDeCm } from '../cotizar.js';
 import { sumaMovil, ponMovil, cuotaMovil, variantesDe, puedeGuardar } from '../variantes.js'; // 11-11-2026: 📱 con o sin móvil y 🏷️ variantes
 import { ventanaGuardar, nombreDe, igualQue } from './variantes_ui.js';
 import { elegirAcabado, dibujoImpresora, ajustesTxt } from '../acabado_ui.js';
@@ -92,7 +92,7 @@ export async function abrirCotizador(p, opts = {}) {
   let editaBase = false;
   const gIn = inp({ type: 'number', min: 0, step: 0.1, inputmode: 'decimal', 'aria-label': 'Gramos a mano', placeholder: 'g' });
   const hIn = inp({ type: 'number', min: 0, step: 0.05, inputmode: 'decimal', 'aria-label': 'Horas a mano', placeholder: 'h' });
-  [gIn, hIn].forEach(x => { x.onchange = () => { const g = numero(gIn.value), hh = numero(hIn.value); if (g > 0) { B.gramos = g; B.gramosMano = true; } if (hh > 0) B.horas = hh; cambia({}); }; });
+  [gIn, hIn].forEach(x => { x.onchange = () => { const g = numero(gIn.value), hh = numero(hIn.value); if (g > 0) { B.gramos = g; B.gramosMano = true; } if (hh > 0) { B.horas = hh; B.horasMano = true; } cambia({}); }; }); // (12-11: las de a mano ya son con el Normal de ahora)
   [bX, bY, bZ].forEach(x => { x.onchange = () => { const m = medidasDeCm(bX.value, bY.value, bZ.value); if (m) { B.medidas = m; B.medMano = true; editaBase = false; cambia({}); } }; });
   async function guardaMedidasFicha() {
     const m = B.medidas; if (!m) return;
@@ -144,7 +144,7 @@ export async function abrirCotizador(p, opts = {}) {
     // el precio PARTE DE LO QUE COBRA AHORA y le suma lo que cuesta de más (plástico, luz y tiempo con sus precios); nunca baja del mínimo.
     // (si no, un producto que vende a 12 € y su calculadora dice 6,50 € saldría «más fuerte: pídele 7 €»)
     const ahora = Number(p.precio) || 0;
-    const prBase = pr ? (de === 'MEDIDO' && mBase && mBase.ok ? precioDe(mBase.gramos, mBase.segundos / 3600, B.horasMO, E.movil) : precioDe(B.gramos, B.horas, B.horasMO, E.movil)) : null;
+    const prBase = pr ? (de === 'MEDIDO' && mBase && mBase.ok ? precioDe(mBase.gramos, mBase.segundos / 3600, B.horasMO, E.movil) : precioDe(B.gramos, horasNormal(B), B.horasMO, E.movil)) : null; // (12-11: con el Normal de ahora)
     if (pr && prBase && ahora > 0) {
       const extra = pr.rec - prBase.rec, calc = pr.rec;
       pr.calc = calc; pr.extra = extra; pr.rec = Math.max(pr.min, Math.round((ahora + extra) * 10) / 10);
@@ -220,7 +220,7 @@ export async function abrirCotizador(p, opts = {}) {
   async function hacerPedido(r, pr) {
     const P = await import('./pedidos.js'), a = acabadoPorK(E.acabado);
     const pers = [E.escala !== 100 ? 'Tamaño ' + E.escala + ' %' + (r.medidas ? ' (' + medTxt(r.medidas) + ')' : '') : '', E.fuerza > 0 ? 'Reforzada: ' + r.ajustes.paredes + ' paredes y ' + r.ajustes.relleno + ' % de relleno' : '', E.acabado !== 'normal' ? 'Acabado ' + a.nombre : '', 'Impresora ' + impPorK(E.imp).nombre].filter(Boolean).join(' · ');
-    const prN = precioDe(B.gramos, B.horas, B.horasMO, E.movil), extra = pr && prN ? Math.round((pr.coste - prN.coste) * E.cant * 100) / 100 : 0;
+    const prN = precioDe(B.gramos, horasNormal(B), B.horasMO, E.movil), extra = pr && prN ? Math.round((pr.coste - prN.coste) * E.cant * 100) / 100 : 0;
     md.close();
     P.orderForm({ producto: p.nombre, productoId: p.id, cantidad: E.cant, precio: pr ? pr.rec : p.precio, personalizacion: pers, plazoDias: dias,
       gastosPedido: extra > 0 ? [{ concepto: 'Cotizado: ' + pers + ' (plástico y luz de más)', coste: extra }] : [] }, true);
