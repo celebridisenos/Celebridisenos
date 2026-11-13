@@ -14,7 +14,7 @@
 import { h, mount, modal, toast } from './ui.js';
 import { paraArchivo, capaDe, nombreColor } from './r8/colores_capas.js';
 import { desktop } from './desktop.js';
-import { noSePuedeAqui } from './pieza_taller.js'; // 02-11-2026: si este aparato no puede, se encarga a la torre
+import { noSePuedeAqui, esOrdenador } from './pieza_taller.js'; // 02-11-2026: si este aparato no puede, se encarga a la torre
 import { ACABADOS, IMPRESORAS, cabeEn, acabadoPorK, impPorK, recordar, recordado } from './cotizar.js';
 
 const coma = v => String(v).replace('.', ',');
@@ -171,14 +171,14 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
       window.__acabadoAbierto = r || null;
       toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color puestas (las ves en la barra de capas).' : '') + (r && r.posturaNombre ? ' 📐 Colocada: ' + r.posturaNombre + (r.soporte >= 0.3 ? (r.delDisenador ? ' · con el soporte de su diseñador, que gasta menos (≈ ' : r.arreglo === 'normal' ? ' · con soporte normal ajustado, porque el de árbol dejaba algo en el aire (≈ ' : ' · con soporte fácil de quitar (≈ ') + Math.round(r.soporte * 10) / 10 + ' g).' : ' · sin soporte.') + (r.recolocada ? ' Recolocada para que quepa en tu cama, con todas sus piezas.' : '') + (r.piePegado ? ' 🦶 Un soporte alto nace encima de la pieza: su pie va pegado para que no se suelte (arriba sigue igual de fácil).' : '') + (r.torreSuelta ? ' ⚠️ Un soporte alto nace encima de la pieza y pegarle el pie estropeaba otro soporte: se queda como el diseñador, vigila que no se suelte al subir.' : '') : ''), 'ok', 11000); // (12-11: cómo la ha colocado; 13-11: el pie pegado)
     } catch (e) {
-      if (typeof opts.siNoAqui === 'function' && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): se lo encargo a la torre.', 'warn', 6000); return opts.siNoAqui(imp, rec, extra); }
+      if (typeof opts.siNoAqui === 'function' && noSePuedeAqui(e)) { if (!esOrdenador()) toast('En este aparato no se puede (' + (e.message || e) + '): se lo encargo a la torre.', 'warn', 6000); return opts.siNoAqui(imp, rec, Object.assign({}, extra, { motivo: String(e.message || e) })); }
       toast('No se pudo preparar el acabado: ' + (e.message || e), 'bad', 8000);
     }
   }
   pinta();
   mount(body,
     nombre ? h('p.ab-pieza', '📦 ' + nombre + (esc !== 100 ? ' · al ' + esc + ' %' : '')) : null,
-    remoto ? h('p.small.ab-remoto', '🖥️ Lo prepara la torre y se abre allí, en su Bambu Studio.') : null,
+    remoto ? (esOrdenador() && !desktop.on ? h('p.ab-remoto.ab-remoto-pc', '⚠️ Estás en la app de internet: se abrirá en el Bambu de la TORRE, no en este ordenador. Para abrirlo aquí, abre el programa CelebriDiseños con su icono.') : h('p.small.ab-remoto', '🖥️ Lo prepara la torre y se abre allí, en su Bambu Studio.')) : null, // (14-11: en un ordenador sin el programa, bien claro)
     h('h3.ab-paso', h('i', '1'), '¿Qué acabado?'), tiles,
     h('h3.ab-paso', h('i', '2'), '¿En qué impresora?'), imps, calEl,
     h('h3.ab-paso', h('i', '3'), '¿De un color o con colores?', h('small.ab-paso-s', 'sin AMS: se para y cambias tú la bobina')), coloresEl,

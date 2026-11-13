@@ -137,6 +137,9 @@ html.ui60 .pm-flujo .n, html.ui60 .pm-flujo b { font-family: var(--font-d); }
 .ab-consejos .ojo { color: var(--warn); }
 @media (max-width: 560px) { .ab-ams { grid-template-columns: 1fr; } }
 .ab-remoto { background: var(--info-soft); color: var(--info); padding: 8px 12px; border-radius: 12px; }
+/* 14-11-2026: en un ordenador sin el programa, que se vea que se abre en la TORRE */
+.ab-remoto-pc { background: var(--warn-soft, #fff4d6); color: var(--warn, #8a5a00); font-weight: 600; font-size: 15px; }
+.pt-aviso p { font-size: 16px; line-height: 1.45; margin: 0 0 12px; }
 .ab-paso { display: flex; align-items: center; gap: 10px; font-size: 17px; margin: 14px 0 10px; }
 .ab-paso i { font-style: normal; width: 28px; height: 28px; border-radius: 50%; background: var(--brand); color: var(--brand-text); display: grid; place-items: center; font-size: 15px; }
 .ab-acab { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }

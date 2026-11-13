@@ -6,7 +6,7 @@ import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf, fetch
 import { desktop } from '../desktop.js';
 import { elegirAcabado } from '../acabado_ui.js'; // 01-11-2026: 🎚️ abrir en Bambu con receta de acabado
 import { repararFragilidad } from '../reparar_ui.js'; // 01-11-2026: 🛠️ reparar por fragilidad
-import { encargarPieza, noSePuedeAqui, rutaAqui, carpetaAqui } from '../pieza_taller.js'; // 02-11-2026: desde el portátil o la tablet, lo hace la torre
+import { encargarPieza, noSePuedeAqui, rutaAqui, carpetaAqui, esOrdenador } from '../pieza_taller.js'; // 02-11-2026: desde el portátil o la tablet, lo hace la torre
 import { parse3D, viewer, unzip } from '../stl.js';
 import { medir3D, esArchivo3D, escalar, textoMedidas, EJES, cm } from '../medidas3d.js'; // v16: medidas reales (Ancho · Largo · Alto)
 import { analizar3D, estimarGramos, estimarHoras } from '../datos3d.js'; // v16.2: gramos, tiempo y material que ya trae el archivo
@@ -396,11 +396,11 @@ export async function abrirEnBambu(x) {
     const aqui = x.ruta || await rutaAqui(x.a && x.a.rutaLocal); // 12-11: la ruta de la torre no vale en el portátil → se baja de la nube
     const r = aqui ? await desktop.bambuAbrirRuta(aqui) : await desktop.bambuAbrir(await fetchFile(x.a), x.nombre);
     if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio' + (aqui ? '' : ' (copia en Documentos › CelebriDiseños_R8)'), 'ok', 6000);
-    else if (x.p) { toast('En este PC no está Bambu Studio: se la abro en la torre.', 'warn', 6000); encargarPieza(x.p, 'bambu'); } // 02-11
+    else if (x.p) { if (!esOrdenador()) toast('En este PC no encuentro Bambu Studio: se la abro en la torre.', 'warn', 6000); encargarPieza(x.p, 'bambu', { motivo: 'en este ordenador no encuentro Bambu Studio' }); } // 02-11 (14-11: con el motivo)
     else toast('No encuentro Bambu Studio en este PC. El archivo está en ' + ((r && r.path) || 'Documentos › CelebriDiseños_R8') + '.', 'warn', 9000);
     if (window.__prod3d) window.__prod3d.bambu = r || null;
   } catch (e) {
-    if (x.p && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): se la abro en la torre.', 'warn', 6000); return encargarPieza(x.p, 'bambu'); } // 02-11
+    if (x.p && noSePuedeAqui(e)) { if (!esOrdenador()) toast('En este aparato no se puede (' + (e.message || e) + '): se la abro en la torre.', 'warn', 6000); return encargarPieza(x.p, 'bambu', { motivo: String(e.message || e) }); } // 02-11 (14-11: con el motivo)
     toast('No se pudo abrir en Bambu Studio: ' + (e.message || e), 'bad', 8000);
   }
 }
@@ -413,7 +413,7 @@ const primero3MF = (a, b) => (extOf(b) === '3mf') - (extOf(a) === '3mf');
 // 10-11-2026 · 5 acabados (Prueba · Rápida · Normal · Máxima calidad · Premium top) y 3 impresoras (A1 mini · P1P · A1 NUEVA).
 // o = { acabado, imp, escala, paredes, relleno, medidas, titulo, talCual } (lo que llega del 💶 cotizador o del botón 🖨️)
 export const medidasDe = p => Number(p && p.dimX) > 0 && Number(p.dimY) > 0 && Number(p.dimZ) > 0 ? { x: Number(p.dimX), y: Number(p.dimY), z: Number(p.dimZ) } : null;
-const remotoDe = p => (imp, rec, extra) => encargarPieza(p, 'acabado', Object.assign({ imp, receta: rec }, extra || {}));
+const remotoDe = (p, motivo) => (imp, rec, extra) => encargarPieza(p, 'acabado', Object.assign({ imp, receta: rec }, motivo ? { motivo } : {}, extra || {})); // (14-11: con el motivo)
 export async function abrirConAcabado(x, o = {}) {
   const remoto = x.p ? remotoDe(x.p) : null; // 02-11: si aquí no se puede, la torre
   const base = Object.assign({ medidas: x.p ? medidasDe(x.p) : null, pid: x.p && x.p.id, cargar3D: async () => ({ buf: await leeDatos3D(x), nombre: x.nombre }) }, o); // (11-11: 🌈 el taller de colores necesita la pieza)
@@ -428,7 +428,7 @@ export async function abrirConAcabado(x, o = {}) {
     if (!ruta) return remoto ? elegirAcabado(null, x.nombre, Object.assign({}, base, { remoto })) : toast('No pude preparar el archivo para el acabado.', 'warn', 6000);
     elegirAcabado(ruta, x.nombre, Object.assign({}, base, remoto ? { siNoAqui: remoto } : {}));
   } catch (e) {
-    if (remoto && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): lo prepara la torre.', 'warn', 6000); return elegirAcabado(null, x.nombre, Object.assign({}, base, { remoto })); }
+    if (remoto && noSePuedeAqui(e)) { toast('En este aparato no se puede (' + (e.message || e) + '): lo prepara la torre.', 'warn', 6000); return elegirAcabado(null, x.nombre, Object.assign({}, base, { remoto: remotoDe(x.p, String(e.message || e)) })); }
     toast('No se pudo preparar el acabado: ' + (e.message || e), 'bad', 8000);
   }
 }
