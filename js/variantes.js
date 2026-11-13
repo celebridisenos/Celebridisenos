@@ -6,7 +6,8 @@
 //   finanzas.sinMovil  = [ ids de producto a los que NO se les suma el móvil y la SIM al precio ]
 // Así funciona YA, sin tocar el servidor de Google. La celda de Google admite 50.000 letras: se para a 40.000 con un aviso claro.
 // Cada guardado lee antes la configuración más reciente (por si la otra persona ha cambiado algo) y cambia solo lo suyo.
-// Los pedidos NO cambian: el móvil es un gasto real y se reparte entre todos los pedidos (orderCosts), lo sume o no el precio.
+// Los pedidos: el móvil se reparte entre todos los pedidos (orderCosts) SOLO si está marcada la casilla general
+// finanzas.aplicarMovil (13-11-2026, apagada de serie: «si no, me sale todo números rojos»). Se marca en Mi almacén → Móvil y SIM.
 import { S, can, api, emit } from './store.js';
 
 const MAX = 40000;
@@ -15,7 +16,10 @@ const lista = x => Array.isArray(x) ? x : [];
 export const puedeGuardar = () => can('config.editar');
 export const todasLasVariantes = () => lista(fz().variantes);
 export const variantesDe = pid => todasLasVariantes().filter(v => v && v.pid === pid).sort((a, b) => String(b.f || '').localeCompare(String(a.f || '')) || String(b.id).localeCompare(String(a.id)));
-export const sumaMovil = pid => !lista(fz().sinMovil).includes(pid);
+// 13-11-2026: con la casilla general apagada (de serie) solo lo llevan los productos que él marque (finanzas.conMovil);
+// con la casilla encendida, todos menos los que él quite (finanzas.sinMovil), como antes.
+export const aplicaMovil = () => fz().aplicarMovil === true;
+export const sumaMovil = pid => aplicaMovil() ? !lista(fz().sinMovil).includes(pid) : lista(fz().conMovil).includes(pid);
 // lo que se recupera del móvil y la SIM en cada pedido (0 si no hay gastos apuntados)
 export function cuotaMovil() { try { const CL = window.CL; return CL && CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota || 0 : 0; } catch (e) { return 0; } }
 // para que la ficha se repinte cuando cambia algo de ESTE producto
@@ -32,8 +36,9 @@ async function cambiaFinanzas(fn) {
   emit();
 }
 export function ponMovil(pid, si) {
-  return cambiaFinanzas(f => { const L = lista(f.sinMovil).filter(x => x !== pid); if (!si) L.push(pid); f.sinMovil = L; return f; });
+  return cambiaFinanzas(f => { const ap = f.aplicarMovil === true, k = ap ? 'sinMovil' : 'conMovil', L = lista(f[k]).filter(x => x !== pid); if (ap ? !si : si) L.push(pid); f[k] = L; return f; });
 }
+export function ponAplicarMovil(si) { return cambiaFinanzas(f => { f.aplicarMovil = !!si; return f; }); }
 export function guardarVariante(v) {
   return cambiaFinanzas(f => { const L = lista(f.variantes).filter(x => x && x.id !== v.id); L.push(v); f.variantes = L; return f; });
 }

@@ -14,6 +14,7 @@ import { h, mount, btn, modal, toast, inp, empty, pill, confirmDlg, eur, fdate, 
 import { S, can, api, upsertLocal, emit, pull } from '../store.js';
 import { requestAccess, go } from '../app.js';
 import { levels } from './stock.js';
+import { ponAplicarMovil } from '../variantes.js'; // 13-11-2026: 📱 casilla «sumar el móvil y la SIM»
 import { botonFotoTiquet } from '../tiquet.js'; // 01-11-2026: 📸 foto del tíquet → precio y tipo (reusa el OCR del PC)
 
 const CL = window.CL;
@@ -175,7 +176,7 @@ export function render(el, params) {
   const sv = String((S.cfg && S.cfg.version) || '0').split('.').map(Number), viejoSrv = (sv[0] || 0) * 1e6 + (sv[1] || 0) * 1e3 + (sv[2] || 0) < 18003000;
   el.append(
     h('div.page-head', h('div', h('h1', '📦 Mi almacén'), h('div.muted.small', 'Lo que gastas al imprimir, al vender y al empaquetar se descuenta solo. Tú solo apuntas lo que compras.'))),
-    viejoSrv ? h('div.alm2-srv', h('b', '🟡 Falta un paso para que el filamento se descuente SIEMPRE'), h('span', 'Tu servidor de Google es el ' + ((S.cfg && S.cfg.version) || 'antiguo') + '. Pega el Servidor.gs nuevo (carpeta de la versión → LEEME, 5 pasos): hasta entonces, las ventas en mano y lo que imprimes fuera de la cola no bajan de las bobinas.')) : null,
+    viejoSrv ? h('div.alm2-srv', h('b', '🟡 Falta un paso para que el filamento se descuente SIEMPRE'), h('span', 'Tu servidor de Google es el ' + ((S.cfg && S.cfg.version) || 'antiguo') + '. Pega el Servidor.gs nuevo (carpeta de la versión → LEEME, 5 pasos): hasta entonces, las ventas en mano y lo que imprimes fuera de la cola no bajan de las bobinas.')) : '', // (13-11-2026: '' y no null: el.append(null) escribía «null» en la página)
     carrito, tabs, cuerpo);
   function tras() { olvida(); draw(); }
   const ir = k => { pestana = k; history.replaceState(null, '', '#/almacen/' + k + (k === 'mas' ? '/' + masTab : '')); draw(); };
@@ -307,12 +308,17 @@ export function render(el, params) {
   function drawNegocio(box) {
     const L = gastosNeg().slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))), hoy = new Date().toISOString().slice(0, 10), q = CL.cuotaNegocio(S.cfg, S.t, hoy);
     const fin = g => { const d = new Date(String(g.fecha).slice(0, 10) + 'T12:00:00'); d.setMonth(d.getMonth() + (Number(g.meses) || 1)); return d.toISOString().slice(0, 10); };
-    mount(box, h('div.alm2-neg-cab', h('div', h('b', q.cuota ? '📱 Ahora cada pedido recupera ' + eur(q.cuota) : '📱 Ahora no hay nada que recuperar'),
-      h('span', q.cuota ? 'Va sumado al coste de cada pedido (y al precio recomendado de tus productos), repartido entre los ≈ ' + q.pedidosMes + ' pedidos que haces al mes.' : 'Cuando compres una SIM o un móvil, apúntalo con el carrito → «Móvil o SIM» y se recupera solo con los pedidos.')),
+    const ap = CL.aplicaMovil ? CL.aplicaMovil(S.cfg) : true; // 13-11-2026: apagada de serie
+    const casilla = can('config.editar') ? h('label.alm2-neg-aplicar', h('input', { type: 'checkbox', checked: ap, onchange: async e => { const si = e.target.checked; e.target.disabled = true;
+      try { await ponAplicarMovil(si); toast(si ? '📱 Ahora el móvil y la SIM se suman a cada pedido y al precio de tus productos' : '📱 El móvil y la SIM ya no se suman a los pedidos ni a los precios', 'ok'); } catch (er) { toast(er.message || String(er), 'bad'); }
+      drawNegocio(box); } }), h('span', '📱 Sumar el móvil y la SIM al coste de cada pedido y al precio de tus productos')) : null;
+    mount(box, h('div.alm2-neg-cab', h('div', h('b', !q.cuota ? '📱 Ahora no hay nada que recuperar' : ap ? '📱 Ahora cada pedido recupera ' + eur(q.cuota) : '📱 Ahora NO se suma a los pedidos'),
+      h('span', !q.cuota ? 'Cuando compres una SIM o un móvil, apúntalo con el carrito → «Móvil o SIM».' : ap ? 'Va sumado al coste de cada pedido (y al precio recomendado de tus productos), repartido entre los ≈ ' + q.pedidosMes + ' pedidos que haces al mes.' : 'Tus pedidos y tus precios salen sin el móvil ni la SIM. Si marcas la casilla, serían ' + eur(q.cuota) + ' más en cada pedido (repartido entre los ≈ ' + q.pedidosMes + ' que haces al mes).')),
       can('config.editar') ? btn('＋ Apuntar uno', () => gastoNegocio({}, () => { drawNegocio(box); }), { cls: 'primary' }) : null),
+      casilla,
       L.length ? h('div.alm2-lista', L.map(g => { const vivo = hoy >= String(g.fecha).slice(0, 10) && hoy < fin(g), c = (q.lineas.find(x => x.id === g.id) || {}).cuota;
         return h('div.alm2-comprar' + (vivo ? '' : '.hecho'), h('span.alm2-ic', (NEGOCIO.find(x => x.k === g.que) || NEGOCIO[2]).e),
-          h('div.alm2-comprar-t', h('b', g.nombre + ' · ' + eur(g.importe)), h('span', fdate(g.fecha) + ' · ' + (vivo ? 'se recupera hasta el ' + fdate(fin(g)) + (c ? ' · ' + eur(c) + ' por pedido' : '') : '✔ ya recuperado'))),
+          h('div.alm2-comprar-t', h('b', g.nombre + ' · ' + eur(g.importe)), h('span', fdate(g.fecha) + ' · ' + (vivo ? (ap ? 'se recupera hasta el ' : 'se repartiría hasta el ') + fdate(fin(g)) + (c ? ' · ' + eur(c) + ' por pedido' : '') : '✔ ya recuperado'))),
           can('config.editar') ? btn('Quitar', async () => { if (!await confirmDlg('Quitar este gasto', '¿Quitas «' + g.nombre + '» (' + eur(g.importe) + ')? Deja de sumarse a los pedidos.', 'Sí, quitar')) return; try { await guardaNegocio(gastosNeg().filter(x => x.id !== g.id)); toast('Quitado', 'ok'); drawNegocio(box); } catch (e) { toast(e.message || String(e), 'bad'); } }, { cls: 'sm ghost' }) : null);
       })) : null);
   }
@@ -735,7 +741,7 @@ export function gastoNegocio(pre = {}, tras) {
     const nom = st.k === 'otro' ? inp({ value: st.nombre, placeholder: '¿Qué es? Tarifa del móvil, funda, cargador…', class: 'inp' }) : null;
     const res = h('p.alm-res'), msg = h('p.bad-t');
     const calc = () => { const i = Number(String(imp.value).replace(',', '.')) || 0, pm = CL.cuotaNegocio({ finanzas: { gastosNegocio: [{ importe: 1, fecha: new Date().toISOString().slice(0, 10), meses: 1 }] }, pedidos: S.cfg.pedidos }, S.t, '').pedidosMes || 10;
-      mount(res, i > 0 ? ['Se recupera solo: ', h('b', '≈ ' + eur(i / st.meses / pm)), ' en cada pedido durante ', h('b', st.meses === 1 ? '1 mes' : st.meses + ' meses'), ' (haces ≈ ' + pm + ' pedidos al mes).'] : ''); };
+      mount(res, i > 0 ? [CL.aplicaMovil && !CL.aplicaMovil(S.cfg) ? 'Si lo sumas a los pedidos (la casilla de «📱 Móvil y SIM»): ' : 'Se recupera solo: ', h('b', '≈ ' + eur(i / st.meses / pm)), ' en cada pedido durante ', h('b', st.meses === 1 ? '1 mes' : st.meses + ' meses'), ' (haces ≈ ' + pm + ' pedidos al mes).'] : ''); };
     imp.addEventListener('input', calc); if (nom) nom.addEventListener('input', () => { st.nombre = nom.value; });
     const meses = h('div.alm-chips', [1, 2, 3, 6, 12].map(m => h('button.alm-chip' + (st.meses === m ? '.on' : ''), { type: 'button', 'data-meses': m, onclick: e => { st.meses = m; [...meses.children].forEach(b => b.classList.toggle('on', Number(b.dataset.meses) === m)); calc(); } }, m === 1 ? '1 mes' : m + ' meses')));
     mount(body, h('div', h('div.alm2-elegido', h('span.alm2-ic', X.e), h('b', X.t)), nom ? [h('p.alm2-preg', '¿Qué es?'), nom] : null,
@@ -749,8 +755,8 @@ export function gastoNegocio(pre = {}, tras) {
         try {
           const g = { id: 'gn_' + Date.now().toString(36), que: st.k, nombre: nm, importe: Math.round(i * 100) / 100, fecha: new Date().toISOString().slice(0, 10), meses: st.meses };
           await guardaNegocio(gastosNeg().concat([g]));
-          const c = CL.cuotaNegocio(S.cfg, S.t, '').cuota;
-          toast('📱 ' + nm + ' apuntado: ahora cada pedido recupera ' + eur(c) + ' (móvil, SIM…).', 'ok', 8000); md.close(); if (tras) tras();
+          const c = CL.cuotaNegocio(S.cfg, S.t, '').cuota, ap = !CL.aplicaMovil || CL.aplicaMovil(S.cfg);
+          toast('📱 ' + nm + ' apuntado' + (ap ? ': ahora cada pedido recupera ' + eur(c) + ' (móvil, SIM…).' : '. No se suma a los pedidos hasta que marques la casilla en Más detalles → 📱 Móvil y SIM (serían ' + eur(c) + ' por pedido).'), 'ok', 8000); md.close(); if (tras) tras();
         } catch (e) { msg.textContent = e.message || String(e); bt.disabled = false; }
       }, { cls: 'primary alm2-apuntar' }))));
     calc(); setTimeout(() => { const ya = document.activeElement; if (!ya || ya === document.body || !body.contains(ya) || ya.tagName === 'BUTTON') (nom || imp).focus(); }, 30);

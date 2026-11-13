@@ -727,7 +727,7 @@ function stockHint(name, o) {
 // (con embalaje, envío y materiales ya dentro) y luego yo pongo mi precio acordado: si cuadra sigo y si no cuadra me lo notifica».
 // El número grande es el MISMO «Recomendado» de siempre (no hay dos precios distintos). El desglose sale de su calculadora (Productos →
 // costes) y del embalaje real del pedido; si falta el coste, se dice (no se inventa).
-function pricingPedido() { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0 }); }
+function pricingPedido() { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: CL.cuotaAplicada ? CL.cuotaAplicada(S.cfg, S.t, '').cuota : 0 }); }
 function gastosPedidoMap() { const g = {}; (S.t.gastos || []).forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; }); return g; }
 export function cuadra(precio, a, canal) {
   if (!(precio > 0)) return null;

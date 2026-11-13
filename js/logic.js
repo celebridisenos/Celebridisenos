@@ -300,7 +300,7 @@ var CL = (function () {
     if (emb && ci) { var add = emb.total / qty - n(ci.emb); ci = Object.assign({}, ci, { coste: ci.coste + add, recomendado: ci.recomendado ? r2x(ci.recomendado + add) : ci.recomendado, minimo: ci.minimo ? r2x(ci.minimo + add) : ci.minimo }); }
     // 04-11-2026 · el «véndelo a» y «lo que ganas» con TODO lo que dice que lleva dentro: + el móvil y la SIM de cada pedido (lo mismo
     // que luego resta el beneficio del pedido) y, si el coste sale de gramos y horas, el precio se calcula sobre ESE total con su margen
-    var neg = ci ? cuotaNegocio(cfg, data, s(o.fecha).substring(0, 10) || hoy).cuota : 0;
+    var neg = ci ? cuotaAplicada(cfg, data, s(o.fecha).substring(0, 10) || hoy).cuota : 0;
     if (ci && neg > 0) ci = Object.assign({}, ci, { coste: ci.coste + neg, recomendado: ci.recomendado && !ci.fresco ? r2x(ci.recomendado + neg) : ci.recomendado, minimo: ci.minimo && !ci.fresco ? r2x(ci.minimo + neg) : ci.minimo });
     if (ci && ci.fresco) { var mg = n(pp.margen), mm = n(pp.margenMin); ci = Object.assign({}, ci, { recomendado: mg < 1 ? round10up(ci.coste / (1 - mg)) : ci.recomendado, minimo: mm < 1 ? round10up(ci.coste / (1 - mm)) : ci.minimo }); }
     var prod = null;
@@ -393,7 +393,7 @@ var CL = (function () {
     var env = envReal ? n(o.costeEnvio) : n(pp.envio);
     var com = comReal ? n(o.comision) : estComision(o.canal, total, pp);
     var list = Array.isArray(o.gastosPedido) ? o.gastosPedido : [];
-    var otros = list.reduce(function (a, g) { return a + n(g && g.coste); }, 0), neg = cuotaNegocio(cfg, data, o.fecha); // (28-10) móvil, SIM…
+    var otros = list.reduce(function (a, g) { return a + n(g && g.coste); }, 0), neg = cuotaAplicada(cfg, data, o.fecha); // (28-10) móvil, SIM… (13-11: solo con la casilla)
     var prod = unit === null ? null : r2(unit * qty);
     var coste = prod === null ? null : r2(prod + env + com + otros + neg.cuota);
     var ben = coste === null ? null : r2(total - coste);
@@ -1076,6 +1076,11 @@ var CL = (function () {
     _pmCache[k] = r; _pmUltimo = r; return r;
   }
   function addMeses(ds, m) { var d = parse(ds); if (!d) return ''; d.setMonth(d.getMonth() + m); return dateStr(d); }
+  // 13-11-2026 · Biou: «que los gastos de móviles no se apliquen, que tenga una casilla de aplicar si quiero; si no, me sale todo números
+  // rojos». El móvil y la SIM solo se suman a los pedidos y a los precios con la casilla finanzas.aplicarMovil (apagada de serie).
+  // cuotaNegocio dice cuánto SERÍA por pedido (para enseñarlo); cuotaAplicada, lo que de verdad se suma.
+  function aplicaMovil(cfg) { return ((cfg || {}).finanzas || {}).aplicarMovil === true; }
+  function cuotaAplicada(cfg, data, fecha) { return aplicaMovil(cfg) ? cuotaNegocio(cfg, data, fecha) : { cuota: 0, lineas: [], pedidosMes: 0 }; }
   function cuotaNegocio(cfg, data, fecha) {
     var L = ((cfg || {}).finanzas || {}).gastosNegocio;
     if (!Array.isArray(L) || !L.length) return { cuota: 0, lineas: [], pedidosMes: 0 };
@@ -1099,7 +1104,7 @@ var CL = (function () {
     var envReal = has(o.costeEnvio), comReal = has(o.comision);
     var env = envReal ? n(o.costeEnvio) : n(pp.envio), com = comReal ? n(o.comision) : estComision(o.canal, total, pp);
     var gl = Array.isArray(o.gastosPedido) ? o.gastosPedido : [], otros = r2x(gl.reduce(function (a, x) { return a + n(x && x.coste); }, 0));
-    var neg = cuotaNegocio(cfg, data, o.fecha); // (28-10) móvil, SIM…
+    var neg = cuotaAplicada(cfg, data, o.fecha); // (28-10) móvil, SIM… (13-11: solo con la casilla)
     var prod = fab ? r2x(fab.unidad * qty) : null;
     var embC = pack && pack.coste !== null && pack.coste !== undefined ? r2x(pack.coste) : (pack ? r2x(pack.conocido) : 0);
     var coste = prod === null ? null : r2x(prod + embC + mo + perd + env + com + otros + neg.cuota);
@@ -1745,7 +1750,7 @@ var CL = (function () {
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, fichaCoste: fichaCoste, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
-    finance: finance, cuotaNegocio: cuotaNegocio, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
+    finance: finance, cuotaNegocio: cuotaNegocio, cuotaAplicada: cuotaAplicada, aplicaMovil: aplicaMovil, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,

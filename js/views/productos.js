@@ -561,7 +561,7 @@ async function view3DLocal(path, name) {
 }
 
 // ---------- Asistente de precio (usa lo que ya hay: costes, Configuración, ventas) ----------
-function pricingParams(p) { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: p && p.id && !sumaMovil(p.id) ? 0 : (CL.cuotaNegocio ? CL.cuotaNegocio(S.cfg, S.t, '').cuota : 0) }); } // (11-11: sin el móvil si a ESTE producto no se le suma) // (28-10: + lo que se recupera del móvil y la SIM en cada pedido)
+function pricingParams(p) { return Object.assign({ gramosBobina: 1000 }, S.cfg.precios || {}, { negocioPedido: p && p.id ? (sumaMovil(p.id) ? cuotaMovil() : 0) : (CL.cuotaAplicada ? CL.cuotaAplicada(S.cfg, S.t, '').cuota : 0) }); } // (11-11: sin el móvil si a ESTE producto no se le suma) // (28-10: + lo que se recupera del móvil y la SIM en cada pedido)
 function gastosMap() { const g = {}; S.t.gastos.forEach(x => { g[CL.norm(x.nombre)] = Number(x.coste) || 0; }); return g; }
 // 01-11-2026 · 🧮 EN QUÉ SE GASTA CADA PRODUCTO, grande y ordenado: una fila por gasto, con su barra, el total arriba y a cuánto venderlo.
 // Mismos números de siempre (CL.prices): solo cambia cómo se ven. Lo que vale 0 no sale.

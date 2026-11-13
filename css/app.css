@@ -2512,6 +2512,7 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .alm2-que { grid-template-columns: repeat(6, minmax(0, 1fr)); } .alm2-que.tres { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; }
 .alm2-neg-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px; background: color-mix(in srgb, var(--brand) 8%, var(--surface)); margin-bottom: 12px; flex-wrap: wrap; }
 .alm2-neg-cab > div { display: flex; flex-direction: column; gap: 2px; } .alm2-neg-cab b { font-size: 17px; } .alm2-neg-cab span { color: var(--muted); font-size: 13.5px; }
+.alm2-neg-aplicar { display: flex; align-items: center; gap: 10px; margin: 10px 2px 4px; font-weight: 600; cursor: pointer; } .alm2-neg-aplicar input { width: 20px; height: 20px; accent-color: var(--brand); } /* 13-11-2026: 📱 casilla del móvil */
 .alm2-comprar.hecho { border-color: var(--line); opacity: .7; }
 @media (max-width: 760px) { .alm2-que { grid-template-columns: repeat(2, minmax(0, 1fr)); } .alm2-que-b:last-child { grid-column: auto; } .alm2-que.tres { grid-template-columns: 1fr; } }
 
