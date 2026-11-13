@@ -133,18 +133,23 @@ export async function abrirCotizador(p, opts = {}) {
     [[anchoIn, 'x'], [largoIn, 'y'], [altoIn, 'z']].forEach(([el, eje]) => { el.onchange = () => { const s = escalaParaMedida(B.medidas, eje, el.value); if (s) cambia({ escala: s }); }; });
   }
   // ---------- el resultado ----------
+  // lo medido «como lo vende hoy»: el Normal al 100 %, con SUS paredes y relleno (los del acabado Normal)
+  function claveNormal() { const n = acabadoPorK('normal'); return ['normal', E.imp, 100, n.paredes, n.relleno].join('|'); }
   function clave() { const r = estimar(Object.assign({ base: B }, E)); return [E.acabado, E.imp, E.escala, r.ajustes.paredes, r.ajustes.relleno].join('|'); }
   function pintaDer() {
-    const r = estimar(Object.assign({ base: B }, E)), m = MED.get(clave()), mBase = MED.get(['normal', E.imp, 100, 3, 15].join('|'));
+    const r = estimar(Object.assign({ base: B }, E)), m = MED.get(clave()), mBase = MED.get(claveNormal());
+    // 13-11-2026 (60.12.6): el Normal FUERTE (4 paredes, 25 %) gasta más plástico que los gramos guardados del producto. Su precio de
+    // ahora es el del Normal de hoy: lo de más (o de menos) se cuenta desde ahí, no desde los gramos de antes.
+    const gNormal = B.gramos > 0 ? estimar({ base: B, acabado: 'normal', imp: E.imp, escala: 100, fuerza: 0 }).gramos : B.gramos;
     // medido: gramos y tiempo de SU Bambu; la proporción frente a lo medido «normal» se aplica a lo del producto (si no, lo medido tal cual)
     let g = r.gramos, hh = r.horas, de = 'ESTIMADO';
     if (m && m.ok) { g = Math.round(m.gramos * 10) / 10; hh = Math.round(m.segundos / 36) / 100; de = 'MEDIDO'; }
     const pr = costes ? precioDe(g, hh, B.horasMO, E.movil) : null;
-    const refG = de === 'MEDIDO' && mBase && mBase.ok ? mBase.gramos : B.gramos; // (lo medido, frente a lo medido)
+    const refG = de === 'MEDIDO' && mBase && mBase.ok ? mBase.gramos : gNormal; // (lo medido, frente a lo medido)
     // el precio PARTE DE LO QUE COBRA AHORA y le suma lo que cuesta de más (plástico, luz y tiempo con sus precios); nunca baja del mínimo.
     // (si no, un producto que vende a 12 € y su calculadora dice 6,50 € saldría «más fuerte: pídele 7 €»)
     const ahora = Number(p.precio) || 0;
-    const prBase = pr ? (de === 'MEDIDO' && mBase && mBase.ok ? precioDe(mBase.gramos, mBase.segundos / 3600, B.horasMO, E.movil) : precioDe(B.gramos, horasNormal(B), B.horasMO, E.movil)) : null; // (12-11: con el Normal de ahora)
+    const prBase = pr ? (de === 'MEDIDO' && mBase && mBase.ok ? precioDe(mBase.gramos, mBase.segundos / 3600, B.horasMO, E.movil) : precioDe(gNormal, horasNormal(B), B.horasMO, E.movil)) : null; // (12-11 y 13-11: con el Normal de ahora, horas y gramos)
     if (pr && prBase && ahora > 0) {
       const extra = pr.rec - prBase.rec, calc = pr.rec;
       pr.calc = calc; pr.extra = extra; pr.rec = Math.max(pr.min, Math.round((ahora + extra) * 10) / 10);
@@ -250,7 +255,7 @@ export async function abrirCotizador(p, opts = {}) {
       puedeMedir = !!(ruta && desktop.on && desktop.cotizarMedir);
       if (!body.isConnected) return;
       cambia({});
-      if (puedeMedir) { await medir(['normal', E.imp, 100, 3, 15].join('|'), true); programaMedida(); }
+      if (puedeMedir) { await medir(claveNormal(), true); programaMedida(); }
     } catch (e) { console.warn('cotizar', e); }
   })();
   return md;

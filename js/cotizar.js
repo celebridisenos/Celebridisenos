@@ -22,15 +22,18 @@ export const impPorK = k => IMPRESORAS.find(I => I.k === k) || IMPRESORAS[0];
 
 // ---------- los 5 acabados (los mismos ajustes que desktop/host/acabado.go: si cambias uno, cambia el otro) ----------
 // g = gramos de más o de menos que pone la capa (además de lo que cambian paredes y relleno); t = tiempo frente al Normal, tal cual.
+// 13-11-2026: Normal y Máxima con 4 paredes y 25 % cúbico, Premium con 5 y 30 % (piezas que no se rompen). t medido OTRA VEZ frente
+// al Normal nuevo con su Bambu en la A1 mini, con las 3 piezas de test/unit/cotizar.mjs (CELEBRI_SOLO=unit y CELEBRI_SOLO=acab):
+// Prueba 0,47 · 0,61 · 0,65; Rápida 0,69 · 0,82 · 0,80; Máxima 1,81 · 1,64 · 1,70; Premium 2,23 · 1,70 · 1,89.
 // 12-11-2026 (noche): medido OTRA VEZ con las recetas de calidad (pared de fuera lenta, tiempo mínimo por capa): 6 productos suyos
 // laminados en la A1 mini con las recetas de antes y las de ahora, más las 3 piezas de test/unit/cotizar.mjs (mediana; entre
 // paréntesis, el más bajo y el más alto).
 export const ACABADOS = [
-  { k: 'prueba', e: '🧪', nombre: 'Prueba', para: 'Para ver si encaja o si gusta. No para vender.', capa: 0.28, paredes: 2, relleno: 10, color: '#0891b2', g: 1.01, t: 0.55 }, // t de 0,48 a 0,65 (la receta no cambió; el Normal sí)
-  { k: 'rapida', e: '🏃', nombre: 'Rápida', para: 'Cuando hay prisa. Se notan algo las capas.', capa: 0.24, paredes: 2, relleno: 15, color: '#d97706', g: 1.025, t: 0.7 }, // t de 0,65 a 1 (lo de 1: una pieza de 8 min)
-  { k: 'normal', e: '⭐', nombre: 'Normal', para: 'La de vender cada día. Buen equilibrio.', capa: 0.2, paredes: 3, relleno: 15, color: '#7c3aed', g: 1, t: 1 },
-  { k: 'maxima', e: '💎', nombre: 'Máxima calidad', para: 'Muy lisa y con todo el detalle. Tarda bastante más.', capa: 0.12, paredes: 3, relleno: 15, color: '#2563eb', g: 0.98, t: 1.74 }, // t de 1,25 a 1,83
-  { k: 'premium', e: '👑', nombre: 'Premium top', para: 'La mejor: lisa, más fuerte y la cara de arriba planchada.', capa: 0.12, paredes: 4, relleno: 25, planchado: true, color: '#db2777', g: 1, t: 2.2 }, // t de 1,38 a 2,74 (capa fina + planchar)
+  { k: 'prueba', e: '🧪', nombre: 'Prueba', para: 'Para ver si encaja o si gusta. No para vender.', capa: 0.28, paredes: 2, relleno: 10, color: '#0891b2', g: 1.01, t: 0.58 }, // t de 0,47 a 0,65 (la receta no cambió; el Normal sí: la pieza grande, el árbol, es la más baja)
+  { k: 'rapida', e: '🏃', nombre: 'Rápida', para: 'Cuando hay prisa. Se notan algo las capas.', capa: 0.24, paredes: 2, relleno: 15, color: '#d97706', g: 1.025, t: 0.72 }, // t de 0,69 a 0,82 en las 3 piezas; en 6 productos, frente al Normal de la 60.12.3, 0,70
+  { k: 'normal', e: '⭐', nombre: 'Normal', para: 'La de vender cada día. Buen equilibrio.', capa: 0.2, paredes: 4, relleno: 25, color: '#7c3aed', g: 1, t: 1 },
+  { k: 'maxima', e: '💎', nombre: 'Máxima calidad', para: 'Muy lisa y con todo el detalle. Tarda bastante más.', capa: 0.12, paredes: 4, relleno: 25, color: '#2563eb', g: 0.98, t: 1.7 }, // t de 1,64 a 1,81 (13-11)
+  { k: 'premium', e: '👑', nombre: 'Premium top', para: 'La mejor: lisa, más fuerte y la cara de arriba planchada.', capa: 0.12, paredes: 5, relleno: 30, planchado: true, color: '#db2777', g: 1, t: 1.89 }, // t de 1,70 a 2,23 (13-11; capa fina + planchar)
 ];
 // lo que se le dice en la tarjeta del acabado (sale de t, medido)
 const tiempoDe = t => Math.abs(t - 1) < 0.03 ? '⏱️ El tiempo de siempre' : t < 1 ? '⏱️ Un ' + Math.round((1 - t) * 100) + ' % menos de tiempo' : t < 1.95 ? '⏱️ Un ' + Math.round((t - 1) * 100) + ' % más de tiempo' : '⏱️ Unas ' + String(Math.round(t * 10) / 10).replace('.', ',') + ' veces el tiempo';
@@ -46,7 +49,9 @@ export const acabadoPorK = k => ACABADOS.find(a => a.k === k) || ACABADOS[2];
 //   tiempo con más fuerza: 8 % de media (máx. 40 %) · tiempo con otro tamaño: 5 % (máx. 18 %)
 // tn (12-11-2026 noche) = el Normal de ahora frente al de antes: 1,29 veces (de 1,10 a 1,45; 9 productos suyos). Las horas guardadas de cada producto
 // salieron con el de antes; las que escribe él a mano (de su Bambu, con el de ahora) no llevan tn.
-export const CALIBRADO = { kw: 0.22, c0: 0.6, ki: 1.25, fi: 0.773, ts: 0.0676, ti: 0.1655, tc: 4.53, t0: 1165, tn: 1.29,
+// 13-11-2026 · el Normal FUERTE (60.12.6: 4 paredes, 25 % cúbico, 220 °C) tarda ×1,04 el de la 60.12.3 (de 1,01 a 1,08; 7 productos
+// suyos en la A1 mini) → tn = 1,29 × 1,04 = 1,34. Sus gramos: ×1,17 a ×1,40 (los cuenta razonGramos por paredes y relleno).
+export const CALIBRADO = { kw: 0.22, c0: 0.6, ki: 1.25, fi: 0.773, ts: 0.0676, ti: 0.1655, tc: 4.53, t0: 1165, tn: 1.34,
   errorG: 4, errorGmax: 15, errorT: 8, errorTmax: 40, piezas: 10, laminados: 366 };
 export const DENS = { PLA: 1.24, PETG: 1.27, TPU: 1.21, ABS: 1.04, ASA: 1.07 };
 
@@ -126,7 +131,10 @@ export function estimar(e) {
     const w = num(e.paredes), i = num(e.relleno), r0 = razonGramos(geo, 1, a.paredes, a.relleno);
     f = Object.assign({}, f, { paredes: w, relleno: i, razon: razonGramos(geo, 1, w, i) / r0, noLlega: false, pasaLimite: i > Math.max(LIMITE_UTIL[1], a.relleno) });
   }
-  const rg = razonGramos(geo, s, f.paredes, f.relleno, a), rt = razonTiempo(geo, s, f.paredes, f.relleno, a, alto) * I.tiempo / impPorK(b.imp || I.k).tiempo;
+  // 13-11-2026: los gramos guardados del producto son del Normal de antes (3 paredes, 15 %); los que escribe él a mano (de su Bambu,
+  // con el Normal de ahora) ya llevan sus 4 paredes y 25 %: esos no se vuelven a subir (como las horas: horasMano no lleva tn)
+  const nN = acabadoPorK('normal'), ref = b.gramosMano ? razonGramos(geo, 1, nN.paredes, nN.relleno) : 1;
+  const rg = razonGramos(geo, s, f.paredes, f.relleno, a) / ref, rt = razonTiempo(geo, s, f.paredes, f.relleno, a, alto) * I.tiempo / impPorK(b.imp || I.k).tiempo;
   const g0 = num(b.gramos), h0 = horasNormal(b);
   const m = b.medidas && num(b.medidas.x) > 0 ? { x: r1(num(b.medidas.x) * s), y: r1(num(b.medidas.y) * s), z: r1(num(b.medidas.z) * s) } : null;
   return {
