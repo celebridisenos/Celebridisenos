@@ -39,6 +39,18 @@ export const ACABADOS = [
 const tiempoDe = t => Math.abs(t - 1) < 0.03 ? '⏱️ El tiempo de siempre' : t < 1 ? '⏱️ Un ' + Math.round((1 - t) * 100) + ' % menos de tiempo' : t < 1.95 ? '⏱️ Un ' + Math.round((t - 1) * 100) + ' % más de tiempo' : '⏱️ Unas ' + String(Math.round(t * 10) / 10).replace('.', ',') + ' veces el tiempo';
 ACABADOS.forEach(a => { a.tiempo = tiempoDe(a.t); });
 export const acabadoPorK = k => ACABADOS.find(a => a.k === k) || ACABADOS[2];
+// 14-11-2026 · 🎞️ lo que cuenta la CINTA de «Laminando en tu Bambu…» (acabado_ui.js: cintaAcabado). Biou: «estaría mejor si abajo va
+// saliendo lo que va a ser, para saber qué ajustes tendrá y qué acabado, como textos deslizantes informativos». Sale de las recetas de
+// desktop/host/acabado.go y lo comprueba desktop/host/acabado_cinta_test.go: si cambias una receta allí y no aquí, esa prueba falla.
+// (JSON puro entre las dos marcas: la prueba de Go lo lee tal cual.) exterior = pared de fuera (mm/s) · cama = 1.ª capa y resto (°C)
+// · capaSeg = lo mínimo que tarda cada capa · serie = la velocidad es la del perfil de serie de Bambu (la Prueba).
+export const RECETA_VISTA = /*cinta*/{
+  "prueba": { "serie": true, "patron": "giroide" },
+  "rapida": { "exterior": 120, "cama": [60, 57], "capaSeg": 8, "patron": "giroide" },
+  "normal": { "exterior": 80, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "cúbico" },
+  "maxima": { "exterior": 60, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "cúbico" },
+  "premium": { "exterior": 45, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "cúbico", "techo": 6, "suelo": 4 }
+}/*fin cinta*/;
 
 // ---------- lo calibrado (10-11-2026) ----------
 // Ajustado el 10-11-2026 con 366 laminados de SU Bambu Studio (desktop/host/calibra_cotizador_test.go con CELEBRI_CALIBRA):

@@ -333,5 +333,101 @@ html.ui60 .pm-flujo .n, html.ui60 .pm-flujo b { font-family: var(--font-d); }
 .pb-cuenta { white-space: nowrap; color: var(--muted, #6c6155); }
 .pb.bien { border-color: var(--ok, #157a55); } .pb.bien .pb-pct { color: var(--ok, #157a55); } .pb.bien .pb-relleno { background: var(--ok, #157a55); }
 .pb.mal { border-color: var(--bad, #b83246); } .pb.mal .pb-pct { color: var(--bad, #b83246); } .pb.mal .pb-relleno { background: var(--bad, #b83246); }
-body.con-pb .toasts { bottom: 170px; } /* (14-11: con la tarjeta del %, los avisos salen encima, no debajo) */
+@media (min-width: 861px) { body.con-pb .toasts { bottom: calc(var(--pb-alto, 150px) + 32px); } } /* (14-11: con la tarjeta del %, los avisos salen encima, no debajo; en el móvil van arriba) */
 .pb-x { border: 0; background: transparent; color: inherit; font-size: 22px; line-height: 1; cursor: pointer; padding: 0 2px; }
+/* 14-11-2026 (tarde) · 🎞️ la CINTA: «Así va a salir» (acabado, capa, velocidad, temperatura…) y, al acabar, «Cómo ha quedado».
+   Una frase cada 3,6 s que entra desde la derecha; solo transform/opacity (tarjeta gráfica). */
+.pb-cinta { margin-top: 10px; padding-top: 8px; border-top: 1px dashed color-mix(in srgb, var(--info, #2b5aa8) 35%, transparent); cursor: pointer; user-select: none; }
+.pb-cinta[hidden] { display: none; }
+.pb-cinta-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.pb-cinta-tit { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--info, #2b5aa8); }
+.pb.bien .pb-cinta-tit { color: var(--ok, #157a55); }
+.pb-cinta-pts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.pb-cinta-pts i { width: 6px; height: 6px; border-radius: 99px; background: var(--surface-3, #ebe0cf); transition: transform .3s, background .3s; }
+.pb-cinta-pts i.on { background: var(--info, #2b5aa8); transform: scale(1.35); }
+.pb.bien .pb-cinta-pts i.on { background: var(--ok, #157a55); }
+.pb-cinta-via { position: relative; overflow: hidden; min-height: 1.35em; font-size: 14px; line-height: 1.35; transition: height .3s ease; }
+.pb-ct { position: absolute; left: 0; right: 0; top: 0; font-weight: 600; color: var(--text, #1b1714); animation: pb-entra .6s cubic-bezier(.65, 0, .35, 1) both; }
+.pb-ct.sale { animation: pb-sale .6s cubic-bezier(.65, 0, .35, 1) both; }
+/* (las dos a la vez y al mismo paso, como un carrete: la que entra empuja a la que sale y nunca se pisan) */
+@keyframes pb-entra { from { transform: translateX(calc(100% + 24px)); } to { transform: none; } }
+@keyframes pb-sale { from { transform: none; opacity: 1; } to { transform: translateX(calc(-100% - 24px)); opacity: .4; } }
+.pb-cinta-pts[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .pb-ct { animation: pb-aparece .3s both; } .pb-ct.sale { animation: none; opacity: 0; } @keyframes pb-aparece { from { opacity: 0; } to { opacity: 1; } } }
+
+/* 14-11-2026 · 🧩 PLACAS (placas.js): un pedido con varias placas, cada una con su estado. Poco texto, mucho dibujo: anillo, barra que se llena
+   de rojo a verde, puntitos de color por placa y la pregunta «¿cómo salió?» con caras. Las animaciones usan solo transform/opacity (van por la tarjeta gráfica). */
+.pl-vacio, .pl-card { display: grid; gap: 10px; }
+.pl-crear { justify-self: start; }
+.pl-card { border: 1px solid var(--line, #d9dbe6); border-radius: 16px; padding: 12px; background: var(--surface, #fff); }
+.pl-cab { display: flex; align-items: center; gap: 12px; }
+.pl-cabt { display: grid; gap: 2px; min-width: 0; }
+.pl-cabt b { font-size: 16px; }
+.pl-txt { font-size: 13px; color: var(--text-2, #6c6155); }
+.pl-barra { height: 12px; border-radius: 99px; background: var(--surface-3, #ebe3d6); overflow: hidden; }
+.pl-barra i { display: block; height: 100%; width: 0; border-radius: 99px; transition: width .7s cubic-bezier(.2, .8, .2, 1), background .4s; }
+.pl-filas { display: grid; gap: 8px; }
+.pl-fila { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: var(--surface-2, #f6f2ea); border: 1px solid transparent; transition: background .25s, border-color .25s; }
+.pl-fila.imprimiendo { border-color: color-mix(in srgb, #f97316 55%, transparent); }
+.pl-fila.acabada { opacity: .8; }
+.pl-ico { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; color: #fff; }
+.pl-ico.late { animation: pl-pulso 1.6s ease-in-out infinite; }
+.pl-info { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.pl-info b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-est { font-size: 12px; font-weight: 700; }
+.pl-sal { font-size: 14px; } .pl-sal.mal { filter: none; }
+.pl-go { flex: none; min-height: 40px; padding: 0 12px; font-weight: 700; }
+.pl-mas { flex: none; }
+.pl-pie { gap: 8px; }
+.pl-emp { animation: pl-pulso 1.8s ease-in-out infinite; }
+.pl-prev { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, #f59e0b 14%, transparent); border: 1px solid color-mix(in srgb, #f59e0b 45%, transparent); }
+.pl-prev-t { font-weight: 700; font-size: 13px; }
+.pl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2, #f6f2ea); border: 1px solid var(--line, #d9dbe6); }
+.pl-chip.mal { background: color-mix(in srgb, #dc2626 10%, transparent); border-color: color-mix(in srgb, #dc2626 35%, transparent); }
+/* anillo */
+.pl-an-w { position: relative; display: inline-grid; place-items: center; flex: none; }
+.pl-anillo { position: absolute; inset: 0; transform: rotate(-90deg); }
+.pl-an-fondo { fill: none; stroke: var(--surface-3, #ebe3d6); stroke-width: 5; }
+.pl-an-arco { fill: none; stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset .9s cubic-bezier(.2, .8, .2, 1), stroke .4s; }
+.pl-an-t { position: relative; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* puntitos (listas y tarjetas de «Hoy») */
+.pl-mini { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; margin-left: 6px; }
+.pl-dots { display: inline-flex; gap: 3px; }
+.pl-dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.pl-dots i.imprimiendo { animation: pl-pulso 1.4s ease-in-out infinite; }
+.pl-n { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2, #6c6155); }
+.pl-mini.grande { display: flex; margin: 6px 0 0; gap: 8px; }
+.pl-mini.grande .pl-dots i { width: 14px; height: 14px; }
+@keyframes pl-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes pl-pulso { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+/* «¿Cómo salió?» */
+.sd { display: grid; gap: 12px; }
+.sd-q { margin: 0; }
+.sd-prev { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.sd-caras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.sd-cara { display: grid; justify-items: center; gap: 4px; padding: 14px 6px; border-radius: 18px; border: 2px solid var(--line, #d9dbe6); background: var(--surface-2, #f6f2ea); color: inherit; cursor: pointer; font-size: 15px; transition: transform .15s, border-color .15s, background .15s; }
+.sd-cara:hover, .sd-cara:focus-visible { transform: translateY(-2px) scale(1.03); }
+.sd-e { font-size: 44px; line-height: 1; }
+.sd-cara.bien.on { border-color: #16a34a; background: color-mix(in srgb, #16a34a 14%, transparent); transform: scale(1.06); }
+.sd-cara.regular.on { border-color: #f59e0b; background: color-mix(in srgb, #f59e0b 14%, transparent); transform: scale(1.06); }
+.sd-cara.mal.on { border-color: #dc2626; background: color-mix(in srgb, #dc2626 14%, transparent); transform: scale(1.06); }
+.sd-mas { display: grid; gap: 8px; animation: pl-in .25s ease both; }
+.sd-causas { display: flex; flex-wrap: wrap; gap: 8px; }
+.sd-chip { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; border-radius: 99px; border: 2px solid var(--line, #d9dbe6); background: transparent; color: inherit; cursor: pointer; font-size: 15px; min-height: 44px; }
+.sd-chip.on { border-color: #dc2626; background: color-mix(in srgb, #dc2626 12%, transparent); font-weight: 700; }
+.sd-mas[hidden], .modal-f [hidden] { display: none !important; }
+/* número de placas */
+.cp { display: grid; gap: 10px; justify-items: center; text-align: center; }
+.cp-paso { display: flex; align-items: center; gap: 22px; }
+.cp-b { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--line, #d9dbe6); background: var(--surface-2, #f6f2ea); color: inherit; font-size: 30px; cursor: pointer; }
+.cp-n { font-size: 56px; min-width: 70px; font-variant-numeric: tabular-nums; }
+.cp-rec { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+/* «Hoy»: tarjetas con foto y que entran con suavidad */
+.hoy-card { transition: transform .15s, box-shadow .15s; } .hoy-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+.hoy-cab { align-items: center; gap: 8px; }
+.hoy-cab .fp-mini { flex: none; border-radius: 10px; }
+.hoy-flujo .hf { transition: transform .15s; } .hoy-flujo .hf:hover { transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) { .sd-mas { animation: none; } .hoy-card, .hoy-card:hover, .pl-fila { transition: none; transform: none; } .pl-ico.late, .pl-dots i.imprimiendo, .pl-emp { animation: none; } .pl-barra i, .pl-an-arco { transition: none; } .sd-cara, .hoy-flujo .hf { transition: none; } }
+@media (max-width: 560px) { .pl-fila { flex-wrap: wrap; } .pl-info { flex: 1 1 100px; } .pl-info b { white-space: normal; } .pl-mas { order: 2; } .pl-go { order: 3; flex: 1 1 100%; min-height: 46px; font-size: 16px; } }
+.cp-nombres { display: grid; gap: 6px; width: 100%; max-width: 360px; }
+.cp-nom { min-height: 40px; }

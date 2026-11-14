@@ -1746,7 +1746,184 @@ var CL = (function () {
     return { desde: a, hasta: b, antesDesde: a0, antesHasta: b0, paso: paso, cubos: cubos, personas: personas, solos: solos, totalEquipo: tot(personas), totalSolos: tot(solos), total: tot(ahora),
       totalAntes: tot(antes) };
   }
-  return { rankingVentas: rankingVentas, PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
+  // ---------- v60.13 · PLACAS: un pedido con varias placas, y cada placa con su propio estado ----------
+  // Biou (14-11-2026): «puedo tener impreso una parte y que esa parte esté en mesa y la otra aún imprimiendo».
+  // El pedido guarda una lista `placas`: [{ id, nombre, estado, actualizado, por }]. El estado DEL PEDIDO sale de ellas (placasEstadoPedido).
+  // Un pedido sin lista de placas (los de siempre, o los de una sola placa) se comporta exactamente como antes.
+  var PLACA_ESTADOS = [
+    { k: 'por_imprimir', t: 'Por imprimir', e: '🧾', r: 0, c: '#6366f1' },
+    { k: 'imprimiendo', t: 'Imprimiendo', e: '🖨️', r: 1, c: '#f97316' },
+    { k: 'impresa', t: 'Impresa', e: '✅', r: 2, c: '#14b8a6' },
+    { k: 'en_mesa', t: 'En mesa', e: '🛠️', r: 3, c: '#eab308' },
+    { k: 'acabada', t: 'Acabada', e: '🏁', r: 4, c: '#22c55e' }
+  ];
+  var PLACA_MAX = 24;
+  // «¿Cómo salió?» (Biou, 14-11-2026: «antes de marcar en mesa que pregunte cómo ha salido la impresión, bien o mal, con clics: calidad, soportes rotos,
+  // el laminado… para que el programa vaya aprendiendo qué tiene que arreglar la siguiente, y que salte también en CelebriMesa»).
+  // Se guarda en cada placa (`salida`) y, en un pedido sin placas, en el propio pedido (`salida`).
+  var SALIDA_V = [{ k: 'bien', t: 'Bien', e: '😀' }, { k: 'regular', t: 'Regular', e: '😐' }, { k: 'mal', t: 'Mal', e: '😞' }];
+  var SALIDA_CAUSAS = [{ k: 'calidad', t: 'Calidad', e: '🔍' }, { k: 'soportes', t: 'Soportes rotos', e: '🪵' }, { k: 'laminado', t: 'Laminado', e: '🧮' }, { k: 'despegue', t: 'Se despegó', e: '📎' },
+    { k: 'hilos', t: 'Hilos o hebras', e: '🧵' }, { k: 'atasco', t: 'Se paró o atascó', e: '⛔' }, { k: 'medidas', t: 'No encaja', e: '📏' }, { k: 'color', t: 'Color', e: '🎨' }, { k: 'otro', t: 'Otra cosa', e: '❓' }];
+  // Limpia una valoración venga como venga; devuelve null si no hay nada que guardar
+  function salidaLimpia(x, ahora, quien) {
+    if (!x || typeof x !== 'object') return null;
+    var vv = norm(x.v !== undefined ? x.v : x.valoracion).replace(/ /g, '_'), v = vv === 'muy_bien' ? 'bien' : vv;
+    if (['bien', 'regular', 'mal'].indexOf(v) < 0) return null;
+    var cs = Array.isArray(x.causas) ? x.causas : s(x.causas).split(/[,;]/), causas = [];
+    cs.forEach(function (c) {
+      var k = norm(c);
+      for (var i = 0; i < SALIDA_CAUSAS.length; i++) if (SALIDA_CAUSAS[i].k === k || norm(SALIDA_CAUSAS[i].t) === k) { if (causas.indexOf(SALIDA_CAUSAS[i].k) < 0) causas.push(SALIDA_CAUSAS[i].k); }
+    });
+    return { v: v, causas: v === 'bien' ? [] : causas.slice(0, 9), nota: s(x.nota).replace(/\s+/g, ' ').trim().substring(0, 200), fecha: s(x.fecha) || s(ahora), por: s(x.por) || s(quien) };
+  }
+  var PLACA_ALIAS = { 'pendiente': 'por_imprimir', 'por imprimir': 'por_imprimir', 'en_impresion': 'imprimiendo', 'en impresion': 'imprimiendo', 'impreso': 'impresa', 'terminada': 'impresa',
+    'mesa': 'en_mesa', 'en mesa': 'en_mesa', 'acabado': 'acabada', 'hecha': 'acabada', 'lista': 'acabada' };
+  // «en mesa», «En mesa», «en_mesa» → 'en_mesa'; lo que no se reconoce → '' (quien guarda lo rechaza: nunca se cambia a ciegas)
+  function placaEstado(v) {
+    var k = norm(v).replace(/_/g, ' ');
+    for (var i = 0; i < PLACA_ESTADOS.length; i++) if (PLACA_ESTADOS[i].k === k.replace(/ /g, '_')) return PLACA_ESTADOS[i].k;
+    var a = PLACA_ALIAS[k] || PLACA_ALIAS[k.replace(/ /g, '_')];
+    return a || '';
+  }
+  function placaInfo(k) { for (var i = 0; i < PLACA_ESTADOS.length; i++) if (PLACA_ESTADOS[i].k === k) return PLACA_ESTADOS[i]; return PLACA_ESTADOS[0]; }
+  function placaRank(k) { return placaInfo(placaEstado(k) || 'por_imprimir').r; }
+  // Lista de placas venga como venga (lista, texto JSON, vacío) → siempre una lista
+  function placasLista(v) {
+    if (typeof v === 'string') { var t = v.trim(); if (!t) return []; try { v = JSON.parse(t); } catch (e) { return []; } }
+    return Array.isArray(v) ? v.filter(function (p) { return p && typeof p === 'object'; }) : [];
+  }
+  // Limpia una lista: ids únicos, nombre, estado válido. `antes` (la lista guardada) sirve para conservar «cuándo y quién» de lo que no cambió.
+  // Devuelve { lista, error }. Con error no se guarda nada.
+  function placasNormaliza(entrada, antes, ahora, quien) {
+    var L = placasLista(entrada), A = placasLista(antes), prev = {}, usados = {}, out = [], error = '';
+    if (L.length > PLACA_MAX) return { lista: [], error: 'Un pedido puede tener como mucho ' + PLACA_MAX + ' placas.' };
+    A.forEach(function (p) { prev[s(p.id)] = p; });
+    var libre = function () { var i = 1; while (usados['p' + i] || prev['p' + i]) i++; return 'p' + i; };
+    L.forEach(function (p, i) {
+      var id = s(p.id).replace(/[^A-Za-z0-9_-]/g, '').substring(0, 12);
+      if (!id || usados[id]) id = libre();
+      usados[id] = true;
+      var raw = p.estado === undefined || p.estado === '' || p.estado === null ? (prev[id] ? prev[id].estado : 'por_imprimir') : p.estado, est = placaEstado(raw);
+      if (!est) { error = error || 'Estado de placa no válido: «' + s(raw) + '». Vale: por_imprimir, imprimiendo, impresa, en_mesa, acabada.'; est = 'por_imprimir'; }
+      var nombre = s(p.nombre).replace(/\s+/g, ' ').trim().substring(0, 40) || ('Placa ' + (i + 1)), q = prev[id], igual = q && placaEstado(q.estado) === est;
+      var item = { id: id, nombre: nombre, estado: est, actualizado: igual && q.actualizado ? s(q.actualizado) : s(ahora), por: igual && q.actualizado ? s(q.por) : s(quien) };
+      var pb = 'placa' in p ? Math.round(n(p.placa)) : (q && q.placa ? Math.round(n(q.placa)) : 0); // número de bandeja en Bambu Studio (opcional; null o 0 = quitarlo)
+      if (pb >= 1 && pb <= 99) item.placa = pb;
+      var sq = q ? salidaLimpia(q.salida, ahora, quien) : null, sa = 'salida' in p ? salidaLimpia(p.salida, ahora, quien) : sq; // (sin «salida» en lo que llega = se conserva la que había; con null se borra)
+      if (sa && sq && sa.v === sq.v && sa.nota === sq.nota && sa.causas.join() === sq.causas.join()) { sa.fecha = sq.fecha; sa.por = sq.por; } // lo que no cambió conserva su fecha y quién
+      if (sa) item.salida = sa;
+      // las valoraciones de antes se guardan (las 5 últimas): si una placa salió mal y se repitió, el «mal» no se pierde cuando la repetida sale «bien»
+      var pv = ('previas' in p ? placasLista(p.previas) : (q ? placasLista(q.previas) : [])).map(function (x) { return salidaLimpia(x); }).filter(Boolean);
+      if (sq && sa && !(sa.v === sq.v && sa.nota === sq.nota && sa.causas.join() === sq.causas.join())) pv.push(sq);
+      if (pv.length) item.previas = pv.slice(-5);
+      out.push(item);
+    });
+    return { lista: out, error: error };
+  }
+  // Lista nueva de «porUnidad × cantidad» placas. Con un pedido que ya va por delante, las placas nacen como corresponde
+  // (no se contradice al pedido): En mesa → en_mesa; Empaquetar y más allá → acabada; lo demás → por_imprimir.
+  // Biou (14-11-2026): «que NO se llamen Placa 1: gato y bandeja, figura más pájaro». `nombres` = lo que lleva cada placa de UNA unidad
+  // (del 3MF de Bambu o lo que él apunta); la que no tenga nombre se llama «Placa k».
+  function placasNombresLista(v) {
+    var L = Array.isArray(v) ? v : s(v).split('|');
+    return L.slice(0, PLACA_MAX).map(function (x) { return s(x).replace(/\s+/g, ' ').trim().substring(0, 40); });
+  }
+  // «gato y bandeja | figura y pájaro» (o '' si no hay ningún nombre)
+  function placasNombresTexto(v) { var L = placasNombresLista(v); return L.some(function (x) { return x; }) ? L.join(' | ') : ''; }
+  function placaNombre(nombres, k) { var x = nombres && nombres[k] ? s(nombres[k]).trim() : ''; return x ? x.charAt(0).toUpperCase() + x.slice(1) : 'Placa ' + (k + 1); }
+  function placasCrea(porUnidad, cantidad, fase, ahora, quien, nombres) {
+    var pu = Math.max(1, Math.min(PLACA_MAX, Math.round(n(porUnidad)) || 1)), c = Math.max(1, Math.round(n(cantidad)) || 1), NN = placasNombresLista(nombres || []);
+    var est = fase === 'postpro' ? 'en_mesa' : (['empaquetar', 'listo', 'enviado', 'entregado'].indexOf(fase) >= 0 ? 'acabada' : 'por_imprimir');
+    var out = [], tot = Math.min(PLACA_MAX, pu * c);
+    for (var i = 0; i < tot; i++) {
+      var u = Math.floor(i / pu) + 1, k = (i % pu) + 1;
+      out.push({ id: 'p' + (i + 1), nombre: c > 1 ? 'Unidad ' + u + ' · ' + placaNombre(NN, k - 1) : placaNombre(NN, i), estado: est, actualizado: s(ahora), por: s(quien) });
+    }
+    return out;
+  }
+  // Cuenta y avance de un pedido con placas. pct = suma de rangos / (4 × placas): 0 = nada, 100 = todas acabadas.
+  function placasResumen(placas) {
+    var L = placasLista(placas), cuenta = { por_imprimir: 0, imprimiendo: 0, impresa: 0, en_mesa: 0, acabada: 0 }, suma = 0;
+    L.forEach(function (p) { var e = placaEstado(p.estado) || 'por_imprimir'; cuenta[e]++; suma += placaInfo(e).r; });
+    var N = L.length, hechas = cuenta.impresa + cuenta.en_mesa + cuenta.acabada;
+    var partes = [];
+    if (N) {
+      partes.push(hechas + ' de ' + N + (N === 1 ? ' impresa' : ' impresas'));
+      if (cuenta.imprimiendo) partes.push(cuenta.imprimiendo + ' imprimiendo');
+      if (cuenta.en_mesa) partes.push(cuenta.en_mesa + ' en mesa');
+      if (cuenta.acabada) partes.push(cuenta.acabada + (cuenta.acabada === 1 ? ' acabada' : ' acabadas'));
+    }
+    return { n: N, cuenta: cuenta, hechas: hechas, acabadas: cuenta.acabada, pct: N ? Math.round(100 * suma / (4 * N)) : 0, texto: partes.join(' · '),
+      todasImpresas: N > 0 && hechas === N, todasAcabadas: N > 0 && cuenta.acabada === N, algunaEmpezada: N > 0 && N - cuenta.por_imprimir > 0 };
+  }
+  // El estado del PEDIDO según sus placas. Devuelve el nombre del estado nuevo, o '' si no hay que tocarlo.
+  //  · alguna placa empezada y otra sin acabar de imprimir → «En impresión»;  · todas impresas (como mínimo) → «En mesa».
+  //  · Solo se mira cuando CAMBIA el estado de alguna placa (o se añade/quita una) y ya había lista: crear la lista no mueve el pedido.
+  //  · Solo mueve entre Reservado/Confirmado/En impresión/En mesa. Empaquetar y lo siguiente SIEMPRE lo decide una persona
+  //    (con todas acabadas el programa lo avisa, no lo pasa solo): PLACAS_AUTO_EMPAQUETAR.
+  var PLACAS_AUTO_EMPAQUETAR = false;
+  function placasEstadoPedido(cfgPedidos, estado, antes, despues) {
+    var D = placasLista(despues), A = placasLista(antes);
+    if (!D.length || !A.length) return '';
+    var mapa = {}; A.forEach(function (p) { mapa[s(p.id)] = placaEstado(p.estado); });
+    var cambio = D.length !== A.length || D.some(function (p) { return mapa[s(p.id)] !== placaEstado(p.estado); });
+    if (!cambio) return '';
+    var fase = phaseOf(cfgPedidos, estado);
+    if (['reserva', 'confirmado', 'impresion', 'postpro'].indexOf(fase) < 0) return '';
+    var min = 9, max = -1; D.forEach(function (p) { var r = placaRank(p.estado); if (r < min) min = r; if (r > max) max = r; });
+    var meta = '';
+    if (max <= 0) meta = '';
+    else if (min >= 4 && PLACAS_AUTO_EMPAQUETAR) meta = 'empaquetar';
+    else if (min >= 2) meta = 'postpro';
+    else meta = 'impresion';
+    if (!meta || meta === fase) return '';
+    return stateOfPhase(cfgPedidos, meta);
+  }
+  // Cambio a mano del estado del pedido (botones, escáner, Cola…): las placas que se quedaban atrás suben a donde toca
+  // (En mesa → como mínimo «impresa»; Empaquetar y siguientes → «acabada»). Nunca baja una placa. { lista, cambio }
+  function placasSuben(placas, faseNueva, ahora, quien) {
+    var L = placasLista(placas), minimo = faseNueva === 'postpro' ? 2 : (['empaquetar', 'listo', 'enviado', 'entregado'].indexOf(faseNueva) >= 0 ? 4 : 0), cambio = false;
+    var lista = L.map(function (p) {
+      var e = placaEstado(p.estado) || 'por_imprimir';
+      if (placaInfo(e).r >= minimo) return p;
+      cambio = true;
+      var q = {}; Object.keys(p).forEach(function (k) { q[k] = p[k]; });
+      q.estado = minimo === 4 ? 'acabada' : 'impresa'; q.actualizado = s(ahora); q.por = s(quien);
+      return q;
+    });
+    return { lista: lista, cambio: cambio };
+  }
+  // La siguiente casilla del camino de una placa ('' si ya está acabada)
+  function placaSiguiente(k) { var r = placaInfo(placaEstado(k) || 'por_imprimir').r; return r >= 4 ? '' : PLACA_ESTADOS[r + 1].k; }
+  // Qué placa mueve una impresión de la cola: al EMPEZAR, la primera «por imprimir»; al TERMINAR, la primera «imprimiendo» (si no, la primera «por imprimir»).
+  function placaDeTrabajo(placas, hacia, placaId) {
+    var L = placasLista(placas), i;
+    if (placaId) for (i = 0; i < L.length; i++) if (s(L[i].id) === s(placaId)) return s(L[i].id);
+    var busca = function (e) { for (var j = 0; j < L.length; j++) if (placaEstado(L[j].estado) === e) return s(L[j].id); return ''; };
+    return hacia === 'imprimiendo' ? busca('por_imprimir') : (busca('imprimiendo') || busca('por_imprimir'));
+  }
+  // Lo que ha salido mal otras veces con este producto (para avisar ANTES de imprimirlo otra vez): lo más reciente primero.
+  // Mira las placas y los pedidos sin placas (`salida`); solo cuenta lo regular o mal. → [{ fecha, v, causas, nota, pedido, placa }]
+  function salidasDeProducto(pedidos, productoId, nombre, excluirId) {
+    var out = [], pid = s(productoId), nom = norm(nombre);
+    (pedidos || []).forEach(function (o) {
+      if (!o || s(o.id) === s(excluirId)) return;
+      if (!(pid && s(o.productoId) === pid) && !(!pid && nom && norm(o.producto) === nom)) return;
+      var tomar = function (sa, placa) { if (sa && (sa.v === 'mal' || sa.v === 'regular')) out.push({ fecha: s(sa.fecha), v: sa.v, causas: sa.causas || [], nota: s(sa.nota), pedido: s(o.numero), placa: placa || '' }); };
+      var L = placasLista(o.placas);
+      if (L.length) L.forEach(function (p) { tomar(salidaLimpia(p.salida), p.nombre); placasLista(p.previas).forEach(function (x) { tomar(salidaLimpia(x), p.nombre); }); }); else tomar(salidaLimpia(o.salida), '');
+    });
+    return out.sort(function (a, b) { return b.fecha < a.fecha ? -1 : b.fecha > a.fecha ? 1 : 0; });
+  }
+  function salidaTexto(sa) {
+    var c = salidaLimpia(sa); if (!c) return '';
+    var v = SALIDA_V.filter(function (x) { return x.k === c.v; })[0];
+    return v.e + ' ' + v.t + (c.causas.length ? ': ' + c.causas.map(function (k) { return SALIDA_CAUSAS.filter(function (z) { return z.k === k; })[0].t.toLowerCase(); }).join(', ') : '') + (c.nota ? ' · ' + c.nota : '');
+  }
+  return { SALIDA_V: SALIDA_V, SALIDA_CAUSAS: SALIDA_CAUSAS, salidaLimpia: salidaLimpia, salidasDeProducto: salidasDeProducto, salidaTexto: salidaTexto,
+    PLACA_ESTADOS: PLACA_ESTADOS, PLACA_MAX: PLACA_MAX, placaEstado: placaEstado, placaInfo: placaInfo, placaRank: placaRank, placasLista: placasLista, placasNormaliza: placasNormaliza, placasCrea: placasCrea, placasNombresLista: placasNombresLista, placasNombresTexto: placasNombresTexto,
+    placasResumen: placasResumen, placasEstadoPedido: placasEstadoPedido, placasSuben: placasSuben, placaSiguiente: placaSiguiente, placaDeTrabajo: placaDeTrabajo,
+    rankingVentas: rankingVentas, PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, fichaCoste: fichaCoste, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,

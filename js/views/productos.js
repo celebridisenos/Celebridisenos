@@ -745,6 +745,8 @@ export function productWizard(p, opc = {}) {
     subcategoria: inp({ value: p.subcategoria || '', list: 'dl-psub', placeholder: 'Ej.: Baño' }),
     color: inp({ value: p.color || '' }), tamano: inp({ value: p.tamano || '', placeholder: 'Ej.: 12 × 8 × 5 cm' }),
     embalajeId: sel(opcionesEmbalaje(), p.embalajeId || ''), // v16.2: caja / sobre / bolsa de ESTE producto (de tu inventario)
+    placasNombres: inp({ value: p.placasNombres || '', maxlength: 400, placeholder: 'Ej.: gato y bandeja | figura y pájaro' }), // v60.13: qué lleva cada placa (separadas por «|»)
+    numPlacas: inp({ type: 'number', min: 1, max: 24, step: 1, value: p.numPlacas || '', placeholder: 'Ej.: 3' }), // v60.13: cuántas placas lleva UNA unidad (2 o más → sus pedidos nacen con las placas)
     pesoG: inp({ type: 'number', min: 0, step: 1, value: p.pesoG ?? '', placeholder: 'g' }), // v11.4: peso de la PIEZA (sin caja ni embalaje) tallas: inp({ value: p.tallas || '', placeholder: 'Ej.: S, M, L, XL (si tiene)' }),
     material: sel(['', 'PLA', 'PETG', 'TPU', 'ABS', 'Resina', 'Madera', 'Otro'], p.material || 'PLA'),
     plataforma: sel(['', 'Wallapop', 'Vinted', 'Etsy', 'Instagram', 'Tienda física', 'Otro'], p.plataforma || ''),
@@ -826,6 +828,8 @@ export function productWizard(p, opc = {}) {
       a3d = A; ponerMed(A.medidas, it.file.name); puesto.push('medidas');
       if (A.gramos && (A.gramos.real || !(Number(f.pesoG.value) > 0))) { f.pesoG.value = Math.round(A.gramos.v); puesto.push('peso'); }
       if (A.material && (isNew || !f.material.value.trim())) { f.material.value = A.material; puesto.push('material'); }
+      if (A.placas > 1 && !(Number(f.numPlacas.value) > 0)) { f.numPlacas.value = A.placas; puesto.push(A.placas + ' placas'); } // v60.13
+      if (A.placas > 1 && !f.placasNombres.value.trim() && (A.placasNombres || []).some(Boolean)) { f.placasNombres.value = A.placasNombres.join(' | '); puesto.push('qué lleva cada placa'); }
       const co = costesDeArchivo();
       if (co) { if (pa) pa.setCosts(co); puesto.push(co.horas ? 'gramos y tiempo para los costes' : 'gramos para los costes'); }
       pintarA3d();
@@ -892,7 +896,7 @@ export function productWizard(p, opc = {}) {
       h('div.form', { style: { marginTop: '12px' } }, field('Nombre *', f.nombre, null, 'full'), field('Tipo', f.tipo), field('Estado', f.estado), field('Categoría', cCat.el, 'Se usa también para la carpeta y el ID (p. ej. HOG-0001).'), field('Subcategoría', cSub.el),
         h('div.field.pcol-campo', { style: { gridColumn: '1 / -1' } }, h('label', '🎨 Colores disponibles'), paleta, h('details.more', h('summary', 'Escribirlos a mano'), h('div.in', f.color, h('p.tiny.muted', { style: { margin: '4px 0 0' } }, 'Separados por comas: Blanco, Negro, Rosa'))),
           h('p.tiny.muted', { style: { margin: '4px 0 0' } }, 'Se añaden solos al final de la descripción, cada uno con su círculo de color («🎨 Colores: 🔴 Rojo · ⚫ Negro»), lista para copiar y pegar en tus anuncios.')),
-        field('Material', f.material), medBox, field('📦 Embalaje de este producto', f.embalajeId, 'Caja, sobre o bolsa de tu inventario. Se pone solo en cada pedido y descuenta el inventario. Su coste va SIEMPRE sumado al precio (dentro del precio, no como un cargo aparte).', 'full'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full.dia-hueco', diaCaja)),
+        field('Material', f.material), medBox, field('🧩 Placas de este diseño', f.numPlacas, 'Cuántas placas hay que imprimir para UNA unidad (si es 1, déjalo vacío). Con 2 o más, cada pedido nace con sus placas y puedes ver cuál está imprimiéndose y cuál en la mesa. Si subes el 3MF de Bambu, se pone solo.'), field('🏷️ Qué lleva cada placa', f.placasNombres, 'Con tus palabras y separadas por «|»: «gato y bandeja | figura y pájaro». Se propone solo desde el 3MF; si lo dejas vacío se llaman «Placa 1», «Placa 2»…'), field('📦 Embalaje de este producto', f.embalajeId, 'Caja, sobre o bolsa de tu inventario. Se pone solo en cada pedido y descuenta el inventario. Su coste va SIEMPRE sumado al precio (dentro del precio, no como un cargo aparte).', 'full'), field('Peso del producto (g)', f.pesoG, 'Solo la pieza: sin caja ni embalaje'), field('Tallas', f.tallas), field('Dónde se vende', f.plataforma), field('Descripción', f.descripcion, null, 'full'), h('div.full.dia-hueco', diaCaja)),
       can('stock.mover') || can('productos.editar') ? skBox : null,
       h('details.more', { style: { marginTop: '12px' } }, h('summary', 'Origen y licencia del diseño'), h('div.in.form', field('Origen', f.fuente), field('Licencia', f.licencia), field('Enlace', f.enlace, null, 'full'))), msg);
     if (step === 1) mount(body, bar, h('h3', titles[1]), h('p.small.muted', 'Cada tipo de archivo tiene su zona. Puedes arrastrarlos, elegirlos o, en el móvil, hacer la foto o grabar el vídeo directamente.' + (desktop.on ? ' Se guardarán también en la carpeta del producto de este ordenador.' : '')),
@@ -933,6 +937,7 @@ export function productWizard(p, opc = {}) {
     if (datos.precio === '') delete datos.precio; else datos.precio = Number(datos.precio);
     if (datos.pesoG !== '') datos.pesoG = Number(datos.pesoG);
     ['dimX', 'dimY', 'dimZ', 'precioMin'].forEach(k => { if (datos[k] !== '') datos[k] = Number(datos[k]); }); // v16
+    if (datos.numPlacas !== '') datos.numPlacas = Math.round(Number(datos.numPlacas)) || ''; // v60.13
     const costes = pa && can('productos.costes') ? pa.getCosts() : null;
     // v11: unidades, mínimo y ubicación (solo si se han tocado o el producto es nuevo con datos)
     let stock = null;

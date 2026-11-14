@@ -134,7 +134,9 @@ export function tarjetaConsejo(opts = {}) {
     const l = lista(), c = i < 0 ? delDia(null, plat || null) : l[i % l.length];
     mount(box, h('div.row', { style: { gap: '10px', alignItems: 'flex-start' } }, h('div.cj-ico', '💡'),
       h('div.grow', h('div.tiny.muted', (i < 0 ? 'Consejo del día' : 'Consejo') + ' · ' + nombrePlat(c[0])), h('div.cj-txt', c[1]),
-        h('div.row.wrap', { style: { gap: '6px', marginTop: '8px' } }, btn('Otro consejo', () => { i = i < 0 ? Math.floor(Math.random() * l.length) : i + 1 + Math.floor(Math.random() * 3); pinta(); }, { cls: 'sm ghost' }),
+        h('div.row.wrap', { style: { gap: '6px', marginTop: '8px' } }, btn('Otro consejo', () => { // 14-11-2026: nunca el mismo que ya se ve (al azar salía a veces el del día otra vez)
+          let k = 0; do { i = i < 0 ? Math.floor(Math.random() * l.length) : i + 1 + Math.floor(Math.random() * 3); } while (l.length > 1 && l[i % l.length][1] === c[1] && ++k < 30);
+          pinta(); }, { cls: 'sm ghost' }),
           opts.chips !== false ? PLATAFORMAS.filter(p => p[0] !== 'general').map(([k, t]) => h('button.chip.sm' + (plat === k ? '.on' : ''), { type: 'button', 'data-plat': k, onclick: () => { plat = plat === k ? '' : k; i = 0; pinta(); } }, t)) : null))));
   };
   pinta();

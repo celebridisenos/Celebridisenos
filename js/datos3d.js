@@ -50,6 +50,31 @@ function malla3MF(textos) {
   return acc;
 }
 
+// «Metadata/model_settings.config» → cuántas placas (bandejas) con alguna pieza dentro tiene el proyecto de Bambu Studio
+export function contarPlacas(xml) {
+  const bloques = String(xml || '').match(/<plate>[\s\S]*?<\/plate>/g) || [];
+  const conPieza = bloques.filter(b => /<model_instance[ >\/]/.test(b)).length;
+  return conPieza || bloques.length;
+}
+// Qué lleva cada placa, con palabras de Biou («gato y bandeja», «figura y pájaro»): el nombre que le puso a la bandeja en Bambu Studio, o si no los
+// nombres de las piezas que tiene dentro (sin «.stl», sin guiones bajos). Una por cada placa que cuenta contarPlacas, en el mismo orden.
+const xmlTxt = t => String(t || '').replace(/&quot;/g, '"').replace(/&apos;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+const limpiaNombre = t => xmlTxt(t).replace(/\.(stl|3mf|obj|step|stp)$/i, '').replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+export function nombresPlacas(xml) {
+  xml = String(xml || '');
+  const objetos = {}; let m; const reO = /<object\b[^>]*\bid="(\d+)"[^>]*>\s*<metadata\s+key="name"\s+value="([^"]*)"/g;
+  while ((m = reO.exec(xml))) objetos[m[1]] = limpiaNombre(m[2]);
+  const bloques = xml.match(/<plate>[\s\S]*?<\/plate>/g) || [], conPieza = bloques.filter(b => /<model_instance[ >\/]/.test(b)), lista = conPieza.length ? conPieza : bloques;
+  return lista.map(b => {
+    const pn = /<metadata\s+key="plater_name"\s+value="([^"]*)"/.exec(b), propio = pn ? limpiaNombre(pn[1]) : '';
+    if (propio) return propio.slice(0, 40);
+    const ids = []; const reI = /<metadata\s+key="object_id"\s+value="(\d+)"/g; let q;
+    while ((q = reI.exec(b))) if (!ids.includes(q[1])) ids.push(q[1]);
+    const nom = []; ids.forEach(i => { const n = objetos[i]; if (n && !nom.some(x => x.toLowerCase() === n.toLowerCase())) nom.push(n); });
+    const txt = nom.length <= 1 ? nom.join('') : nom.length === 2 ? nom[0] + ' y ' + nom[1] : nom[0] + ', ' + nom[1] + ' y ' + (nom.length - 2 === 1 ? nom[2] : (nom.length - 2) + ' más');
+    return txt.slice(0, 40);
+  });
+}
 // «Metadata/slice_info.config» → lo que calculó el laminador (por bandeja)
 function leerLaminado(xml) {
   const bandejas = []; const reP = /<plate>([\s\S]*?)<\/plate>/g; let p;
@@ -104,12 +129,15 @@ export async function analizar3D(buf, nombre) {
   let malla = null;
   if (ext === 'stl') malla = mallaSTL(buf);
   else if (ext === '3mf') {
-    const dec = new TextDecoder(), z = await unzip(buf, n => /\.model$/i.test(n) || /slice_info\.config$/i.test(n) || /project_settings\.config$/i.test(n));
+    const dec = new TextDecoder(), z = await unzip(buf, n => /\.model$/i.test(n) || /slice_info\.config$/i.test(n) || /project_settings\.config$/i.test(n) || /model_settings\.config$/i.test(n));
     const de = re => Object.keys(z).filter(n => re.test(n));
     malla = malla3MF(de(/\.model$/i).map(n => dec.decode(z[n])));
     const si = de(/slice_info\.config$/i)[0], ps = de(/project_settings\.config$/i)[0];
     if (si) out.laminado = leerLaminado(dec.decode(z[si]));
     if (ps) out.ajustes = leerAjustes(dec.decode(z[ps]));
+    const ms = de(/model_settings\.config$/i)[0];
+    out.placas = Math.max((out.laminado && out.laminado.bandejas) || 0, ms ? contarPlacas(dec.decode(z[ms])) : 0) || null; // v60.13: cuántas placas lleva el proyecto de Bambu (null = no se sabe)
+    out.placasNombres = ms ? nombresPlacas(dec.decode(z[ms])) : []; // v60.13: y qué lleva cada una (solo se propone: él lo apunta con un toque)
   }
   // escala corregida a mano o unidad dudosa: el volumen solo vale si las medidas son creíbles
   const fiable = out.medidas && out.medidas.estado !== 'revisar';

@@ -10,6 +10,8 @@ import { go, handleError } from '../app.js';
 import { problemasEtiquetas, textoProblema, reintentar } from '../autoimpresion.js';
 import * as E from '../envio.js';
 import { botonVoz } from '../voz.js';
+import * as PL from '../placas.js'; // v60.13: las placas de cada pedido en dibujo (anillo + puntitos)
+import { miniPedido } from '../fotopedido.js'; // 14-11: la foto del producto en la tarjeta (menos letra, más dibujo)
 
 const CL = window.CL;
 const n = v => Number(v) || 0;
@@ -159,8 +161,9 @@ export function render(el) {
     toPrint.forEach(x => { const k = CL.norm(x.o.producto) + '|' + CL.norm(x.o.color); (groups[k] = groups[k] || []).push(x); });
     const lots = Object.values(groups).filter(g => g.length > 1);
     const card = (x, actions, extra) => h('div.hoy-card' + (x.t.nivel === 'late' ? '.late' : x.t.nivel === 'today' ? '.today' : ''), { onclick: e => { if (!e.target.closest('button')) go('pedidos/' + x.o.id); } },
-      h('div.row', h('b', 'nº ' + x.o.numero), h('span.grow.ellipsis.small', x.o.cliente), x.o.prioridad === 'Urgente' ? pill('⚡', 'bad') : null),
+      h('div.row.hoy-cab', miniPedido(x.o, 40), h('b', 'nº ' + x.o.numero), h('span.grow.ellipsis.small', x.o.cliente), x.o.prioridad === 'Urgente' ? pill('⚡', 'bad') : null),
       h('div.hoy-prod', (n(x.o.cantidad) > 1 ? x.o.cantidad + ' × ' : '') + x.o.producto + (x.o.color ? ' · ' + x.o.color : '')),
+      PL.mini(x.o, { grande: true, anillo: true }), PL.avisoPrevias(x.o),
       x.o.personalizacion ? h('div.tiny.muted.ellipsis', '✏️ ' + x.o.personalizacion) : null,
       x.o.incidencia ? h('div.tiny.bad-t', '⚠️ ' + x.o.incidencia) : null,
       h('div.row.wrap', { style: { marginTop: '4px' } }, h('span.due.' + (x.t.nivel === 'none' ? 'x' : x.t.nivel), x.t.texto), extra || null),
@@ -174,7 +177,8 @@ export function render(el) {
       toPrint.length ? toPrint.map(x => { const k = CL.norm(x.o.producto), q = n(x.o.cantidad) || 1; if (!(k in pool)) pool[k] = free(x.o); const fr = pool[k] >= q; if (fr) pool[k] -= q; return card(x, [
         fr && edit ? btn('📦 Coger de la estantería', async () => { try { const r = await mutate('pedidos.desdeStock', { id: x.o.id }, { onlineOnly: true }); if (r && r.id) { upsertLocal('pedidos', r); emit(); } toast('nº ' + x.o.numero + ' → ' + r.estado, 'ok'); } catch (e) { handleError(e); } }, { cls: 'ok-btn' }) : null,
         tall ? btn('Mandar a imprimir', () => T.jobForm(null, x.o), { cls: fr ? '' : 'primary', icon: 'cube' }) : null]); }) : h('p.small.muted.hoy-empty', '✅ Nada pendiente de imprimir.'),
-      printing.length ? h('div.tiny.muted', { style: { marginTop: '8px' } }, '🖨️ Imprimiéndose ahora: ' + printing.map(x => 'nº ' + x.o.numero).join(', ')) : null];
+      printing.length ? h('div.tiny.muted', { style: { marginTop: '8px' } }, '🖨️ Imprimiéndose ahora: ' + printing.map(x => 'nº ' + x.o.numero).join(', ')) : null,
+      printing.filter(x => PL.lista(x.o).length).map(x => card(x, [], h('span.tiny.muted', '🖨️ ' + x.o.estado)))]; // 14-11: el pedido con placas a medias se ve con SUS placas (una en mesa, otra imprimiendo…)
     const emq = CL.stateOfPhase(S.cfg.pedidos, 'empaquetar');
     const prepOf = lista => lista.length ? lista.map(x => card(x, [
       edit && ph(x.o) === 'postpro' && emq ? btn('Empaquetar', () => P.changeState(x.o, emq), { icon: 'box' }) : null,

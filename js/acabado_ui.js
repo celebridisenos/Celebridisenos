@@ -15,11 +15,56 @@ import { h, mount, modal, toast } from './ui.js';
 import { paraArchivo, capaDe, nombreColor } from './r8/colores_capas.js';
 import { desktop } from './desktop.js';
 import { noSePuedeAqui, esOrdenador } from './pieza_taller.js'; // 02-11-2026: si este aparato no puede, se encarga a la torre
-import { ACABADOS, IMPRESORAS, cabeEn, acabadoPorK, impPorK, recordar, recordado } from './cotizar.js';
+import { ACABADOS, IMPRESORAS, cabeEn, acabadoPorK, impPorK, recordar, recordado, RECETA_VISTA } from './cotizar.js';
 import { nuevoProg, tarjetaProgreso, sigueProgreso } from './progreso_bambu.js'; // 14-11: «Laminando en tu Bambu… %»
 
 const coma = v => String(v).replace('.', ',');
 export const ajustesTxt = (a, extra = {}) => 'capa ' + coma(a.capa) + ' · ' + (extra.paredes || a.paredes) + ' paredes · ' + (extra.relleno || a.relleno) + ' %' + (a.planchado ? ' · planchado' : '');
+
+// 14-11-2026 · 🎞️ LA CINTA de «Laminando en tu Bambu…» (progreso_bambu.js). Biou: «que abajo vaya saliendo lo que va a ser, para saber
+// qué ajustes tendrá y qué acabado». Cada frase sale de lo que de verdad va a su Bambu: la receta (RECETA_VISTA, comprobada contra
+// desktop/host/acabado.go por acabado_cinta_test.go), lo del cotizador (tamaño, fuerza), los colores y la calibración.
+// o = { a: acabado, I: impresora, extra, paradas: nº de paradas de color, ruta, cal: calibración de esa impresora (o null) }
+export function cintaAcabado(o) {
+  const a = o.a, I = o.I, x = o.extra || {}, R = RECETA_VISTA[a.k] || {}, np = o.paradas || 0;
+  const paredes = Number(x.paredes) || a.paredes, relleno = Number(x.relleno) || a.relleno, esc = Number(x.escala) || 100;
+  const fuerte = (Number(x.paredes) && Number(x.paredes) !== a.paredes) || (Number(x.relleno) && Number(x.relleno) !== a.relleno);
+  const es3mf = /\.3mf$/i.test(o.ruta || '');
+  return [
+    a.e + ' ' + a.nombre + ' · ' + a.para.replace(/\.$/, ''),
+    '📏 Capa de ' + coma(a.capa) + ' mm · ' + paredes + ' paredes · relleno ' + (relleno >= 100 ? 'macizo (100 %)' : relleno + ' % ' + (R.patron || '')).trim() + (fuerte ? ' · 💪 reforzada' : ''),
+    R.exterior ? '🐢 La pared de fuera va despacio (' + R.exterior + ' mm/s): sale lisa, sin granitos' : R.serie ? '⚡ Velocidad de serie de tu Bambu: rápida, para ver si encaja' : '',
+    R.boquilla ? '🔥 Boquilla a ' + R.boquilla + ' °C: las capas se pegan fuerte y no se parte' : '',
+    R.cama ? '🛏️ Cama a ' + R.cama[0] + ' °C la primera capa y a ' + R.cama[1] + ' °C después: se agarra y no se tuerce' : '',
+    R.capaSeg ? '🌬️ Cada capa tarda al menos ' + R.capaSeg + ' s: le da tiempo a enfriar' : '',
+    a.planchado ? '👑 La cara de arriba sale planchada: lisa al tacto' : '',
+    R.techo ? '🧱 ' + R.techo + ' capas de techo y ' + R.suelo + ' de suelo: no se transparenta el relleno' : '',
+    esc !== 100 ? '📐 Al ' + esc + ' % de su tamaño' : '',
+    np ? '🌈 ' + (np + 1) + ' colores: se para sola ' + (np === 1 ? 'una vez' : np + ' veces') + ' para que cambies la bobina' : '',
+    '🖨️ En tu ' + I.nombre + ' · placa texturizada · su perfil de serie con estos ajustes',
+    o.cal ? '🎯 Tu ' + I.nombre + ' está calibrada: agujeros y encajes a su medida' : '',
+    np ? '🧭 Con colores se queda en su postura: las paradas van por altura'
+      : es3mf ? '📦 Es un 3MF: si su diseñador dejó postura y soporte, se respetan'
+        : '🧭 Busca sola la mejor postura y pone soporte de árbol solo donde haga falta',
+    '🌳 Si lleva soporte, lo mide con tu Bambu: troncos firmes y pie pegado si sube alto',
+    '🧲 Borde (brim) solo si hace falta para que no se despegue · la costura, detrás',
+    a.tiempo + (a.k === 'normal' ? '' : ' que el Normal'),
+  ].filter(Boolean);
+}
+
+// Lo que se sabe AL ACABAR (la respuesta del programa del PC): para «Cómo ha quedado». r = respuesta de desktop.acabado
+export function cintaResultado(r, paradas) {
+  r = r || {};
+  const g = v => coma(Math.round(v * 10) / 10);
+  return [
+    r.posturaNombre ? '📐 Colocada: ' + r.posturaNombre : '',
+    r.posturaNombre || r.soporte != null ? (r.soporte >= 0.3 ? '🌳 Soporte ≈ ' + g(r.soporte) + ' g · ' + (r.delDisenador ? 'el de su diseñador, que gasta menos' : r.arreglo === 'normal' ? 'normal ajustado (el de árbol dejaba algo en el aire)' : 'fácil de quitar') : '✨ Sin soporte') : '',
+    r.recolocada ? '🧩 Recolocada para que quepa en tu cama, con todas sus piezas' : '',
+    r.piePegado ? '🦶 Un soporte alto nace encima de la pieza: su pie va pegado para que no se suelte' : '',
+    r.troncoGordo ? '🌳 Troncos de soporte más gordos y con doble pared: no se doblan' : '',
+    paradas ? '🌈 ' + paradas + (paradas === 1 ? ' parada' : ' paradas') + ' de color puestas: las ves en la barra de capas' : '',
+  ].filter(Boolean); // («si no lo ves, míralo en la barra de abajo de Windows» ya lo dice la tarjeta debajo del título)
+}
 
 // dibujito de impresora (cama + pórtico), en el color de cada una
 export function dibujoImpresora(k) {
@@ -170,12 +215,14 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     window.__acabadoPedido = { rec, imp, extra: Object.assign({}, extra) };
     if (remoto) return opts.remoto(imp, rec, extra);
     // 14-11-2026 · una tarjeta fija con el % de verdad hasta que se abre (antes: un aviso de 5 s y minutos sin nada)
-    const pid = nuevoProg(), tj = tarjetaProgreso('🖨️ Laminando en tu Bambu… ' + a.nombre + ' · ' + I.nombre), para = sigueProgreso(pid, f => tj.pon(f));
+    // 14-11 (tarde) · y debajo, la CINTA: lo que va a llevar (acabado, capa, velocidad, temperatura…) y, al acabar, cómo ha quedado
+    const pid = nuevoProg(), tj = tarjetaProgreso('🖨️ Laminando en tu Bambu… ' + a.nombre + ' · ' + I.nombre, { cinta: cintaAcabado({ a, I, extra, paradas: L.length, ruta, cal }) }), para = sigueProgreso(pid, f => tj.pon(f));
     try {
       const r = await desktop.acabado(ruta, imp, rec, Object.assign({}, extra, { prog: pid }));
-      para(); tj.fin('✅ Listo: abierto en Bambu Studio', 'ok', (r && r.troncoGordo ? '🌳 Troncos de soporte más gordos para que no se doblen. ' + (r.troncoFlojo ? '⚠️ Uno sigue fino: vigílalo al subir. ' : '') : '') + 'Si no lo ves delante, míralo en la barra de abajo de Windows.');
+      para(); tj.fin('✅ Listo: abierto en Bambu Studio', 'ok', (r && r.troncoFlojo ? '⚠️ Un tronco de soporte sigue fino: vigílalo al subir. ' : '') + 'Si no lo ves delante, míralo en la barra de abajo de Windows.', cintaResultado(r, L.length)); // (14-11 tarde: los troncos gordos y lo demás que va bien, en la cinta)
       window.__acabadoAbierto = r || null;
-      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color puestas (las ves en la barra de capas).' : '') + (L.length && directo && a.capa >= 0.24 ? ' ⚠️ Con «' + a.nombre + '» el borde del color se nota escalonado: para colores, mejor Normal, Máxima calidad o Premium.' : '') + (r && r.posturaNombre ? ' 📐 Colocada: ' + r.posturaNombre + (r.soporte >= 0.3 ? (r.delDisenador ? ' · con el soporte de su diseñador, que gasta menos (≈ ' : r.arreglo === 'normal' ? ' · con soporte normal ajustado, porque el de árbol dejaba algo en el aire (≈ ' : ' · con soporte fácil de quitar (≈ ') + Math.round(r.soporte * 10) / 10 + ' g).' : ' · sin soporte.') + (r.recolocada ? ' Recolocada para que quepa en tu cama, con todas sus piezas.' : '') + (r.piePegado ? ' 🦶 Un soporte alto nace encima de la pieza: su pie va pegado para que no se suelte (arriba sigue igual de fácil).' : '') + (r.torreSuelta ? ' ⚠️ Un soporte alto nace encima de la pieza y pegarle el pie estropeaba otro soporte: se queda como el diseñador, vigila que no se suelte al subir.' : '') + (r.troncoGordo ? ' 🌳 Los troncos de soporte eran altos y finos (como cañas): van más gordos y con doble pared para que no se doblen ni los tumbe la boquilla.' : '') + (r.troncoFlojo && !r.troncoGordo ? ' ⚠️ Hay un tronco de soporte alto y fino que no he podido engordar sin estropear otra cosa: vigílalo al subir.' : '') + (r.troncoFlojo && r.troncoGordo ? ' ⚠️ Aun así, un tronco sigue alto y fino: vigílalo al subir.' : '') : ''), 'ok', 11000); // (12-11: cómo la ha colocado; 13-11: el pie pegado)
+      // (14-11 tarde: lo que va bien —postura, gramos de soporte, troncos, pie pegado— ya pasa por la cinta de la tarjeta; en el aviso, solo lo de vigilar)
+      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color.' : '') + (L.length && directo && a.capa >= 0.24 ? ' ⚠️ Con «' + a.nombre + '» el borde del color se nota escalonado: para colores, mejor Normal, Máxima calidad o Premium.' : '') + (r && r.torreSuelta ? ' ⚠️ Un soporte alto nace encima de la pieza y pegarle el pie estropeaba otro soporte: se queda como el diseñador, vigila que no se suelte al subir.' : '') + (r && r.troncoFlojo && !r.troncoGordo ? ' ⚠️ Hay un tronco de soporte alto y fino que no he podido engordar sin estropear otra cosa: vigílalo al subir.' : '') + (r && r.troncoFlojo && r.troncoGordo ? ' ⚠️ Aun así, un tronco sigue alto y fino: vigílalo al subir.' : ''), 'ok', 8000); // (12-11: cómo la ha colocado; 13-11: el pie pegado)
     } catch (e) {
       para(); tj.fin('❌ No se ha podido abrir', 'bad', String(e.message || e));
       if (typeof opts.siNoAqui === 'function' && noSePuedeAqui(e)) { tj.quita(); if (!esOrdenador()) toast('En este aparato no se puede (' + (e.message || e) + '): se lo encargo a la torre.', 'warn', 6000); return opts.siNoAqui(imp, rec, Object.assign({}, extra, { motivo: String(e.message || e) })); }
