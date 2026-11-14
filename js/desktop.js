@@ -125,6 +125,7 @@ export const desktop = {
   cuentasInicioHechas: () => call('cuentas-inicio', { method: 'POST' }),
   redesPendiente: () => call('redes-pendiente'), // 02-11-2026: la ventana de chats pregunta si le han pedido otra pestaña
   acabado: (ruta, imp, receta, extra) => call('acabado?' + q(Object.assign({ ruta, imp, receta }, limpio(extra))), { method: 'POST' }), // 10-11: extra = { v: 2, escala, paredes, relleno } (los 5 acabados nuevos y lo del cotizador)
+  progreso: id => call('progreso?' + q({ id })), // 14-11-2026: «Laminando en tu Bambu… %» de un trabajo (?prog=… en acabado y cotizar-medir)
   cotizarMedir: (ruta, imp, receta, extra) => call('cotizar-medir?' + q(Object.assign({ ruta, imp, receta }, limpio(extra))), { method: 'POST' }), // 10-11: 💶 lamina con su Bambu y dice gramos, tiempo y avisos // 01-11-2026: abrir Bambu con la receta de acabado (rapido/normal/fino/fuerte)
   soportesMedir: (ruta, imp, receta, postura) => call('soportes-medir?' + q({ ruta, imp, receta, postura }), { method: 'POST' }), // 11-11-2026: 🪄 lamina la pieza en esa postura con su Bambu y dice los gramos de soporte
   soportesAbrir: (ruta, imp, receta, postura, extra) => call('soportes-abrir?' + q(Object.assign({ ruta, imp, receta, postura }, limpio(extra))), { method: 'POST' }), // 11-11-2026: 🪄 la abre así, laminada

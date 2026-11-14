@@ -9,7 +9,7 @@ const CL = window.CL;
 // 04-11-2026 · «somos dos trabajadores… debemos de cobrar»: si el Servidor.gs aún es el de antes (no trae minutosPieza), vuestro trabajo
 // por pieza se cuenta igual: 10 min (lo mismo que trae el Servidor 18.6.0 por defecto). Si lo cambiáis en Configuración, manda lo vuestro.
 function conTrabajo(cfg) { if (cfg && cfg.precios && (cfg.precios.minutosPieza === undefined || cfg.precios.minutosPieza === null || cfg.precios.minutosPieza === '')) cfg.precios = Object.assign({}, cfg.precios, { minutosPieza: 10 }); return cfg; }
-export const APP_VERSION = '60.12.8';
+export const APP_VERSION = '60.12.9';
 export const SERVIDOR_NECESARIO = '18.0.0'; // v20: la versión MÍNIMA del Servidor.gs que necesita esta app (la 20 no cambia nada del servidor)
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 

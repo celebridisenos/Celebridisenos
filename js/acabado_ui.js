@@ -16,6 +16,7 @@ import { paraArchivo, capaDe, nombreColor } from './r8/colores_capas.js';
 import { desktop } from './desktop.js';
 import { noSePuedeAqui, esOrdenador } from './pieza_taller.js'; // 02-11-2026: si este aparato no puede, se encarga a la torre
 import { ACABADOS, IMPRESORAS, cabeEn, acabadoPorK, impPorK, recordar, recordado } from './cotizar.js';
+import { nuevoProg, tarjetaProgreso, sigueProgreso } from './progreso_bambu.js'; // 14-11: «Laminando en tu Bambu… %»
 
 const coma = v => String(v).replace('.', ',');
 export const ajustesTxt = (a, extra = {}) => 'capa ' + coma(a.capa) + ' · ' + (extra.paredes || a.paredes) + ' paredes · ' + (extra.relleno || a.relleno) + ' %' + (a.planchado ? ' · planchado' : '');
@@ -35,8 +36,11 @@ export function dibujoImpresora(k) {
 // opts.remoto(imp, receta, extra) = hacerlo en la TORRE (portátil, tablet, móvil) · opts.siNoAqui(imp, receta, extra) = si aquí falla, en la torre
 // opts.medidas {x,y,z} mm (al 100 %) para tachar la impresora en la que no cabe · opts.escala (%) · opts.paredes · opts.relleno (del cotizador)
 // opts.acabado / opts.imp = lo ya elegido · opts.talCual() = «abrirlo sin tocar nada» · opts.titulo
+// opts.directo (14-11-2026, desde el cotizador) = sin esta ventana: abre YA con lo elegido allí. Biou: «cuando pongo lo que quiero no
+//   abre bien»: le salía otra ventana preguntando lo mismo (y más consejos). Las zonas de color guardadas de ese producto se respetan.
 export function elegirAcabado(ruta, nombre, opts = {}) {
   const remoto = typeof opts.remoto === 'function';
+  const directo = !!opts.directo && !remoto; // (14-11: si va a la TORRE, sí sale la ventana: avisa en grande de que se abre allí)
   if (!remoto && !desktop.on) return toast('El acabado se prepara en el programa del PC.', 'warn', 6000);
   if (!remoto && !ruta) return toast('Para el acabado necesito el archivo guardado en el PC (ábrelo desde un producto con su STL).', 'warn', 7000);
   const esc = Number(opts.escala) > 0 ? Number(opts.escala) : 100;
@@ -134,7 +138,7 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
           esc !== 100 ? h('li', '📏 Las zonas van al tamaño que imprimes (' + esc + ' %).') : null)) : null);
   }
   const body = h('div.ab');
-  const md = modal(opts.titulo || '🖨️ Abrir en Bambu', body, null, { size: 'wide' });
+  const md = directo ? { close() { } } : modal(opts.titulo || '🖨️ Abrir en Bambu', body, null, { size: 'wide' }); // (14-11: «directo» = sin ventana)
   const tiles = h('div.ab-acab'), imps = h('div.ab-imps'), resumen = h('div.ab-resumen');
   function pinta() {
     mount(tiles, ACABADOS.map(a => h('button.ab-tile' + (rec === a.k ? '.on' : ''), { type: 'button', 'data-k': a.k, style: '--c:' + a.color, onclick: () => { rec = a.k; pinta(); } },
@@ -165,15 +169,21 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     const a = acabadoPorK(rec), I = impPorK(imp);
     window.__acabadoPedido = { rec, imp, extra: Object.assign({}, extra) };
     if (remoto) return opts.remoto(imp, rec, extra);
-    toast('Preparando «' + a.nombre + '» para la ' + I.nombre + ' y abriendo Bambu Studio…', 'ok', 5000);
+    // 14-11-2026 · una tarjeta fija con el % de verdad hasta que se abre (antes: un aviso de 5 s y minutos sin nada)
+    const pid = nuevoProg(), tj = tarjetaProgreso('🖨️ Laminando en tu Bambu… ' + a.nombre + ' · ' + I.nombre), para = sigueProgreso(pid, f => tj.pon(f));
     try {
-      const r = await desktop.acabado(ruta, imp, rec, extra);
+      const r = await desktop.acabado(ruta, imp, rec, Object.assign({}, extra, { prog: pid }));
+      para(); tj.fin('✅ Listo: abierto en Bambu Studio', 'ok', (r && r.troncoGordo ? '🌳 Troncos de soporte más gordos para que no se doblen. ' + (r.troncoFlojo ? '⚠️ Uno sigue fino: vigílalo al subir. ' : '') : '') + 'Si no lo ves delante, míralo en la barra de abajo de Windows.');
       window.__acabadoAbierto = r || null;
-      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color puestas (las ves en la barra de capas).' : '') + (r && r.posturaNombre ? ' 📐 Colocada: ' + r.posturaNombre + (r.soporte >= 0.3 ? (r.delDisenador ? ' · con el soporte de su diseñador, que gasta menos (≈ ' : r.arreglo === 'normal' ? ' · con soporte normal ajustado, porque el de árbol dejaba algo en el aire (≈ ' : ' · con soporte fácil de quitar (≈ ') + Math.round(r.soporte * 10) / 10 + ' g).' : ' · sin soporte.') + (r.recolocada ? ' Recolocada para que quepa en tu cama, con todas sus piezas.' : '') + (r.piePegado ? ' 🦶 Un soporte alto nace encima de la pieza: su pie va pegado para que no se suelte (arriba sigue igual de fácil).' : '') + (r.torreSuelta ? ' ⚠️ Un soporte alto nace encima de la pieza y pegarle el pie estropeaba otro soporte: se queda como el diseñador, vigila que no se suelte al subir.' : '') : ''), 'ok', 11000); // (12-11: cómo la ha colocado; 13-11: el pie pegado)
+      toast('🖨️ Abierto en Bambu: ' + a.nombre + ' en la ' + I.nombre + ', listo para laminar.' + (L.length ? ' 🌈 Con ' + L.length + (L.length === 1 ? ' parada' : ' paradas') + ' de color puestas (las ves en la barra de capas).' : '') + (L.length && directo && a.capa >= 0.24 ? ' ⚠️ Con «' + a.nombre + '» el borde del color se nota escalonado: para colores, mejor Normal, Máxima calidad o Premium.' : '') + (r && r.posturaNombre ? ' 📐 Colocada: ' + r.posturaNombre + (r.soporte >= 0.3 ? (r.delDisenador ? ' · con el soporte de su diseñador, que gasta menos (≈ ' : r.arreglo === 'normal' ? ' · con soporte normal ajustado, porque el de árbol dejaba algo en el aire (≈ ' : ' · con soporte fácil de quitar (≈ ') + Math.round(r.soporte * 10) / 10 + ' g).' : ' · sin soporte.') + (r.recolocada ? ' Recolocada para que quepa en tu cama, con todas sus piezas.' : '') + (r.piePegado ? ' 🦶 Un soporte alto nace encima de la pieza: su pie va pegado para que no se suelte (arriba sigue igual de fácil).' : '') + (r.torreSuelta ? ' ⚠️ Un soporte alto nace encima de la pieza y pegarle el pie estropeaba otro soporte: se queda como el diseñador, vigila que no se suelte al subir.' : '') + (r.troncoGordo ? ' 🌳 Los troncos de soporte eran altos y finos (como cañas): van más gordos y con doble pared para que no se doblen ni los tumbe la boquilla.' : '') + (r.troncoFlojo && !r.troncoGordo ? ' ⚠️ Hay un tronco de soporte alto y fino que no he podido engordar sin estropear otra cosa: vigílalo al subir.' : '') + (r.troncoFlojo && r.troncoGordo ? ' ⚠️ Aun así, un tronco sigue alto y fino: vigílalo al subir.' : '') : ''), 'ok', 11000); // (12-11: cómo la ha colocado; 13-11: el pie pegado)
     } catch (e) {
-      if (typeof opts.siNoAqui === 'function' && noSePuedeAqui(e)) { if (!esOrdenador()) toast('En este aparato no se puede (' + (e.message || e) + '): se lo encargo a la torre.', 'warn', 6000); return opts.siNoAqui(imp, rec, Object.assign({}, extra, { motivo: String(e.message || e) })); }
+      para(); tj.fin('❌ No se ha podido abrir', 'bad', String(e.message || e));
+      if (typeof opts.siNoAqui === 'function' && noSePuedeAqui(e)) { tj.quita(); if (!esOrdenador()) toast('En este aparato no se puede (' + (e.message || e) + '): se lo encargo a la torre.', 'warn', 6000); return opts.siNoAqui(imp, rec, Object.assign({}, extra, { motivo: String(e.message || e) })); }
       toast('No se pudo preparar el acabado: ' + (e.message || e), 'bad', 8000);
     }
+  }
+  if (directo) { // 14-11: desde el cotizador, sin la ventana (con la calibración de esa impresora, si la tiene)
+    return import('./r8/calibracion.js').then(m => { CAL = m; }).catch(() => { }).then(() => abrir());
   }
   pinta();
   mount(body,

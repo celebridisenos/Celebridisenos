@@ -16,6 +16,7 @@ import { sumaMovil, ponMovil, cuotaMovil, variantesDe, puedeGuardar } from '../v
 import { ventanaGuardar, nombreDe, igualQue } from './variantes_ui.js';
 import { elegirAcabado, dibujoImpresora, ajustesTxt } from '../acabado_ui.js';
 import { rutaDePieza } from '../pieza_taller.js';
+import { nuevoProg, sigueProgreso } from '../progreso_bambu.js'; // 14-11: «Laminando con tu Bambu… %»
 
 const CL = window.CL;
 const numero = v => { const x = Number(String(v ?? '').replace(',', '.')); return isFinite(x) ? x : 0; };
@@ -69,6 +70,7 @@ export async function abrirCotizador(p, opts = {}) {
     h('b.cq-nombre', p.nombre), h('div.cq-ahora', 'Así lo vendes ahora: ', h('b', Number(p.precio) > 0 ? eur(p.precio) : 'sin precio'), B.gramos > 0 ? ' · ' + coma(B.gramos) + ' g' : '', B.horas > 0 ? ' · ' + tiempoTxt(B.horas) : '', B.medidas ? ' · ' + medTxt(B.medidas) : ''),
     h('div.cq-fuente', h('span.cq-sello')), h('div.cq-vars')));
   const sello = cab.querySelector('.cq-sello'), varsEl = cab.querySelector('.cq-vars');
+  const pintaSello = () => { const m = MED.get(clave()); if (m && m.midiendo) sello.textContent = '⏳ Laminando con tu Bambu… ' + (m.pct || 0) + ' %' + (m.fase ? ' · ' + m.fase : ''); }; // (14-11: solo el sello, sin repintar todo)
   // 11-11-2026 · 🏷️ las variantes que ya vende: un clic y el cotizador se pone así
   function pintaVars() {
     const L = variantesDe(p.id);
@@ -159,7 +161,7 @@ export async function abrirCotizador(p, opts = {}) {
     if (m && m.ok && m.avisos && m.avisos.length) C.unshift({ n: 'no', t: 'Tu Bambu da ' + m.avisos.length + ' aviso al laminarla así: «' + m.avisos[0] + '». Revísalo antes de imprimir.' });
     if (m && m.ok && !(m.avisos || []).length) C.push({ n: 'ok', t: 'Laminada de verdad con tu Bambu así: 0 avisos.' });
     if (m && m.error) C.push({ n: 'ojo', t: 'Tu Bambu no ha podido laminarla así (' + m.error + '): los números son ESTIMADOS.' });
-    sello.textContent = de === 'MEDIDO' ? '✅ MEDIDO con tu Bambu (laminada así)' : (m && m.midiendo ? '⏳ Laminando con tu Bambu…' : (puedeMedir ? '≈ ESTIMADO · en un momento lo mido con tu Bambu' : '≈ ESTIMADO (calibrado con tus laminados)'));
+    sello.textContent = de === 'MEDIDO' ? '✅ MEDIDO con tu Bambu (laminada así)' : (m && m.midiendo ? '⏳ Laminando con tu Bambu… ' + (m.pct || 0) + ' %' + (m.fase ? ' · ' + m.fase : '') : (puedeMedir ? '≈ ESTIMADO · en un momento lo mido con tu Bambu' : '≈ ESTIMADO (calibrado con tus laminados)'));
     sello.className = 'cq-sello ' + (de === 'MEDIDO' ? 'medido' : 'estimado');
     const dif = pr && ahora > 0 ? Math.round((pr.rec - ahora) * 100) / 100 : null;
     const I = impPorK(E.imp), a = acabadoPorK(E.acabado), cuota = cuotaMovil();
@@ -184,7 +186,8 @@ export async function abrirCotizador(p, opts = {}) {
         h('div', h('i', '⏱️'), h('small', 'Tiempo'), h('b', tiempoTxt(hh))),
         h('div', h('i', '📐'), h('small', 'Medidas'), h('b', r.medidas ? medTxt(r.medidas) : '—')),
         h('div', h('i', '🖨️'), h('small', 'Impresora'), h('b', I.nombre), h('em', a.e + ' ' + a.nombre))),
-      h('div.cq-consejos', h('h4', '💡 Mis consejos'), C.map(c => h('div.cq-c.' + c.n, h('i', c.n === 'ok' ? '✅' : c.n === 'ojo' ? '⚠️' : '⛔'), h('span', c.t)))),
+      // 14-11-2026 · Biou: «siempre aconsejando». Solo salen los AVISOS (⚠️ y ⛔); lo que solo dice que va bien, no.
+      C.some(c => c.n !== 'ok') ? h('div.cq-consejos', h('h4', '⚠️ Ojo'), C.filter(c => c.n !== 'ok').map(c => h('div.cq-c.' + c.n, h('i', c.n === 'ojo' ? '⚠️' : '⛔'), h('span', c.t)))) : null,
       h('div.cq-cliente', h('div.row', h('h4.grow', '📋 Para mandarle al cliente'), btn('Copiar', () => copyText(fraseCliente(p, E, r, pr, dias)), { cls: 'primary sm cq-copiar', icon: 'copy' })), h('pre.cq-frase', fraseCliente(p, E, r, pr, dias))),
       h('div.cq-botones',
         costes && pr ? btn(ya ? '🏷️ Ya guardada como «' + nombreDe(ya) + '» · cambiar' : '🏷️ Guardar y poner a la venta', () => ventanaGuardar(p, { E: Object.assign({}, E), r, g, hh, de, precio: pr.rec, minimo: pr.min, coste: pr.coste, movil: E.movil }, ya, () => { pintaVars(); pintaDer(); }),
@@ -209,16 +212,18 @@ export async function abrirCotizador(p, opts = {}) {
   }
   async function medir(k, sinPintar) {
     if (MED.has(k)) return; const [acab, imp, esc, w, i] = k.split('|'); const yo = ++turno;
-    MED.set(k, { midiendo: true }); if (!sinPintar) pintaDer();
+    MED.set(k, { midiendo: true, pct: 0 }); if (!sinPintar) pintaDer();
+    const pid = nuevoProg(), para = sigueProgreso(pid, f => { const x = MED.get(k); if (x && x.midiendo && f.ok) { x.pct = Math.max(x.pct || 0, Math.min(99, f.pct || 0)); x.fase = f.fase || ''; if (k === clave()) pintaSello(); } });
     try {
-      const res = await desktop.cotizarMedir(ruta, imp, acab, { escala: Number(esc) !== 100 ? esc : '', paredes: w, relleno: i, mat: B.material });
+      const res = await desktop.cotizarMedir(ruta, imp, acab, { escala: Number(esc) !== 100 ? esc : '', paredes: w, relleno: i, mat: B.material, prog: pid });
       MED.set(k, Object.assign({ ok: true }, res));
     } catch (e) { MED.set(k, { error: String(e.message || e).replace(/^Bambu no ha podido laminarla: /, '') }); }
+    para();
     if (yo === turno || sinPintar) { pintaIzq(); pintaDer(); }
   }
   async function abrirBambuAsi() {
     const r = estimar(Object.assign({ base: B }, E)), pz = await import('./productos.js');
-    const o = { acabado: E.acabado, imp: E.imp, escala: E.escala, medidas: B.medidas, titulo: '🖨️ Abrir en Bambu · como lo has presupuestado' };
+    const o = { acabado: E.acabado, imp: E.imp, escala: E.escala, medidas: B.medidas, titulo: '🖨️ Abrir en Bambu · como lo has presupuestado', directo: true }; // (14-11: sin otra ventana)
     if (Number(E.fuerza) > 0) { o.paredes = r.ajustes.paredes; o.relleno = r.ajustes.relleno; }
     pz.acabadoDeProducto(p, o);
   }
