@@ -14,7 +14,7 @@ import { analizar3D, horasTxt } from '../datos3d.js';
 import { ACABADOS, IMPRESORAS, CALIBRADO, horasNormal, acabadoPorK, impPorK, estimar, consejos, mejorImpresora, geoDe, recordar, recordado, cabeEn, escalaParaMedida, medidasDeCm } from '../cotizar.js';
 import { sumaMovil, ponMovil, cuotaMovil, variantesDe, puedeGuardar } from '../variantes.js'; // 11-11-2026: 📱 con o sin móvil y 🏷️ variantes
 import { ventanaGuardar, nombreDe, igualQue } from './variantes_ui.js';
-import { elegirAcabado, dibujoImpresora, ajustesTxt } from '../acabado_ui.js';
+import { elegirAcabado, dibujoImpresora, ajustesTxt, placaDe } from '../acabado_ui.js';
 import { rutaDePieza } from '../pieza_taller.js';
 import { nuevoProg, sigueProgreso } from '../progreso_bambu.js'; // 14-11: «Laminando con tu Bambu… %»
 
@@ -160,6 +160,8 @@ export async function abrirCotizador(p, opts = {}) {
     const C = consejos(E, r);
     if (m && m.ok && m.avisos && m.avisos.length) C.unshift({ n: 'no', t: 'Tu Bambu da ' + m.avisos.length + ' aviso al laminarla así: «' + m.avisos[0] + '». Revísalo antes de imprimir.' });
     if (m && m.ok && !(m.avisos || []).length) C.push({ n: 'ok', t: 'Laminada de verdad con tu Bambu así: 0 avisos.' });
+    // 14-11 noche · 🧠 lo que dice el experto 3D de esta pieza (medido en ese laminado): lo importante, en «⚠️ Ojo»
+    if (m && m.ok && m.experto) (m.experto.consejos || []).filter(c => c.nivel !== 'bajo' && c.clave !== 'al_aire').forEach(c => C.push({ n: c.nivel === 'alto' ? 'no' : 'ojo', t: (c.icono || '') + ' ' + c.texto }));
     if (m && m.error) C.push({ n: 'ojo', t: 'Tu Bambu no ha podido laminarla así (' + m.error + '): los números son ESTIMADOS.' });
     sello.textContent = de === 'MEDIDO' ? '✅ MEDIDO con tu Bambu (laminada así)' : (m && m.midiendo ? '⏳ Laminando con tu Bambu… ' + (m.pct || 0) + ' %' + (m.fase ? ' · ' + m.fase : '') : (puedeMedir ? '≈ ESTIMADO · en un momento lo mido con tu Bambu' : '≈ ESTIMADO (calibrado con tus laminados)'));
     sello.className = 'cq-sello ' + (de === 'MEDIDO' ? 'medido' : 'estimado');
@@ -215,7 +217,7 @@ export async function abrirCotizador(p, opts = {}) {
     MED.set(k, { midiendo: true, pct: 0 }); if (!sinPintar) pintaDer();
     const pid = nuevoProg(), para = sigueProgreso(pid, f => { const x = MED.get(k); if (x && x.midiendo && f.ok) { x.pct = Math.max(x.pct || 0, Math.min(99, f.pct || 0)); x.fase = f.fase || ''; if (k === clave()) pintaSello(); } });
     try {
-      const res = await desktop.cotizarMedir(ruta, imp, acab, { escala: Number(esc) !== 100 ? esc : '', paredes: w, relleno: i, mat: B.material, prog: pid });
+      const res = await desktop.cotizarMedir(ruta, imp, acab, { escala: Number(esc) !== 100 ? esc : '', paredes: w, relleno: i, mat: B.material, placa: placaDe(imp), prog: pid }); // (14-11 noche: 🛏️ la placa de esa impresora)
       MED.set(k, Object.assign({ ok: true }, res));
     } catch (e) { MED.set(k, { error: String(e.message || e).replace(/^Bambu no ha podido laminarla: /, '') }); }
     para();
@@ -223,7 +225,7 @@ export async function abrirCotizador(p, opts = {}) {
   }
   async function abrirBambuAsi() {
     const r = estimar(Object.assign({ base: B }, E)), pz = await import('./productos.js');
-    const o = { acabado: E.acabado, imp: E.imp, escala: E.escala, medidas: B.medidas, titulo: '🖨️ Abrir en Bambu · como lo has presupuestado', directo: true }; // (14-11: sin otra ventana)
+    const o = { acabado: E.acabado, imp: E.imp, escala: E.escala, medidas: B.medidas, titulo: '🖨️ Abrir en Bambu · como lo has presupuestado', directo: true, mat: B.material }; // (14-11: sin otra ventana)
     if (Number(E.fuerza) > 0) { o.paredes = r.ajustes.paredes; o.relleno = r.ajustes.relleno; }
     pz.acabadoDeProducto(p, o);
   }

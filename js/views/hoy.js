@@ -12,6 +12,8 @@ import * as E from '../envio.js';
 import { botonVoz } from '../voz.js';
 import * as PL from '../placas.js'; // v60.13: las placas de cada pedido en dibujo (anillo + puntitos)
 import { miniPedido } from '../fotopedido.js'; // 14-11: la foto del producto en la tarjeta (menos letra, más dibujo)
+import { PASOS5, barra5 } from '../pasos.js'; // 14-11: los 5 pasos (Confirmado → Imprimiendo → En mesa → Empaquetado → Enviado)
+import * as CD from '../cierre.js'; // 14-11: 🌙 Cerrar el día + lo que dejó apuntado
 
 const CL = window.CL;
 const n = v => Number(v) || 0;
@@ -63,6 +65,19 @@ export function avisosStock() {
   return out.sort((a, b) => ord[a.nivel] - ord[b.nivel]);
 }
 
+// Los números del tablero suben desde donde estaban (o desde 0 la primera vez). Con «reducir movimiento» saltan al valor.
+const antes = new Map();
+function contar(raiz) {
+  const reduce = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
+  raiz.querySelectorAll('.ht-n').forEach(el => {
+    const k = el.parentNode.dataset.k, a = antes.get(k) || 0, b = Number(el.dataset.v) || 0; antes.set(k, b);
+    if (reduce || a === b) { el.textContent = String(b); return; }
+    const t0 = performance.now(), dur = 650; el.textContent = String(a);
+    const paso = t => { const x = Math.min(1, (t - t0) / dur); el.textContent = String(Math.round(a + (b - a) * (1 - Math.pow(1 - x, 3)))); if (x < 1 && el.isConnected) requestAnimationFrame(paso); else el.textContent = String(b); };
+    requestAnimationFrame(paso);
+  });
+}
+
 export function render(el) {
   setOp(isOp());
   const head = h('div.page-head');
@@ -95,7 +110,8 @@ export function render(el) {
     const labelProbs = problemasEtiquetas(); // v12.1: «Etiqueta no impresa — motivo» (nunca se finge que se imprimió)
     const edit = can('pedidos.editar'), tall = can('taller.editar');
 
-    mount(head, h('div.grow', h('h1', isOp() ? '🛠️ Taller · hoy' : 'Hoy'), h('p.small.muted', { style: { margin: '2px 0 0' } }, new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + toPrint.length + ' por imprimir · ' + toPrep.length + ' por preparar · ' + toShip.length + ' por enviar')),
+    mount(head, h('div.grow', h('h1', isOp() ? '🛠️ Taller · hoy' : 'Hoy'), h('p.small.muted', { style: { margin: '2px 0 0' } }, new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }))),
+      CD.puedeApuntar() ? btn(CD.diaCerrado() ? 'Día cerrado ✓' : '🌙 Cerrar el día', () => CD.cerrarDia(draw), { cls: 'ghost hoy-cerrar' + (CD.diaCerrado() ? ' hecho' : (new Date().getHours() >= 18 ? ' pulso' : '')), title: 'Lo que hiciste hoy, lo de mañana y lo que te queda' }) : null,
       botonVoz(), btn('Biouvision', () => go('estudio'), { cls: 'ghost', icon: 'camera', title: 'Editor de fotos: retocar, filtros y fondo' }),
       btn(isOp() ? 'Salir del modo taller' : 'Modo taller', () => { setOp(!isOp()); draw(); }, { icon: isOp() ? 'x' : 'play', cls: isOp() ? '' : 'primary' }));
 
@@ -141,6 +157,16 @@ export function render(el) {
       paso('✈️', 'Enviados', enviados.length, 'pedidos/?f=enviados'), paso('✅', 'Completados', completados.length, 'pedidos/?f=completados'),
       paso('💶', 'Por cobrar', porCobrar.length, 'pedidos/?f=porcobrar', porCobrar.length ? 'aviso' : ''),
       can('productos.costes') ? paso('💰', 'Cobrado este mes', cobradosMes.length, 'ingresos', 'ok', CL.eur2(totalCobrado)) : null);
+    // 14-11: el tablero de los 5 pasos, en dibujo (foto de cada producto + número que sube + flecha al siguiente paso)
+    const grupos = [[ordersT.filter(x => ph(x.o) === 'confirmado').map(x => x.o), 'fabricar'], [printing.map(x => x.o), 'fabricando'], [enMesa.map(x => x.o), 'postpro'],
+      [aEmpaquetar.map(x => x.o).concat(toShip.map(x => x.o)), 'empaquetar'], [enviados, 'enviados']];
+    const tablero = h('div.hoy-tab', { role: 'navigation', 'aria-label': 'Los 5 pasos de los pedidos' }, PASOS5.map((p, i) => {
+      const L = grupos[i][0];
+      return h('button.ht' + (L.length ? '' : '.cero') + (i === 1 && L.length ? '.activo' : ''), { type: 'button', 'data-k': p.k, style: { '--i': i }, title: 'Ver en Pedidos', onclick: () => go('pedidos/?f=' + grupos[i][1]) },
+        h('span.ht-e', p.e), h('b.ht-n', { 'data-v': String(L.length) }, '0'), h('span.ht-t', p.t),
+        h('span.ht-f', L.slice(0, 3).map(o => miniPedido(o, 30)), L.length > 3 ? h('small', '+' + (L.length - 3)) : null));
+    }));
+    contar(tablero);
     const avisos = avisosStock();
     const stockBox = avisos.length ? h('div.card.flat.hoy-stock', { role: 'status' },
       h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', avisos.some(a => a.nivel !== 'bajo') ? '🔴 Material en nivel crítico' : '⚠️ Stock bajo'), h('span.grow'), btn('Ver inventario', () => go('inventario'), { cls: 'sm' })),
@@ -148,7 +174,7 @@ export function render(el) {
       h('div.row.wrap.hoy-stock-l', avisos.slice(0, 8).map(a => h('button.chip.' + (a.nivel === 'bajo' ? 'warn' : 'bad'), { type: 'button', title: 'Reponer ' + a.nombre, onclick: () => import('./inventario.js').then(m => m.compraRapida(a.tipo === 'material' ? { nombre: a.nombre } : { filamento: a.filamento || a.nombre })) },
         (a.nivel === 'agotado' ? '⛔ ' : a.nivel === 'critico' ? '🔴 ' : '⚠️ ') + a.nombre + ': ' + (a.nivel === 'agotado' ? 'agotado' : a.queda + ' ' + a.unidad), h('b', ' ➕ Reponer'))))) : null;
     const revBox = h('div.hoy-rev'); pintaRevision(revBox);
-    mount(top, flujo, stockBox, revBox, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
+    mount(top, CD.tarjetaPendientes(), tablero, flujo, stockBox, revBox, reservasBox, encBox, labelProbs.length ? h('div.card.flat.hoy-labelprobs', { role: 'alert', style: { borderLeft: '4px solid var(--bad, #d33)' } },
         h('div.row.wrap', { style: { gap: '8px', alignItems: 'center' } }, h('b', '🏷️ ' + labelProbs.length + ' etiqueta' + (labelProbs.length > 1 ? 's' : '') + ' sin imprimir'), edit ? btn('Reintentar', () => reintentar().then(draw), { cls: 'sm', icon: 'printer' }) : null),
         labelProbs.slice(0, 6).map(p => h('div.small', { style: { cursor: 'pointer' }, onclick: () => go('pedidos/' + p.o.id) }, h('b', 'nº ' + p.o.numero), ' · ' + (p.o.cliente || '') + ' — ' + textoProblema(p)))) : null,
       T.rateBlock ? T.rateBlock(tall) : null, prs.length ? h('div.hoy-prs', prCards) : null, // v11.4: avisos de la Bambu y «¿Cómo salió?»
@@ -163,7 +189,7 @@ export function render(el) {
     const card = (x, actions, extra) => h('div.hoy-card' + (x.t.nivel === 'late' ? '.late' : x.t.nivel === 'today' ? '.today' : ''), { onclick: e => { if (!e.target.closest('button')) go('pedidos/' + x.o.id); } },
       h('div.row.hoy-cab', miniPedido(x.o, 40), h('b', 'nº ' + x.o.numero), h('span.grow.ellipsis.small', x.o.cliente), x.o.prioridad === 'Urgente' ? pill('⚡', 'bad') : null),
       h('div.hoy-prod', (n(x.o.cantidad) > 1 ? x.o.cantidad + ' × ' : '') + x.o.producto + (x.o.color ? ' · ' + x.o.color : '')),
-      PL.mini(x.o, { grande: true, anillo: true }), PL.avisoPrevias(x.o),
+      barra5(x.o), PL.mini(x.o, { grande: true, anillo: true }), PL.avisoPrevias(x.o),
       x.o.personalizacion ? h('div.tiny.muted.ellipsis', '✏️ ' + x.o.personalizacion) : null,
       x.o.incidencia ? h('div.tiny.bad-t', '⚠️ ' + x.o.incidencia) : null,
       h('div.row.wrap', { style: { marginTop: '4px' } }, h('span.due.' + (x.t.nivel === 'none' ? 'x' : x.t.nivel), x.t.texto), extra || null),
@@ -201,7 +227,7 @@ export function render(el) {
       col('🚚', 'Enviar', toShip.length, shipCol, 'enviar'), col('💶', 'Cobrar', porCobrar.length, cobrarCol, 'porcobrar'));
     if (!S.t.pedidos.length) mount(cols, h('div.card', empty('truck', 'Aún no hay pedidos', 'Cuando entren aparecerán aquí, ordenados por urgencia.')));
   };
-  const firma = () => JSON.stringify([S.t.pedidos.map(o => [o.id, o.estado, o.version, o.cobrado, o.incidencia]), (S.t.trabajos || []).map(j => [j.id, j.estado, j.version]), (S.t.bobinas || []).map(b => [b.id, b.restante]), (S.t.materiales || []).map(m => [m.id, m.stock, m.stockMin, m.stockCritico]), isOp()]);
+  const firma = () => JSON.stringify([S.t.pedidos.map(o => [o.id, o.estado, o.version, o.cobrado, o.incidencia]), (S.t.trabajos || []).map(j => [j.id, j.estado, j.version]), (S.t.bobinas || []).map(b => [b.id, b.restante]), (S.t.materiales || []).map(m => [m.id, m.stock, m.stockMin, m.stockCritico]), (S.t.tareas || []).filter(t => t.categoria === CD.CATEGORIA).map(t => [t.id, t.estado, t.fechaLimite]), S.hoy, isOp()]);
   let ultima = '';
   const drawSiCambia = async forzar => { const f = firma(); if (!forzar && f === ultima) return; ultima = f; const sc = document.scrollingElement, y = sc ? sc.scrollTop : 0; await draw0(); if (sc && y) sc.scrollTop = y; };
   drawSiCambia(true);

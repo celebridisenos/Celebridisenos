@@ -19,6 +19,31 @@ import { ACABADOS, IMPRESORAS, cabeEn, acabadoPorK, impPorK, recordar, recordado
 import { nuevoProg, tarjetaProgreso, sigueProgreso } from './progreso_bambu.js'; // 14-11: «Laminando en tu Bambu… %»
 
 const coma = v => String(v).replace('.', ',');
+// 14-11-2026 (noche) · 🧵 MATERIAL y 🛏️ PLACA. Biou: «NUESTRO PROGRAMA TIENE QUE PREGUNTAR QUÉ PLACA PONEMOS, SI ES PETG O PLA».
+// Lo mismo que desktop/host/placa_material.go: la placa se recuerda POR IMPRESORA (aquí y en el programa del PC: «placa_a1m»…);
+// el material va por trabajo (el del producto o el último usado).
+export const PLACAS = [
+  { k: 'texturizada', e: '🟫', nombre: 'Texturizada', largo: 'PEI texturizada (rugosa)' },
+  { k: 'lisa', e: '⬛', nombre: 'Lisa', largo: 'PEI lisa' },
+  { k: 'fria', e: '🧊', nombre: 'Fría', largo: 'Placa fría' },
+  { k: 'ingenieria', e: '⚙️', nombre: 'Ingeniería', largo: 'Placa de ingeniería' },
+];
+export const placaPorK = k => PLACAS.find(p => p.k === k) || PLACAS[0];
+export const matDe = s => /petg/i.test(String(s || '')) ? 'PETG' : 'PLA';
+export const placaDe = imp => placaPorK(recordado('placa_' + imp)).k;
+export function guardaPlaca(imp, k) { recordar('placa_' + imp, k); try { if (desktop.on && desktop.setConfig) desktop.setConfig('placa_' + imp, k).catch(() => { }); } catch (e) { } }
+// lo que diría un experto de esa mezcla (igual que avisosPlacaMaterial en el programa del PC)
+export function avisoPlaca(mat, placa) {
+  if (mat === 'PETG' && placa === 'fria') return { no: true, t: '⛔ El PETG no va en la placa fría: pon la texturizada' };
+  if (mat === 'PETG' && placa === 'lisa') return { t: '🧴 PETG en PEI lisa: pon pegamento de barra antes, o arranca trozos de la placa' };
+  if (mat === 'PETG' && placa === 'ingenieria') return { t: '🧴 PETG en la de ingeniería: una capa fina de pegamento de barra' };
+  if (mat === 'PLA' && (placa === 'fria' || placa === 'ingenieria')) return { t: '🧴 PLA en ' + placaPorK(placa).largo.toLowerCase() + ': una capa fina de pegamento de barra' };
+  return null;
+}
+// el aire entre el soporte y la pieza (huecoSoporte en desktop/host/soportes.go): en capas enteras, nunca menos de 0,2 mm (PETG, 0,3)
+export function aireSoporte(capa, mat) { const c = Number(capa) > 0.04 ? Number(capa) : 0.2, n = Math.max(1, Math.ceil((mat === 'PETG' ? 0.3 : 0.2) / c - 0.07)); return Math.round(n * c * 1000) / 1000; }
+const SEMAFORO = { verde: '🟢', amarillo: '🟡', rojo: '🔴' };
+
 export const ajustesTxt = (a, extra = {}) => 'capa ' + coma(a.capa) + ' · ' + (extra.paredes || a.paredes) + ' paredes · ' + (extra.relleno || a.relleno) + ' %' + (a.planchado ? ' · planchado' : '');
 
 // 14-11-2026 · 🎞️ LA CINTA de «Laminando en tu Bambu…» (progreso_bambu.js). Biou: «que abajo vaya saliendo lo que va a ser, para saber
@@ -27,6 +52,7 @@ export const ajustesTxt = (a, extra = {}) => 'capa ' + coma(a.capa) + ' · ' + (
 // o = { a: acabado, I: impresora, extra, paradas: nº de paradas de color, ruta, cal: calibración de esa impresora (o null) }
 export function cintaAcabado(o) {
   const a = o.a, I = o.I, x = o.extra || {}, R = RECETA_VISTA[a.k] || {}, np = o.paradas || 0;
+  const mat = matDe(o.mat || x.mat), P = placaPorK(o.placa || x.placa), av = avisoPlaca(mat, P.k); // (14-11 noche)
   const paredes = Number(x.paredes) || a.paredes, relleno = Number(x.relleno) || a.relleno, esc = Number(x.escala) || 100;
   const fuerte = (Number(x.paredes) && Number(x.paredes) !== a.paredes) || (Number(x.relleno) && Number(x.relleno) !== a.relleno);
   const es3mf = /\.3mf$/i.test(o.ruta || '');
@@ -34,19 +60,22 @@ export function cintaAcabado(o) {
     a.e + ' ' + a.nombre + ' · ' + a.para.replace(/\.$/, ''),
     '📏 Capa de ' + coma(a.capa) + ' mm · ' + paredes + ' paredes · relleno ' + (relleno >= 100 ? 'macizo (100 %)' : relleno + ' % ' + (R.patron || '')).trim() + (fuerte ? ' · 💪 reforzada' : ''),
     R.exterior ? '🐢 La pared de fuera va despacio (' + R.exterior + ' mm/s): sale lisa, sin granitos' : R.serie ? '⚡ Velocidad de serie de tu Bambu: rápida, para ver si encaja' : '',
-    R.boquilla ? '🔥 Boquilla a ' + R.boquilla + ' °C: las capas se pegan fuerte y no se parte' : '',
-    R.cama ? '🛏️ Cama a ' + R.cama[0] + ' °C la primera capa y a ' + R.cama[1] + ' °C después: se agarra y no se tuerce' : '',
+    R.boquilla && mat === 'PLA' ? '🔥 Boquilla a ' + R.boquilla + ' °C: las capas se pegan fuerte y no se parte' : '',
+    mat === 'PETG' ? '🔥 PETG: con las temperaturas de tu perfil de PETG' : '',
+    R.cama && mat === 'PLA' && P.k !== 'fria' ? '🛏️ Cama a ' + R.cama[0] + ' °C la primera capa y a ' + R.cama[1] + ' °C después: se agarra y no se tuerce' : '',
     R.capaSeg ? '🌬️ Cada capa tarda al menos ' + R.capaSeg + ' s: le da tiempo a enfriar' : '',
     a.planchado ? '👑 La cara de arriba sale planchada: lisa al tacto' : '',
     R.techo ? '🧱 ' + R.techo + ' capas de techo y ' + R.suelo + ' de suelo: no se transparenta el relleno' : '',
     esc !== 100 ? '📐 Al ' + esc + ' % de su tamaño' : '',
     np ? '🌈 ' + (np + 1) + ' colores: se para sola ' + (np === 1 ? 'una vez' : np + ' veces') + ' para que cambies la bobina' : '',
-    '🖨️ En tu ' + I.nombre + ' · placa texturizada · su perfil de serie con estos ajustes',
+    '🖨️ En tu ' + I.nombre + ' · ' + P.e + ' ' + P.largo + ' · ' + mat,
+    av ? av.t : '',
     o.cal ? '🎯 Tu ' + I.nombre + ' está calibrada: agujeros y encajes a su medida' : '',
     np ? '🧭 Con colores se queda en su postura: las paradas van por altura'
       : es3mf ? '📦 Es un 3MF: si su diseñador dejó postura y soporte, se respetan'
         : '🧭 Busca sola la mejor postura y pone soporte de árbol solo donde haga falta',
-    '🌳 Si lleva soporte, lo mide con tu Bambu: troncos firmes y pie pegado si sube alto',
+    '🌳 Soporte con ' + coma(aireSoporte(a.capa, mat)) + ' mm de aire y 0,6 a los lados: se quita con la mano',
+    '🪵 Lo mide con tu Bambu: troncos firmes que no se doblan',
     '🧲 Borde (brim) solo si hace falta para que no se despegue · la costura, detrás',
     a.tiempo + (a.k === 'normal' ? '' : ' que el Normal'),
   ].filter(Boolean);
@@ -57,12 +86,17 @@ export function cintaResultado(r, paradas) {
   r = r || {};
   const g = v => coma(Math.round(v * 10) / 10);
   return [
+    r.experto ? /* (14-11 noche: lo primero, la nota del 🧠 experto) */ (SEMAFORO[r.experto.semaforo] || '🧠') + ' Experto 3D: ' + r.experto.nota + '/100 · ' + r.experto.titular : '',
     r.posturaNombre ? '📐 Colocada: ' + r.posturaNombre : '',
     r.posturaNombre || r.soporte != null ? (r.soporte >= 0.3 ? '🌳 Soporte ≈ ' + g(r.soporte) + ' g · ' + (r.delDisenador ? 'el de su diseñador, que gasta menos' : r.arreglo === 'normal' ? 'normal ajustado (el de árbol dejaba algo en el aire)' : 'fácil de quitar') : '✨ Sin soporte') : '',
     r.recolocada ? '🧩 Recolocada para que quepa en tu cama, con todas sus piezas' : '',
     r.piePegado ? '🦶 Un soporte alto nace encima de la pieza: su pie va pegado para que no se suelte' : '',
     r.troncoGordo ? '🌳 Troncos de soporte más gordos y con doble pared: no se doblan' : '',
     paradas ? '🌈 ' + paradas + (paradas === 1 ? ' parada' : ' paradas') + ' de color puestas: las ves en la barra de capas' : '',
+    // 14-11 noche · 🧠 el experto: marcas medidas, aire medido y lo que hay que saber
+    r.soporte >= 0.3 && r.marcasVista != null && r.marcasVista < 300 ? (r.marcasVista < 100 ? '✨ El soporte casi no toca lo que se ve' : '👀 El soporte toca ' + coma(Math.round(r.marcasVista / 10) / 10) + ' cm² que se ven (poco)') : '',
+    r.soporte >= 0.3 && r.hueco > 0 ? '🌬️ Aire medido entre soporte y pieza: ' + coma(r.hueco) + ' mm' : '',
+    ...((r.experto && r.experto.consejos) || []).map(c => (c.icono || '⚠️') + ' ' + c.texto),
   ].filter(Boolean); // («si no lo ves, míralo en la barra de abajo de Windows» ya lo dice la tarjeta debajo del título)
 }
 
@@ -93,6 +127,7 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
   const caben = IMPRESORAS.filter(I => !med || cabeEn(I, med));
   let rec = acabadoPorK(opts.acabado || recordado('acabado') || 'normal').k;
   let imp = opts.imp && caben.some(I => I.k === opts.imp) ? opts.imp : (caben.find(I => I.k === recordado('imp')) || caben[0] || IMPRESORAS[0]).k;
+  let mat = matDe(opts.mat || recordado('mat') || 'PLA'); // (14-11 noche: el del producto o el último)
   const extra = { v: 2 }; if (esc !== 100) extra.escala = esc; if (opts.paredes) extra.paredes = opts.paredes; if (opts.relleno) extra.relleno = opts.relleno;
   // ---- 3 · 🌈 AMS manual: las zonas de color se guardan a tamaño 100 % (z100) y se pasan al tamaño y la capa de cada momento
   const CK = 'cd.colores.' + (opts.pid || nombre || ruta || 'pieza'), r3 = v => Math.round(v * 1000) / 1000, k = esc / 100;
@@ -185,6 +220,7 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
   const body = h('div.ab');
   const md = directo ? { close() { } } : modal(opts.titulo || '🖨️ Abrir en Bambu', body, null, { size: 'wide' }); // (14-11: «directo» = sin ventana)
   const tiles = h('div.ab-acab'), imps = h('div.ab-imps'), resumen = h('div.ab-resumen');
+  const placaTit = h('p.ab-subp'), placas = h('div.ab-ams.ab-placas'), mats = h('div.ab-ams.ab-mats'), avisoEl = h('p.ab-aviso-placa');
   function pinta() {
     mount(tiles, ACABADOS.map(a => h('button.ab-tile' + (rec === a.k ? '.on' : ''), { type: 'button', 'data-k': a.k, style: '--c:' + a.color, onclick: () => { rec = a.k; pinta(); } },
       h('span.ab-e', a.e), h('b.ab-nom', a.nombre), h('span.ab-para', a.para), h('span.ab-aj', ajustesTxt(a, extra)), h('span.ab-t', a.tiempo))));
@@ -196,7 +232,15 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     }));
     const a = acabadoPorK(rec), I = impPorK(imp);
     const np = ams ? paradas().length : 0;
-    mount(resumen, h('span', a.e + ' ' + a.nombre + ' · ' + I.nombre + (esc !== 100 ? ' · tamaño ' + esc + ' %' : '') + (opts.paredes || opts.relleno ? ' · reforzada' : '') + (np ? ' · 🌈 ' + (np + 1) + ' colores (' + np + (np === 1 ? ' parada)' : ' paradas)') : '') + (calDe(imp) ? ' · 🎯 calibrada' : '')), h('span.tiny.muted', ajustesTxt(a, extra) + ' · placa texturizada · ' + (np ? 'se para sola en cada cambio de color' : 'de un color')));
+    // 14-11 noche · 🛏️ la placa de ESA impresora (se recuerda) y 🧵 el material
+    const pl = placaDe(imp), P = placaPorK(pl), av = avisoPlaca(mat, pl);
+    mount(placaTit, '🛏️ ¿Qué placa tiene puesta la ' + I.nombre + '?');
+    mount(placas, PLACAS.map(X => h('button.ab-am.ab-placa' + (pl === X.k ? '.on' : ''), { type: 'button', 'data-placa': X.k, onclick: () => { guardaPlaca(imp, X.k); pinta(); } }, h('span.ab-e', X.e), h('b', X.nombre), h('small', X.largo))));
+    mount(mats, ['PLA', 'PETG'].map(m => h('button.ab-am.ab-mat' + (mat === m ? '.on' : ''), { type: 'button', 'data-mat': m, onclick: () => { mat = m; pinta(); } }, h('span.ab-e', m === 'PLA' ? '🌽' : '🧪'), h('b', m), h('small', m === 'PLA' ? 'Figuras y decoración: el acabado más bonito' : 'Fuerte y aguanta el calor: piezas que se usan'))));
+    mount(avisoEl, av ? av.t : '');
+    avisoEl.classList.toggle('no', !!(av && av.no)); avisoEl.hidden = !av;
+    bAbrir.disabled = !!(av && av.no);
+    mount(resumen, h('span', a.e + ' ' + a.nombre + ' · ' + I.nombre + (esc !== 100 ? ' · tamaño ' + esc + ' %' : '') + (opts.paredes || opts.relleno ? ' · reforzada' : '') + (np ? ' · 🌈 ' + (np + 1) + ' colores (' + np + (np === 1 ? ' parada)' : ' paradas)') : '') + (calDe(imp) ? ' · 🎯 calibrada' : '')), h('span.tiny.muted', ajustesTxt(a, extra) + ' · ' + mat + ' · ' + P.e + ' ' + P.largo + ' · ' + (np ? 'se para sola en cada cambio de color' : 'de un color')));
     pintaColores(); pintaCal(); pintaSop();
   }
   async function abrir() {
@@ -208,6 +252,8 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     const L = ams ? paradas() : [];
     if (ams && !L.length) { toast('Elige las zonas de color (o marca «De un color»).', 'warn', 6000); return abrirTaller(); }
     if (L.length) extra.pausas = JSON.stringify(L); else delete extra.pausas;
+    const avP = avisoPlaca(mat, placaDe(imp)); if (avP && avP.no) { toast(avP.t, 'warn', 7000); return; } // (14-11 noche)
+    extra.mat = mat; extra.placa = placaDe(imp); recordar('mat', mat);
     const cal = calDe(imp); if (cal) extra.cal = JSON.stringify(cal.claves); else delete extra.cal;
     md.close();
     recordar('acabado', rec); recordar('imp', imp);
@@ -216,7 +262,7 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     if (remoto) return opts.remoto(imp, rec, extra);
     // 14-11-2026 · una tarjeta fija con el % de verdad hasta que se abre (antes: un aviso de 5 s y minutos sin nada)
     // 14-11 (tarde) · y debajo, la CINTA: lo que va a llevar (acabado, capa, velocidad, temperatura…) y, al acabar, cómo ha quedado
-    const pid = nuevoProg(), tj = tarjetaProgreso('🖨️ Laminando en tu Bambu… ' + a.nombre + ' · ' + I.nombre, { cinta: cintaAcabado({ a, I, extra, paradas: L.length, ruta, cal }) }), para = sigueProgreso(pid, f => tj.pon(f));
+    const pid = nuevoProg(), tj = tarjetaProgreso('🖨️ Laminando en tu Bambu… ' + a.nombre + ' · ' + I.nombre, { cinta: cintaAcabado({ a, I, extra, paradas: L.length, ruta, cal, mat, placa: extra.placa }) }), para = sigueProgreso(pid, f => tj.pon(f));
     try {
       const r = await desktop.acabado(ruta, imp, rec, Object.assign({}, extra, { prog: pid }));
       para(); tj.fin('✅ Listo: abierto en Bambu Studio', 'ok', (r && r.troncoFlojo ? '⚠️ Un tronco de soporte sigue fino: vigílalo al subir. ' : '') + 'Si no lo ves delante, míralo en la barra de abajo de Windows.', cintaResultado(r, L.length)); // (14-11 tarde: los troncos gordos y lo demás que va bien, en la cinta)
@@ -237,9 +283,10 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     nombre ? h('p.ab-pieza', '📦 ' + nombre + (esc !== 100 ? ' · al ' + esc + ' %' : '')) : null,
     remoto ? (esOrdenador() && !desktop.on ? h('p.ab-remoto.ab-remoto-pc', '⚠️ Estás en la app de internet: se abrirá en el Bambu de la TORRE, no en este ordenador. Para abrirlo aquí, abre el programa CelebriDiseños con su icono.') : h('p.small.ab-remoto', '🖥️ Lo prepara la torre y se abre allí, en su Bambu Studio.')) : null, // (14-11: en un ordenador sin el programa, bien claro)
     h('h3.ab-paso', h('i', '1'), '¿Qué acabado?'), tiles,
-    h('h3.ab-paso', h('i', '2'), '¿En qué impresora?'), imps, calEl,
-    h('h3.ab-paso', h('i', '3'), '¿De un color o con colores?', h('small.ab-paso-s', 'sin AMS: se para y cambias tú la bobina')), coloresEl,
-    puedeSop ? h('h3.ab-paso.ab-paso-sop', h('i', '4'), '¿Con menos soportes?', h('small.ab-paso-s', 'la gira hasta que necesite el mínimo')) : null, puedeSop ? sopEl : null,
+    h('h3.ab-paso', h('i', '2'), '¿En qué impresora?'), imps, calEl, placaTit, placas,
+    h('h3.ab-paso', h('i', '3'), '¿PLA o PETG?'), mats, avisoEl,
+    h('h3.ab-paso', h('i', '4'), '¿De un color o con colores?', h('small.ab-paso-s', 'sin AMS: se para y cambias tú la bobina')), coloresEl,
+    puedeSop ? h('h3.ab-paso.ab-paso-sop', h('i', '5'), '¿Con menos soportes?', h('small.ab-paso-s', 'la gira hasta que necesite el mínimo')) : null, puedeSop ? sopEl : null,
     resumen,
     h('div.ab-pie', bAbrir,
       typeof opts.talCual === 'function' ? h('button.btn.ghost.sm.ab-talcual', { type: 'button', onclick: () => { md.close(); opts.talCual(); } }, 'Abrirlo tal cual, sin tocar nada') : null),

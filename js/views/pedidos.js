@@ -9,6 +9,7 @@ import { miniPedido } from '../fotopedido.js'; // v13.10: foto de lo que pidió 
 import * as COL from '../colores.js'; // v14.1: selector de colores
 import { cuentaSelect, cuentasVenta } from '../cuentas.js'; // v14.1: desde qué cuenta se vendió
 import { PAISES, paisDe } from './inteligencia.js'; // v17.1: de qué país es el cliente
+import { barra5 } from '../pasos.js'; // 14-11: los 5 pasos (Confirmado → … → Enviado), discretos en la lista y la ficha
 import * as PL from '../placas.js'; // v60.13: varias placas por pedido, cada una con su estado, y «¿cómo salió?»
 
 const CL = window.CL;
@@ -124,14 +125,14 @@ export function render(el, params) {
       miniPedido(o, 46),
       h('div.grow', h('div.row', h('b', 'nº ' + o.numero), hijo ? null : h('span.ellipsis.grow', o.cliente), o.prioridad === 'Urgente' ? pill('Urgente', 'bad') : null),
         h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null, o.cuenta ? h('span.cv-mini', ' · ' + o.cuenta) : null),
-        h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pill(o.estado, '', stateColor(o.estado)), PL.mini(o), dueBadge(t))),
+        h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pill(o.estado, '', stateColor(o.estado)), PL.mini(o), dueBadge(t)), barra5(o, { mini: true })),
       h('div.bold', eur(CL.orderTotal(o))));
     const colorDe = o => { const c = String(((S.cfg.pedidos.estados || []).find(s => s.k === o.estado) || {}).c || ''); return /^#[0-9a-f]{3,8}$/i.test(c) ? c : 'transparent'; };
     const tRow = ({ o, t }, hijo) => h('tr.ped-fila' + (hijo ? '.cli-hijo' : '') + (t.incidencia ? '.inc' : ''), { onclick: () => go('pedidos/' + o.id), 'data-fase': ph(o), title: t.incidencia ? '⚠️ Incidencia: ' + (o.incidencia || '') : '', style: 'box-shadow: inset 6px 0 0 ' + (t.incidencia ? 'var(--bad, #dc2626)' : colorDe(o)) + '; --est: ' + colorDe(o) }, // v17.1: color del estado a la vista (franja + tinte suave)
       h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
       h('td.nowrap', fdate(o.fecha), horaDe(o) ? h('div.tiny.muted.ped-hora', { title: 'Hora a la que entró el pedido' }, '🕒 ' + horaDe(o)) : null), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
       h('td', h('div.row.fp-prod', { style: { gap: '8px', alignItems: 'center', flexWrap: 'nowrap' } }, miniPedido(o, 34), h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null))),
-      h('td', pill(o.estado, '', stateColor(o.estado)), PL.mini(o)), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
+      h('td', pill(o.estado, '', stateColor(o.estado)), PL.mini(o), barra5(o, { mini: true })), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
       h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—'), o.cuenta && o.cuenta.split(' · ')[1] ? h('div.tiny.muted', o.cuenta.split(' · ')[1]) : null));
     const cliTitle = g => (g.items[0].o.cliente || '—');
     // v13.10: «Un paquete, un QR»: junta los pedidos abiertos del cliente en un envío conjunto e imprime UN solo QR para todos
@@ -294,6 +295,7 @@ export function orderDrawer(id, onClose) {
           h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.k + (s.hint ? ' · ' + s.hint : '') }, h('i'), h('span', PASO_FLUJO[s.f] || s.k))),
             h('div.fs.fs-cobro' + (cobrado ? '.done' : ''), { title: cobrado ? 'Cobrado el ' + fdate(o.cobradoEn) : 'Todavía sin cobrar' }, h('i'), h('span', '💶 Cobrado'))), // v16
           o.incidencia && t.abierto ? h('div.issue-bar', icon('alert', 's'), h('span.grow', h('b', 'Incidencia: '), o.incidencia), editable ? btn('Resuelta', () => save(o, { incidencia: '' }, 'Incidencia resuelta · nº ' + o.numero), { cls: 'sm', icon: 'check' }) : null) : null,
+          barra5(o), // 14-11: los 5 pasos
           PL.bloque(o, draw, { alEmpaquetar: () => changeState(byId('pedidos', o.id) || o, CL.stateOfPhase(S.cfg.pedidos, 'empaquetar')) }), // v60.13: placas del pedido
           t.abierto || t.enviado ? EV.labelRow(o, draw) : null,
           t.abierto || t.enviado ? EV.conjuntoBlock(o, draw) : null, // v13.8: envío conjunto

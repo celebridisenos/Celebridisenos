@@ -5,7 +5,7 @@
 // · Antes de subirla puedes TAPAR el nombre o la foto del comprador (pasas el ratón por encima y se pixela).
 // · Plataforma y estrellas ya vienen puestas (Vinted, 5): un clic y subida. El texto es opcional (es lo que dice el globito).
 // Las capturas viven en la tienda (servidor 18.4 + tienda 4.2): aquí se leen de allí y se manda el conjunto al cambiar algo.
-import { h, mount, btn, toast, inp, empty, confirmDlg, modal } from '../ui.js';
+import { h, mount, btn, toast, inp, empty, confirmDlg, modal, fdate } from '../ui.js';
 import { S, api, can } from '../store.js';
 import { go } from '../app.js';
 import { webPhoto } from './tienda.js';
@@ -50,10 +50,20 @@ export function render(el) {
   }
   function pinta() {
     if (!st.lista.length) return mount(rejilla, st.cargando ? null : empty('star', 'Todavía no hay reseñas en tu web', 'Sube la primera captura: en cuanto la subas, sale el globito en tu tienda.'));
-    mount(rejilla, st.lista.map(r => h('div.rs-card', { 'data-id': r.id },
-      h('img', { src: st.url + '/api/img/' + r.foto, alt: 'Reseña de ' + nomPlat(r.plataforma), loading: 'lazy' }),
-      h('div.rs-card-pie', h('b.rs-est', '★'.repeat(r.estrellas || 5)), h('span.rs-chip', nomPlat(r.plataforma)), r.texto ? h('span.rs-card-tx', '«' + r.texto + '»') : null,
-        can('tienda.gestionar') ? btn('Quitar', () => quitar(r), { cls: 'sm ghost danger', title: 'Que deje de salir en tu web' }) : null))));
+    // 14-11-2026 · Biou: «en reseñas todo estético, nada de fotos enormes»: cada reseña es una TARJETA (estrellas, la frase entre comillas,
+    // la plataforma y la fecha) y la captura queda en miniatura («ver la captura»: crece al pulsar). Las guardadas no cambian: se leen igual.
+    mount(rejilla, st.lista.map((r, i) => {
+      const est = '★'.repeat(Math.max(1, Math.min(5, Number(r.estrellas) || 5))), plat = nomPlat(r.plataforma), src = st.url + '/api/img/' + r.foto;
+      return h('article.rs-card.rs-tarj', { 'data-id': r.id, style: { '--i': i } },
+        r.texto ? h('div.rs-est', { 'aria-label': (r.estrellas || 5) + ' estrellas' }, est) : null,
+        r.texto ? h('p.rs-frase', '«' + r.texto + '»') : h('p.rs-frase.sin', est + ' en ' + plat),
+        h('div.rs-meta', h('span.rs-chip', plat), r.autor ? h('span.rs-aut', '· ' + r.autor) : null, r.fecha ? h('span.rs-fecha', fdate(String(r.fecha).slice(0, 10))) : null),
+        h('div.rs-pie', h('button.rs-ver', { type: 'button', title: 'Ver la captura de verdad', onclick: () => verCaptura(src, r, plat) }, h('img.rs-mini', { src, alt: 'Captura de la reseña de ' + plat, loading: 'lazy' }), h('span', '📷 ver la captura')),
+          can('tienda.gestionar') ? btn('Quitar', () => quitar(r), { cls: 'sm ghost danger', title: 'Que deje de salir en tu web' }) : null));
+    }));
+  }
+  function verCaptura(src, r, plat) {
+    modal('📷 La captura de verdad · ' + plat, h('div.rs-grande', h('img', { src, alt: 'Captura de la reseña' })), close => [btn('Cerrar', close, { cls: 'primary' })], { size: 'narrow' });
   }
   async function publica(lista, msg) {
     const r = await api('tienda.resenasPublicar', { resenas: paraEnviar(lista) }, { timeout: 120000 });

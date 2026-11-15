@@ -416,7 +416,7 @@ export const medidasDe = p => Number(p && p.dimX) > 0 && Number(p.dimY) > 0 && N
 const remotoDe = (p, motivo) => (imp, rec, extra) => encargarPieza(p, 'acabado', Object.assign({ imp, receta: rec }, motivo ? { motivo } : {}, extra || {})); // (14-11: con el motivo)
 export async function abrirConAcabado(x, o = {}) {
   const remoto = x.p ? remotoDe(x.p) : null; // 02-11: si aquí no se puede, la torre
-  const base = Object.assign({ medidas: x.p ? medidasDe(x.p) : null, pid: x.p && x.p.id, cargar3D: async () => ({ buf: await leeDatos3D(x), nombre: x.nombre }) }, o); // (11-11: 🌈 el taller de colores necesita la pieza)
+  const base = Object.assign({ medidas: x.p ? medidasDe(x.p) : null, pid: x.p && x.p.id, mat: (x.p && x.p.material) || undefined, /* 14-11 noche: 🧵 su material */ cargar3D: async () => ({ buf: await leeDatos3D(x), nombre: x.nombre }) }, o); // (11-11: 🌈 el taller de colores necesita la pieza)
   if (!desktop.on) return remoto ? elegirAcabado(null, x.nombre, Object.assign({}, base, { remoto })) : toast('El acabado se prepara en el programa del PC.', 'warn', 6000);
   try {
     let ruta = x.ruta || await rutaAqui(x.a && x.a.rutaLocal); // 12-11: en el portátil la ruta de la torre no existe

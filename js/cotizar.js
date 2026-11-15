@@ -25,15 +25,19 @@ export const impPorK = k => IMPRESORAS.find(I => I.k === k) || IMPRESORAS[0];
 // 13-11-2026: Normal y Máxima con 4 paredes y 25 % cúbico, Premium con 5 y 30 % (piezas que no se rompen). t medido OTRA VEZ frente
 // al Normal nuevo con su Bambu en la A1 mini, con las 3 piezas de test/unit/cotizar.mjs (CELEBRI_SOLO=unit y CELEBRI_SOLO=acab):
 // Prueba 0,47 · 0,61 · 0,65; Rápida 0,69 · 0,82 · 0,80; Máxima 1,81 · 1,64 · 1,70; Premium 2,23 · 1,70 · 1,89.
+// 14-11-2026 (tarde) · «gastamos mucho plástico»: Normal y Máxima con 4 paredes y 15 % ADAPTATIVO (tupido junto a la piel, flojo en el
+// centro). Medido OTRA VEZ con su Bambu en la A1 mini (las 3 piezas, CELEBRI_SOLO=unit y acab), frente al Normal nuevo:
+// Prueba 0,58 · 0,62 · 0,67; Rápida 0,84 · 0,83 · 0,81; Máxima 1,82 · 1,63 · 1,69; Premium 2,73 · 1,73 · 1,93 (el Normal tarda menos:
+// los demás salen «más largos» frente a él). Máxima pone algo más que el Normal (1,05 · 1,02 · 1,04).
 // 12-11-2026 (noche): medido OTRA VEZ con las recetas de calidad (pared de fuera lenta, tiempo mínimo por capa): 6 productos suyos
 // laminados en la A1 mini con las recetas de antes y las de ahora, más las 3 piezas de test/unit/cotizar.mjs (mediana; entre
 // paréntesis, el más bajo y el más alto).
 export const ACABADOS = [
-  { k: 'prueba', e: '🧪', nombre: 'Prueba', para: 'Para ver si encaja o si gusta. No para vender.', capa: 0.28, paredes: 2, relleno: 10, color: '#0891b2', g: 1.01, t: 0.58 }, // t de 0,47 a 0,65 (la receta no cambió; el Normal sí: la pieza grande, el árbol, es la más baja)
-  { k: 'rapida', e: '🏃', nombre: 'Rápida', para: 'Cuando hay prisa. Se notan algo las capas.', capa: 0.24, paredes: 2, relleno: 15, color: '#d97706', g: 1.025, t: 0.72 }, // t de 0,69 a 0,82 en las 3 piezas; en 6 productos, frente al Normal de la 60.12.3, 0,70
-  { k: 'normal', e: '⭐', nombre: 'Normal', para: 'La de vender cada día. Buen equilibrio.', capa: 0.2, paredes: 4, relleno: 25, color: '#7c3aed', g: 1, t: 1 },
-  { k: 'maxima', e: '💎', nombre: 'Máxima calidad', para: 'Muy lisa y con todo el detalle. Tarda bastante más.', capa: 0.12, paredes: 4, relleno: 25, color: '#2563eb', g: 0.98, t: 1.7 }, // t de 1,64 a 1,81 (13-11)
-  { k: 'premium', e: '👑', nombre: 'Premium top', para: 'La mejor: lisa, más fuerte y la cara de arriba planchada.', capa: 0.12, paredes: 5, relleno: 30, planchado: true, color: '#db2777', g: 1, t: 1.89 }, // t de 1,70 a 2,23 (13-11; capa fina + planchar)
+  { k: 'prueba', e: '🧪', nombre: 'Prueba', para: 'Para ver si encaja o si gusta. No para vender.', capa: 0.28, paredes: 2, relleno: 10, color: '#0891b2', g: 1.01, t: 0.62 }, // t de 0,58 a 0,67 (14-11; la receta no cambió; el Normal sí)
+  { k: 'rapida', e: '🏃', nombre: 'Rápida', para: 'Cuando hay prisa. Se notan algo las capas.', capa: 0.24, paredes: 2, relleno: 15, color: '#d97706', g: 1.025, t: 0.83 }, // t de 0,81 a 0,84 en las 3 piezas (14-11, frente al Normal adaptativo)
+  { k: 'normal', e: '⭐', nombre: 'Normal', para: 'La de vender cada día. Buen equilibrio.', capa: 0.2, paredes: 4, relleno: 15, fp: 0.8, color: '#7c3aed', g: 1, t: 1 }, // (fp 0,8: el 15 % adaptativo pone como un 12 % cúbico; árbol 0,83, Pájaro 0,75)
+  { k: 'maxima', e: '💎', nombre: 'Máxima calidad', para: 'Muy lisa y con todo el detalle. Tarda bastante más.', capa: 0.12, paredes: 4, relleno: 15, fp: 0.8, color: '#2563eb', g: 1.03, t: 1.69 }, // t de 1,63 a 1,82 (14-11)
+  { k: 'premium', e: '👑', nombre: 'Premium top', para: 'La mejor: lisa, más fuerte y la cara de arriba planchada.', capa: 0.12, paredes: 5, relleno: 30, planchado: true, color: '#db2777', g: 1, t: 1.93 }, // t de 1,73 a 2,73 (14-11; capa fina + planchar; no cambió, el Normal sí)
 ];
 // lo que se le dice en la tarjeta del acabado (sale de t, medido)
 const tiempoDe = t => Math.abs(t - 1) < 0.03 ? '⏱️ El tiempo de siempre' : t < 1 ? '⏱️ Un ' + Math.round((1 - t) * 100) + ' % menos de tiempo' : t < 1.95 ? '⏱️ Un ' + Math.round((t - 1) * 100) + ' % más de tiempo' : '⏱️ Unas ' + String(Math.round(t * 10) / 10).replace('.', ',') + ' veces el tiempo';
@@ -47,8 +51,8 @@ export const acabadoPorK = k => ACABADOS.find(a => a.k === k) || ACABADOS[2];
 export const RECETA_VISTA = /*cinta*/{
   "prueba": { "serie": true, "patron": "giroide" },
   "rapida": { "exterior": 120, "cama": [60, 57], "capaSeg": 8, "patron": "giroide" },
-  "normal": { "exterior": 80, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "cúbico" },
-  "maxima": { "exterior": 60, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "cúbico" },
+  "normal": { "exterior": 80, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "adaptativo" },
+  "maxima": { "exterior": 60, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "adaptativo" },
   "premium": { "exterior": 45, "boquilla": 220, "cama": [60, 57], "capaSeg": 8, "patron": "cúbico", "techo": 6, "suelo": 4 }
 }/*fin cinta*/;
 
@@ -63,7 +67,9 @@ export const RECETA_VISTA = /*cinta*/{
 // salieron con el de antes; las que escribe él a mano (de su Bambu, con el de ahora) no llevan tn.
 // 13-11-2026 · el Normal FUERTE (60.12.6: 4 paredes, 25 % cúbico, 220 °C) tarda ×1,04 el de la 60.12.3 (de 1,01 a 1,08; 7 productos
 // suyos en la A1 mini) → tn = 1,29 × 1,04 = 1,34. Sus gramos: ×1,17 a ×1,40 (los cuenta razonGramos por paredes y relleno).
-export const CALIBRADO = { kw: 0.22, c0: 0.6, ki: 1.25, fi: 0.773, ts: 0.0676, ti: 0.1655, tc: 4.53, t0: 1165, tn: 1.34,
+// 14-11-2026 (tarde) · el Normal ADAPTATIVO (4 paredes, 15 %) tarda ×0,91 el de la 60.12.6 (de 0,82 a 0,98: las 3 piezas en la A1 mini
+// y 5 productos con soporte en la A1) → tn = 1,34 × 0,91 = 1,22.
+export const CALIBRADO = { kw: 0.22, c0: 0.6, ki: 1.25, fi: 0.773, ts: 0.0676, ti: 0.1655, tc: 4.53, t0: 1165, tn: 1.22,
   errorG: 4, errorGmax: 15, errorT: 8, errorTmax: 40, piezas: 10, laminados: 366 };
 export const DENS = { PLA: 1.24, PETG: 1.27, TPU: 1.21, ABS: 1.04, ASA: 1.07 };
 
@@ -79,10 +85,13 @@ export function cabeEn(I, m) {
 }
 
 // gramos (sin la densidad: mm³ de plástico) con esa geometría y esos ajustes. geo = { V (mm³), A (mm²) } a tamaño 100 %
-export function plastico(geo, s, paredes, relleno) {
+// fp = cuánto plástico pone ese DIBUJO de relleno frente al cúbico/giroide con el que se calibró (14-11-2026: el «adaptativo» del Normal
+// y la Máxima pone menos: tupido junto a la piel y flojo en el centro). Al 100 % es macizo (zig-zag): fp no cuenta.
+export function plastico(geo, s, paredes, relleno, fp = 1) {
   const V = geo.V * s * s * s, A = geo.A * s * s, t = CALIBRADO.kw * paredes + CALIBRADO.c0;
-  const cas = Math.min(V, A * t), dentro = Math.max(0, V - cas);
-  return { cas, rell: dentro * Math.min(1, CALIBRADO.ki * relleno / 100), total: cas + dentro * Math.min(1, CALIBRADO.ki * relleno / 100) };
+  const cas = Math.min(V, A * t), dentro = Math.max(0, V - cas), f = relleno >= 100 ? 1 : fp;
+  const rell = dentro * Math.min(1, CALIBRADO.ki * relleno * f / 100);
+  return { cas, rell, total: cas + rell };
 }
 // Sin la forma de la pieza: una pieza «media» de las calibradas (la cáscara es la fracción fi del volumen con 3 paredes),
 // del tamaño que dan sus gramos de ahora (Normal al 100 %). Sin gramos, una de 60 cm³.
@@ -93,19 +102,20 @@ export function geoMedia(gramos, material) {
 }
 
 // cuántas veces más plástico que el Normal al 100 %
-function razonGramos(geo, s, paredes, relleno, acab) {
-  const n = plastico(geo, 1, 3, 15).total, o = plastico(geo, s, paredes, relleno).total;
+// (fp: el del dibujo de relleno; si no se dice, el del acabado. La base, el Normal de antes, era cúbico/giroide: fp 1)
+function razonGramos(geo, s, paredes, relleno, acab, fp) {
+  const n = plastico(geo, 1, 3, 15).total, o = plastico(geo, s, paredes, relleno, fp ?? (acab && acab.fp) ?? 1).total;
   return n > 0 ? o / n * (acab ? acab.g : 1) : 1;
 }
 // segundos en la A1 mini con capa de 0,2 (la cuenta calibrada); alto = mm de alto de la pieza al 100 %
-export function segundosA1mini(geo, s, paredes, relleno, alto) {
-  const C = CALIBRADO, o = plastico(geo, s, paredes, relleno);
+export function segundosA1mini(geo, s, paredes, relleno, alto, fp = 1) {
+  const C = CALIBRADO, o = plastico(geo, s, paredes, relleno, fp);
   return C.ts * o.cas + C.ti * o.rell + C.tc * (alto * s / 0.2) + C.t0;
 }
 // cuántas veces más tiempo que el Normal al 100 % en la A1 mini: lo medido del acabado (t) × lo que cambian tamaño, paredes y relleno
 function razonTiempo(geo, s, paredes, relleno, acab, alto) {
-  const a = acab || acabadoPorK('normal');
-  const t0 = segundosA1mini(geo, 1, a.paredes, a.relleno, alto), t1 = segundosA1mini(geo, s, paredes, relleno, alto);
+  const a = acab || acabadoPorK('normal'), fp = a.fp || 1;
+  const t0 = segundosA1mini(geo, 1, a.paredes, a.relleno, alto, fp), t1 = segundosA1mini(geo, s, paredes, relleno, alto, fp);
   return a.t * (t0 > 0 ? t1 / t0 : 1);
 }
 // las horas de un producto como las tarda HOY el Normal (las guardadas son del de antes: × tn; las escritas a mano, tal cual)
@@ -120,11 +130,12 @@ export function ajustesFuerza(pct, geo, acab) {
   const a = acab || acabadoPorK('normal'), g = geo || geoMedia(), objetivo = 1 + Math.max(0, num(pct)) / 100;
   // el acabado ya trae sus paredes y relleno: los pasos empiezan desde ahí (nunca menos que lo del acabado)
   const pasos = PASOS_FUERZA.map(([w, i]) => [Math.max(w, a.paredes), Math.max(i, a.relleno)]);
-  const base = razonGramos(g, 1, a.paredes, a.relleno);
+  const fp = a.fp || 1, rz = (w, i) => razonGramos(g, 1, w, i, null, fp); // (el relleno de más va con el mismo dibujo del acabado)
+  const base = rz(a.paredes, a.relleno);
   let elegido = null;
-  for (const [w, i] of pasos) { const r = razonGramos(g, 1, w, i) / base; if (r >= objetivo - 0.02) { elegido = { paredes: w, relleno: i, razon: r }; break; } }
-  const ult = pasos[pasos.length - 1], max = razonGramos(g, 1, ult[0], ult[1]) / base;
-  const lim = razonGramos(g, 1, Math.max(LIMITE_UTIL[0], a.paredes), Math.max(LIMITE_UTIL[1], a.relleno)) / base;
+  for (const [w, i] of pasos) { const r = rz(w, i) / base; if (r >= objetivo - 0.02) { elegido = { paredes: w, relleno: i, razon: r }; break; } }
+  const ult = pasos[pasos.length - 1], max = rz(ult[0], ult[1]) / base;
+  const lim = rz(Math.max(LIMITE_UTIL[0], a.paredes), Math.max(LIMITE_UTIL[1], a.relleno)) / base;
   if (!elegido) elegido = { paredes: ult[0], relleno: ult[1], razon: max, noLlega: true };
   if (num(pct) <= 0) elegido = { paredes: a.paredes, relleno: a.relleno, razon: 1 };
   return Object.assign(elegido, { limitePct: Math.round((lim - 1) * 100), maxPct: Math.round((max - 1) * 100), pasaLimite: elegido.relleno > Math.max(LIMITE_UTIL[1], a.relleno) });
@@ -140,12 +151,12 @@ export function estimar(e) {
   const alto = b.medidas && num(b.medidas.z) > 0 ? num(b.medidas.z) : (geo.h > 0 ? geo.h : Math.cbrt(geo.V));
   let f = ajustesFuerza(e.fuerza, geo, a);
   if (num(e.paredes) > 0 && num(e.relleno) > 0) { // paredes y relleno puestos a mano (pruebas, o lo que ya se laminó)
-    const w = num(e.paredes), i = num(e.relleno), r0 = razonGramos(geo, 1, a.paredes, a.relleno);
-    f = Object.assign({}, f, { paredes: w, relleno: i, razon: razonGramos(geo, 1, w, i) / r0, noLlega: false, pasaLimite: i > Math.max(LIMITE_UTIL[1], a.relleno) });
+    const w = num(e.paredes), i = num(e.relleno), fp = a.fp || 1, r0 = razonGramos(geo, 1, a.paredes, a.relleno, null, fp);
+    f = Object.assign({}, f, { paredes: w, relleno: i, razon: razonGramos(geo, 1, w, i, null, fp) / r0, noLlega: false, pasaLimite: i > Math.max(LIMITE_UTIL[1], a.relleno) });
   }
   // 13-11-2026: los gramos guardados del producto son del Normal de antes (3 paredes, 15 %); los que escribe él a mano (de su Bambu,
-  // con el Normal de ahora) ya llevan sus 4 paredes y 25 %: esos no se vuelven a subir (como las horas: horasMano no lleva tn)
-  const nN = acabadoPorK('normal'), ref = b.gramosMano ? razonGramos(geo, 1, nN.paredes, nN.relleno) : 1;
+  // con el Normal de ahora) ya llevan las paredes y el relleno del Normal: esos no se vuelven a subir (como las horas: horasMano no lleva tn)
+  const nN = acabadoPorK('normal'), ref = b.gramosMano ? razonGramos(geo, 1, nN.paredes, nN.relleno, null, nN.fp || 1) : 1;
   const rg = razonGramos(geo, s, f.paredes, f.relleno, a) / ref, rt = razonTiempo(geo, s, f.paredes, f.relleno, a, alto) * I.tiempo / impPorK(b.imp || I.k).tiempo;
   const g0 = num(b.gramos), h0 = horasNormal(b);
   const m = b.medidas && num(b.medidas.x) > 0 ? { x: r1(num(b.medidas.x) * s), y: r1(num(b.medidas.y) * s), z: r1(num(b.medidas.z) * s) } : null;

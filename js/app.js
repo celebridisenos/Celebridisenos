@@ -64,6 +64,7 @@ const VIEWS = {
   redes: () => import('./views/redes.js'),
   responder: () => import('./views/responder.js'), // 01-11-2026: 💬 centro para contestar ventas (mensajes + productos + catálogo + precio)
   micuentas: () => import('./views/micuentas.js'), // 02-11-2026: 📱 móviles, números, cuentas de Vinted y bancos: quién vende y quién no
+  fotosproductos: () => import('./views/fotosproductos.js'), // 14-11-2026: 📸 todas sus fotos de productos (carpeta FOTOS_DE_MIS_PRODUCTOS), solo en el PC
   resenas: () => import('./views/resenas.js'), // 01-11-2026: ⭐ subir la captura de una reseña → sale sola en la web (globito de confianza)
   instagram: () => import('./views/instagram.js'), // v15.3: 📸 Instagram Studio VIP (API oficial de Meta)
   centroia: () => import('./views/centroia.js'), // v15.3: 🧠 Centro de IA (semáforo, biblioteca, prompts, descargas)
@@ -108,6 +109,7 @@ export const NAV = [
   { sep: true, t: 'Tienda y redes' },
   { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC),
   { k: 'resenas', t: 'Reseñas ⭐', i: 'star', p: 'tienda.gestionar' }, // 01-11-2026: las capturas de las reseñas → el globito de confianza de la web
+  { k: 'fotosproductos', t: 'Mis fotos de productos 📸', i: 'camera', p: 'productos.ver' }, // 14-11-2026
   { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web,
   { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13,
   { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
