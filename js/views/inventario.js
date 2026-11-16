@@ -45,6 +45,18 @@ export function render(el, params) {
     tabs, cuerpo);
   const TABS = [['resumen', 'Resumen'], ['materiales', 'Embalaje y materiales'], ['filamento', 'Filamento'], ['compras', 'Compras y consumos'], costes ? ['estadisticas', 'Estadísticas'] : null].filter(Boolean);
   const cache = {};
+  // 16-11-2026 · Biou: «cuando modifico una compra, esta desaparece y posteriormente vuelve a aparecer». Causa: la lista de compras se
+  // pedía OTRA VEZ a Google tras cualquier cambio del almacén (también al sincronizar) y mientras llegaba (2–18 s con su servidor) se
+  // borraba entera y salía «Cargando…». Ahora sale de la copia que el programa ya tiene sincronizada (movMateriales, la misma que usa
+  // Mi almacén) y la compra corregida se cambia EN SU SITIO con lo que contesta el servidor. Quien no ve costes (no recibe esa tabla)
+  // la sigue pidiendo, pero lo de antes se queda a la vista hasta que llega lo nuevo: nunca se queda la lista vacía.
+  const movLocal = () => costes && !!(S.meta && S.meta.movMateriales);
+  const porFecha = (a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0);
+  function movs() {
+    if (movLocal()) return (S.t.movMateriales || []).slice().sort(porFecha).slice(0, 300);
+    const c = cache.mov || cache.movAntes;
+    return c ? c.movimientos : null;
+  }
   function draw() {
     if (!TABS.some(t => t[0] === pestana)) pestana = 'resumen';
     mount(tabs, TABS.map(t => h('button' + (pestana === t[0] ? '.on' : ''), { type: 'button', onclick: () => { pestana = t[0]; draw(); } }, t[1])));
@@ -112,8 +124,9 @@ export function render(el, params) {
     card.style.display = '';
   }
   async function abrirCompra(id) {
-    try { if (!cache.mov) cache.mov = await api('materiales.movimientos', { limite: 300 }); } catch (e) { return handleError(e); }
-    const x = cache.mov.movimientos.find(m => m.id === id); if (x) corregirCompra(x, tras); else toast('No encuentro esa compra', 'warn');
+    let x = (movs() || []).find(m => m.id === id);
+    if (!x && !movLocal()) { try { cache.mov = await api('materiales.movimientos', { limite: 300 }); x = cache.mov.movimientos.find(m => m.id === id); } catch (e) { return handleError(e); } }
+    if (x) corregirCompra(x, tras); else toast('No encuentro esa compra', 'warn');
   }
 
   function materiales() {
@@ -186,8 +199,17 @@ export function render(el, params) {
   }
 
   async function compras() {
-    if (!cache.mov) { mount(cuerpo, h('p.muted', 'Cargando…')); try { cache.mov = await api('materiales.movimientos', { limite: 300 }); } catch (e) { handleError(e); cache.mov = { movimientos: [] }; } if (pestana !== 'compras') return; }
-    const mv = cache.mov.movimientos, T = { compra: ['🛒 Compra', 'ok'], consumo: ['Consumo', ''], recuento: ['Recuento', ''], inicial: ['Inventario inicial', ''] };
+    if (!movLocal() && !cache.mov) {
+      if (cache.movAntes) pintaCompras(cache.movAntes.movimientos); else mount(cuerpo, h('p.muted', 'Cargando…'));
+      const pr = cache.pidiendo || (cache.pidiendo = api('materiales.movimientos', { limite: 300 }).finally(() => { cache.pidiendo = null; }));
+      try { cache.mov = await pr; } catch (e) { handleError(e); cache.mov = cache.movAntes || { movimientos: [] }; }
+      cache.movAntes = null;
+      if (pestana !== 'compras' || !cuerpo.isConnected) return;
+    }
+    pintaCompras(movs() || []);
+  }
+  function pintaCompras(mv) {
+    const T ={ compra: ['🛒 Compra', 'ok'], consumo: ['Consumo', ''], recuento: ['Recuento', ''], inicial: ['Inventario inicial', ''] };
     const corrige = costes && mover; // 22-10-2026: una compra mal apuntada se corrige aquí (no se crea otra)
     mount(cuerpo, !mv.length ? empty('box', 'Sin movimientos todavía', 'Cada compra, cada caja usada y cada lavado quedarán aquí.') :
       h('div.card', h('div.table-wrap', h('table.t', h('thead', h('tr', h('th', 'Cuándo'), h('th', 'Material'), h('th', 'Qué pasó'), h('th', { style: { textAlign: 'right' } }, 'Cambio'), h('th.hide-m', { style: { textAlign: 'right' } }, 'Queda'), costes ? h('th', { style: { textAlign: 'right' } }, 'Importe') : null, corrige ? h('th') : null)),
@@ -230,7 +252,15 @@ export function render(el, params) {
     if (hay) reemplazar = await confirmDlg('¿Y el filamento?', 'Ya tienes ' + hay + ' bobinas apuntadas. «Sustituir» las cambia por las del inventario del 7-10-2026 (PLA blanco 5.300 g, 7 colores más y TPU rojo). «Cancelar» conserva las tuyas y solo añade los colores que falten.', 'Sustituir');
     try { const r = await api('inventario.cargarInicial', { reemplazarFilamento: !!reemplazar }); await pull(true); toast('Inventario cargado: ' + r.cambios.length + ' cambios', 'ok'); draw(); } catch (e) { handleError(e); }
   }
-  function tras() { cache.mov = null; cache.est = null; draw(); }
+  // tras un cambio: la compra corregida se cambia en su sitio (sin volver a pedir la lista); lo demás llega con la sincronización
+  function tras(mvNuevo) {
+    cache.est = null;
+    if (mvNuevo && mvNuevo.id && cache.mov) cache.mov.movimientos = cache.mov.movimientos.map(x => x.id === mvNuevo.id ? Object.assign({}, x, mvNuevo) : x).sort(porFecha);
+    else if (!movLocal()) { cache.movAntes = cache.mov || cache.movAntes; cache.mov = null; }
+    else if (!mvNuevo) pull().catch(() => { }); // («Tengo…», «Usé…»: su movimiento nuevo llega con la sincronización)
+    draw();
+    try { ult = firma(); } catch (e) { }
+  }
   function recuento(m) {
     const u = m.unidad || 'ud', f = inp({ type: 'number', min: 0, step: 'any', value: lleno(m.stock) ? m.stock : '' }), msg = h('p.bad-t');
     const md = modal('Tengo… · ' + m.nombre, h('div', h('div.form', field('Cuánto hay de verdad (' + (UN[u] || u) + ')', f, lleno(m.stock) ? 'Ahora pone ' + cant(m.stock, u) + '.' : 'Todavía no hay nada apuntado.')), msg),
@@ -282,9 +312,11 @@ export function render(el, params) {
   render.refrescar = tras;
   draw();
   // v16 · estabilidad: solo se repinta si cambia el inventario (y nunca mientras hay una ventana abierta encima)
-  const firma = () => JSON.stringify([(S.t.materiales || []).map(m => [m.id, m.stock, m.version]), (S.t.bobinas || []).map(b => [b.id, b.restante, b.estimado]), ((S.cfg || {}).taller || {}).lavado]);
+  // (16-11: también las compras y consumos, que ahora salen de la copia sincronizada: si otro aparato corrige una, se ve aquí)
+  const firma = () => JSON.stringify([(S.t.materiales || []).map(m => [m.id, m.stock, m.version]), (S.t.bobinas || []).map(b => [b.id, b.restante, b.estimado]), ((S.cfg || {}).taller || {}).lavado,
+    (S.t.movMateriales || []).map(x => [x.id, x.cambio, x.importe, x.fecha])]);
   let ult = firma();
-  return { update() { const f = firma(); if (f === ult || document.querySelector('.overlay')) return; ult = f; const sc = document.scrollingElement, y = sc ? sc.scrollTop : 0; cache.mov = null; draw(); if (sc && y) sc.scrollTop = y; } };
+  return { update() { const f = firma(); if (f === ult || document.querySelector('.overlay')) return; ult = f; const sc = document.scrollingElement, y = sc ? sc.scrollTop : 0; if (!movLocal() && cache.mov) { cache.movAntes = cache.mov; cache.mov = null; } draw(); if (sc && y) sc.scrollTop = y; } };
 }
 
 // ---------- COMPRA RÁPIDA: qué · cuántos · cuánto pagué ----------
@@ -447,10 +479,13 @@ export function corregirCompra(x, despues) {
     bt.disabled = true;
     try {
       const r = await api('materiales.compraEditar', d);
+      // 16-11-2026: la compra se cambia aquí mismo con lo que contesta el servidor (la misma fila, el mismo id: nunca otra) y la ventana
+      // se cierra ya; antes esperaba a una sincronización entera (2–18 s) y después la lista se vaciaba para pedirse otra vez.
+      if (r.movimiento && r.movimiento.id) upsertLocal('movMateriales', r.movimiento);
       (r.materiales || []).forEach(mt => upsertLocal('materiales', mt)); emit();
-      try { await pull(); } catch (e) { }
       toast('✏️ Compra corregida: ' + eur(r.antes.total) + ' → ' + eur(r.despues.total) + (r.avisos.length ? ' · ' + r.avisos[0] : ''), 'ok', 8000);
-      md.close(); if (despues) despues();
+      md.close(); if (despues) despues(r.movimiento);
+      pull().catch(() => { }); // los costes de productos, packs… que recalcula el servidor llegan detrás, sin hacer esperar
     } catch (e) { msg.textContent = servidorViejo(e) ? SERVIDOR_VIEJO + ' No se ha cambiado nada.' : e.message || String(e); bt.disabled = false; }
   }
 }

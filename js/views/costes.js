@@ -236,7 +236,7 @@ function drawEmbs(el) {
 async function duplicarEmb(e) {
   try { const r = await call('embalajes.duplicar', { id: e.id }, 'Duplicado: ajusta lo que cambie'); if (r && r.embalaje) embForm(r.embalaje); } catch (x) { }
 }
-function embForm(e) {
+export function embForm(e) {
   const isNew = !e.id;
   if (!editor()) return isNew ? requestAccess('costes.editar', 'costes') : null;
   const lineas = JSON.parse(JSON.stringify(e.lineas || []));

@@ -2491,7 +2491,22 @@ html .btn.holo-abrir, html .btn.nc-abrir { font-weight: 700; }
 .alm2-pago-n { text-align: center; }
 .alm2-apuntar { min-width: 190px; font-size: 18px !important; padding: 14px 22px !important; }
 .alm2-sig { align-self: flex-start; }
+/* 16-11-2026: todas las herramientas a mano, arriba (sin bajar hasta el final ni abrir plegables) */
+.alm2-atajos { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px; }
+.alm2-atajos[hidden] { display: none !important; }
+.alm2-atajo { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.alm2-atajo:hover { border-color: var(--brand); color: var(--brand); }
+.alm2-atajo .alm2-badge { height: 20px; min-width: 20px; font-size: 11.5px; margin: 0; }
+.alm2-herr { margin-bottom: 18px; } .alm2-herr h3 { margin: 4px 0 10px; }
+.alm2-herr-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.alm2-herr-b { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.alm2-herr-b:hover { border-color: var(--brand); transform: translateY(-1px); }
+.alm2-herr-b .e { font-size: 26px; line-height: 1; } .alm2-herr-b span { display: flex; flex-direction: column; min-width: 0; } .alm2-herr-b b { font-size: 15px; } .alm2-herr-b small { color: var(--muted); font-size: 12.5px; }
+.alm2-avisos { padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); } .alm2-avisos h3 { margin: 0 0 6px; }
 @media (max-width: 760px) {
+  .alm2-atajos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .alm2-atajo { justify-content: center; padding: 8px 6px; font-size: 12.5px; white-space: normal; text-align: center; line-height: 1.15; }
+  .alm2-herr-g { grid-template-columns: 1fr; }
   .alm2-carrito { padding: 14px 16px; gap: 12px; } .alm2-carrito .e { font-size: 34px; } .alm2-carrito .t b { font-size: 20px; } .alm2-carrito .f { display: none; }
   .alm2-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .alm2-tile { min-height: 138px; padding: 12px 8px 10px; }

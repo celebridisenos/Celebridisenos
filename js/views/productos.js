@@ -4,6 +4,7 @@ import { S, can, mutate, api, byId, upsertLocal, removeLocal, emit, timing, stat
 import { go, handleError, requestAccess } from '../app.js';
 import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf, fetchFile } from '../files.js';
 import { desktop } from '../desktop.js';
+import { cuantosNunca } from './noventas.js'; // 15-11-2026
 import { elegirAcabado } from '../acabado_ui.js'; // 01-11-2026: 🎚️ abrir en Bambu con receta de acabado
 import { repararFragilidad } from '../reparar_ui.js'; // 01-11-2026: 🛠️ reparar por fragilidad
 import { encargarPieza, noSePuedeAqui, rutaAqui, carpetaAqui, esOrdenador } from '../pieza_taller.js'; // 02-11-2026: desde el portátil o la tablet, lo hace la torre
@@ -39,11 +40,13 @@ export function render(el, params) {
   const FILTROS = [['', 'Todos'], ['pub', '🟢 Publicados'], ['nopub', 'No publicados'], ['est', '🧺 En estantería'], ['fab', '🛠️ Por fabricar']]; // (20-10: bajo pedido; «agotado», solo si en la web se vende con stock contado)
   const pasaWeb = (p, ind, k) => { const e = estadoProducto(p, ind); return !k ? true : k === 'pub' ? e.publicado : k === 'nopub' ? !e.publicado : k === 'est' ? e.estanteria > 0 : k === 'fab' ? e.porFabricar > 0 : e.disponible !== null && e.disponible > 0; };
   const pintarChips = ind => mount(chipsBox, FILTROS.map(([k, t]) => h('button.chip' + (st.web === k ? '.on' : ''), { type: 'button', 'data-f': k, onclick: () => { st.web = k; st.limit = 60; drawList(); } }, t, h('span.c', String(S.t.productos.filter(p => pasaWeb(p, ind, k)).length)))));
-  el.append(h('div.page-head', h('h1', 'Productos'), can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null),
+  const bNoVentas = h('button.btn.nv-entrada', { type: 'button', hidden: true, onclick: () => go('noventas') });
+  const pintaNoVentas = () => { const q = can('productos.borrar') ? cuantosNunca() : 0; bNoVentas.hidden = !q; bNoVentas.textContent = '🧹 Los que no se venden (' + q + ')'; };
+  el.append(h('div.page-head', h('h1', 'Productos'), h('div.row.wrap', bNoVentas, can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null)),
     h('div.row.wrap', { style: { marginBottom: '10px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fCat), h('div', { style: { width: '180px' } }, fEst)), chipsBox, listBox);
   function fill() { const k = fCat.value; const cats = [...new Set(S.t.productos.map(p => p.categoria).filter(Boolean))].sort(); mount(fCat, h('option', { value: '' }, 'Todas las categorías'), cats.map(c => h('option', { value: c }, pretty(c)))); fCat.value = k; }
   function drawList() {
-    const ind = indicadores(); pintarChips(ind);
+    const ind = indicadores(); pintarChips(ind); pintaNoVentas();
     let rows = S.t.productos.filter(p => (!st.q || CL.matches([p.id, p.sku, p.tallas, p.nombre, p.categoria, p.subcategoria, p.color, p.material, p.descripcion].join(' '), st.q)) && (!st.cat || p.categoria === st.cat) && (!st.est || pState(p.estado) === st.est))
       .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')) || String(b.id).localeCompare(String(a.id)));
     if (!S.t.productos.length) return mount(listBox, h('div.card', empty('cube', 'El catálogo está vacío', 'Crea vuestro primer producto con sus fotos, vídeo y STL.', can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null)));
@@ -117,10 +120,8 @@ function productDrawer(id, onClose) {
             btn('Etiqueta', () => productLabel(p), { icon: 'printer', cls: 'sm' }),
             can('productos.editar') ? btn('✨ Descripción con IA', () => productWizard(p, { descripcion: true }), { cls: 'sm prod-desc-ia', title: 'Abre el producto con tres descripciones nuevas para elegir, sin salir de aquí' }) : null,
             btn('Anuncio con IA', () => { closeAll(); go('anuncios/' + p.id + '/' + ((S.cfg.anuncios && S.cfg.anuncios.plataforma) || 'etsy')); }, { icon: 'sparkles', cls: 'sm' }),
-            // v15.3 · en un clic: el Reel del producto o su publicación de Instagram (fotos + texto con IA)
-            btn('🎬 Hacer un Reel', () => { closeAll(); go('reels/producto/' + p.id); }, { cls: 'sm prod-reel' }),
+            // 16-11-2026 · Biou (15-11): Reels e Instagram «se duplican con CelebriMesa» → sus botones salen de aquí (el vídeo y las redes, en CelebriMesa)
             desktop.on ? btn('🎬 Vídeo con voz', () => import('./celebrimesa.js').then(m => m.abrirVideoEnMesa(p.id)), { cls: 'sm prod-mesa', title: 'Abre este producto en CelebriMesa: allí el botón «Crear vídeo» lo hace solo, con voz y música' }) : null,
-            can('redes.ver') ? btn('📸 A Instagram', () => { closeAll(); go('instagram/producto/' + p.id); }, { cls: 'sm prod-ig' }) : null,
             desktop.on && can('config.ver') ? btn('Publicar con CelebryNova', () => import('./celebrynova.js').then(m => m.publishWithNova(p, modal, go)), { icon: 'send', cls: 'sm' }) : null,
             can('productos.editar') ? btn('Editar', () => productWizard(p), { icon: 'edit', cls: 'sm' }) : null,
             can('productos.editar') ? btn('Duplicar', () => duplicar(p, closeAll), { icon: 'copy', cls: 'sm', title: 'Crear un producto parecido con estos mismos datos' }) : null,
@@ -395,7 +396,7 @@ export async function abrirEnBambu(x) {
     toast('🖨️ Abriendo «' + x.nombre + '» en Bambu Studio…', '', 4000);
     const aqui = x.ruta || await rutaAqui(x.a && x.a.rutaLocal); // 12-11: la ruta de la torre no vale en el portátil → se baja de la nube
     const r = aqui ? await desktop.bambuAbrirRuta(aqui) : await desktop.bambuAbrir(await fetchFile(x.a), x.nombre);
-    if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio' + (aqui ? '' : ' (copia en Documentos › CelebriDiseños_R8)'), 'ok', 6000);
+    if (r && r.abierto) toast('🖨️ Abierto en Bambu Studio' + (aqui ? (r.copiada ? ' (una copia del original: guarda sin miedo, el original no se toca)' : '') : ' (copia en Documentos › CelebriDiseños_R8)'), 'ok', 6000);
     else if (x.p) { if (!esOrdenador()) toast('En este PC no encuentro Bambu Studio: se la abro en la torre.', 'warn', 6000); encargarPieza(x.p, 'bambu', { motivo: 'en este ordenador no encuentro Bambu Studio' }); } // 02-11 (14-11: con el motivo)
     else toast('No encuentro Bambu Studio en este PC. El archivo está en ' + ((r && r.path) || 'Documentos › CelebriDiseños_R8') + '.', 'warn', 9000);
     if (window.__prod3d) window.__prod3d.bambu = r || null;

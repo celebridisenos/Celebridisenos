@@ -1861,7 +1861,9 @@ var CL = (function () {
   //  · Solo se mira cuando CAMBIA el estado de alguna placa (o se añade/quita una) y ya había lista: crear la lista no mueve el pedido.
   //  · Solo mueve entre Reservado/Confirmado/En impresión/En mesa. Empaquetar y lo siguiente SIEMPRE lo decide una persona
   //    (con todas acabadas el programa lo avisa, no lo pasa solo): PLACAS_AUTO_EMPAQUETAR.
-  var PLACAS_AUTO_EMPAQUETAR = false;
+  // 16-11-2026 · Biou: «el producto se queda en el estado Mesa en lugar de pasar a Empaquetado; las placas sí cambian, el pedido no».
+  //    Ahora SÍ: con TODAS las placas acabadas el pedido pasa solo a «Empaquetar» (servidor 18.8.0; con el 18.7.0 lo hacen la app y la Mesa).
+  var PLACAS_AUTO_EMPAQUETAR = true;
   function placasEstadoPedido(cfgPedidos, estado, antes, despues) {
     var D = placasLista(despues), A = placasLista(antes);
     if (!D.length || !A.length) return '';

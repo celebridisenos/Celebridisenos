@@ -130,8 +130,6 @@ export function render(el, params) {
         a.miniatura ? h('img.ci-grande', { src: a.miniatura, alt: '' }) : null,
         h('p.tiny.muted', [a.entidad === 'productos' ? '📦 ' + ((byId('productos', a.entidadId) || {}).nombre || '') : a.entidad, a.creado ? ago(a.creado) : '', a.tamano ? bytes(a.tamano) : ''].filter(Boolean).join(' · ')),
         btn('👁️ Ver', () => import('../files.js').then(F => F.openFile(a)), { cls: 'sm' }),
-        can('redes.ver') ? btn('📸 Publicar en Instagram', () => { m.close(); window.__cdIgPendiente = { medios: [{ id: a.id, tipo: esVideo(a) ? 'video' : 'foto', nombre: a.nombre }], productoId: a.entidad === 'productos' ? a.entidadId : '' }; go('instagram'); }, { cls: 'sm primary' }) : null,
-        a.entidad === 'productos' ? btn('🎬 Hacer un Reel de este producto', () => { m.close(); go('reels/producto/' + a.entidadId); }, { cls: 'sm' }) : null,
         btn('⬇️ Descargar', async () => { try { const F = await import('../files.js'); F.download(await F.fetchFile(a), a.nombre); } catch (e) { toast(e.message, 'bad'); } }, { cls: 'sm ghost' })), close => [btn('Cerrar', close)], { size: 'narrow' });
     });
   }

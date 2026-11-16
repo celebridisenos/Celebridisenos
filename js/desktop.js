@@ -23,6 +23,7 @@ export const desktop = {
   bambuPerfiles: () => H ? call('bambu-perfiles') : Promise.resolve(null),
   bambuAbrir: (blob, nombre, abrir = true, extra = null) => call('bambu-abrir?' + q(Object.assign({ nombre, abrir: abrir ? '1' : '0' }, extra || {})), { method: 'POST', body: blob }), // v30.2.1: extra = { pausas, imp, mat, proc } → Bambu hace SU proyecto con la pausa puesta
   registro: texto => H ? call('registro', { method: 'POST', body: String(texto || '') }).catch(() => null) : Promise.resolve(null), // 14-11: la torre apunta los encargos de otros aparatos
+  original: (ruta, que, abrir = true) => call('original' + (abrir ? '' : '?abrir=0'), { method: 'POST', body: JSON.stringify({ ruta, que }) }), // 16-11-2026: 🛟 el original (bambu · bajar · carpeta · mirar), nunca pisado
   bambuAbrirRuta: (ruta, abrir = true) => call('bambu-abrir?' + q({ ruta, abrir: abrir ? '1' : '0' }), { method: 'POST' }), // v20.2: un STL/3MF que ya está en el PC, tal cual // v20: guardar el 3MF en Documentos y abrirlo en Bambu Studio // v20: sus perfiles de Bambu Studio (solo lectura)
   getConfig: async k => { if (!H) return null; try { return (await call('config?' + q({ k }))).v || null; } catch (e) { return null; } },
   setConfig: async (k, v) => { if (H) await call('config?' + q({ k }), { method: 'POST', body: JSON.stringify({ v }) }); },

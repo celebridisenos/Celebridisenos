@@ -116,11 +116,27 @@ export async function ponerPlaca(o, placaId, estado, extra = {}) {
   try {
     const r = await mutate('pedidos.placa', d, { label: 'Placa «' + p.nombre + '» del pedido nº ' + o.numero, tables: ['pedidos'], optimistic: opt });
     if (r && r.id) { upsertLocal('pedidos', r); emit(); }
+    // 16-11-2026 · todas acabadas → el pedido pasa solo a «Empaquetar». Su servidor 18.8.0 ya lo hace; con el 18.7.0 (que lo deja en
+    // «En mesa» a propósito) se pide aquí, como si se pulsara «📦 pasar a Empaquetar» (mismo camino: changeState).
+    if (r && r.id && !r.queued) await empaquetarSiTodas(byId('pedidos', o.id) || r);
     if (hacia === 'por_imprimir' && estado === 'en_mesa') toast('🔁 «' + p.nombre + '» queda por imprimir otra vez', 'warn');
     else if (r && r.queued) toast('Guardado en este dispositivo. Se enviará al volver la conexión.', 'warn');
     else if (r && r.id && r.estado !== o.estado) toast('Pedido nº ' + o.numero + ' → ' + r.estado, 'ok');
     return true;
   } catch (e) { falla(e, o); return false; }
+}
+
+// 16-11-2026 · ¿Todas las placas acabadas y el pedido aún imprimiendo o en mesa? → «Empaquetar». Devuelve true si lo ha pasado.
+export async function empaquetarSiTodas(o) {
+  const L = lista(o); if (!L.length || !L.every(q => q.estado === 'acabada')) return false;
+  const f = CL.phaseOf(S.cfg.pedidos, o.estado); if (f !== 'postpro' && f !== 'impresion') return false;
+  const destino = CL.stateOfPhase(S.cfg.pedidos, 'empaquetar'); if (!destino || destino === o.estado) return false;
+  try {
+    const P = await import('./views/pedidos.js');
+    const ok = await P.changeState(o, destino);
+    if (ok) toast('📦 Todas las placas acabadas: pedido nº ' + o.numero + ' → ' + destino, 'ok', 6000);
+    return !!ok;
+  } catch (e) { return false; }
 }
 
 // ---------- «Este diseño tiene N placas» ----------

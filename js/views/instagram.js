@@ -70,7 +70,7 @@ export function render(el, params) {
         const r = await api('ig.urlConectar', {});
         if (desktop.on) await desktop.openUrl(r.url); else window.open(r.url, '_blank', 'noopener');
         mount(paso4, h('div.ig-espera', h('p', '🌐 Se ha abierto Instagram. Entra con tu cuenta y pulsa «Permitir».'), h('p.small.muted', 'Cuando veas «✅ … conectada», vuelve aquí.'),
-          btn('✅ Ya he aceptado', async () => { await cargarEstado(); if (estado.cuentas.length) { m.close(); toast('📸 Instagram conectado', 'ok'); perfil = null; pintaTab(); } else toast('Aún no aparece. Espera unos segundos y vuelve a pulsar.', 'warn'); }, { cls: 'primary' })));
+          btn('✅ Ya he aceptado', async () => { await cargarEstado(); if (estado.cuentas.length) { m.close(); toast('📸 Instagram conectado', 'ok'); perfil = null; coms = null; pintaTab(); if (tab !== 'comentarios' && cuenta() && cuenta().ok) cargarComentarios(); /* 16-11-2026: el aviso «💬 N sin contestar» sale ya, sin volver a entrar */ } else toast('Aún no aparece. Espera unos segundos y vuelve a pulsar.', 'warn'); }, { cls: 'primary' })));
       } catch (e) { toast(e.message, 'bad', 9000); }
     };
     const paso4 = h('div');
@@ -571,6 +571,8 @@ export function render(el, params) {
       history.replaceState(null, '', '#/instagram');
       const b = panel.querySelector('.ig-ia'); if (b && can('ia.usar')) escribirIA(b); return;
     }
+    // 16-11-2026: CelebriMesa abre una pestaña concreta (#/instagram/comentarios): Instagram ya no está en el menú, las redes se hacen allí.
+    if (ps[0] && TABS.some(x => x[0] === ps[0])) { ponTab(ps[0]); return; }
     if (ps[0] && byId('redes', ps[0])) { tab = 'crear'; abrir(deFila(byId('redes', ps[0]))); ponTab('crear'); return; }
     ponTab(tab);
   }

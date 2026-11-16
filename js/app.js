@@ -65,6 +65,8 @@ const VIEWS = {
   responder: () => import('./views/responder.js'), // 01-11-2026: 💬 centro para contestar ventas (mensajes + productos + catálogo + precio)
   micuentas: () => import('./views/micuentas.js'), // 02-11-2026: 📱 móviles, números, cuentas de Vinted y bancos: quién vende y quién no
   fotosproductos: () => import('./views/fotosproductos.js'), // 14-11-2026: 📸 todas sus fotos de productos (carpeta FOTOS_DE_MIS_PRODUCTOS), solo en el PC
+  noventas: () => import('./views/noventas.js'), // 15-11-2026: 🧹 los productos que nunca se han vendido, a la papelera de una vez
+  fallos: () => import('./views/fallos.js'), // 15-11-2026: 🩺 fallos del inventario calculados en vivo, con «Arreglar» / «Dejar así»
   resenas: () => import('./views/resenas.js'), // 01-11-2026: ⭐ subir la captura de una reseña → sale sola en la web (globito de confianza)
   instagram: () => import('./views/instagram.js'), // v15.3: 📸 Instagram Studio VIP (API oficial de Meta)
   centroia: () => import('./views/centroia.js'), // v15.3: 🧠 Centro de IA (semáforo, biblioteca, prompts, descargas)
@@ -102,7 +104,6 @@ export const NAV = [
   { k: 'rapidas', t: 'Respuestas rápidas 💬', i: 'msg' }, // v13.10: manual para contestar a los clientes,
   { sep: true, t: 'Crear' },
   { k: 'celebrir8', t: 'CelebriR8 🧊', i: 'cube', p: 'productos.ver' }, // v18: diseñar piezas sin saber de 3D
-  { k: 'escaparate', t: 'Escaparate ✨', i: 'sparkles', p: 'productos.ver' }, // 28-10-2026: fotos de estudio y vídeo 360° de tus productos, en tus colores
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
   { k: 'cotizador', t: 'Cotizador 3D ⚡', i: 'cube', p: 'productos.ver' }, // v16.2: en lugar de «Cámaras» (no se usaba; sigue existiendo en #/camaras)
   { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»,
@@ -112,16 +113,15 @@ export const NAV = [
   { k: 'fotosproductos', t: 'Mis fotos de productos 📸', i: 'camera', p: 'productos.ver' }, // 14-11-2026
   { k: 'mitienda', t: 'Mi tienda 🛍️', i: 'store', p: 'productos.ver' }, // v13.10: abrir, copiar, compartir y QR de la tienda web,
   { k: 'estanteria', t: 'Estantería 🏬', i: 'store', p: 'productos.ver' }, // v13,
-  { k: 'reels', t: 'Reels 🎬', i: 'play', p: 'productos.ver' }, // v15.3: vídeos para Instagram/TikTok,
-  { k: 'instagram', t: 'Instagram Studio 📸', i: 'camera', p: 'redes.ver' }, // v15.3,
-  { k: 'redes', t: 'Redes sociales', i: 'calendar', p: 'redes.ver' },
-  { k: 'anuncios', t: 'Anuncios con IA', i: 'sparkles', p: 'productos.ver' },
-  { k: 'trailer', t: 'Tráiler del mes 🎬', i: 'play', p: 'pedidos.ver' }, // v18
+  // 16-11-2026 · Biou (15-11): «Reels, Escaparate, Instagram Studio y Redes sociales se duplican con CelebriMesa» → fuera del menú (las rutas #/reels, #/escaparate,
+  // #/instagram y #/redes siguen, como Anuncios): las redes se hacen en CelebriMesa.
+  // 15-11-2026 · Biou (nota a mano): «Quitar Anuncios con IA y el tráiler del mes ponerlo en otro sitio» → Anuncios fuera del menú (la ruta #/anuncios sigue); el Tráiler, a Números
   { sep: true, t: 'Números' },
   { k: 'ingresos', t: 'Ingresos 💶', i: 'euro', p: 'productos.costes' }, // v16,
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
   { k: 'inteligencia', t: 'Inteligencia 🧠', i: 'sparkles', p: 'pedidos.ver' }, // v17.1: banco de metas, planeta de clientes y tus números (en lugar del calendario)
+  { k: 'trailer', t: 'Tráiler del mes 🎬', i: 'play', p: 'pedidos.ver' }, // v18 · 15-11-2026: de «Tienda y redes» a «Números» (son tus números del mes en vídeo)
   { sep: true, t: 'Más' },
   { k: 'hoy', t: 'Hoy en el taller', i: 'play', p: 'pedidos.ver' },
   { k: 'tallervivo', t: 'Taller vivo 🏭', i: 'play', p: 'pedidos.ver' }, // v18: en lugar de «Descanso» (los juegos se retiraron)
@@ -135,6 +135,8 @@ export const NAV = [
   { k: 'celebrimesa', t: 'CelebriMesa', i: 'sparkles', d: true }, // 02-11-2026: organizar y crear (solo en el ordenador)
   { k: 'config', t: 'Configuración', i: 'settings' },
   { k: 'estado', t: 'Estado del sistema', i: 'shield', p: 'config.ver' },
+  { k: 'noventas', t: 'Productos que no se venden 🧹', i: 'trash', p: 'productos.borrar' }, // 15-11-2026
+  { k: 'fallos', t: 'Fallos del inventario 🩺', i: 'shield', p: 'productos.ver' }, // 15-11-2026
   { k: 'stock', t: 'Stock', i: 'box', p: 'productos.ver' },
   { k: 'inventario', t: 'Inventario y compras', i: 'box', p: 'productos.ver' }, // v16,
 ];
@@ -421,7 +423,7 @@ function refreshShell() {
   // v11.5: barra de acceso rápido · 03-11-2026, Biou: «productos tiene que estar arriba, cámbialo por cámaras» (las cámaras siguen en Inicio y en #/camaras)
   // 05-11-2026, Biou: «productos arriba, al lado de pedidos, acceso rápido» → el 2.º
   const emq = S.cfg ? (S.t.pedidos || []).filter(o => CL.phaseOf(S.cfg.pedidos, o.estado) === 'empaquetar').length : 0;
-  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['productos', 'Productos', 'cube', 'productos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], ['anuncios', 'Publicar', 'sparkles', 'productos.ver'], S.cfg && S.cfg.tienda && S.cfg.tienda.url ? ['mitienda', 'Mi tienda', 'store', 'productos.ver'] : null, ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
+  const QB = [['pedidos', 'Pedidos', 'truck', 'pedidos.ver'], ['productos', 'Productos', 'cube', 'productos.ver'], ['embalaje', 'Empaquetar', 'box', 'pedidos.ver', emq], ['escanear', 'Escanear', 'qr', 'pedidos.ver'], ['taller', 'Impresión', 'printer', 'taller.ver'], S.cfg && S.cfg.tienda && S.cfg.tienda.url ? ['mitienda', 'Mi tienda', 'store', 'productos.ver'] : null, ['stock', 'Stock', 'cube', 'productos.ver'], ['ia', 'Celeby Nova', 'sparkles', 'ia.usar']].filter(x => x && can(x[3]));
   const qSig = JSON.stringify([QB.map(x => x[0]), emq]);
   if (shell.quick && shell.qSig !== qSig) { shell.qSig = qSig; mount(shell.quick, QB.map(x => h('a', { href: '#/' + x[0], dataset: { k: x[0] }, title: x[1] }, icon(x[2], 's'), h('span.t', x[1]), x[4] ? h('span.count', String(x[4])) : null))); }
   markNav(parseHash().name);

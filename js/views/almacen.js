@@ -14,6 +14,7 @@ import { h, mount, btn, modal, toast, inp, empty, pill, confirmDlg, eur, fdate, 
 import { S, can, api, upsertLocal, emit, pull } from '../store.js';
 import { requestAccess, go } from '../app.js';
 import { levels } from './stock.js';
+import { cuantosAbiertos } from './fallos.js'; // 15-11-2026: 🩺 fallos del inventario
 import { ponAplicarMovil } from '../variantes.js'; // 13-11-2026: 📱 casilla «sumar el móvil y la SIM»
 import { botonFotoTiquet } from '../tiquet.js'; // 01-11-2026: 📸 foto del tíquet → precio y tipo (reusa el OCR del PC)
 
@@ -162,26 +163,51 @@ const usado = m => lleno(m.stock) || !!ultimaCompra(m);
 
 // ---------- LA PANTALLA ----------
 let pestana = 'hay', masTab = 'revisar', mesSel = '', filtroMov = 'todo';
-const cache = { pend: null, pendT: 0, mes: {} };
-export function olvida() { cache.pend = null; cache.mes = {}; } // tras cualquier cambio: se vuelven a pedir
+// 16-11-2026 (él: «evitar tener que desplazarse demasiado para encontrar funciones… no ocultes opciones»): lo de «Más detalles» y las
+// opciones avanzadas ya no se buscan abajo del todo ni dentro de plegables: una fila de atajos arriba y un apartado «🧰 Herramientas».
+const MAS = [['revisar', '⚠️ Por revisar'], ['movimientos', '↔️ Entradas y salidas'], ['mes', '📊 Este mes'], ['negocio', '📱 Móvil y SIM'], ['herramientas', '🧰 Herramientas']];
+const MAS_TABS = MAS.map(x => x[0]);
+const cache = { pend: null, pendT: 0, mes: {}, antes: { pend: null, mes: {} } };
+// tras cualquier cambio: se vuelven a pedir. 16-11-2026: lo de antes se GUARDA aparte y se queda a la vista hasta que llega lo nuevo
+// (antes la lista se vaciaba y salía «Cargando…» 2–18 s: «desaparece y luego vuelve a aparecer»)
+export function olvida() { if (cache.pend) cache.antes.pend = cache.pend; Object.assign(cache.antes.mes, cache.mes); cache.pend = null; cache.mes = {}; }
+// lo «por revisar», UNA sola petición aunque lo pidan a la vez los atajos de arriba y el pie (16-11-2026)
+let pidePend = null;
+const pendCache = () => cache.pend && Date.now() - cache.pendT < 60000 ? Promise.resolve(cache.pend)
+  : (pidePend = pidePend || api('almacen.pendientes', {}, { quiet: true }).then(p => { cache.pend = p; cache.pendT = Date.now(); return p; }).finally(() => { pidePend = null; }));
 export function render(el, params) {
   const p0 = params && params[0];
   if (p0 === 'hay' || p0 === 'compro') pestana = p0;
   else if (p0 === 'tengo') pestana = 'hay';
-  else if (['mas', 'revisar', 'movimientos', 'mes', 'negocio'].includes(p0)) { pestana = 'mas'; masTab = p0 === 'mas' ? (['revisar', 'movimientos', 'mes', 'negocio'].includes(params[1]) ? params[1] : masTab) : p0; }
+  else if (['mas', ...MAS_TABS].includes(p0)) { pestana = 'mas'; masTab = p0 === 'mas' ? (MAS_TABS.includes(params[1]) ? params[1] : masTab) : p0; }
   const mover = can('stock.mover');
   const tabs = h('div.alm2-tabs', { role: 'tablist' }), cuerpo = h('div.alm2-cuerpo');
   const carrito = h('button.alm2-carrito', { type: 'button', onclick: () => mover ? heComprado({}, tras) : requestAccess('stock.mover', 'almacen') },
     h('span.e', '🛒'), h('span.t', h('b', 'He comprado algo'), h('span', 'Cajas, sobres, bolsas o filamento: eliges, tocas y se suma solo')), h('span.f', '→'));
+  const fallosB = h('button.alm2-fallos', { type: 'button', hidden: true, onclick: () => go('fallos') });
+  const atajos = h('div.alm2-atajos', { role: 'toolbar', 'aria-label': 'Herramientas del almacén' });
+  const pintaFallos = () => { let q = 0; try { q = cuantosAbiertos(); } catch (e) { } fallosB.hidden = !q; fallosB.textContent = '🩺 Fallos del inventario (' + q + ')'; };
   const sv = String((S.cfg && S.cfg.version) || '0').split('.').map(Number), viejoSrv = (sv[0] || 0) * 1e6 + (sv[1] || 0) * 1e3 + (sv[2] || 0) < 18003000;
   el.append(
     h('div.page-head', h('div', h('h1', '📦 Mi almacén'), h('div.muted.small', 'Lo que gastas al imprimir, al vender y al empaquetar se descuenta solo. Tú solo apuntas lo que compras.'))),
     viejoSrv ? h('div.alm2-srv', h('b', '🟡 Falta un paso para que el filamento se descuente SIEMPRE'), h('span', 'Tu servidor de Google es el ' + ((S.cfg && S.cfg.version) || 'antiguo') + '. Pega el Servidor.gs nuevo (carpeta de la versión → LEEME, 5 pasos): hasta entonces, las ventas en mano y lo que imprimes fuera de la cola no bajan de las bobinas.')) : '', // (13-11-2026: '' y no null: el.append(null) escribía «null» en la página)
-    carrito, tabs, cuerpo);
+    fallosB, carrito, atajos, tabs, cuerpo);
   function tras() { olvida(); draw(); }
   const ir = k => { pestana = k; history.replaceState(null, '', '#/almacen/' + k + (k === 'mas' ? '/' + masTab : '')); draw(); };
+  const irMas = k => { masTab = k; ir('mas'); };
+  // la fila de atajos (arriba, siempre a la vista en «Qué hay» y «Qué compro»): cada uno abre SU herramienta de verdad
+  function pintaAtajos() {
+    const rev = h('span.alm2-badge.warn', { hidden: true });
+    mount(atajos, [
+      mover ? h('button.alm2-atajo', { type: 'button', 'data-atajo': 'contar', onclick: () => cuento({}, tras) }, '✏️ Contar todo') : null,
+      ...MAS.map(([k, t]) => h('button.alm2-atajo', { type: 'button', 'data-atajo': k, onclick: () => irMas(k) }, t, k === 'revisar' ? rev : null))]);
+    pendCache().then(p => { const q = cuantosPend(p); if (q && rev.isConnected) { rev.textContent = String(q); rev.hidden = false; } }).catch(() => { });
+  }
   function draw() {
+    pintaFallos();
     const nCompra = porComprar().length;
+    atajos.hidden = pestana === 'mas';
+    if (pestana !== 'mas') pintaAtajos();
     if (pestana === 'mas') mount(tabs, h('button.alm2-volver', { type: 'button', onclick: () => ir('hay') }, '← Volver a Mi almacén'));
     else mount(tabs, [['hay', '📦 Qué hay', ''], ['compro', '🛒 Qué compro', nCompra ? String(nCompra) : '']].map(([k, t, b]) =>
       h('button.alm2-tab' + (pestana === k ? '.on' : ''), { type: 'button', role: 'tab', 'aria-selected': String(pestana === k), 'data-tab': k, onclick: () => ir(k) }, t, b ? h('span.alm2-badge', b) : null)));
@@ -274,8 +300,7 @@ export function render(el, params) {
   function pie() {
     const mas = h('button.alm2-pie-b', { type: 'button', onclick: () => ir('mas') }, '📊 Más detalles', h('span.alm2-pie-s', 'historial, este mes y lo que hay que revisar'));
     // un aviso pequeño si hay algo por revisar (pedidos sin descontar el filamento…); si el servidor es el antiguo, nada
-    (async () => { try { const p = cache.pend && Date.now() - cache.pendT < 60000 ? cache.pend : await api('almacen.pendientes', {}, { quiet: true }); cache.pend = p; cache.pendT = Date.now();
-      const k = cuantosPend(p); if (k && mas.isConnected) mas.append(h('span.alm2-badge.warn', k + ' por revisar')); } catch (e) { } })();
+    pendCache().then(p => { const k = cuantosPend(p); if (k && mas.isConnected) mas.append(h('span.alm2-badge.warn', k + ' por revisar')); }).catch(() => { });
     return h('div.alm2-pie', mover ? h('button.alm2-pie-b', { type: 'button', onclick: () => cuento({}, tras) }, '✏️ Contar todo de una vez', h('span.alm2-pie-s', 'cada 2 semanas, para que cuadre')) : null, mas);
   }
 
@@ -300,10 +325,26 @@ export function render(el, params) {
   // ===== 📊 MÁS DETALLES (lo de antes, plegado aquí para que no estorbe) =====
   function drawMas() {
     const sub = h('div.tabs.alm-tabs'), box = h('div');
-    mount(sub, [['revisar', '⚠️ Por revisar'], ['movimientos', '↔️ Entradas y salidas'], ['mes', '📊 Este mes'], ['negocio', '📱 Móvil y SIM']].map(([k, t]) =>
-      h('button' + (masTab === k ? '.on' : ''), { type: 'button', onclick: () => { masTab = k; history.replaceState(null, '', '#/almacen/mas/' + k); drawMas(); } }, t)));
+    mount(sub, MAS.map(([k, t]) =>
+      h('button' + (masTab === k ? '.on' : ''), { type: 'button', 'data-mas': k, onclick: () => { masTab = k; history.replaceState(null, '', '#/almacen/mas/' + k); drawMas(); } }, t)));
     mount(cuerpo, sub, box);
-    ({ revisar: drawRevisar, movimientos: drawMovimientos, mes: drawMes, negocio: drawNegocio })[masTab](box);
+    ({ revisar: drawRevisar, movimientos: drawMovimientos, mes: drawMes, negocio: drawNegocio, herramientas: drawHerramientas })[masTab](box);
+  }
+  // ===== 🧰 HERRAMIENTAS (16-11-2026): las «opciones avanzadas» y los avisos, a la vista y cada una con lo que hace =====
+  function drawHerramientas(box) {
+    const T = [
+      ['contar', '✏️', 'Contar todo de una vez', 'Cada 2 semanas, para que las cuentas cuadren', 'stock.mover', () => cuento({}, tras)],
+      ['fallos', '🩺', 'Fallos del inventario', 'Lo que no cuadra, cada uno con su arreglo', 'productos.ver'],
+      ['inventario/compras', '🧾', 'Historial de compras', 'Ver y corregir una compra', 'productos.ver'],
+      ['costes', '💶', 'Precios y coste de cada producto', 'Lo que te cuesta hacer cada uno', 'productos.costes'],
+      ['inventario/estadisticas', '📈', 'Estadísticas de material', 'Lo que gastas y compras, mes a mes', 'productos.costes'],
+      ['stock', '🎁', 'Piezas en stock (detalle)', 'Cada pieza hecha y las apartadas para pedidos', 'productos.ver'],
+      ['taller/filamento', '🧵', 'Bobinas una a una', 'Marca, dónde está y cuánto le queda', 'taller.ver'],
+      ['inventario', '📦', 'Inventario completo', 'Todas las cosas, con el aviso de cada una', 'productos.ver'],
+    ].filter(x => can(x[4]));
+    mount(box, h('section.alm2-herr', h('h3', '🧰 Todas las herramientas del almacén'),
+      h('div.alm2-herr-g', T.map(([k, e, t, d, , fn]) => h('button.alm2-herr-b', { type: 'button', 'data-herr': k, onclick: fn || (() => go(k)) }, h('i.e', e), h('span', h('b', t), h('small', d)))))),
+      avisosCfg());
   }
   function drawNegocio(box) {
     const L = gastosNeg().slice().sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))), hoy = new Date().toISOString().slice(0, 10), q = CL.cuotaNegocio(S.cfg, S.t, hoy);
@@ -324,14 +365,16 @@ export function render(el, params) {
   }
   async function drawRevisar(box) {
     const pendBox = h('div', h('p.muted', 'Cargando…'));
-    mount(box, pendBox, avisosCfg(), avanzadas());
+    mount(box, pendBox); // (los avisos y las opciones avanzadas están ahora a la vista en «🧰 Herramientas»)
     let p = cache.pend;
+    const pinta = p => mount(pendBox, pendientes(p, tras) || h('div.alm-bien', '✅ No hay nada por revisar: las cuentas cuadran.'), tocaContar(p.ultimoRecuento));
     if (!p || Date.now() - cache.pendT > 60000) {
-      try { p = await api('almacen.pendientes', {}, { quiet: true }); cache.pend = p; cache.pendT = Date.now(); }
-      catch (e) { if (pendBox.isConnected) mount(pendBox, viejo(e) ? h('div.alm-viejo', '🟡 ', SERVIDOR_VIEJO) : h('p.small.muted', e.message || String(e))); return; }
+      const antes = p || cache.antes.pend; if (antes) pinta(antes); // lo de antes, a la vista mientras llega lo nuevo
+      try { p = await api('almacen.pendientes', {}, { quiet: true }); cache.pend = p; cache.pendT = Date.now(); cache.antes.pend = null; }
+      catch (e) { if (pendBox.isConnected && !antes) mount(pendBox, viejo(e) ? h('div.alm-viejo', '🟡 ', SERVIDOR_VIEJO) : h('p.small.muted', e.message || String(e))); return; }
     }
     if (!pendBox.isConnected) return;
-    mount(pendBox, pendientes(p, tras) || h('div.alm-bien', '✅ No hay nada por revisar: las cuentas cuadran.'), tocaContar(p.ultimoRecuento));
+    pinta(p);
   }
   function tocaContar(ult) {
     const d = dias(ult), toca = d === null || d >= 14;
@@ -355,8 +398,13 @@ export function render(el, params) {
   async function drawMovimientos(cont) {
     const box = h('div', h('p.muted', 'Cargando…'));
     mount(cont, navMes(), box);
-    let d; try { d = await datosMes(); } catch (e) { mount(box, h('div.alm-viejo', viejo(e) ? SERVIDOR_VIEJO : (e.message || String(e)))); return; }
+    const antes = !cache.mes[mesActual()] && cache.antes.mes[mesActual()]; // 16-11: lo de antes, a la vista mientras llega lo nuevo
+    if (antes) pinta(antes);
+    let d; try { d = await datosMes(); } catch (e) { if (!antes) mount(box, h('div.alm-viejo', viejo(e) ? SERVIDOR_VIEJO : (e.message || String(e)))); return; }
     if (!box.isConnected) return;
+    delete cache.antes.mes[mesActual()];
+    pinta(d);
+    function pinta(d) {
     const chips = [['todo', 'Todo'], ['in', '⬇️ Entradas'], ['out', '⬆️ Salidas'], ['cnt', '✏️ Recuentos']];
     const dir = x => x.tipo === 'recuento' ? 'cnt' : x.cambio < 0 ? 'out' : 'in'; // («he impreso»: el filamento sale y la pieza entra)
     const L = d.movimientos.filter(x => filtroMov === 'todo' || dir(x) === filtroMov);
@@ -373,14 +421,20 @@ export function render(el, params) {
       L.length ? h('section.alm-bloque.alm-movs', L.map(fila)) : h('div.card', empty('box', 'Sin movimientos', 'Nada ' + (filtroMov === 'todo' ? '' : 'de esto ') + 'en ' + mesTxt(mesActual()) + '.')),
       d.total > d.movimientos.length ? h('p.tiny.muted', 'Se ven los ' + d.movimientos.length + ' más recientes de ' + d.total + '.') : null,
       !d.desdeRegistro ? h('p.tiny.muted', 'El filamento se apunta gramo a gramo desde el 26-10-2026; lo de antes sale en «Este mes» calculado con la cola y los pedidos.') : null);
+    }
   }
 
   // ===== 📊 ESTE MES =====
   async function drawMes(cont) {
     const box = h('div', h('p.muted', 'Cargando…'));
     mount(cont, navMes(), box);
-    let d; try { d = await datosMes(); } catch (e) { mount(box, h('div.alm-viejo', viejo(e) ? SERVIDOR_VIEJO : (e.message || String(e)))); return; }
+    const antes = !cache.mes[mesActual()] && cache.antes.mes[mesActual()]; // 16-11: lo de antes, a la vista mientras llega lo nuevo
+    if (antes) pinta(antes);
+    let d; try { d = await datosMes(); } catch (e) { if (!antes) mount(box, h('div.alm-viejo', viejo(e) ? SERVIDOR_VIEJO : (e.message || String(e)))); return; }
     if (!box.isConnected) return;
+    delete cache.antes.mes[mesActual()];
+    pinta(d);
+    function pinta(d) {
     const costes = d.compras !== null, kpi = (num, txt, sub, cls) => h('div.kpi.static' + (cls ? '.' + cls : ''), h('span.n', num), h('span.l', txt), sub ? h('span.tiny.muted', sub) : null);
     const max = Math.max(1, ...d.colores.map(c => c.gramos));
     mount(box,
@@ -395,6 +449,7 @@ export function render(el, params) {
           : h('p.small.muted', 'Sin filamento gastado en ' + mesTxt(mesActual()) + '. (Se apunta solo al imprimir desde la cola, al vender un pedido o con «＋ He impreso».)')),
       d.descuadre.lista.length ? h('section.alm-bloque', h('h3', '✏️ Lo que no cuadró al contar'), h('p.tiny.muted', 'Lo que el programa creía que había y lo que contaste. Si se repite en lo mismo, revisa cuánto gasta (el embalaje de los pedidos o los gramos del producto).'),
         d.descuadre.lista.map(x => h('div.alm-fila', h('span.alm-ic', x.cambio < 0 ? '🔻' : '🔺'), h('div.alm-nom', h('b', x.que), x.veces > 1 ? h('span', 'en ' + x.veces + ' recuentos') : null), h('div.alm-cuanto', h('b', (x.cambio < 0 ? 'faltaban ' : 'sobraban ') + (x.unidad === 'g' ? kg(Math.abs(x.cambio)) : cant(Math.abs(x.cambio), x.unidad))))))) : null);
+    }
   }
   const hexDe = nombre => { const c = colores().find(x => CL.norm(x.material + ' ' + x.color) === CL.norm(nombre)); return c ? c.hex : 'var(--brand)'; };
 
@@ -403,8 +458,8 @@ export function render(el, params) {
     const sc = CL.simpleCfg(((S.cfg || {}).embalaje || {}).simple), u = inp({ type: 'number', min: 0, step: 1, value: sc.avisoUnidades, class: 'inp alm-peq' }), m = inp({ type: 'number', min: 0, step: 0.5, value: sc.avisoMetros, class: 'inp alm-peq' });
     const guarda = async () => { try { await api('envases.config', { avisoUnidades: u.value, avisoMetros: m.value }); await pull(); toast('Avisos guardados', 'ok'); } catch (e) { toast(e.message || String(e), 'bad'); } };
     [u, m].forEach(i => i.addEventListener('change', guarda));
-    return h('details.more.alm-avanzadas', h('summary', '🔔 Cuándo avisar de que algo se acaba'), h('div.in',
-      h('p.small', 'Avisar cuando queden ', u, ' unidades o ', m, ' metros.'),
+    return h('section.alm2-avisos', h('h3', '🔔 Cuándo avisar de que algo se acaba'), h('div.in',
+      h('p.small', 'Avisar cuando queden ', u, ' unidades o ', m, ' metros. (Se guarda solo al cambiarlo.)'),
       h('p.tiny.muted', 'Las cajas usan su propio aviso de Embalaje; lo de botes y rollos (ml, gramos), cuando queda menos de medio. Cada cosa puede tener el suyo (en Inventario completo → ⚙️). Es la misma regla en todo el programa.')));
   }
   draw();
@@ -418,12 +473,6 @@ function cuantosPend(p) {
   return prods + (p.productos || []).filter(x => !yaSale.has(x.id)).length + (p.compras || []).length + (p.sinContar || []).length + estim + (p.parecidos || []).length;
 }
 
-function avanzadas() {
-  const L = [['inventario/compras', '🧾 Historial de compras (corregir una compra)', 'productos.ver'], ['costes', '💶 Precios y coste de cada producto', 'productos.costes'], ['inventario/estadisticas', '📊 Estadísticas', 'productos.costes'],
-    ['stock', '🎁 Piezas en stock (detalle)', 'productos.ver'], ['taller/filamento', '🧵 Bobinas una a una (marca, ubicación)', 'taller.ver'], ['inventario', '📦 Inventario completo (avisos de cada cosa)', 'productos.ver']].filter(x => can(x[2]));
-  return h('details.more.alm-avanzadas', h('summary', '⚙️ Opciones avanzadas'), h('div.in', h('p.tiny.muted', 'Para el día a día no hace falta. Están aquí por si quieres ver el detalle.'),
-    h('div.row.wrap', L.map(x => btn(x[1], () => go(x[0]), { cls: 'sm' })))));
-}
 
 // ---------- ⚠️ PENDIENTES: cada cosa con SU arreglo ----------
 const FALTA = { consumo: 'no sé cuántos gramos gasta', producto: 'el producto no está en el catálogo', color: 'no sé de qué color se imprimió', bobina: 'no hay bobina de ese color apuntada' };
@@ -494,8 +543,14 @@ function precioCompra(c, tras) {
       const bt = ev.target.closest('button'); bt.disabled = true;
       try {
         if (c.filamento) { const r = await api('almacen.precioBobinas', { bobinas: c.bobinas, precio: n(f.value) }); (r.bobinas || []).forEach(b => upsertLocal('bobinas', b)); }
-        else await api('materiales.compraEditar', { id: c.id, total: n(f.value) });
-        await pull(); toast('Precio guardado', 'ok'); m.close(); tras();
+        else { // 16-11-2026: la compra se cambia aquí mismo (misma fila, mismo id) y la ventana se cierra ya, sin esperar a sincronizar
+          const r = await api('materiales.compraEditar', { id: c.id, total: n(f.value) });
+          if (r && r.movimiento && r.movimiento.id) upsertLocal('movMateriales', r.movimiento);
+          ((r && r.materiales) || []).forEach(mt => upsertLocal('materiales', mt));
+        }
+        emit(); toast('Precio guardado', 'ok'); m.close();
+        if (cache.pend) cache.pend = Object.assign({}, cache.pend, { compras: (cache.pend.compras || []).filter(x => x !== c && !(c.id && x.id === c.id)) }); // ya tiene precio
+        tras(); pull().catch(() => { });
       } catch (e) { msg.textContent = e.message || String(e); bt.disabled = false; }
     }, { cls: 'primary' })], { size: 'narrow' });
 }

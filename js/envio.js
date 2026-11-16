@@ -220,23 +220,74 @@ function cropRotate(src, portrait) {
   o.drawImage(src, x0, y0, cw, ch, 0, 0, cw, ch);
   return { canvas: out, recorte, giro };
 }
-// 12-11-2026 · Biou: «los QR de Wallapop… se pueden poner más centrados, más medianos: sale enorme». Lo que queda después de recortar
-// es casi CUADRADO (un QR solo, como el de Wallapop): en vez de estirarlo a todo lo ancho de la etiqueta (100 mm), va centrado en
-// la etiqueta de 100 × 150 y a la MITAD de ancho (50 mm), con blanco alrededor. Las etiquetas normales (alargadas) no cambian.
-export function qrMediano(r, ancho = 0.5) {
-  const c = r && r.canvas; if (!c || !c.width || !c.height) return r;
-  const a = c.width / c.height; if (a < 0.85 || a > 1.18) return r;
-  // y que sea un QR de verdad: casi la mitad en negro. Una página con letras o una etiqueta con barras se queda muy por debajo
-  // (la «toda la página» de un A4 recortada sale casi cuadrada y NO se puede encoger: las barras dejarían de leerse)
-  try { const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data; let n = 0, k = 0;
-    for (let i = 0; i < d.length; i += 4 * 7) { n++; if (d[i] + d[i + 1] + d[i + 2] < 300) k++; }
-    if (!n || k / n < 0.3) return r; } catch (e) { return r; }
-  const W = Math.round(c.width / ancho), H = Math.round(W * 1.5);
-  const out = document.createElement('canvas'); out.width = W; out.height = H;
-  const g = out.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-  g.drawImage(c, Math.round((W - c.width) / 2), Math.round((H - c.height) / 2));
-  return Object.assign({}, r, { canvas: out, qrMediano: true });
+// 12-11-2026 · Biou: «los QR de Wallapop… se pueden poner más centrados, más medianos: sale enorme».
+// 16-11-2026 · Biou: «los QR de Wallapop salen enormes: tiene que recortar o ponerlos más pequeños». El del 12-11 solo valía para un QR
+// SOLO (casi cuadrado): el de Wallapop trae el logo, letras o su código debajo, no se reconocía y se estiraba a todo lo ancho (100 mm).
+// Ahora se BUSCA el QR (sus tres cuadrados de las esquinas). Si la etiqueta no tiene código de RAYAS (las de transportista siempre lo
+// llevan) y el QR es lo principal —o el pedido es de Wallapop—, se recorta el QR (con el código escrito justo debajo, por si no lo
+// leen) y va centrado en la de 100 × 150 al tamaño elegido: Pequeño 25 mm, Mediano 35 mm (el de siempre) o Grande 50 mm.
+// «Como viene» lo deja sin tocar. Se elige en la vista previa de la etiqueta y se recuerda en este aparato.
+export const TAM_QR = { pequeno: { t: 'Pequeño', mm: 25 }, mediano: { t: 'Mediano', mm: 35 }, grande: { t: 'Grande', mm: 50 }, entero: { t: 'Como viene', mm: 0 } };
+export const tamQR = () => { try { const v = localStorage.getItem('cd.qrTam'); return TAM_QR[v] ? v : 'mediano'; } catch (e) { return 'mediano'; } };
+export function ponTamQR(v) { if (!TAM_QR[v]) return; try { localStorage.setItem('cd.qrTam', v); } catch (e) { } officialCache.clear(); }
+// Hasta dónde llega lo escrito JUSTO debajo del QR (el código de envío): devuelve la zona ampliada
+function conLoDeDebajo(c, z, lado) {
+  const xa = Math.max(0, Math.round(z.x0 - lado * 0.15)), xb = Math.min(c.width - 1, Math.round(z.x1 + lado * 0.15)), ya = Math.round(z.y1) + 1, yb = Math.min(c.height - 1, Math.round(z.y1 + lado * 0.5));
+  if (yb <= ya || xb <= xa) return z;
+  const w = xb - xa + 1, d = c.getContext('2d', { willReadFrequently: true }).getImageData(xa, ya, w, yb - ya + 1).data;
+  let ultima = -1, hueco = 0, empezado = false, mx0 = w, mx1 = -1;
+  for (let y = 0; y <= yb - ya; y++) {
+    let tinta = false;
+    for (let x = 0; x < w; x++) { const p = (y * w + x) * 4; if (d[p] * 0.3 + d[p + 1] * 0.59 + d[p + 2] * 0.11 < 128) { tinta = true; if (x < mx0) mx0 = x; if (x > mx1) mx1 = x; } }
+    if (tinta) { ultima = y; hueco = 0; empezado = true; continue; }
+    hueco++;
+    if ((empezado && hueco > lado * 0.07) || (!empezado && hueco > lado * 0.2)) break;
+  }
+  if (ultima < 0) return z;
+  const pad = lado * 0.04;
+  return { x0: Math.max(0, Math.min(z.x0, xa + mx0 - pad)), y0: z.y0, x1: Math.min(c.width - 1, Math.max(z.x1, xa + mx1 + pad)), y1: Math.min(c.height - 1, ya + ultima + pad) };
 }
+export function qrMediano(r, RC, opts = {}) {
+  const c = r && r.canvas; if (!c || !c.width || !c.height) return r;
+  const tam = TAM_QR[opts.tam] ? opts.tam : tamQR(), mm = TAM_QR[tam].mm;
+  if (!mm) return r; // «Como viene»
+  let q = null; try { q = RC && RC.buscarQR ? RC.buscarQR(c) : null; } catch (e) { q = null; }
+  let zona, lado;
+  if (q) {
+    lado = Math.max(q.x1 - q.x0, q.y1 - q.y0);
+    const manda = lado * lado >= c.width * c.height * 0.1 || opts.wallapop;
+    let barras = true; try { barras = RC.tieneBarras(c); } catch (e) { barras = true; }
+    if (barras || !manda) return r; // una etiqueta de transportista (con un QR pequeño dentro) se queda como está
+    const pad = q.modulo * 3;
+    zona = conLoDeDebajo(c, { x0: Math.max(0, q.x0 - pad), y0: Math.max(0, q.y0 - pad), x1: Math.min(c.width - 1, q.x1 + pad), y1: Math.min(c.height - 1, q.y1 + pad) }, lado);
+  } else {
+    // sin encontrar sus esquinas: lo del 12-11 (lo que queda es casi CUADRADO y casi la mitad en negro = un QR solo)
+    const a = c.width / c.height; if (a < 0.85 || a > 1.18) return r;
+    try { const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data; let n = 0, k = 0;
+      for (let i = 0; i < d.length; i += 4 * 7) { n++; if (d[i] + d[i + 1] + d[i + 2] < 300) k++; }
+      if (!n || k / n < 0.3) return r; } catch (e) { return r; }
+    lado = Math.max(c.width, c.height); zona = { x0: 0, y0: 0, x1: c.width - 1, y1: c.height - 1 };
+  }
+  const W = Math.round(lado / (mm / 100)), H = Math.round(W * 1.5), zw = zona.x1 - zona.x0 + 1, zh = zona.y1 - zona.y0 + 1;
+  const s = Math.min(1, W * 0.96 / zw, H * 0.96 / zh), dw = zw * s, dh = zh * s;
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const g = out.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.imageSmoothingEnabled = false;
+  g.drawImage(c, zona.x0, zona.y0, zw, zh, Math.round((W - dw) / 2), Math.round((H - dh) / 2), Math.round(dw), Math.round(dh));
+  return Object.assign({}, r, { canvas: out, qrMediano: true, qrTam: tam, qrMm: Math.round(mm * s), qrRecortado: !!q });
+}
+// El recuadro de la etiqueta que el programa busca solo (17-10-2026), o null si no hace falta recortar. 16-11-2026, dos casos más:
+// · la página ya ES una etiqueta (un PDF de 100 × 150 o A6): no se recorta. Sin marco, el recuadro «encontrado» era solo el código
+//   de rayas y salía enorme y girado, sin la dirección.
+// · la página es un QR de envío (sin código de rayas: el de Wallapop, una captura del móvil…): no se busca el recuadro, se recorta
+//   alrededor del QR al final (en una captura del móvil el recuadro «encontrado» era la barra de color de arriba).
+export async function recorteAuto(pg, opts = {}) {
+  const RC = await import('./recorte.js'), src = pg.src;
+  if (pg.mm && Math.max(pg.mm[0], pg.mm[1]) <= 160 && Math.min(pg.mm[0], pg.mm[1]) <= 115) return null;
+  const q = RC.buscarQR(src), l = q ? Math.max(q.x1 - q.x0, q.y1 - q.y0) : 0;
+  if (q && (l * l >= src.width * src.height * 0.1 || opts.wallapop) && !RC.tieneBarras(src)) return null;
+  return RC.detectarEtiqueta(src);
+}
+const esWallapop = o => /wallapop/i.test([o.canal, o.plataforma, (o.etiquetaEnvio || {}).nombre, (o.etiquetaEnvio || {}).transportista].join(' '));
 const officialCache = new Map(), pageCache = new Map();
 // La página entera de la etiqueta (PDF a 300 ppp o la foto), sin tocar
 export async function paginaEtiqueta(o, opts = {}) {
@@ -247,13 +298,13 @@ export async function paginaEtiqueta(o, opts = {}) {
   const a = byId('archivos', e.archivoId) || { id: e.archivoId, nombre: e.nombre, mime: e.mime, driveId: 'x' };
   const F = await import('./files.js');
   const blob = opts.blob || await F.fetchFile(a);
-  let src, paginas = 1;
+  let src, paginas = 1, mm = null;
   if (isPdf(a.nombre, a.mime || blob.type)) {
     const lib = await pdfLib();
     const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
     paginas = doc.numPages;
     const page = await doc.getPage(Math.min(pagina, paginas)), vp = page.getViewport({ scale: 300 / 72 });
-    src = document.createElement('canvas'); src.width = Math.round(vp.width); src.height = Math.round(vp.height);
+    src = document.createElement('canvas'); src.width = Math.round(vp.width); src.height = Math.round(vp.height); mm = [vp.width / 300 * 25.4, vp.height / 300 * 25.4];
     const g = src.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, src.width, src.height);
     await page.render({ canvasContext: g, viewport: vp }).promise;
   } else {
@@ -261,7 +312,7 @@ export async function paginaEtiqueta(o, opts = {}) {
     src = document.createElement('canvas'); src.width = bmp.width; src.height = bmp.height;
     const g = src.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, src.width, src.height); g.drawImage(bmp, 0, 0);
   }
-  const out = { src, paginas, pagina: Math.min(pagina, paginas) };
+  const out = { src, paginas, pagina: Math.min(pagina, paginas), mm };
   pageCache.set(key, out); if (pageCache.size > 12) pageCache.delete(pageCache.keys().next().value);
   return out;
 }
@@ -270,20 +321,20 @@ export async function officialCanvas(o, opts = {}) {
   const e = o.etiquetaEnvio;
   if (!e || !e.archivoId) throw new Error('Este pedido no tiene la etiqueta oficial adjunta.');
   const rc = opts.recorte !== undefined ? opts.recorte : e.recorte || null;
-  const pagina = Math.max(1, Number(opts.pagina || e.pagina) || 1), key = e.archivoId + ':' + pagina + ':' + (opts.recortar === false ? 0 : 1) + ':' + JSON.stringify(rc || '');
+  const pagina = Math.max(1, Number(opts.pagina || e.pagina) || 1), key = e.archivoId + ':' + pagina + ':' + (opts.recortar === false ? 0 : 1) + ':' + JSON.stringify(rc || '') + ':' + tamQR();
   if (officialCache.has(key)) return officialCache.get(key);
-  const pg = await paginaEtiqueta(o, opts);
+  const pg = await paginaEtiqueta(o, opts), wallapop = esWallapop(o);
   let r;
   if (opts.recortar === false) r = { canvas: pg.src, recorte: false, giro: false };
   else if (rc && esPaginaEntera(rc)) r = cropRotate(pg.src, true); // («toda la página», elegido por la persona)
   else if (rc) { const RC = await import('./recorte.js'); const c = RC.aplicar(pg.src, rc); r = cropRotate(c, !rc.giro); r.recorte = true; r.recortada = true; r.giro = r.giro || !!rc.giro; }
   else { // 17-10-2026 · sin recorte guardado, el programa busca él solo el recuadro de la etiqueta (antes se imprimía la página entera
     // con las instrucciones y el recibo: en las de folio A4, como las de Vinted, la etiqueta salía pequeña y girada)
-    const RC = await import('./recorte.js'), auto = RC.detectarEtiqueta(pg.src);
+    const RC = await import('./recorte.js'), auto = await recorteAuto(pg, { wallapop });
     if (auto) { r = cropRotate(RC.aplicar(pg.src, auto), true); r.recorte = true; r.recortada = true; r.auto = true; }
     else r = cropRotate(pg.src, true);
   }
-  if (opts.recortar !== false) r = qrMediano(r);
+  if (opts.recortar !== false) r = qrMediano(r, await import('./recorte.js'), { wallapop });
   const out = Object.assign(r, { paginas: pg.paginas, pagina: pg.pagina, page: pg.src });
   officialCache.set(key, out); if (officialCache.size > 20) officialCache.delete(officialCache.keys().next().value);
   return out;
@@ -296,7 +347,7 @@ export async function recortarEtiqueta(o, after) {
   o = labelOwner(byId('pedidos', o.id) || o);
   try {
     const pg = await paginaEtiqueta(o), RC = await import('./recorte.js');
-    const auto = RC.detectarEtiqueta(pg.src), e = o.etiquetaEnvio || {};
+    const auto = await recorteAuto(pg, { wallapop: esWallapop(o) }), e = o.etiquetaEnvio || {};
     const v = await RC.recortarDialog(pg.src, esPaginaEntera(e.recorte) ? null : e.recorte || (auto ? Object.assign({ modo: 'auto' }, auto) : null), { auto });
     if (v === undefined) return null;
     const r = await api('pedidos.etiquetaOficial', { id: o.id, recorte: v || PAGINA_ENTERA });
@@ -541,7 +592,10 @@ export async function printOne(o, tipo, opts = {}) {
   const answer = async (ok, error, impresora) => { try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '' }); upsertLocal('impresiones', r.impresion); emit(); return r.impresion; } catch (e) { return null; } };
   try {
     const res = await L.sendLabel(b.tpl, (dpi, s) => [L.draw(b.tpl, b.data, dpi, s)], { silent: true, wait: true, printer: opts.printer || '', fileName: tipo + '_pedido_' + o.numero, title: PRINT_TIPOS[tipo].t + ' · pedido nº ' + o.numero }); // v13.5: con PDF se espera a cerrar el visor
-    if (res.how === 'printer') { await answer(true, '', res.printer); if (!opts.auto) { toast('🖨️ ' + PRINT_TIPOS[tipo].t + ' → ' + res.printer, 'ok', 5000); ofrecerSoporte(o, tipo, opts); } return { estado: 'Impreso', impresora: res.printer }; }
+    // 16-11-2026 · Biou: «cuando se imprime la hoja desde CelebriDiseños, tarda mucho en actualizarse». Antes de cambiar el estado del
+    // pedido se esperaba a Google DOS veces (iniciar y resultado: 2–18 s cada una). Si la impresora la ha sacado, el «Impreso» se apunta
+    // ya aquí (para que nada la vuelva a imprimir) y el resultado viaja a Google sin esperar.
+    if (res.how === 'printer') { upsertLocal('impresiones', Object.assign({}, row, { estado: 'Impreso', impresora: res.printer })); emit(); answer(true, '', res.printer); if (!opts.auto) { toast('🖨️ ' + PRINT_TIPOS[tipo].t + ' → ' + res.printer, 'ok', 5000); ofrecerSoporte(o, tipo, opts); } return { estado: 'Impreso', impresora: res.printer }; }
     // en el móvil (PDF) no sabemos si la impresora lo sacó bien: se pregunta
     const okp = await askPrinted(PRINT_TIPOS[tipo].t);
     await answer(okp, okp ? '' : 'No salió bien (PDF)', 'PDF');
@@ -604,7 +658,7 @@ async function printPareja(o0, tipos, opts) {
   const answer = async (row, ok, error, impresora) => { try { const r = await api('impresiones.resultado', { id: row.id, ok, error: error || '', impresora: impresora || '' }); upsertLocal('impresiones', r.impresion); emit(); } catch (e) { } };
   try {
     const res = await L.sendLabel(bs[0].tpl, (dpi, s) => van.map(i => L.draw(bs[i].tpl, bs[i].data, dpi, s)), { silent: true, wait: true, printer: opts.printer || '', fileName: 'etiquetas_pedido_' + o0.numero, title: que + ' · pedido nº ' + o0.numero });
-    if (res.how === 'printer') { for (const i of van) await answer(filas[i], true, '', res.printer); if (!opts.auto) toast('🖨️ ' + que + ' → ' + res.printer + (van.length > 1 ? ' (una detrás de la otra)' : ''), 'ok', 5000); return { estado: 'Impreso', impresora: res.printer, pareja: tipos }; }
+    if (res.how === 'printer') { for (const i of van) { upsertLocal('impresiones', Object.assign({}, filas[i], { estado: 'Impreso', impresora: res.printer })); answer(filas[i], true, '', res.printer); } emit(); if (!opts.auto) toast('🖨️ ' + que + ' → ' + res.printer + (van.length > 1 ? ' (una detrás de la otra)' : ''), 'ok', 5000); return { estado: 'Impreso', impresora: res.printer, pareja: tipos }; }
     const okp = await askPrinted(que);
     for (const i of van) await answer(filas[i], okp, okp ? '' : 'No salió bien (PDF)', 'PDF');
     return { estado: okp ? 'Impreso' : 'Error', pareja: tipos };
@@ -767,12 +821,20 @@ export async function officialPreview(o) {
   modal('Etiqueta oficial · pedido nº ' + o.numero, box, close => [btn('Cerrar', close), can('pedidos.editar') ? btn('✂️ Recortar', () => { close(); recortarEtiqueta(o, () => officialPreview(byId('pedidos', o.id) || o)); }) : null,
     e0.archivoId ? btn('Archivo original', async () => { const a = byId('archivos', e0.archivoId); if (!a) return toast('El archivo original no está en este dispositivo todavía. Sincroniza y vuelve a probar.', 'warn'); (await import('./files.js')).openFile(a); }, { icon: 'file' }) : null,
     btn('PDF para imprimir', ev => officialPdf(o, ev.target.closest('button')), { cls: 'primary', icon: 'printer' })], { size: 'narrow' });
-  try {
+  const pinta = async () => { try {
     const r = await officialCanvas(o), cv = document.createElement('canvas');
     cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0);
     cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '320px';
-    mount(box, h('div.lbl-prev', cv), h('p.tiny.muted', 'Se imprime a 100 × 150 mm sin deformarla' + (r.recortada ? ' · ✂️ recortada: solo la etiqueta' : r.recorte ? ' · recortado el blanco de alrededor' : '') + (r.giro ? ' · girada para que quepa' : '') + (r.paginas > 1 ? ' · página ' + r.pagina + ' de ' + r.paginas : '') + '. Es tu archivo original: no se cambia nada de lo que pone.'));
-  } catch (e) { mount(box, h('p.bad-t', 'No se pudo leer la etiqueta: ' + e.message)); }
+    mount(box, h('div.lbl-prev', cv), botonesTamQR(r, pinta), h('p.tiny.muted', 'Se imprime a 100 × 150 mm sin deformarla' + (r.qrMediano ? ' · 🔳 el QR ' + (r.qrRecortado ? 'recortado, ' : '') + 'centrado y de unos ' + r.qrMm + ' mm' : r.recortada ? ' · ✂️ recortada: solo la etiqueta' : r.recorte ? ' · recortado el blanco de alrededor' : '') + (r.giro ? ' · girada para que quepa' : '') + (r.paginas > 1 ? ' · página ' + r.pagina + ' de ' + r.paginas : '') + '. Es tu archivo original: no se cambia nada de lo que pone.'));
+  } catch (e) { mount(box, h('p.bad-t', 'No se pudo leer la etiqueta: ' + e.message)); } };
+  await pinta();
+}
+// 16-11-2026 · 🔳 Tamaño del QR solo (el de Wallapop): Pequeño · Mediano · Grande · Como viene. Sale cuando la etiqueta es un QR.
+export function botonesTamQR(r, repinta) {
+  const ahora = tamQR();
+  if (!r || (!r.qrMediano && ahora !== 'entero')) return null;
+  return h('div.row.wrap.qr-tam', { style: { gap: '6px', alignItems: 'center', margin: '8px 0 2px' } }, h('span.small', h('b', '🔳 Tamaño del QR:')),
+    Object.entries(TAM_QR).map(([k, v]) => h('button.chip' + (k === ahora ? '.on' : ''), { type: 'button', 'data-qrtam': k, onclick: () => { ponTamQR(k); repinta(); } }, v.t + (v.mm ? ' · ' + v.mm + ' mm' : ''))));
 }
 
 // v13.5 · La etiqueta oficial como PDF de 100 × 150 mm en el visor (sin registrar impresión: solo para verla/guardarla)
@@ -798,17 +860,17 @@ export function attachDialog(o, after, opts = {}) {
   const dest = h('div.row.wrap.etq-dest', { style: { gap: '6px' } }), pintaDest = () => mount(dest, DESTINOS.map(d => h('button.chip.etq-d' + (d.rx.test(tr.value || o.envio || '') ? '.on' : ''), { type: 'button', 'data-dest': d.k, onclick: () => ponTr(d.t) }, d.ic + ' ' + d.t)));
   tr.addEventListener('change', () => pintaDest()); pintaDest();
   let file = null, rec = null, recAuto = null, leido = null; // v14.1: recorte (inteligente al elegir el archivo; se puede ajustar a mano)
-  const local = () => ({ etiquetaEnvio: { archivoId: 'local:' + file.name + ':' + file.size, nombre: file.name, mime: file.type } });
+  const local = () => ({ canal: o.canal, etiquetaEnvio: { archivoId: 'local:' + file.name + ':' + file.size, nombre: file.name, mime: file.type } });
   const recBtns = h('div.row.wrap.rc-botones', { style: { gap: '6px' } });
   const showPrev = async (nuevo) => {
     if (!file) return;
     mount(prev, h('p.muted.small', 'Preparando la vista previa…'));
     try {
-      if (nuevo) { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); const RC = await import('./recorte.js'); recAuto = RC.detectarEtiqueta(pg.src); rec = recAuto ? Object.assign({ modo: 'auto' }, recAuto) : null; }
+      if (nuevo) { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); recAuto = await recorteAuto(pg, { wallapop: esWallapop(local()) }); rec = recAuto ? Object.assign({ modo: 'auto' }, recAuto) : null; }
       const r = await officialCanvas(local(), { blob: file, pagina: Number(pagSel.value), recorte: rec });
       if (r.paginas > 1 && pagSel.options.length !== r.paginas) mount(pagSel, Array.from({ length: r.paginas }, (_, i) => h('option', { value: i + 1, selected: i + 1 === r.pagina }, 'Página ' + (i + 1))));
       const cv = document.createElement('canvas'); cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0); cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '260px';
-      mount(prev, cv); info.textContent = 'Así saldrá (100 × 150 mm)' + (rec && !esPaginaEntera(rec) ? (rec.modo === 'auto' ? ' · ✂️ recortada sola: solo la etiqueta, sin las instrucciones' : ' · ✂️ con tu recorte') : r.recorte ? ' · sin el blanco de alrededor' : '') + (r.giro ? ' · girada' : '') + (r.paginas > 1 ? ' · el PDF tiene ' + r.paginas + ' páginas: elige la de la etiqueta' : '') + '.';
+      mount(prev, cv, botonesTamQR(r, () => showPrev(false))); info.textContent = 'Así saldrá (100 × 150 mm)' + (r.qrMediano ? ' · 🔳 el QR ' + (r.qrRecortado ? 'recortado, ' : '') + 'centrado y de unos ' + r.qrMm + ' mm' : '') + (rec && !esPaginaEntera(rec) ? (rec.modo === 'auto' ? ' · ✂️ recortada sola: solo la etiqueta, sin las instrucciones' : ' · ✂️ con tu recorte') : r.recorte ? ' · sin el blanco de alrededor' : '') + (r.giro ? ' · girada' : '') + (r.paginas > 1 ? ' · el PDF tiene ' + r.paginas + ' páginas: elige la de la etiqueta' : '') + '.';
       mount(recBtns, btn('✂️ ' + (rec && !esPaginaEntera(rec) ? 'Ajustar el recorte' : 'Recortar'), async () => { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); const RC = await import('./recorte.js'); const v = await RC.recortarDialog(pg.src, esPaginaEntera(rec) ? null : rec, { auto: recAuto }); if (v !== undefined) { rec = v || PAGINA_ENTERA; showPrev(false); } }, { cls: 'sm' }),
         rec && !esPaginaEntera(rec) ? btn('Sin recortar', () => { rec = PAGINA_ENTERA; showPrev(false); }, { cls: 'sm ghost' }) : null);
     } catch (e) { mount(prev, h('p.bad-t.small', 'No se puede leer este archivo: ' + e.message)); }

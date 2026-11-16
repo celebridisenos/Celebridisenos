@@ -102,6 +102,90 @@ export function detectarEtiqueta(src) {
   return devuelve(u);
 }
 
+// ---------- 16-11-2026 · Biou: «los QR de Wallapop salen enormes: recortarlos o ponerlos más pequeños» ----------
+// El arreglo del 12-11 solo valía si la etiqueta era UN QR solo (casi cuadrada). El de Wallapop trae letras, el logo o el código
+// debajo: no se reconocía y se estiraba a todo lo ancho. Ahora se BUSCA el QR por sus tres cuadrados de las esquinas y se mira si
+// hay código de barras de rayas (las etiquetas de transportista siempre lo llevan; el QR de Wallapop, no).
+const pequeno = (src, max) => {
+  const k = Math.min(1, max / Math.max(src.width, src.height)), W = Math.max(1, Math.round(src.width * k)), H = Math.max(1, Math.round(src.height * k));
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true }); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.drawImage(src, 0, 0, W, H);
+  const d = g.getImageData(0, 0, W, H).data, bin = new Uint8Array(W * H);
+  for (let i = 0, p = 0; i < W * H; i++, p += 4) bin[i] = d[p] * 0.3 + d[p + 1] * 0.59 + d[p + 2] * 0.11 < 128 ? 1 : 0;
+  return { W, H, k, bin };
+};
+// ¿Dónde está el QR? → { x0, y0, x1, y1, modulo } en píxeles de la imagen, o null. Solo QR derechos (o girados 90°), que es como vienen.
+export function buscarQR(src) {
+  if (!src || !src.width || !src.height) return null;
+  const { W, H, k, bin } = pequeno(src, 1200);
+  const proporcion = r => { const t = r[0] + r[1] + r[2] + r[3] + r[4]; if (t < 7) return 0; const m = t / 7, v = m * 0.6;
+    return Math.abs(r[0] - m) < v && Math.abs(r[1] - m) < v && Math.abs(r[2] - 3 * m) < 3 * v && Math.abs(r[3] - m) < v && Math.abs(r[4] - m) < v ? m : 0; };
+  const enCol = (x, y) => { // el mismo 1:1:3:1:1 de arriba abajo, cruzando el centro
+    if (!bin[y * W + x]) return 0; let a = y, b = y; while (a > 0 && bin[(a - 1) * W + x]) a--; while (b < H - 1 && bin[(b + 1) * W + x]) b++;
+    const r = [0, 0, b - a + 1, 0, 0]; let j = a - 1; while (j >= 0 && !bin[j * W + x]) { r[1]++; j--; } while (j >= 0 && bin[j * W + x]) { r[0]++; j--; }
+    j = b + 1; while (j < H && !bin[j * W + x]) { r[3]++; j++; } while (j < H && bin[j * W + x]) { r[4]++; j++; }
+    const m = r[0] && r[4] ? proporcion(r) : 0; return m ? { cy: (a + b) / 2, m } : 0; };
+  const grupos = [];
+  for (let y = 0; y < H; y++) {
+    const runs = []; let x = 0;
+    while (x < W) { const c = bin[y * W + x], s = x; while (x < W && bin[y * W + x] === c) x++; runs.push([c, s, x - s]); }
+    for (let i = 0; i + 4 < runs.length; i++) {
+      if (!runs[i][0]) continue;
+      const mh = proporcion([runs[i][2], runs[i + 1][2], runs[i + 2][2], runs[i + 3][2], runs[i + 4][2]]); if (!mh) continue;
+      const cx = runs[i + 2][1] + runs[i + 2][2] / 2, v = enCol(Math.round(cx), y); if (!v || v.m > mh * 1.6 || v.m < mh / 1.6) continue;
+      const m = (mh + v.m) / 2, gr = grupos.find(q => Math.abs(q.x - cx) < m * 2 && Math.abs(q.y - v.cy) < m * 2 && q.m < m * 1.6 && q.m > m / 1.6);
+      if (gr) { gr.n++; gr.sx += cx; gr.sy += v.cy; gr.sm += m; gr.x = gr.sx / gr.n; gr.y = gr.sy / gr.n; gr.m = gr.sm / gr.n; }
+      else grupos.push({ x: cx, y: v.cy, m, n: 1, sx: cx, sy: v.cy, sm: m });
+    }
+  }
+  const P = grupos.filter(q => q.n >= 3).sort((a, b) => b.n - a.n).slice(0, 14);
+  let mejor = null;
+  for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) for (let c = b + 1; c < P.length; c++) {
+    const t = [P[a], P[b], P[c]], ms = t.map(q => q.m); if (Math.max(...ms) > Math.min(...ms) * 1.45) continue;
+    const m = (ms[0] + ms[1] + ms[2]) / 3, dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+    // la esquina es el que está a la misma distancia de los otros dos (y ellos, a la diagonal)
+    for (let e = 0; e < 3; e++) {
+      const E = t[e], [A, B] = t.filter((_, i) => i !== e), dA = dist(E, A), dB = dist(E, B), dAB = dist(A, B);
+      if (dA < m * 12 || dB < m * 12 || Math.max(dA, dB) > Math.min(dA, dB) * 1.15 || Math.abs(dAB / ((dA + dB) / 2) - Math.SQRT2) > 0.15) continue;
+      // derecho: un lado en horizontal y el otro en vertical
+      const recto = (p, q) => Math.min(Math.abs(p.x - q.x), Math.abs(p.y - q.y)) < Math.max(m * 1.5, Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y)) * 0.06);
+      if (!recto(E, A) || !recto(E, B)) continue;
+      const nota = t.reduce((s, q) => s + q.n, 0) + (dA + dB) / m;
+      if (!mejor || nota > mejor.nota) mejor = { nota, t, m };
+    }
+  }
+  if (!mejor) return null;
+  const xs = mejor.t.map(q => q.x), ys = mejor.t.map(q => q.y), m = mejor.m;
+  const x0 = Math.max(0, Math.min(...xs) - 3.5 * m), y0 = Math.max(0, Math.min(...ys) - 3.5 * m), x1 = Math.min(W - 1, Math.max(...xs) + 3.5 * m), y1 = Math.min(H - 1, Math.max(...ys) + 3.5 * m);
+  return { x0: x0 / k, y0: y0 / k, x1: x1 / k, y1: y1 / k, modulo: m / k };
+}
+// ¿Lleva código de barras de RAYAS? Muchas rayas seguidas, altas y con el mismo arriba y abajo (de pie o tumbadas).
+export function tieneBarras(src) {
+  if (!src || !src.width || !src.height) return false;
+  const { W, H, bin } = pequeno(src, 1400);
+  const mira = (L, A, px) => { // L = a lo largo (donde van las rayas), A = alto de cada raya
+    const minAlto = Math.max(12, Math.round(A * 0.035)), tol = Math.max(2, Math.round(A * 0.012)), hueco = Math.max(5, Math.round(L * 0.012));
+    const rayas = []; let abiertas = [];
+    for (let u = 0; u < L; u++) {
+      const aqui = []; let v = 0;
+      while (v < A) { if (!px(u, v)) { v++; continue; } const s = v; while (v < A && px(u, v)) v++; if (v - s >= minAlto) aqui.push({ a: s, b: v - 1 }); }
+      const siguen = [];
+      for (const r of aqui) { const o = abiertas.find(q => Math.abs(q.a - r.a) <= tol && Math.abs(q.b - r.b) <= tol); if (o) { o.u1 = u; siguen.push(o); } else siguen.push({ a: r.a, b: r.b, u0: u, u1: u }); }
+      abiertas.filter(q => !siguen.includes(q)).forEach(q => rayas.push(q)); abiertas = siguen;
+    }
+    rayas.push(...abiertas);
+    rayas.sort((p, q) => p.u0 - q.u0);
+    const grupos = [];
+    for (const r of rayas) {
+      if (r.u1 - r.u0 + 1 > L * 0.04) continue; // (una raya de código es fina; un bloque gordo es otra cosa)
+      const g = grupos.find(q => Math.abs(q.a - r.a) <= tol * 2 && Math.abs(q.b - r.b) <= tol * 2 && r.u0 - q.u1 <= hueco && r.u0 >= q.u1);
+      if (g) { g.n++; g.u1 = r.u1; } else grupos.push({ a: r.a, b: r.b, u0: r.u0, u1: r.u1, n: 1 });
+    }
+    return grupos.some(g => g.n >= 15 && g.u1 - g.u0 > L * 0.12);
+  };
+  return mira(W, H, (x, y) => bin[y * W + x]) || mira(H, W, (y, x) => bin[y * W + x]);
+}
+
 // Aplica un recorte guardado ({x,y,w,h,giro}) a la página
 export function aplicar(src, rc) {
   const sx = Math.round(rc.x * src.width), sy = Math.round(rc.y * src.height), sw = Math.max(1, Math.round(rc.w * src.width)), sh = Math.max(1, Math.round(rc.h * src.height));

@@ -117,6 +117,33 @@ export function dibujoImpresora(k) {
 // opts.acabado / opts.imp = lo ya elegido · opts.talCual() = «abrirlo sin tocar nada» · opts.titulo
 // opts.directo (14-11-2026, desde el cotizador) = sin esta ventana: abre YA con lo elegido allí. Biou: «cuando pongo lo que quiero no
 //   abre bien»: le salía otra ventana preguntando lo mismo (y más consejos). Las zonas de color guardadas de ese producto se respetan.
+// 16-11-2026 · 🛟 EL ORIGINAL, SIEMPRE A MANO. Biou (el día que se partieron los soportes del Pájaro en la P1P): «si el sistema no sabe
+// generar unos soportes correctos… que permita abrir el archivo original, descargarlo, llevarlo a Bambu Studio y preparar los soportes
+// a mano. El original nunca debe perderse ni sobrescribirse». Se abre una COPIA idéntica (desktop/host/original.go): si en Bambu le das
+// a Guardar, el original no se toca. Antes «Abrirlo tal cual» abría el mismo archivo del producto.
+function origenEl(ruta, nombre, opts, remoto, cerrar) {
+  const local = !remoto && desktop.on && !!ruta && typeof desktop.original === 'function';
+  if (!local && typeof opts.talCual !== 'function') return null;
+  const hace = que => async ev => {
+    const b = ev.currentTarget; b.disabled = true;
+    try {
+      // 16-11 (noche): «Abrir el original» va por el mismo camino que «tal cual» (abrirEnBambu): sabe si el archivo está en ESTE PC o hay
+      // que bajarlo de la nube (el portátil no tiene la ruta de la torre), y el programa abre siempre una COPIA (bambu-abrir → copiaParaAbrir).
+      if (que === 'bambu' && typeof opts.talCual === 'function') { cerrar(); return opts.talCual(); }
+      const r = await desktop.original(ruta, que);
+      if (que === 'bambu') { cerrar(); toast(r && r.abierto ? '📂 Abierto en Bambu el ORIGINAL de «' + (nombre || r.nombre) + '» (una copia: pon el soporte a tu gusto y guarda sin miedo)' : 'No encuentro Bambu Studio en este PC. La copia del original está en ' + (r && r.copia), r && r.abierto ? 'ok' : 'warn', 9000); }
+      else if (que === 'bajar') toast('⬇️ Copia del original en Descargas: ' + String(r.copia || '').split(/[\\/]/).pop(), 'ok', 8000);
+      else toast('📁 Te enseño dónde está el original (no se ha copiado ni tocado nada)', 'ok', 6000);
+    } catch (e) { toast('No se pudo: ' + (e.message || e), 'bad', 8000); }
+    b.disabled = false;
+  };
+  return h('div.ab-orig', { 'data-orig': '1' },
+    h('div.ab-orig-t', h('b', '🛟 ¿Prefieres poner el soporte tú?'), h('small', 'El archivo original del diseñador, sin tocar. Se abre una copia: el original nunca se pisa.')),
+    h('div.ab-orig-bs',
+      h('button.btn.sm.ab-orig-bambu', { type: 'button', onclick: hace('bambu') }, '📂 Abrir el original en Bambu'),
+      local ? h('button.btn.ghost.sm.ab-orig-bajar', { type: 'button', onclick: hace('bajar') }, '⬇️ Bajar el original') : null,
+      local ? h('button.btn.ghost.sm.ab-orig-carpeta', { type: 'button', onclick: hace('carpeta') }, '📁 Ver dónde está') : null));
+}
 export function elegirAcabado(ruta, nombre, opts = {}) {
   const remoto = typeof opts.remoto === 'function';
   const directo = !!opts.directo && !remoto; // (14-11: si va a la TORRE, sí sale la ventana: avisa en grande de que se abre allí)
@@ -288,7 +315,10 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     h('h3.ab-paso', h('i', '4'), '¿De un color o con colores?', h('small.ab-paso-s', 'sin AMS: se para y cambias tú la bobina')), coloresEl,
     puedeSop ? h('h3.ab-paso.ab-paso-sop', h('i', '5'), '¿Con menos soportes?', h('small.ab-paso-s', 'la gira hasta que necesite el mínimo')) : null, puedeSop ? sopEl : null,
     resumen,
+    origenEl(ruta, nombre, opts, remoto, () => md.close()),
     h('div.ab-pie', bAbrir,
+      // (16-11 noche: vuelve a salir SIEMPRE. Esconderlo en el PC dejaba al portátil sin manera de abrirlo: la ruta es la de la torre.
+      //  Ya no pisa nada: el programa abre una copia del original, comprobada por huella.)
       typeof opts.talCual === 'function' ? h('button.btn.ghost.sm.ab-talcual', { type: 'button', onclick: () => { md.close(); opts.talCual(); } }, 'Abrirlo tal cual, sin tocar nada') : null),
     h('p.tiny.muted.ab-nota', 'Usa el perfil de serie de esa impresora con estos ajustes (probado con tu Bambu Studio: 0 avisos). No cambia nada de tu Bambu Studio.'));
   return md;

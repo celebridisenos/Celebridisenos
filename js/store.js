@@ -9,7 +9,7 @@ const CL = window.CL;
 // 04-11-2026 · «somos dos trabajadores… debemos de cobrar»: si el Servidor.gs aún es el de antes (no trae minutosPieza), vuestro trabajo
 // por pieza se cuenta igual: 10 min (lo mismo que trae el Servidor 18.6.0 por defecto). Si lo cambiáis en Configuración, manda lo vuestro.
 function conTrabajo(cfg) { if (cfg && cfg.precios && (cfg.precios.minutosPieza === undefined || cfg.precios.minutosPieza === null || cfg.precios.minutosPieza === '')) cfg.precios = Object.assign({}, cfg.precios, { minutosPieza: 10 }); return cfg; }
-export const APP_VERSION = '60.14.0';
+export const APP_VERSION = '60.15.0';
 export const SERVIDOR_NECESARIO = '18.0.0'; // v20: la versión MÍNIMA del Servidor.gs que necesita esta app (la 20 no cambia nada del servidor)
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
@@ -304,6 +304,7 @@ export function pull(full, fondo) {
   if (!S.token || !S.server) return Promise.resolve();
   if (pulling) return pulling;
   pulling = (async () => {
+    S.ultimoPull = Date.now(); // (16-11: para no repetir al darle el foco a la ventana)
     if (!fondo) { S.syncing = true; status(); }
     let changed = !S.ready;
     try {
@@ -372,8 +373,12 @@ let pullTimer = null;
 export function pausaSync(v) { const antes = !!S.pausaSync; S.pausaSync = !!v; if (antes && !v) pull(); }
 export function startAutoSync() {
   clearInterval(pullTimer);
-  pullTimer = setInterval(() => { if (S.pausaSync) return; if (document.visibilityState === 'visible' || Date.now() % 5 === 0) pull(false, true); }, 15000); // v13.10: cada 15 s (la pantalla no se mueve)
+  // 16-11-2026 · Biou: «los cambios tardan demasiado… tengo que actualizar a mano». Escondida (minimizada), antes preguntaba «a suerte»
+  // (Date.now() % 5: de media cada 75 s, a veces minutos); ahora cada 60 s fijo. Y al volver a la ventana (o al darle el foco) pregunta YA.
+  let ocultas = 0;
+  pullTimer = setInterval(() => { if (S.pausaSync) return; if (document.visibilityState === 'visible') { ocultas = 0; pull(false, true); } else if (++ocultas % 4 === 0) pull(false, true); }, 15000); // v13.10: cada 15 s (la pantalla no se mueve)
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !S.pausaSync) pull(); });
+  window.addEventListener('focus', () => { if (!S.pausaSync && Date.now() - (S.ultimoPull || 0) > 5000) pull(false, true); });
   const midnight = setInterval(() => { const d = CL.today(); if (d !== S.hoy) { S.hoy = d; emit(); } }, 60000);
 }
 const pullSoon = (() => { let t; return (ms) => { clearTimeout(t); t = setTimeout(() => pull(), ms || 1500); }; })();
@@ -414,6 +419,7 @@ async function enviar(a, d, opts, op, snapshot, antes) {
   try {
     const res = await api(a, d, { op, antes });
     if (!alDia()) pullSoon(); // si la respuesta ya trajo los cambios, no hace falta preguntar otra vez
+    avisarMesa();
     return res;
   } catch (e) {
     if (e.code === 'NET' && !opts.onlineOnly) { await enqueue({ op, a, d, label: opts.label || a, t: Date.now(), ws: S.ws }); return { queued: true }; }
@@ -430,6 +436,14 @@ function restore(snapshot) {
 }
 async function enqueue(x) { S.queue.push(x); await kv.set('queue', S.queue); emit(); }
 let flushing = null, flushT = null;
+// 16-11-2026 · CelebriMesa (en la misma torre, puerto 8870) lee de este mismo Google. En cuanto aquí se GUARDA algo, se le avisa para que lo
+// lea ya (antes lo veía a los 3 minutos). Solo en el programa del PC; no manda ningún dato (la Mesa vuelve a leer de Google con su permiso).
+let mesaT = null;
+export function avisarMesa() {
+  if (!window.__HOST__) return;
+  clearTimeout(mesaT);
+  mesaT = setTimeout(() => { try { fetch('http://127.0.0.1:8870/api/celebri/despertar', { mode: 'no-cors', cache: 'no-store' }).catch(() => { }); } catch (e) { } }, 400);
+}
 function flushSoon() { clearTimeout(flushT); flushT = setTimeout(() => flush().then(() => pull()), 800); }
 let failListeners = [];
 export function onQueueFailure(fn) { failListeners.push(fn); }
@@ -453,6 +467,7 @@ export async function flush() {
       });
       await kv.set('queue', S.queue);
       emit();
+      if (res.some(r => r.ok)) avisarMesa(); // (16-11: lo guardado sin conexión también despierta a la Mesa)
       if (stop) break;
     }
   })().finally(() => { flushing = null; });
