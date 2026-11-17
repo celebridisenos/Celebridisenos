@@ -63,6 +63,13 @@ export const desktop = {
     fotoUrl: () => '/local/shampu/foto?' + q({ key: H.key, t: Date.now() }),
     fUrl: n => '/local/shampu/f?' + q({ n, key: H.key }),
     pantallaUrl: (m, e) => '/local/shampu/pantalla?' + q(limpio({ m: m >= 0 ? m : '', e, key: H.key, t: Date.now() })), // con m, Shampú CAMBIA antes a esa pantalla
+    // 17-11 (tarde): 🎥 vídeo fluido (el <img> lo abre una vez y el programa manda cada imagen en cuanto llega) y ⏱️ time-lapse (lo graba el programa)
+    videoUrl: () => '/local/shampu/video?' + q({ key: H.key, t: Date.now() }),
+    tl: () => call('shampu/timelapse'),
+    tlAccion: o => call('shampu/timelapse', { method: 'POST', body: JSON.stringify(o) }),
+    tlFotoUrl: (id, n) => '/local/shampu/timelapse/foto?' + q({ id, n, key: H.key }),
+    tlVideoUrl: id => '/local/shampu/timelapse/video?' + q({ id, key: H.key }),
+    tlGuardarVideo: (id, blob) => call('shampu/timelapse/video?' + q({ id }), { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: blob }),
   } : null,
   bambuAccion: body => call('bambu', { method: 'POST', body: JSON.stringify(body) }),
   print: job => call('print', { method: 'POST', body: JSON.stringify(job) }),

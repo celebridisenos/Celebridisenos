@@ -52,6 +52,7 @@ export function nombreOrden(o) {
   if (o.di) return 'decirlo en voz alta';
   if (o.lamp !== undefined) return 'la lámpara (' + ((LAMPARA.find(x => x.lamp === o.lamp) || {}).t || '') + ')';
   if (o.pc) return 'la tele';
+  if (o.cam) return 'la calidad de la cámara';
   const todos = { 1: 'empezar a vigilar', 2: 'parar de vigilar', 3: 'hacer una foto', 16: 'dormir', 17: 'despertar' };
   if (todos[o.o]) return todos[o.o];
   const x = [...MOVER, ...CUERPO, ...TRUCOS].find(m => m.o === o.o); if (x) return x.t.toLowerCase();
@@ -107,4 +108,36 @@ export function haceCuanto(ms) {
   if (ms === null || ms === undefined || isNaN(ms)) return '';
   const s = Math.max(0, Math.round(ms / 1000));
   return s < 5 ? 'ahora mismo' : s < 60 ? 'hace ' + s + ' s' : s < 3600 ? 'hace ' + Math.round(s / 60) + ' min' : 'hace ' + Math.round(s / 3600) + ' h';
+}
+
+// ---------- 17-11 (tarde) · 🎥 calidad de la cámara y ⏱️ time-lapse ----------
+// Lo que se puede elegir si el firmware de Shampú ya lo entiende (su /estado trae camTam). cal = calidad JPEG (menos = mejor).
+export const CALIDADES = [{ cam: 'VGA', cal: 14, t: 'Fluida', d: '640×480 · la más suave' }, { cam: 'SVGA', cal: 12, t: 'Buena', d: '800×600' },
+  { cam: 'HD', cal: 12, t: 'HD', d: '1280×720' }, { cam: 'FHD', cal: 14, t: 'Full HD', d: '1920×1080 · va más a saltos' }];
+export const TL_CADA = [{ s: 1, t: '1 s' }, { s: 2, t: '2 s' }, { s: 5, t: '5 s', d: 'impresión 3D' }, { s: 10, t: '10 s' }, { s: 30, t: '30 s' }, { s: 60, t: '1 min' }];
+export const TL_DURA = [{ m: 15, t: '15 min' }, { m: 30, t: '30 min' }, { m: 60, t: '1 h' }, { m: 120, t: '2 h' }, { m: 240, t: '4 h' }, { m: 480, t: '8 h' }, { m: 0, t: 'Hasta que lo pare' }];
+export const TL_VIDEO = [{ s: 15, t: 'Vídeo de 15 s' }, { s: 30, t: 'Vídeo de 30 s' }, { s: 60, t: 'Vídeo de 1 min' }, { s: 0, t: 'Con todas las fotos' }];
+export const fotosPrevistas = (cada, minutos) => minutos > 0 && cada > 0 ? Math.floor(minutos * 60 / cada) + 1 : 0;
+// Cómo sale el vídeo con n fotos y una duración buscada (0 = todas, como mucho 3 min): imágenes por segundo, cuántas se usan y cada cuántas.
+export function planVideo(n, seg) {
+  if (!(n >= 2)) return null;
+  let fps = 30;
+  if (seg > 0 && n < seg * 30) fps = Math.max(10, Math.min(30, Math.round(n / seg)));
+  const m = Math.min(n, seg > 0 ? seg * fps : 180 * 30);
+  return { fps, m, paso: n / m, dur: m / fps };
+}
+export function duracionEnPalabras(s) {
+  s = Math.max(0, Math.round(s || 0));
+  if (s < 60) return s + ' s';
+  const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+  if (hh) return hh + ' h' + (mm ? ' ' + mm + ' min' : '');
+  return mm + ' min' + (ss ? ' ' + ss + ' s' : '');
+}
+export const segEnPalabras = s => s < 60 ? s + (s === 1 ? ' segundo' : ' segundos') : s % 60 === 0 ? (s / 60) + (s === 60 ? ' minuto' : ' minutos') : duracionEnPalabras(s);
+// «2026-11-17_12-30-05» → «Hoy · 12:30» (o el día)
+export function fechaTL(id) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})/.exec(id || '');
+  if (!m) return id || '';
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]), dia = diaDe(d);
+  return (dia === 'Hoy' || dia === 'Ayer' ? dia : dia.charAt(0).toUpperCase() + dia.slice(1)) + ' · ' + m[4] + ':' + m[5];
 }

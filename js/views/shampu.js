@@ -10,7 +10,7 @@ import { desktop } from '../desktop.js';
 import * as C from '../shampu_comun.js';
 
 const Sh = desktop.shampu;
-const TABS = [['cuidador', '🛡️', 'Cuidador'], ['fotos', '🖼️', 'Fotos'], ['impresoras', '🖨️', 'Impresoras'], ['mando', '🕹️', 'Mando'], ['pantalla', '🖥️', 'Pantalla'], ['tele', '📺', 'Tele'], ['salud', '🩺', 'Salud'], ['llave', '🔑', 'Llave']];
+const TABS = [['cuidador', '🛡️', 'Cuidador'], ['fotos', '🖼️', 'Fotos'], ['timelapse', '⏱️', 'Time-lapse'], ['impresoras', '🖨️', 'Impresoras'], ['mando', '🕹️', 'Mando'], ['pantalla', '🖥️', 'Pantalla'], ['tele', '📺', 'Tele'], ['salud', '🩺', 'Salud'], ['llave', '🔑', 'Llave']];
 const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 
@@ -25,12 +25,13 @@ export function render(el) {
 
 function vista(el) {
   const st = { modo: null, estado: null, impresoras: null, fotos: null, foto: null, recibido: null, ahoraSrv: null, tomado: 0, puente: null, ok: null, error: '',
-    servidorViejo: false, tab: lsGet('cd.shampu.tab', 'cuidador'), msg: '', voz: '', msgColor: 'a', pantallaSrc: null, pantallaNombre: '', pantallaEspera: false, filtro: 'todas', fotosCalle: {}, pedidas: new Set(), ordenes: new Map(), ultimaFotoCasa: 0, url: '' };
+    servidorViejo: false, tab: lsGet('cd.shampu.tab', 'cuidador'), msg: '', voz: '', msgColor: 'a', pantallaSrc: null, pantallaNombre: '', pantallaEspera: false, filtro: 'todas', fotosCalle: {}, pedidas: new Set(), ordenes: new Map(), ultimaFotoCasa: 0, url: '',
+    cam: null, tl: null, tlCada: Number(lsGet('cd.shampu.tlcada', 5)) || 5, tlDura: Number(lsGet('cd.shampu.tldura', 60)), tlVideo: Number(lsGet('cd.shampu.tlvideo', 30)), haciendo: null };
   const vivo = () => root.isConnected && /^#\/shampu/.test(location.hash || '#/shampu');
   const visible = () => vivo() && !document.hidden;
 
   // ---------- esqueleto (se crea una vez; luego solo se cambian sus partes) ----------
-  const pill = h('span.sh-pill'), vig = h('span.sh-vig', { hidden: true }, '● VIGILANDO'), edad = h('span.sh-edad'), sub = h('div.sh-sub', 'Buscando a Shampú…');
+  const pill = h('span.sh-pill'), vig = h('span.sh-vig', { hidden: true }, '● VIGILANDO'), recTL = h('span.sh-rec', { hidden: true }), edad = h('span.sh-edad'), sub = h('div.sh-sub', 'Buscando a Shampú…');
   const abrirApp = h('button.sh-b.sh-b-claro', { type: 'button', hidden: true, onclick: () => abrirSuApp() }, '↗ Abrir su app');
   const aviso = h('div.sh-aviso', { hidden: true });
   const camImg = h('img.sh-cam-img', { alt: 'Lo que ve Shampú' }), camMsg = h('div.sh-cam-msg', '📷 Conectando con la cámara…'), live = h('span.sh-live');
@@ -40,7 +41,7 @@ function vista(el) {
     h('header.sh-hero',
       h('div.sh-ava', '🤖'),
       h('div.sh-tit', h('h1', 'Shampú'), sub),
-      h('div.sh-chips', pill, vig, edad),
+      h('div.sh-chips', pill, vig, recTL, edad),
       h('div.sh-hero-acc', abrirApp)),
     aviso,
     h('div.sh-grid',
@@ -90,9 +91,28 @@ function vista(el) {
     camBox.classList.toggle('sh-vertical', r);
     camImg.style.transform = 'translate(-50%,-50%) rotate(' + g + 'deg)';
   }
-  camImg.onload = () => { camMsg.hidden = true; if (st.modo === 'casa') { st.ultimaFotoCasa = Date.now(); setTimeout(siguienteFotoCasa, 250); } };
-  camImg.onerror = () => { if (st.modo === 'casa') { camMsg.hidden = false; camMsg.textContent = '📷 La cámara no contesta ahora mismo. Reintentando…'; setTimeout(siguienteFotoCasa, 2000); } };
-  function siguienteFotoCasa() { if (!vivo()) return; if (document.hidden) { setTimeout(siguienteFotoCasa, 1000); return; } camImg.src = Sh.fotoUrl(); }
+  // (17-11 tarde · «la cámara va muy lenta») En casa, VÍDEO SEGUIDO: el <img> abre /local/shampu/video una vez y el programa del PC le pide
+  //   fotos a Shampú una detrás de otra (hasta 8 por segundo, antes 2) y las manda en cuanto llegan. Si el vídeo falla 3 veces seguidas,
+  //   fotos sueltas como antes. Al esconder la ventana o salir de Shampú se cierra (así no se le pide nada sin nadie mirando).
+  let video = false, videoDesde = 0, fallosVideo = 0;
+  const conVideo = () => !!(Sh && Sh.videoUrl) && fallosVideo < 3;
+  function abrirCamCasa() {
+    if (!vivo() || st.modo !== 'casa' || document.hidden) return;
+    if (!conVideo()) { siguienteFotoCasa(); return; }
+    if (!video) { video = true; videoDesde = Date.now(); camImg.src = Sh.videoUrl(); }
+  }
+  function cerrarCamCasa() { if (video) { video = false; camImg.removeAttribute('src'); } }
+  camImg.onload = () => { camMsg.hidden = true; if (st.modo !== 'casa') return; if (video) { fallosVideo = 0; return; } st.ultimaFotoCasa = Date.now(); setTimeout(siguienteFotoCasa, 150); };
+  camImg.onerror = () => {
+    if (st.modo !== 'casa') return;
+    const avisa = () => { camMsg.hidden = false; camMsg.textContent = '📷 La cámara no contesta ahora mismo. Reintentando…'; };
+    if (video) { video = false; fallosVideo++; avisa(); setTimeout(abrirCamCasa, 2000); return; }
+    if (!camImg.getAttribute('src')) return; // (el vídeo cerrado a propósito)
+    avisa(); setTimeout(siguienteFotoCasa, 2000);
+  };
+  function siguienteFotoCasa() { if (!vivo() || video) return; if (document.hidden) { setTimeout(siguienteFotoCasa, 1000); return; } camImg.src = Sh.fotoUrl(); }
+  document.addEventListener('visibilitychange', function vis() { if (!root.isConnected) { document.removeEventListener('visibilitychange', vis); cerrarCamCasa(); return; } if (document.hidden) cerrarCamCasa(); else abrirCamCasa(); });
+  window.addEventListener('hashchange', function hc() { if (!vivo()) { cerrarCamCasa(); window.removeEventListener('hashchange', hc); } });
   function pantallaCompleta() { const f = camBox.requestFullscreen || camBox.webkitRequestFullscreen; if (f) f.call(camBox); else toast('Este aparato no deja poner la pantalla completa.', 'warn'); }
   function guardarFotoActual() {
     if (!camImg.naturalWidth) { toast('Todavía no hay imagen de la cámara.', 'warn'); return; }
@@ -103,7 +123,8 @@ function vista(el) {
   async function leerCasa() {
     if (!vivo()) return;
     const e = await Sh.estado().catch(err => ({ ok: false, error: err.message }));
-    st.ok = !!e.ok; st.error = e.ok ? '' : e.error; if (e.ok) { st.estado = e.estado; st.url = e.url; st.tomado = Date.now(); }
+    st.ok = !!e.ok; st.error = e.ok ? '' : e.error; if (e.ok) { st.estado = e.estado; st.url = e.url; st.tomado = Date.now(); st.cam = e.cam || null; }
+    if (video && st.cam && st.cam.mirando === 0 && Date.now() - videoDesde > 8000) { video = false; abrirCamCasa(); } // (la conexión se cortó sin avisar)
     pintarTodo();
   }
   async function leerImpCasa() { const x = await Sh.imp().catch(() => null); if (x && x.ok) { st.impresoras = x.impresoras; if (st.tab === 'impresoras') pintarPanel(); } }
@@ -150,7 +171,12 @@ function vista(el) {
     pill.className = 'sh-pill sh-' + (st.ok === false ? 'bad' : p.nivel);
     pill.textContent = st.ok === false ? '⚠ No contesta' : p.e + ' ' + p.t;
     vig.hidden = !(st.estado && st.estado.vigila && st.ok !== false);
-    if (st.modo === 'casa') { sub.textContent = '🏠 En casa · en directo por la wifi'; edad.textContent = ''; live.className = 'sh-live sh-live-on'; live.textContent = '● EN DIRECTO'; }
+    const g = st.tl && st.tl.grabando; recTL.hidden = !g; if (g) recTL.textContent = '⏺ TIME-LAPSE · ' + g.fotos + (g.fotos === 1 ? ' foto' : ' fotos');
+    if (st.modo === 'casa') {
+      const c = st.cam || {}, fps = video && c.fps ? Math.round(c.fps) : 0;
+      sub.textContent = '🏠 En casa · en directo por la wifi'; edad.textContent = ''; live.className = 'sh-live sh-live-on';
+      live.textContent = '● EN DIRECTO' + (fps ? ' · ' + fps + ' img/s' + (c.ancho ? ' · ' + c.ancho + '×' + c.alto : '') : '');
+    }
     else if (st.modo === 'calle') {
       const ms = edadSnap();
       sub.textContent = '📡 Desde la calle' + (st.puente ? ' · a través de ' + st.puente.dispositivo : '');
@@ -195,10 +221,11 @@ function vista(el) {
   let firmaPanel = '';
   function pintarPanel(forzar) {
     const e = st.estado || {}, fotos = (st.fotos || []).join(), giro = e.giro, calle = [Object.keys(st.fotosCalle).length, st.pedidas.size];
-    const que = { cuidador: [e.vigila, e.fotosVig, e.aviso, giro, fotos, calle], fotos: [fotos, st.filtro, giro, calle], impresoras: [st.impresoras], salud: [e, st.ok, st.url, st.puente && st.puente.dispositivo, (window.__shampuPuente || {}).estado, (window.__shampuPuente || {}).mirando], mando: [e.lamp, e.vol, e.brillo], tele: [], pantalla: [st.pantallaSrc, st.pantallaEspera, st.msgColor] }[st.tab];
+    const que = { cuidador: [e.vigila, e.fotosVig, e.aviso, giro, fotos, calle], fotos: [fotos, st.filtro, giro, calle], impresoras: [st.impresoras], salud: [e, st.ok, st.url, st.puente && st.puente.dispositivo, (window.__shampuPuente || {}).estado, (window.__shampuPuente || {}).mirando], mando: [e.lamp, e.vol, e.brillo, e.camTam, st.cam && st.cam.ancho], tele: [],
+      timelapse: [st.tl && (st.tl.grabando ? [st.tl.grabando.id, st.tl.grabando.fotos, st.tl.grabando.fallos] : 0), st.tl && (st.tl.lista || []).map(x => [x.id, x.fotos, x.estado, x.video, x.videoKB]), st.tlCada, st.tlDura, st.tlVideo, st.haciendo && st.haciendo.id], pantalla: [st.pantallaSrc, st.pantallaEspera, st.msgColor] }[st.tab];
     const firma = st.tab + '|' + st.modo + '|' + st.ok + '|' + JSON.stringify(que);
     if (!forzar && firma === firmaPanel) return; firmaPanel = firma;
-    const f = { cuidador: panelCuidador, fotos: panelFotos, impresoras: panelImpresoras, mando: panelMando, pantalla: panelPantalla, tele: panelTele, salud: panelSalud, llave: panelLlave }[st.tab] || panelCuidador;
+    const f = { cuidador: panelCuidador, fotos: panelFotos, impresoras: panelImpresoras, mando: panelMando, pantalla: panelPantalla, tele: panelTele, salud: panelSalud, llave: panelLlave, timelapse: panelTimelapse }[st.tab] || panelCuidador;
     mount(panel, f());
   }
 
@@ -271,6 +298,7 @@ function vista(el) {
     const e = st.estado || {};
     const voz = h('input.sh-inp', { type: 'text', maxlength: 110, placeholder: '¡Hola! La cena está lista…', value: st.voz, oninput: ev => { st.voz = ev.target.value; } });
     return h('div.sh-card',
+      bloqueCalidad(),
       h('div.sh-sec', 'Mover la cabeza'),
       h('div.sh-rej3', ...C.MOVER.map(m => boton(m.e + ' ' + m.t, () => mandar({ o: m.o })))),
       h('div.sh-sec', 'Girar el cuerpo'),
@@ -290,6 +318,134 @@ function vista(el) {
       h('div.sh-sec', 'Sus frases'),
       h('div.sh-frases', ...C.FRASES.map(f => boton('💬 ' + f.t, () => mandar({ o: f.o }), { cls: 'sh-b-frase' }))));
   }
+  // 🎥 Resolución y calidad: la pone el firmware de Shampú. Si ya lo entiende (su /estado trae camTam), se elige aquí; si no, se dice cómo va.
+  function bloqueCalidad() {
+    if (st.modo !== 'casa') return null;
+    const e = st.estado || {}, c = st.cam || {};
+    const ahora = (c.ancho ? c.ancho + '×' + c.alto : '640×480') + (c.fps ? ', unas ' + Math.round(c.fps) + ' imágenes por segundo' : '');
+    if (!e.camTam) return h('div.sh-calidad', h('div.sh-sec', '📷 Calidad de la cámara'),
+      h('p.sh-nota', 'Ahora: ' + ahora + '. Para verla en HD o Full HD, Shampú necesita una actualización de su programa (ya está pedida). Cuando la tenga, la eliges aquí.'));
+    return h('div.sh-calidad', h('div.sh-sec', '📷 Calidad de la cámara'),
+      h('p.sh-nota', 'Ahora: ' + ahora + '. Con más resolución se ve más detalle, pero llegan menos imágenes por segundo.'),
+      h('div.sh-rej4', ...C.CALIDADES.map(q => boton(h('span', h('b', q.t), h('small', q.d)), () => mandar({ cam: q.cam, cal: q.cal }), { cls: 'sh-b-cal' + (e.camTam === q.cam ? ' sh-b-elegido' : '') }))));
+  }
+
+  // ---------- ⏱️ TIME-LAPSE (17-11 tarde): lo graba el programa del PC de casa (sigue aunque se cierre esta pantalla); aquí se elige,
+  //   se ve cómo va y se hace el MP4 para redes (video_mp4.js: H.264, lado largo 1440) que se guarda junto a sus fotos.
+  async function leerTL() { if (st.modo !== 'casa' || !Sh || !Sh.tl) return; const x = await Sh.tl().catch(() => null); if (x && x.ok) { st.tl = x; pintarCabecera(); if (st.tab === 'timelapse') pintarPanel(); } }
+  function tickTL() { panel.querySelectorAll('[data-desde]').forEach(el => { el.textContent = C.duracionEnPalabras((Date.now() - new Date(el.dataset.desde)) / 1000); }); panel.querySelectorAll('[data-hasta]').forEach(el => { el.textContent = 'Faltan ' + C.duracionEnPalabras((new Date(el.dataset.hasta) - Date.now()) / 1000); }); }
+  function panelTimelapse() {
+    if (st.modo !== 'casa') return h('div.sh-card', h('div.sh-sec', '⏱️ Time-lapse'), h('p.sh-vacio', 'El time-lapse lo graba el ordenador de casa (la torre o el portátil) con CelebriDiseños abierto. Ábrelo allí: 🤖 Shampú › ⏱️ Time-lapse.'));
+    if (!st.tl) { leerTL(); return h('div.sh-card', h('p.sh-vacio', 'Mirando tus time-lapses…')); }
+    return h('div.sh-tl', st.tl.grabando ? tarjetaGrabando(st.tl.grabando) : tarjetaEmpezar(), listaTL());
+  }
+  function chipsTL(lista, clave, ls, actual) {
+    return h('div.sh-chips2', ...lista.map(x => h('button.sh-chip' + (actual === x[clave] ? '.on' : ''), { type: 'button', onclick: () => { st[ls] = x[clave]; lsSet('cd.shampu.' + ls.toLowerCase(), String(x[clave])); pintarPanel(true); } }, x.t, x.d ? h('small', ' · ' + x.d) : null)));
+  }
+  function tarjetaEmpezar() {
+    const n = C.fotosPrevistas(st.tlCada, st.tlDura), porHora = Math.round(3600 / st.tlCada);
+    const resumen = n ? 'Saldrán unas ' + n.toLocaleString('es-ES') + ' fotos: con todas, un vídeo de ' + C.duracionEnPalabras(n / 30) + ' a 30 imágenes por segundo.'
+      : 'Graba hasta que lo pares (como mucho 24 horas). Cada hora son ' + porHora.toLocaleString('es-ES') + ' fotos: ' + C.duracionEnPalabras(porHora / 30) + ' de vídeo.';
+    return h('div.sh-card.sh-tl-nuevo',
+      h('div.sh-tl-cab', h('div.sh-tl-ico', '⏱️'), h('div', h('h3', 'Grabar un time-lapse'), h('p', 'Shampú hace una foto cada poco y al final sale un vídeo acelerado en MP4, listo para Instagram o TikTok.'))),
+      h('div.sh-sec', 'Una foto cada'), chipsTL(C.TL_CADA, 's', 'tlCada', st.tlCada),
+      h('div.sh-sec', 'Durante'), chipsTL(C.TL_DURA, 'm', 'tlDura', st.tlDura),
+      h('p.sh-tl-res', '🎬 ' + resumen),
+      boton('⏺ Empezar el time-lapse', empezarTL, { cls: 'sh-b-rojo sh-b-grande sh-b-ancho' }),
+      h('p.sh-nota', '💡 Para grabar una impresión, gira a Shampú hacia la impresora (con las flechas de la cámara) y empieza. Puedes cerrar esta pantalla: sigue grabando mientras CelebriDiseños esté abierto en este ordenador.'));
+  }
+  function tarjetaGrabando(g) {
+    const grados = C.gradosDe(g.giro), vert = grados % 180 !== 0, hasta = g.minutos ? new Date(new Date(g.desde).getTime() + g.minutos * 60000).toISOString() : '';
+    const img = g.fotos ? h('img.sh-tl-ult', { src: Sh.tlFotoUrl(g.id, 'ultima') + '&f=' + g.fotos, alt: 'La última foto', style: { transform: 'translate(-50%,-50%) rotate(' + grados + 'deg)' } }) : h('div.sh-tl-ult-vacia', '📷 La primera foto llega enseguida…');
+    const lleva = (Date.now() - new Date(g.desde)) / 1000;
+    return h('div.sh-card.sh-tl-rec',
+      h('div.sh-tl-cab', h('span.sh-tl-punto'), h('div', h('h3', 'Grabando el time-lapse'), h('p', 'Una foto cada ' + C.segEnPalabras(g.cada) + (g.minutos ? ' durante ' + C.duracionEnPalabras(g.minutos * 60) : ', hasta que lo pares') + '.'))),
+      h('div.sh-tl-cuerpo',
+        h('div.sh-tl-ultbox' + (vert ? '.sh-vertical' : ''), img),
+        h('div.sh-tl-datos',
+          tarjeta('Fotos', g.fotos.toLocaleString('es-ES'), null, g.fallos ? g.fallos + ' veces Shampú no contestó' : ''),
+          h('div.sh-tar', h('span', 'Lleva'), h('b', { dataset: { desde: g.desde } }, C.duracionEnPalabras(lleva)), hasta ? h('small', { dataset: { hasta } }, 'Faltan ' + C.duracionEnPalabras((new Date(hasta) - Date.now()) / 1000)) : null),
+          tarjeta('Vídeo', C.duracionEnPalabras(g.fotos / 30), null, 'con todas, a 30 imágenes por segundo'))),
+      g.minutos ? h('div.sh-tl-barra', h('i', { style: { width: Math.min(100, lleva / (g.minutos * 60) * 100).toFixed(1) + '%' } })) : null,
+      boton('⏹ Parar y guardar', pararTL, { cls: 'sh-b-grande sh-b-ancho' }));
+  }
+  function listaTL() {
+    const g = st.tl.grabando, l = (st.tl.lista || []).filter(x => !g || x.id !== g.id);
+    return h('div.sh-card',
+      h('div.sh-sec', 'Tus time-lapses', h('small', ' · se guardan en Vídeos › Shampú time-lapse')),
+      l.length ? h('div.sh-tl-lista', ...l.map(itemTL)) : h('p.sh-vacio', 'Todavía no has grabado ninguno.'),
+      boton('📂 Abrir la carpeta', () => Sh.tlAccion({ accion: 'abrir' }).catch(e => toast(e.message, 'bad')), { cls: 'sh-b-claro' }));
+  }
+  function itemTL(x) {
+    const grados = C.gradosDe(x.giro), haciendo = st.haciendo && st.haciendo.id === x.id;
+    const estado = { terminado: 'terminado', parado: 'parado por ti', cortado: 'se cerró el programa a medias' }[x.estado] || x.estado;
+    const mini = x.fotos ? h('img', { src: Sh.tlFotoUrl(x.id, Math.max(1, Math.round(x.fotos / 2))), loading: 'lazy', alt: '', style: { transform: 'rotate(' + grados + 'deg)' } }) : h('span', '📷');
+    const sel = h('select.sh-sel', { title: 'Cuánto dura el vídeo', onchange: ev => { st.tlVideo = Number(ev.target.value); lsSet('cd.shampu.tlvideo', String(st.tlVideo)); } },
+      ...C.TL_VIDEO.map(v => h('option', { value: String(v.s), selected: st.tlVideo === v.s }, v.t)));
+    return h('div.sh-tl-item',
+      h('div.sh-tl-mini', mini),
+      h('div.sh-tl-info',
+        h('b', C.fechaTL(x.id)),
+        h('small', x.fotos.toLocaleString('es-ES') + (x.fotos === 1 ? ' foto' : ' fotos') + ' · una cada ' + C.segEnPalabras(x.cada) + ' · ' + estado),
+        x.motivo ? h('small.sh-tl-motivo', x.motivo) : null,
+        x.video && !haciendo ? h('video.sh-tl-video', { src: Sh.tlVideoUrl(x.id) + '&v=' + x.videoKB, controls: true, preload: 'metadata', playsInline: true }) : null,
+        haciendo ? h('div.sh-tl-prog', h('i', { style: { width: (st.haciendo.pct || 0) + '%' } }), h('span', 'Haciendo el vídeo… ' + (st.haciendo.pct || 0) + ' %')) : null,
+        h('div.sh-tl-acc',
+          x.fotos >= 2 && !haciendo ? sel : null,
+          x.fotos >= 2 && !haciendo ? boton(x.video ? '🔁 Rehacer el vídeo' : '🎬 Hacer el vídeo', () => hacerVideo(x), { cls: 'sh-b-amarillo' }) : null,
+          x.fotos < 2 ? h('small', 'Hacen falta 2 fotos o más para el vídeo.') : null,
+          x.video && !haciendo ? h('a.sh-b.sh-b-claro', { href: Sh.tlVideoUrl(x.id), download: x.video }, '⬇️ Descargar') : null,
+          boton('📂', () => Sh.tlAccion({ accion: 'abrir', id: x.id }).catch(e => toast(e.message, 'bad')), { title: 'Abrir su carpeta', cls: 'sh-b-redondo' }),
+          !haciendo ? boton('🗑️', () => borrarTL(x), { title: 'Borrar este time-lapse', cls: 'sh-b-redondo' }) : null)));
+  }
+  async function empezarTL() {
+    try {
+      const r = await Sh.tlAccion({ accion: 'empezar', cada: st.tlCada, minutos: st.tlDura, giro: (st.estado && st.estado.giro) || 0 });
+      st.tl = Object.assign({}, st.tl, { grabando: r.grabando }); toast('⏺ Time-lapse en marcha', 'ok', 2500); pintarCabecera(); pintarPanel(true); setTimeout(leerTL, 1500);
+    } catch (e) { toast(e.message || String(e), 'bad'); }
+  }
+  async function pararTL() {
+    try { const r = await Sh.tlAccion({ accion: 'parar' }); st.tl = Object.assign({}, st.tl, { grabando: null, lista: r.lista }); toast('⏹ Time-lapse guardado. Ya puedes hacer su vídeo.', 'ok', 3500); pintarCabecera(); pintarPanel(true); }
+    catch (e) { toast(e.message || String(e), 'bad'); }
+  }
+  async function borrarTL(x) {
+    if (!(await confirmDlg('¿Borrar este time-lapse?', 'Se borran sus ' + x.fotos + ' fotos' + (x.video ? ' y su vídeo' : '') + ' de la carpeta Vídeos › Shampú time-lapse. No se puede deshacer.', 'Borrarlo', true))) return;
+    try { const r = await Sh.tlAccion({ accion: 'borrar', id: x.id }); st.tl = Object.assign({}, st.tl, { lista: r.lista }); toast('🗑️ Borrado', 'ok', 1800); pintarPanel(true); }
+    catch (e) { toast(e.message || String(e), 'bad'); }
+  }
+  function pintarProgreso() { const el = panel.querySelector('.sh-tl-prog'); if (el && st.haciendo) { el.firstChild.style.width = st.haciendo.pct + '%'; el.lastChild.textContent = 'Haciendo el vídeo… ' + st.haciendo.pct + ' %'; } }
+  // El MP4: cada fotograma se pinta derecho (con el giro de la cámara) en un lienzo de lado largo 1440 y se codifica en H.264.
+  async function hacerVideo(x) {
+    if (st.haciendo) { toast('Espera a que termine el vídeo que se está haciendo.', 'warn'); return; }
+    const plan = C.planVideo(x.fotos, st.tlVideo); if (!plan) return;
+    let V; try { V = await import('../video_mp4.js'); } catch (e) { toast('No se ha podido cargar lo que hace los vídeos. Cierra y abre CelebriDiseños.', 'bad'); return; }
+    st.haciendo = { id: x.id, pct: 0 }; pintarPanel(true);
+    const cargar = async n => { const r = await fetch(Sh.tlFotoUrl(x.id, n)); if (!r.ok) throw new Error('Falta la foto ' + n + ' del time-lapse.'); return createImageBitmap(await r.blob()); };
+    const indice = f => Math.min(x.fotos, 1 + Math.floor(f * plan.paso));
+    try {
+      const prim = await cargar(1), grados = C.gradosDe(x.giro), rot = grados % 180 !== 0;
+      const sw = rot ? prim.height : prim.width, sh = rot ? prim.width : prim.height, k = 1440 / Math.max(sw, sh);
+      if (prim.close) prim.close();
+      const lienzo = document.createElement('canvas'); lienzo.width = Math.round(sw * k / 2) * 2; lienzo.height = Math.round(sh * k / 2) * 2;
+      const cx = lienzo.getContext('2d'); cx.imageSmoothingQuality = 'high';
+      const cola = new Map(), pide = f => { if (f < plan.m && !cola.has(f)) { const pr = cargar(indice(f)); pr.catch(() => { }); cola.set(f, pr); } };
+      let ultimo = -1;
+      const blob = await V.mp4DeLienzo(lienzo, plan.m, plan.fps, async f => {
+        for (let i = 0; i <= 6; i++) pide(f + i); // (las siguientes ya van llegando mientras se pinta esta)
+        const bm = await cola.get(f); cola.delete(f);
+        const w = rot ? lienzo.height : lienzo.width, hh = rot ? lienzo.width : lienzo.height;
+        cx.save(); cx.fillStyle = '#000'; cx.fillRect(0, 0, lienzo.width, lienzo.height); cx.translate(lienzo.width / 2, lienzo.height / 2); cx.rotate(grados * Math.PI / 180);
+        cx.drawImage(bm, -w / 2, -hh / 2, w, hh); cx.restore(); if (bm.close) bm.close();
+        const pct = Math.floor((f + 1) / plan.m * 100); if (pct !== ultimo) { ultimo = pct; st.haciendo.pct = pct; pintarProgreso(); }
+        if (f % 20 === 0) await new Promise(r => setTimeout(r, 0));
+      }, 10e6);
+      if (!blob) throw new Error('Este ordenador no sabe hacer vídeos MP4 (a su navegador le falta el codificador H.264). Prueba en la torre.');
+      await Sh.tlGuardarVideo(x.id, blob);
+      toast('🎬 Vídeo hecho (' + C.duracionEnPalabras(plan.dur) + '). Está en Vídeos › Shampú time-lapse.', 'ok', 5000);
+    } catch (e) { toast(e.message || String(e), 'bad'); }
+    finally { st.haciendo = null; await leerTL(); pintarPanel(true); }
+  }
+
   function panelPantalla() {
     const txt = h('input.sh-inp', { type: 'text', maxlength: 90, placeholder: 'Escribe un mensaje para su pantalla…', value: st.msg, oninput: ev => { st.msg = ev.target.value; } });
     const ver = st.pantallaSrc ? h('img.sh-pantalla-img', { src: st.pantallaSrc, alt: 'Lo que enseña su pantalla', onerror: () => { st.pantallaSrc = null; toast('Shampú no ha dado su pantalla. Prueba otra vez.', 'warn'); pintarPanel(true); } })
@@ -393,8 +549,10 @@ function vista(el) {
       const e = await Sh.estado().catch(err => ({ ok: false, error: err.message }));
       if (e.ok) {
         st.modo = 'casa'; st.ok = true; st.estado = e.estado; st.url = e.url; st.tomado = Date.now();
-        pintarTodo(); siguienteFotoCasa(); leerImpCasa(); leerListaCasa();
-        const t1 = setInterval(() => { if (!vivo()) return clearInterval(t1); if (!document.hidden) leerCasa(); }, 3000);
+        pintarTodo(); abrirCamCasa(); leerImpCasa(); leerListaCasa(); leerTL();
+        const t1 = setInterval(() => { if (!vivo()) { cerrarCamCasa(); return clearInterval(t1); } if (!document.hidden) leerCasa(); }, 3000);
+        let vueltaTL = 0; // el time-lapse: cada 2,5 s con su pestaña abierta (o grabando), si no cada 15 s
+        const t5 = setInterval(() => { if (!vivo()) return clearInterval(t5); tickTL(); if (!document.hidden && (st.tab === 'timelapse' || (st.tl && st.tl.grabando) || vueltaTL++ % 6 === 0)) leerTL(); }, 2500);
         const t2 = setInterval(() => { if (!vivo()) return clearInterval(t2); if (!document.hidden) leerImpCasa(); }, 10000);
         const t3 = setInterval(() => { if (!vivo()) return clearInterval(t3); if (!document.hidden) leerListaCasa(); }, 20000);
         return;
@@ -478,6 +636,28 @@ const CSS = `
 .sh-rej2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.sh-rej3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sh-rej4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .sh-nota{color:var(--muted);font-size:13px;line-height:1.5;margin:10px 0 4px}.sh-vacio{color:var(--muted);text-align:center;padding:26px 10px}
 .sh-chips2{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.sh-rec{padding:5px 12px;border-radius:999px;background:#e33;color:#fff;font-size:12px;font-weight:800;letter-spacing:.6px;animation:shLatir 1.4s ease-in-out infinite}
+.sh-calidad{margin-bottom:6px}.sh-b-cal span{display:grid;gap:2px}.sh-b-cal small{font-size:11px;opacity:.75;font-weight:600}
+.sh-tl{display:grid;gap:14px}
+.sh-tl-cab{display:flex;gap:12px;align-items:center;margin-bottom:8px}.sh-tl-cab h3{margin:0;font-size:18px}.sh-tl-cab p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.sh-tl-ico{flex:none;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:26px;background:linear-gradient(135deg,var(--sh-noche),var(--sh-azul))}
+.sh-tl-punto{flex:none;width:16px;height:16px;border-radius:50%;background:#e33;box-shadow:0 0 0 6px rgba(238,51,51,.18);animation:shLatir 1.4s ease-in-out infinite;margin:0 6px}
+.sh-tl-res{margin:12px 0;padding:10px 12px;border-radius:12px;background:var(--surface-2);font-size:14px;line-height:1.45}
+.sh-tl-cuerpo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:center;margin:10px 0}
+.sh-tl-ultbox{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#05081a}.sh-tl-ultbox.sh-vertical{aspect-ratio:3/4;max-height:360px;margin:0 auto;width:100%}
+.sh-tl-ult{position:absolute;top:50%;left:50%;width:100%}.sh-tl-ultbox.sh-vertical .sh-tl-ult{width:133.34%}
+.sh-tl-ult-vacia{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:14px;color:#aab3d0;font-size:13px}
+.sh-tl-datos{display:grid;gap:8px}
+.sh-tl-barra{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin:4px 0 12px}.sh-tl-barra i{display:block;height:100%;background:linear-gradient(90deg,#e33,#ff8c00)}
+.sh-tl-lista{display:grid;gap:10px;margin-bottom:12px}
+.sh-tl-item{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;padding:10px;border:1px solid var(--line);border-radius:14px}
+.sh-tl-mini{position:relative;width:96px;height:96px;border-radius:12px;overflow:hidden;background:#05081a;display:grid;place-items:center;font-size:26px}.sh-tl-mini img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.sh-tl-info{display:grid;gap:4px;min-width:0;align-content:start}.sh-tl-info small{color:var(--muted)}.sh-tl-info .sh-tl-motivo{color:var(--warn)}
+.sh-tl-video{width:100%;max-height:440px;border-radius:12px;background:#000;margin-top:4px}
+.sh-tl-acc{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}.sh-tl-acc a.sh-b{text-decoration:none}
+.sh-tl-prog{position:relative;height:32px;border-radius:10px;background:var(--line);overflow:hidden;margin-top:4px}.sh-tl-prog i{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,var(--sh-azul),var(--sh-am));transition:width .2s}.sh-tl-prog span{position:relative;display:block;text-align:center;line-height:32px;font-size:13px;font-weight:800}
+.sh-sel{padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);font:inherit;font-size:14px}
+@media (max-width:700px){.sh-tl-cuerpo{grid-template-columns:1fr}.sh-tl-item{grid-template-columns:72px minmax(0,1fr)}.sh-tl-mini{width:72px;height:72px}}
 .sh-chip{font:inherit;font-size:13px;font-weight:700;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);cursor:pointer}.sh-chip.on{background:var(--sh-noche);color:var(--sh-am);border-color:var(--sh-noche)}
 .sh-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
 .sh-f{position:relative;aspect-ratio:1;border:0;padding:0;border-radius:12px;overflow:hidden;background:#0b1030;cursor:pointer}
