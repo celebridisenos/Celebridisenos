@@ -4,13 +4,13 @@
 // · En la calle (el móvil, la tablet o un PC fuera de casa): a través del PC de casa y el servidor de Google (shampu.ver / shampu.orden;
 //   el puente es shampu_puente.js). Se actualiza cada pocos segundos mientras la pantalla está abierta y para al salir.
 // Solo administradoras (es la cámara de su casa). Las órdenes son una lista cerrada: nunca «olvidar el wifi».
-import { h, mount, toast, modal, btn } from '../ui.js';
+import { h, mount, toast, modal, btn, copyText, confirmDlg } from '../ui.js';
 import { S, api } from '../store.js';
 import { desktop } from '../desktop.js';
 import * as C from '../shampu_comun.js';
 
 const Sh = desktop.shampu;
-const TABS = [['cuidador', '🛡️', 'Cuidador'], ['fotos', '🖼️', 'Fotos'], ['impresoras', '🖨️', 'Impresoras'], ['mando', '🕹️', 'Mando'], ['pantalla', '🖥️', 'Pantalla'], ['tele', '📺', 'Tele'], ['salud', '🩺', 'Salud']];
+const TABS = [['cuidador', '🛡️', 'Cuidador'], ['fotos', '🖼️', 'Fotos'], ['impresoras', '🖨️', 'Impresoras'], ['mando', '🕹️', 'Mando'], ['pantalla', '🖥️', 'Pantalla'], ['tele', '📺', 'Tele'], ['salud', '🩺', 'Salud'], ['llave', '🔑', 'Llave']];
 const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 
@@ -198,7 +198,7 @@ function vista(el) {
     const que = { cuidador: [e.vigila, e.fotosVig, e.aviso, giro, fotos, calle], fotos: [fotos, st.filtro, giro, calle], impresoras: [st.impresoras], salud: [e, st.ok, st.url, st.puente && st.puente.dispositivo, (window.__shampuPuente || {}).estado, (window.__shampuPuente || {}).mirando], mando: [e.lamp, e.vol, e.brillo], tele: [], pantalla: [st.pantallaSrc, st.pantallaEspera, st.msgColor] }[st.tab];
     const firma = st.tab + '|' + st.modo + '|' + st.ok + '|' + JSON.stringify(que);
     if (!forzar && firma === firmaPanel) return; firmaPanel = firma;
-    const f = { cuidador: panelCuidador, fotos: panelFotos, impresoras: panelImpresoras, mando: panelMando, pantalla: panelPantalla, tele: panelTele, salud: panelSalud }[st.tab] || panelCuidador;
+    const f = { cuidador: panelCuidador, fotos: panelFotos, impresoras: panelImpresoras, mando: panelMando, pantalla: panelPantalla, tele: panelTele, salud: panelSalud, llave: panelLlave }[st.tab] || panelCuidador;
     mount(panel, f());
   }
 
@@ -340,6 +340,50 @@ function vista(el) {
       st.modo === 'casa' && P ? h('p.sh-nota', '📡 Para verlo desde la calle, este ordenador hace de puente: ' + (P.estado === 'puente' ? (P.mirando ? 'alguien lo está mirando ahora.' : 'listo.') : P.estado) + (P.error ? ' (' + P.error + ')' : '')) : null,
       st.modo === 'casa' ? boton('↗ Abrir la app de Shampú', () => abrirSuApp(), { cls: 'sh-b-claro' }) : null);
   }
+  // 17-11 · 🔑 la llave con la que el cerebro de Shampú (en el portátil) LEE CelebriDiseños (shampu.llave / shampu.leer en el servidor)
+  function panelLlave() {
+    const caja = h('div.sh-card.sh-llave');
+    const fecha = iso => { try { return new Date(iso).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || ''; } };
+    const pedir = async (accion) => {
+      try { const r = await api('shampu.llave', { accion }); st.llave = { info: r.info, nueva: r.llave || '' }; }
+      catch (e) { st.llave = /Acción desconocida/.test(e.message || '') ? { viejo: true } : { error: e.message || String(e) }; }
+      if (caja.isConnected) pintar();
+    };
+    const crear = async (cambiar) => {
+      if (cambiar && !(await confirmDlg('¿Cambiar la llave de Shampú?', 'La llave de ahora deja de valer en el momento. Tendrás que pegar la nueva en su cerebro, en el portátil.', 'Cambiarla'))) return;
+      await pedir('crear');
+    };
+    const quitar = async () => {
+      if (!(await confirmDlg('¿Quitar la llave de Shampú?', 'Shampú dejará de leer CelebriDiseños al momento. Puedes crear otra cuando quieras.', 'Quitarla', true))) return;
+      await pedir('quitar'); toast('Llave quitada: Shampú ya no lee CelebriDiseños.');
+    };
+    function pintar() {
+      const L = st.llave || {}, i = L.info || {};
+      const cosas = [h('h3.sh-llave-tit', '🧠 Que Shampú lea CelebriDiseños'),
+        h('p.sh-nota', 'Con esta llave, el cerebro de Shampú (en el portátil) puede LEER todo CelebriDiseños: pedidos, clientes, productos y costes, stock, impresoras y cola, filamento, compras, presupuestos, facturas, tienda web, tareas, redes, noticias y biblioteca. No puede cambiar nada.'),
+        h('p.sh-nota', '🔒 Los teléfonos, emails, direcciones y NIF de los clientes le llegan tapados (•••). Nada de contraseñas ni de seguridad.')];
+      if (!st.llave) cosas.push(h('p.sh-vacio', 'Mirando…'));
+      else if (L.viejo) cosas.push(h('p.sh-llave-aviso', '⏳ Falta pegar el servidor 18.10.0 en Google (Apps Script). Los pasos están en el LEEME de la 60.17.0.'));
+      else if (L.error) cosas.push(h('p.sh-llave-aviso', '⚠️ ' + L.error), boton('Reintentar', () => pedir('ver'), { cls: 'sh-b-claro' }));
+      else if (L.nueva) cosas.push(h('div.sh-llave-nueva',
+        h('b', '🔑 Esta es la llave. Solo se ve AHORA:'),
+        h('code.sh-llave-code', L.nueva),
+        h('div.sh-llave-bot', boton('📋 Copiar la llave', () => copyText(L.nueva), { cls: 'sh-b-amarillo' }), S.server ? boton('📋 Copiar la dirección del servidor', () => copyText(S.server), { cls: 'sh-b-claro' }) : null),
+        h('p.sh-nota', 'Pega las dos cosas en el cerebro de Shampú, en el portátil (o pásaselas a quien lo programa allí). Cuando salgas de aquí, la llave ya no se vuelve a ver: si la pierdes, crea otra.'),
+        boton('✅ Ya la he pegado', () => { L.nueva = ''; pintar(); }, { cls: 'sh-b-claro' })));
+      else if (i.hay) cosas.push(h('div.sh-salud',
+        tarjeta('Llave', '✅ puesta', 'ok', 'Termina en ···' + (i.termina || '')),
+        tarjeta('Creada', fecha(i.creada), null, i.por ? 'por ' + i.por : ''),
+        tarjeta('Última lectura', i.ultimoUso ? C.haceCuanto(Date.now() - new Date(i.ultimoUso).getTime()) : 'todavía no ha leído', i.ultimoUso ? 'ok' : 'warn', i.ultimoUso ? fecha(i.ultimoUso) : 'Pega la llave en su cerebro')),
+        h('div.sh-llave-bot', boton('🔄 Cambiar la llave', () => crear(true), { cls: 'sh-b-claro' }), boton('🗑️ Quitar la llave', quitar, { cls: 'sh-b-rojo' })));
+      else cosas.push(h('p.sh-nota', i.quitada ? 'La llave se quitó el ' + fecha(i.quitada) + '. Ahora Shampú no lee nada.' : 'Shampú todavía no tiene llave.'),
+        boton('🔑 Crear la llave de Shampú', () => crear(false), { cls: 'sh-b-amarillo sh-b-grande' }));
+      mount(caja, ...cosas);
+    }
+    pintar();
+    if (!st.llave || !st.llave.nueva) pedir('ver'); // al abrir, al día (la última lectura); la llave recién creada no se pierde
+    return caja;
+  }
   const tarjeta = (k, v, nivel, nota) => h('div.sh-tar' + (nivel ? '.sh-tar-' + nivel : ''), h('span', k), h('b', v), nota ? h('small', nota) : null);
 
   // ---------- arranque ----------
@@ -455,6 +499,9 @@ const CSS = `
 .sh-salud{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:6px}
 .sh-tar{display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:14px;background:var(--surface-2);border-left:4px solid var(--line-2)}
 .sh-tar span{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}.sh-tar b{font-size:17px}.sh-tar small{color:var(--muted);font-size:12px}
+.sh-llave-tit{margin:2px 0 4px;font-size:18px}.sh-llave-nueva{margin-top:12px;padding:14px;border-radius:14px;border:2px dashed var(--sh-am);background:var(--surface-2);display:grid;gap:10px}
+.sh-llave-code{display:block;font:600 15px/1.5 ui-monospace,Consolas,monospace;word-break:break-all;user-select:all;padding:10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+.sh-llave-bot{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.sh-llave-aviso{padding:10px 12px;border-radius:12px;background:var(--surface-2);border-left:4px solid var(--warn)}
 .sh-tar-ok{border-left-color:var(--ok)}.sh-tar-warn{border-left-color:var(--warn)}.sh-tar-bad{border-left-color:var(--bad)}.sh-tar-muted{border-left-color:var(--line-2)}
 .sh-pie{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
 .sh-inp{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);margin:4px 0 10px}
