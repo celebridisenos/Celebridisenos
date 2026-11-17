@@ -27,6 +27,7 @@ const VIEWS = {
   tallervivo: () => import('./views/tallervivo.js'), // v18: 🏭 el taller en directo (en lugar de los juegos)
   trailer: () => import('./views/trailer.js'), // v18: 🎬 Tráiler del mes
   celebrimesa: () => import('./views/celebrimesa.js'), // 02-11-2026: el otro programa del mismo sistema
+  shampu: () => import('./views/shampu.js'), // 17-11-2026: 🤖 Shampú, el robot de escritorio: en casa en directo y desde la calle a través del PC de casa
   hoy: () => import('./views/hoy.js'),
   almacen: () => import('./views/almacen.js'), // 26-10-2026: 📦 Mi almacén (lo que tengo y lo que compro, muy fácil)
   chatsnav: () => import('./views/chatsnav.js'), // 02-11-2026: 💬 la barra y el panel del navegador propio de chats (ventana aparte, --chats)
@@ -133,6 +134,7 @@ export const NAV = [
   { k: 'ia', t: 'Celeby Nova', i: 'sparkles', p: 'ia.usar' },
   { k: 'centroia', t: 'Centro de IA 🧠', i: 'sparkles' }, // v15.3 // v11.5: Celebrity + CelebryNova en un solo asistente,
   { k: 'celebrimesa', t: 'CelebriMesa', i: 'sparkles', d: true }, // 02-11-2026: organizar y crear (solo en el ordenador)
+  { k: 'shampu', t: 'Shampú 🤖', i: 'sparkles', p: 'usuarios.admin' }, // 17-11-2026: su robot (cámara de su casa: solo administradoras; también en el móvil, desde la calle)
   { k: 'config', t: 'Configuración', i: 'settings' },
   { k: 'estado', t: 'Estado del sistema', i: 'shield', p: 'config.ver' },
   { k: 'noventas', t: 'Productos que no se venden 🧹', i: 'trash', p: 'productos.borrar' }, // 15-11-2026
@@ -548,6 +550,7 @@ export function accionesPaleta() {
     nav('Centro de IA: ver si todo funciona (🟢🟡🔴), biblioteca, prompts y descargas', 'sparkles', 'centroia', '', 'ia diagnostico estado semaforo solucionar biblioteca medios fotos videos prompt descargar modelos remotion'),
     nav('Instagram Studio: crear, programar y ver estadísticas', 'camera', 'instagram', 'redes.ver', 'instagram publicar post carrusel historia reel programar hashtags estadisticas feed'),
     nav('CelebriMesa: organizar tareas, páginas, contenido e inventos', 'sparkles', 'celebrimesa', '', 'mesa tareas notas organizar casadrew inventos robots guia'),
+    nav('Shampú: ver mi robot, la cámara de casa, vigilar e impresoras (también desde la calle)', 'sparkles', 'shampu', 'usuarios.admin', 'shampu shampoo robot camara casa vigilar cuidador fotos tele mando impresoras calle'),
     nav('Respuestas rápidas', 'msg', 'rapidas', '', 'whatsapp instagram correo contestar mensaje cliente manual plantilla'),
     nav('Escanear paquete', 'qr', 'escanear/camara', 'pedidos.ver', 'qr cámara lector empaquetar'),
     nav('Ir a Embalaje', 'box', 'embalaje', 'pedidos.ver', 'cajas paquete'),
@@ -753,7 +756,7 @@ export async function start() {
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
   import('./hologramas.js').then(m => m.iniciar()).catch(() => { }); // v16
-  pull().then(() => { if (location.hash.startsWith('#/chatsnav')) return; /* (02-11: de avisos, trabajos e impresoras se ocupa la ventana principal) */ startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }) /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
+  pull().then(() => { if (location.hash.startsWith('#/chatsnav')) return; /* (02-11: de avisos, trabajos e impresoras se ocupa la ventana principal) */ startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }); if (desktop.on) import('./shampu_puente.js').then(m => m.startShampuPuente()).catch(() => { }) /* 17-11-2026: 🤖 el PC de casa hace de puente para ver a Shampú desde la calle */ /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); } // v30.7.1: la IA ya no se carga en la tarjeta gráfica al arrancar (ver warmUp)
   if (desktop.on && isAdminUser() && !start._claves) { start._claves = true; setTimeout(() => import('./mudanza.js').then(M => M.clavesPendientes()).catch(() => { }), 4000); } // (28-10) en el ordenador NUEVO de un traslado: poner las claves que vinieron cifradas

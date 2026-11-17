@@ -54,6 +54,16 @@ export const desktop = {
   // v11.2: búsqueda por todos los métodos (Windows, USB, red, Bambu) y Bambu Lab en vivo por la red local
   discover: () => call('discover'),
   bambu: () => call('bambu'),
+  // 17-11-2026 · 🤖 Shampú, el robot de escritorio: el programa le pregunta por la red de casa (una pregunta cada vez) y nunca le manda «olvidar el wifi»
+  shampu: H ? {
+    estado: () => call('shampu/estado'),
+    imp: () => call('shampu/imp'),
+    lista: () => call('shampu/lista'),
+    orden: o => call('shampu/orden', { method: 'POST', body: JSON.stringify(o) }),
+    fotoUrl: () => '/local/shampu/foto?' + q({ key: H.key, t: Date.now() }),
+    fUrl: n => '/local/shampu/f?' + q({ n, key: H.key }),
+    pantallaUrl: (m, e) => '/local/shampu/pantalla?' + q(limpio({ m: m >= 0 ? m : '', e, key: H.key, t: Date.now() })), // con m, Shampú CAMBIA antes a esa pantalla
+  } : null,
   bambuAccion: body => call('bambu', { method: 'POST', body: JSON.stringify(body) }),
   print: job => call('print', { method: 'POST', body: JSON.stringify(job) }),
   // v13.2: impresión directa por Bluetooth/puerto COM (bytes ya preparados) y lista de puertos que ve Windows
