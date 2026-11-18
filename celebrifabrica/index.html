@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<!-- CelebriFábrica · lanzador para el móvil · © CelebriDiseños. Abre la página de Google a pantalla completa. Sin datos ni llaves. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CelebriFábrica">
+<meta name="theme-color" content="#07070c">
+<link rel="apple-touch-icon" href="icono-180.png">
+<link rel="icon" href="icono-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>CelebriFábrica</title>
+<style>
+html,body{margin:0;height:100%;background:#07070c;overflow:hidden;font-family:-apple-system,"Segoe UI",system-ui,sans-serif}
+iframe{position:fixed;left:0;right:0;bottom:0;top:env(safe-area-inset-top);width:100%;height:calc(100% - env(safe-area-inset-top));border:0;opacity:0;transition:opacity .4s}
+iframe.ya{opacity:1}
+.carga{position:fixed;inset:0;display:grid;place-items:center;color:#f4f4fb;text-align:center}
+.carga img{width:96px;height:96px;border-radius:24px;box-shadow:0 0 50px rgba(167,139,250,.45);animation:late 1.6s ease-in-out infinite}
+.carga b{display:block;margin-top:16px;font-size:20px;letter-spacing:-.02em}
+.carga span{display:block;margin-top:4px;color:#8d90ab;font-size:13px}
+@keyframes late{50%{transform:scale(1.06)}}
+</style>
+</head><body>
+<div class="carga"><div><img src="icono-180.png" alt=""><b>CelebriFábrica</b><span>Abriendo…</span></div></div>
+<iframe id="cf" src="https://script.google.com/macros/s/AKfycbwaXxxq72TNFNty6e_6DzZ4KvYQcwggbDK_OeR5_2LBUc_J91HOaptzr37uC4GXwo4xlw/exec" allow="clipboard-write; autoplay; camera; microphone" referrerpolicy="no-referrer"></iframe>
+<script>document.getElementById('cf').addEventListener('load', function () { this.classList.add('ya') })</script>
+</body></html>
