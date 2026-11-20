@@ -575,7 +575,23 @@ html.ui60 .pm-flujo .n, html.ui60 .pm-flujo b { font-family: var(--font-d); }
 .fl-tit { font-size: 17px; } .fl-lin { font-size: 14px; color: var(--text-2); } .fl-nombres { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .fl-botones { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .fl-botones:empty { display: none; }
 .fl-arreglar { min-height: 46px; font-weight: 700; } /* 15-11: el color lo da .primary (con color propio salía blanco sobre blanco: el tema pinta el fondo de .btn) */ .fl-cambiar, .fl-dejar, .fl-rapido { min-height: 46px; }
-.fl-pregunta { display: grid; gap: 6px; width: 100%; } .fl-rap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .fl-precio { width: 110px; min-height: 46px; font-size: 16px; }
+.fl-pregunta { display: grid; gap: 6px; width: 100%; } .fl-rap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .fl-precio { width: 110px; min-height: 46px; font-size: 16px; } .fl-cuenta { width: 110px; min-height: 46px; font-size: 18px; font-weight: 700; } .fl-matnom { min-width: 160px; font-weight: 600; } /* 18-11: materiales en negativo */
 .fl-t.hecho { border-color: var(--ok); background: var(--ok-soft, rgba(30, 160, 90, .08)); } .fl-t.hecho .fl-num b { color: var(--ok); } .fl-t.dejado { opacity: .75; }
 .fl-ver { border: 0; background: none; font: inherit; font-weight: 700; color: var(--muted); cursor: pointer; min-height: 44px; } .fl-eleg { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 560px) { .fl-t { grid-template-columns: 64px 1fr; } .nv-ins { display: none; } }
+
+/* ===== 18-11-2026 · LOS 4 ESTADOS (Confirmado · Imprimiendo · En mesa · Listo), cada uno con su color ===== */
+.hoy-tab.hoy-tab4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.p4 .p5-p.actual .p5-d { color: #fff; } /* (su color va en el propio punto) */
+.est4-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.est4 { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 104px; padding: 12px 8px; border-radius: 18px; color: #fff; text-align: center; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .22); transition: transform .12s; }
+.est4 b { font-size: 19px; font-weight: 800; letter-spacing: .01em; text-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
+.est4-e { font-size: 34px; line-height: 1; }
+.est4 em { font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; background: rgba(255, 255, 255, .92); color: #111; border-radius: 999px; padding: 2px 9px; }
+.est4:hover, .est4:focus-visible { transform: translateY(-2px); outline: 3px solid rgba(0, 0, 0, .25); outline-offset: 2px; }
+.est4.on { outline: 4px solid var(--text); outline-offset: 3px; }
+.est4-mas { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 12px; }
+.est4-chico { all: unset; box-sizing: border-box; cursor: pointer; padding: 7px 12px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13.5px; font-weight: 650; }
+.est4-chico:hover, .est4-chico:focus-visible { border-color: var(--brand); color: var(--text); } .est4-chico.on { border-color: var(--brand); color: var(--text); }
+.est4-chico.cancel:hover { border-color: var(--bad, #d33); color: var(--bad, #d33); }
+@media (prefers-reduced-motion: reduce) { .est4 { transition: none; } .est4:hover { transform: none; } }

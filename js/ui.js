@@ -1,3 +1,4 @@
+import * as BD from './borrador.js'; // 19-11-2026 · ✍️ borradores (lo escrito no se pierde si el móvil cierra la app)
 // ================= Utilidades de interfaz =================
 const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -201,7 +202,7 @@ export function sw(checked, onchange) { const i = h('input', { type: 'checkbox',
 // ---------- Modales ----------
 let modalStack = [];
 export function modal(title, body, footer, opts = {}) {
-  const close = () => { o.remove(); modalStack = modalStack.filter(x => x !== o); document.removeEventListener('keydown', onKey); opts.onclose && opts.onclose(); };
+  const close = () => { o.remove(); modalStack = modalStack.filter(x => x !== o); document.removeEventListener('keydown', onKey); if (!opts.sinBorrador) BD.alCerrar(m, 'modal'); opts.onclose && opts.onclose(); };
   const onKey = e => { if (e.key === 'Escape' && modalStack[modalStack.length - 1] === o && !opts.sticky) close(); };
   const m = h('div.modal' + (opts.size ? '.' + opts.size : ''), { role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
     h('div.modal-h', h('h2', title), btn('', close, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
@@ -211,17 +212,19 @@ export function modal(title, body, footer, opts = {}) {
   document.body.appendChild(o);
   modalStack.push(o);
   document.addEventListener('keydown', onKey);
+  if (!opts.sinBorrador) BD.alAbrir(m, 'modal'); // 19-11: ✍️ si se quedó a medias (la app se cerró), vuelve lo escrito
   setTimeout(() => { if (m.contains(document.activeElement)) return; const f = m.querySelector('[autofocus], .modal-b input:not([type=file]), .modal-b textarea, .modal-b select'); if (f && !opts.noFocus) f.focus(); }, 30);
   return { close, el: m, body: m.querySelector('.modal-b') };
 }
 export function drawer(build) {
-  const close = () => { o.remove(); document.removeEventListener('keydown', onKey); };
+  const close = () => { BD.alCerrar(d, 'panel'); o.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = e => { if (e.key === 'Escape' && !document.querySelector('.overlay:not(.drawer-o)')) close(); };
   const d = h('div.drawer');
   const o = h('div.overlay.drawer-o', { onclick: e => { if (e.target === o) close(); } }, d);
   document.body.appendChild(o);
   document.addEventListener('keydown', onKey);
   build(d, close);
+  BD.alAbrir(d, 'panel');
   return { close, el: d };
 }
 export function confirmDlg(title, text, okLabel, danger) {

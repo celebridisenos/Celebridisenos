@@ -500,9 +500,12 @@ function vista(el) {
   function panelLlave() {
     const caja = h('div.sh-card.sh-llave');
     const fecha = iso => { try { return new Date(iso).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || ''; } };
-    const pedir = async (accion) => {
-      try { const r = await api('shampu.llave', { accion }); st.llave = { info: r.info, nueva: r.llave || '' }; }
-      catch (e) { st.llave = /Acción desconocida/.test(e.message || '') ? { viejo: true } : { error: e.message || String(e) }; }
+    const pedir = async (accion, extra) => {
+      try { const r = await api('shampu.llave', Object.assign({ accion }, extra)); st.llave = { info: r.info, nueva: r.llave || '' }; }
+      catch (e) {
+        if (accion === 'mover') { toast('⏳ Para esto falta pegar el servidor 18.11.1 en Google (Apps Script). Los pasos, en el LEEME de la 60.19.0.', 'warn'); return; }
+        st.llave = /Acción desconocida/.test(e.message || '') ? { viejo: true } : { error: e.message || String(e) };
+      }
       if (caja.isConnected) pintar();
     };
     const crear = async (cambiar) => {
@@ -516,7 +519,7 @@ function vista(el) {
     function pintar() {
       const L = st.llave || {}, i = L.info || {};
       const cosas = [h('h3.sh-llave-tit', '🧠 Que Shampú lea CelebriDiseños'),
-        h('p.sh-nota', 'Con esta llave, el cerebro de Shampú (en el portátil) puede LEER todo CelebriDiseños: pedidos, clientes, productos y costes, stock, impresoras y cola, filamento, compras, presupuestos, facturas, tienda web, tareas, redes, noticias y biblioteca. No puede cambiar nada.'),
+        h('p.sh-nota', 'Con esta llave, el cerebro de Shampú (en el portátil) puede LEER todo CelebriDiseños: pedidos, clientes, productos y costes, stock, impresoras y cola, filamento, compras, presupuestos, facturas, tienda web, tareas, redes, noticias y biblioteca. Solo cambia una cosa, y solo si lo enciendes abajo: el estado de un pedido.'),
         h('p.sh-nota', '🔒 Los teléfonos, emails, direcciones y NIF de los clientes le llegan tapados (•••). Nada de contraseñas ni de seguridad.')];
       if (!st.llave) cosas.push(h('p.sh-vacio', 'Mirando…'));
       else if (L.viejo) cosas.push(h('p.sh-llave-aviso', '⏳ Falta pegar el servidor 18.10.0 en Google (Apps Script). Los pasos están en el LEEME de la 60.17.0.'));
@@ -531,7 +534,12 @@ function vista(el) {
         tarjeta('Llave', '✅ puesta', 'ok', 'Termina en ···' + (i.termina || '')),
         tarjeta('Creada', fecha(i.creada), null, i.por ? 'por ' + i.por : ''),
         tarjeta('Última lectura', i.ultimoUso ? C.haceCuanto(Date.now() - new Date(i.ultimoUso).getTime()) : 'todavía no ha leído', i.ultimoUso ? 'ok' : 'warn', i.ultimoUso ? fecha(i.ultimoUso) : 'Pega la llave en su cerebro')),
-        h('div.sh-llave-bot', boton('🔄 Cambiar la llave', () => crear(true), { cls: 'sh-b-claro' }), boton('🗑️ Quitar la llave', quitar, { cls: 'sh-b-rojo' })));
+        h('div.sh-llave-bot', boton('🔄 Cambiar la llave', () => crear(true), { cls: 'sh-b-claro' }), boton('🗑️ Quitar la llave', quitar, { cls: 'sh-b-rojo' })),
+        // 18-11 · el interruptor: con él encendido, Shampú pasa pedidos HACIA DELANTE al leer el sello de la caja (shampu.fase)
+        h('div.sh-mueve' + (i.mueve ? '.on' : ''),
+          h('div', h('b', i.mueve ? '🟢 Shampú puede mover pedidos' : '⚪ Shampú NO mueve pedidos'),
+            h('small', 'Lee el sello de la caja y la pasa a Imprimiendo, En mesa o Listo. Solo hacia delante: nunca a Enviado, ni hacia atrás, ni toca clientes ni precios.')),
+          boton(i.mueve ? 'Apagar' : 'Encender', () => pedir('mover', { si: !i.mueve }).then(() => toast(i.mueve ? 'Shampú ya no mueve pedidos.' : '🟢 Shampú ya puede mover pedidos.')), { cls: i.mueve ? 'sh-b-claro' : 'sh-b-amarillo' })));
       else cosas.push(h('p.sh-nota', i.quitada ? 'La llave se quitó el ' + fecha(i.quitada) + '. Ahora Shampú no lee nada.' : 'Shampú todavía no tiene llave.'),
         boton('🔑 Crear la llave de Shampú', () => crear(false), { cls: 'sh-b-amarillo sh-b-grande' }));
       mount(caja, ...cosas);
@@ -681,6 +689,7 @@ const CSS = `
 .sh-tar span{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}.sh-tar b{font-size:17px}.sh-tar small{color:var(--muted);font-size:12px}
 .sh-llave-tit{margin:2px 0 4px;font-size:18px}.sh-llave-nueva{margin-top:12px;padding:14px;border-radius:14px;border:2px dashed var(--sh-am);background:var(--surface-2);display:grid;gap:10px}
 .sh-llave-code{display:block;font:600 15px/1.5 ui-monospace,Consolas,monospace;word-break:break-all;user-select:all;padding:10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+.sh-mueve{margin-top:14px;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:14px;background:var(--surface-2);border:2px solid var(--line)}.sh-mueve.on{border-color:#22c55e}.sh-mueve small{display:block;margin-top:4px;color:var(--muted)}
 .sh-llave-bot{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.sh-llave-aviso{padding:10px 12px;border-radius:12px;background:var(--surface-2);border-left:4px solid var(--warn)}
 .sh-tar-ok{border-left-color:var(--ok)}.sh-tar-warn{border-left-color:var(--warn)}.sh-tar-bad{border-left-color:var(--bad)}.sh-tar-muted{border-left-color:var(--line-2)}
 .sh-pie{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}

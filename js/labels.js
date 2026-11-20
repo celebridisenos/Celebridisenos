@@ -252,6 +252,108 @@ function centered(g, F, k, d, y, cw, W, sz, dry) {
   g.textAlign = 'left';
   return y;
 }
+// ================= 19-11-2026 · LA ETIQUETA DEL PAQUETE, más resumida y con TRANSPORTISTA y CLIENTE siempre (100 × 150) =================
+// Biou (19-11): «la etiqueta de referencia nos gusta la de antes pero si puede estar más resumida pero a la vez hermosa, mejor!! El transportista
+// tiene que salir, si no, no sabes identificar, y el nombre del cliente, como la otra etiqueta, cógela como referencia!!».
+// (18-11: «mejorar la etiqueta identificativa… con los datos necesarios para nosotros ver lo que tiene y el mensaje del cliente más corto».)
+//  · Arriba: «¡Gracias!» en una línea y el nombre pequeño debajo (más corto que antes: deja sitio a lo que importa).
+//  · Banda negra: el nº de pedido enorme, y la plataforma y la cuenta a la derecha.
+//  · LLEVAR A (como la etiqueta de antes, en su recuadro de lado a lado): el transportista ENORME. SALE SIEMPRE: la etiqueta se imprime al
+//    pasar a «En mesa», cuando muchas veces aún no se sabe; entonces sale el recuadro con «escríbelo aquí» y su raya, para ponerlo a mano.
+//  · El SELLO (QR corto «S» + nº: CL.selloPedido, lo leen Shampú, CelebriFábrica y Escanear) y, al lado, CLIENTE grande, ENVIAR ANTES DE y el seguimiento.
+//  · Abajo: qué va dentro con casillas y la nota (solo si hay). Todo en negro puro: en la térmica nada sale con trama de puntitos.
+function etiquetaPaquete(c, g, k, F, T, W, H, d) {
+  const P = (pt, w) => (w || 400) + ' ' + Math.round(pt * 0.3528 * k) + 'px "Poppins", "Segoe UI", Arial, sans-serif'; // (Poppins está en sus PC; si no, Segoe)
+  const mx = 4, cw = W - 2 * mx, mid = W / 2;
+  const cabe = (t, max, min, wmm, peso) => { let z = max; g.font = P(z, peso); while (z > min && g.measureText(t).width > wmm * k) { z -= 0.5; g.font = P(z, peso); } return z; };
+  const una = (t, wmm) => { t = String(t || ''); while (t.length > 1 && g.measureText(t).width > wmm * k) t = t.slice(0, -2) + '…'; return t; };
+  const caja = (x, y, w, h, r, lw) => { g.lineWidth = lw * k; x *= k; y *= k; w *= k; h *= k; r *= k; g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); g.stroke(); };
+  g.fillStyle = '#000'; g.strokeStyle = '#000'; g.textBaseline = 'top';
+  // ── 1 · la marca en LETRA LIGADA (19-11, él: «ponle letras ligadas CelebriDiseños… la etiqueta más currada») y, debajo, ¡GRACIAS! fino ──
+  const nombre = String(d.marcaNombre || 'CelebriDiseños'), gd = d.gracias || {};
+  const tit = String(gd.titulo || '¡Gracias!').split('\n')[0].trim();
+  const L2 = pt => Math.round(pt * 0.3528 * k) + 'px "Great Vibes", "Segoe Script", "Brush Script MT", cursive'; // (Great Vibes: OFL, vendor/fonts; se carga en cargaLigada)
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  let zl = 32; g.font = L2(zl); while (zl > 16 && g.measureText(nombre).width > (cw - 8) * k) { zl -= 1; g.font = L2(zl); }
+  g.lineWidth = 0.16 * k; g.lineJoin = 'round'; g.fillText(nombre, mid * k, 13 * k); g.strokeText(nombre, mid * k, 13 * k); // (con su trazo: en la térmica no se corta)
+  g.textBaseline = 'top';
+  const sub = (tit.toUpperCase() + ' · HECHO A MANO PARA TI'); g.font = P(7, 600); try { g.letterSpacing = Math.round(0.35 * k) + 'px'; } catch (e) { }
+  const ws = Math.min(g.measureText(sub).width / k, cw - 20); g.fillText(una(sub, cw - 20), mid * k, 14.9 * k); try { g.letterSpacing = '0px'; } catch (e) { }
+  [[mx + 2, mid - ws / 2 - 2.5], [mid + ws / 2 + 2.5, W - mx - 2]].forEach(([x1, x2]) => { if (x2 - x1 > 2) line(g, x1 * k, 16.8 * k, x2 * k, 16.8 * k, 0.3 * k); });
+  g.textAlign = 'left';
+  g.setLineDash([1.2 * k, 1.2 * k]); line(g, mx * k, 19.6 * k, (W - mx) * k, 19.6 * k, 0.3 * k); g.setLineDash([]);
+  // ── 2 · banda negra: nº de pedido + plataforma / cuenta ──
+  const yb = 21.4, hb = 14, plat = String(d.canal || '').toUpperCase(), cuenta = String(d.cuenta || '');
+  g.fillRect(mx * k, yb * k, cw * k, hb * k); g.fillStyle = '#fff';
+  g.font = P(11, 800); const wPlat = plat || cuenta ? Math.min(34, Math.max(g.measureText(plat).width, (g.font = P(7.5, 500), g.measureText(cuenta).width)) / k + 1) : 0;
+  const tNum = (d.conjunto ? 'CONJUNTO ' : 'PEDIDO ') + (d.numero || ''), wNum = cw - 6 - (wPlat ? wPlat + 3 : 0);
+  const zNum = cabe(tNum, 28, 10, wNum, 800); g.fillText(una(tNum, wNum), (mx + 3) * k, (yb + (hb - zNum * 0.3528 * 1.05) / 2) * k);
+  if (wPlat) { g.textAlign = 'right';
+    if (plat) { g.font = P(11, 800); g.fillText(una(plat, 34), (W - mx - 3) * k, (yb + (cuenta ? 2.6 : 4.6)) * k); }
+    if (cuenta) { g.font = P(7.5, 500); g.fillText(una(cuenta, 34), (W - mx - 3) * k, (yb + (plat ? 8 : 5)) * k); }
+    g.textAlign = 'left'; }
+  g.fillStyle = '#000';
+  // ── 3 · LLEVAR A: el transportista, en su recuadro de lado a lado y ENORME (sale siempre) ──
+  const D0 = d.destino && d.destino.t ? d.destino : null, trans = String(D0 ? D0.t : d.transportista || '').trim();
+  const yt = yb + hb + 2.2, ht = 14.5, xt = mx + 24, wt = W - mx - 3 - xt;
+  caja(mx + 0.6, yt, cw - 1.2, ht, 2.2, 1.2);
+  g.font = P(7, 700); g.fillText('LLEVAR A', (mx + 3.2) * k, (yt + 2.6) * k);
+  { const x0 = mx + 4, y0 = yt + 6.6, R = (x, y, w, h) => g.fillRect(x * k, y * k, w * k, h * k), C = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x * k, y * k, r * k, 0, 7); g.fill(); };
+    R(x0, y0, 9.6, 4.8); R(x0 + 10.2, y0 + 1.6, 3.4, 3.2); g.beginPath(); g.moveTo((x0 + 10.2) * k, (y0 + 1.6) * k); g.lineTo((x0 + 12.4) * k, (y0 + 1.6) * k); g.lineTo((x0 + 13.6) * k, (y0 + 3) * k); g.lineTo((x0 + 10.2) * k, (y0 + 3) * k); g.fill();
+    C(x0 + 2.6, y0 + 5.2, 1.3, '#fff'); C(x0 + 2.6, y0 + 5.2, 1, '#000'); C(x0 + 11.2, y0 + 5.2, 1.3, '#fff'); C(x0 + 11.2, y0 + 5.2, 1, '#000'); g.fillStyle = '#000'; } // (un camión dibujado: se ve de un vistazo qué es)
+  if (trans) { const zt = cabe(trans.toUpperCase(), 30, 12, wt, 800); g.fillText(una(trans.toUpperCase(), wt), xt * k, (yt + (ht - zt * 0.3528 * 1.02) / 2) * k); }
+  else { g.font = P(7.5, 500); g.fillText('sin elegir aún: escríbelo aquí', xt * k, (yt + 2.6) * k); line(g, xt * k, (yt + ht - 3.2) * k, (W - mx - 4) * k, (yt + ht - 3.2) * k, 0.35 * k); }
+  // ── 4 · el SELLO (QR corto) en su marco, y al lado CLIENTE / ENVIAR ANTES DE / seguimiento ──
+  const ys = yt + ht + 2.6, ss = 48; // (19-11: 48 mm → QR de 31,5 mm; medido: lo lee en 39 de 41 tamaños de 1/4 a 1/8, con 44 mm en 36)
+  caja(mx + 0.7, ys + 0.7, ss - 1.4, ss - 1.4, 3, 1.4);
+  if (d.qr) { // el QR llenando su marco: cuadros lo más gordos posible y 4 cuadros de blanco hasta el marco (lo pidió Shampú)
+    const ins = (ss - 2 * 1.4 - 1) * k, Q = qrPlan(d.qr, ins, 1), mod = Math.max(1, Math.floor(ins / (Q.N + 8))), lado = Q.N * mod;
+    const ox = Math.round((mx + ss / 2) * k - lado / 2), oy = Math.round((ys + ss / 2) * k - lado / 2);
+    Q.M.forEach((row, r) => row.forEach((v, cc) => { if (v) g.fillRect(ox + cc * mod, oy + r * mod, mod, mod); }));
+  }
+  const xr = mx + ss + 4, wr = W - mx - xr;
+  // CLIENTE: grande, hasta 2 líneas (como la etiqueta de antes, pero más grande)
+  const cli = String(d.cliente || '').trim() || '—';
+  let zc = 18; const lc = () => wrap(g, cli, wr * k); g.font = P(zc, 800);
+  while (zc > 13 && lc().length > 1) { zc -= 0.5; g.font = P(zc, 800); } // (mejor en UNA línea; si no cabe ni a 13 pt, en dos)
+  if (lc().length > 1) { zc = 16; g.font = P(zc, 800); while (zc > 10 && (lc().length > 2 || lc().some(l => g.measureText(l).width > wr * k))) { zc -= 0.5; g.font = P(zc, 800); } }
+  const seg = (D0 && D0.seguimiento) || d.seguimiento, nCli = Math.min(2, lc().length), alto = 3.9 + nCli * zc * 0.3528 * 1.12 + 2.4 + (d.limite ? 3.9 + 20 * 0.3528 * 1.18 + 2.4 : 0) + (seg ? 7.2 : 0);
+  let yr = ys + Math.max(0.6, (ss - alto) / 2); // (centrado al lado del sello: no queda hueco debajo)
+  g.font = P(6.5, 600); g.fillText('CLIENTE', xr * k, yr * k); yr += 3.9; g.font = P(zc, 800);
+  const lcs = lc(); lcs.slice(0, 2).forEach((l, i) => { g.fillText(una(i === 1 && lcs.length > 2 ? l + '…' : l, wr), xr * k, yr * k); yr += zc * 0.3528 * 1.12; });
+  yr += 2.4;
+  if (d.limite) { g.font = P(6.5, 600); g.fillText('ENVIAR ANTES DE', xr * k, yr * k); yr += 3.9; const z = cabe(String(d.limite), 20, 9, wr, 800); g.fillText(una(d.limite, wr), xr * k, yr * k); yr += z * 0.3528 * 1.18 + 2.4; }
+  if (seg && yr < ys + ss - 7.5) { g.font = P(6.5, 600); g.fillText('SEGUIMIENTO', xr * k, yr * k); yr += 3.6; g.font = P(7.5, 700); g.fillText(una(seg, wr), xr * k, yr * k); yr += 3.6; }
+  // ── 5 · qué va dentro, con su casilla, lo más grande que quepa ──
+  let y = ys + ss + 3.5; const raya = y;
+  line(g, mx * k, y * k, (W - mx) * k, y * k, 0.35 * k); y += 2;
+  g.font = P(6.5, 600); g.fillText('QUÉ VA DENTRO', mx * k, y * k); y += 3.4;
+  const todas = d.lineas || [], ls = todas.slice(0, 5), pie = H - 6.5, tx = mx + 6, txw = W - tx - mx;
+  const lineasDe = (v, pt, wt, ancho, max) => { g.font = F(pt, wt); return Math.min(max, wrap(g, v, ancho * k).length); };
+  const altoNota = d.nota ? lineasDe(d.nota, 8.5, 600, cw - 15, 3) * 8.5 * 0.3528 * 1.25 + 2.6 : 0;
+  const altoLs = pt => ls.reduce((a, l) => a + lineasDe(l, pt, 700, txw, 2) * pt * 0.3528 * 1.25 + 1, 0) + (todas.length > 5 ? 4 : 0);
+  const hueco = pie - y - (altoNota ? altoNota + 1.5 : 0), unaLinea = pt => ls.every(l => lineasDe(l, pt, 700, txw, 9) === 1);
+  let pl = 14; while (pl > 9.5 && (altoLs(pl) > hueco || !unaLinea(pl))) pl -= 0.5;
+  if (altoLs(pl) > hueco || !unaLinea(pl)) { pl = 14; while (pl > 8 && altoLs(pl) > hueco) pl -= 0.5; }
+  const Tp = (str, xm, ym, wm, pt, wt, ml) => { const f0 = g.font; const yy = T(str, xm, ym, wm, pt, wt, ml); g.font = f0; return yy; };
+  ls.forEach(l => { const sq = Math.min(4, pl * 0.3528 * 0.95); g.lineWidth = 0.4 * k; g.strokeRect((mx + 0.4) * k, (y + pl * 0.3528 * 0.12) * k, sq * k, sq * k); y = Tp(l, tx, y, txw, pl, 700, 2) + 1; });
+  if (todas.length > 5) y = Tp('… y ' + (todas.length - 5) + ' más', tx, y, txw, 8, 600, 1) + 0.6;
+  // ── 6 · la nota, en su recuadro ──
+  if (d.nota) { const ny = Math.min(y + 1.5, pie - altoNota); g.lineWidth = 0.45 * k; g.strokeRect(mx * k, ny * k, cw * k, altoNota * k);
+    g.fillRect(mx * k, ny * k, 12 * k, 4.4 * k); g.fillStyle = '#fff'; g.font = P(6.5, 800); g.fillText('NOTA', (mx + 1.5) * k, (ny + 1) * k); g.fillStyle = '#000';
+    Tp(d.nota, mx + 14, ny + 1.2, cw - 15, 8.5, 600, 3); y = ny + altoNota; }
+  c.__medidas = { finFilas: yr, raya, llevarA: true, transportista: trans, letraCliente: zc, cliente: cli, finDentro: y, pie, letra: pl, sello: d.sello || '' }; // (para las pruebas: nada se monta)
+  g.textAlign = 'center'; g.font = P(6, 400); g.fillText('Uso interno · la dirección va en la etiqueta de la plataforma', mid * k, (H - 4.6) * k); g.textAlign = 'left';
+}
+// 19-11-2026 · la letra ligada de la marca (Great Vibes, OFL) para la etiqueta del paquete: hay que tenerla cargada ANTES de dibujar en el lienzo
+let ligadaP = null;
+export function cargaLigada() {
+  if (ligadaP) return ligadaP;
+  const lista = () => { try { return [...document.fonts].some(f => f.family.replace(/["']/g, '') === 'Great Vibes' && f.status === 'loaded'); } catch (e) { return false; } };
+  ligadaP = (async () => { try { await document.fonts.load('40px "Great Vibes"', 'CelebriDiseños'); if (lista()) return true;
+    const f = new FontFace('Great Vibes', 'url(' + new URL('../vendor/fonts/greatvibes/GreatVibes-Regular.ttf', import.meta.url).href + ')'); await f.load(); document.fonts.add(f); return true; } catch (e) { ligadaP = null; return false; } })();
+  return ligadaP;
+}
 // Logo de la empresa (cargado una vez) para la tarjeta de gracias
 let logoP = null;
 export function loadLogo() {
@@ -403,56 +505,7 @@ function dibuja(tpl, d, dpi, size) {
     if (dst) { g.font = F(W < 45 ? 6.5 : 7.5, 800); g.fillText(fit(g, dst, (W - 2 * m) * k), (W / 2) * k, (H - cap + (d.cuenta ? 13 : 9)) * k); }
     g.textAlign = 'left';
   } else if (tpl === 'paquete150') {
-    // ── mitad de arriba: GRACIAS (logo, título, texto y firma, ajustados al hueco) ──
-    // (17-10: con varias cosas dentro o con nota, la mitad de arriba cede un poco de sitio a la de abajo)
-    const mid = H * ((d.lineas || []).length > 2 || d.nota ? 0.36 : 0.41), cw = W - 2 * m - 4;
-    let y = m + 1;
-    if (d.logoImg && d.logoImg.width) { const lh = 13, lw = Math.min(cw, d.logoImg.width / d.logoImg.height * lh), lh2 = lw / (d.logoImg.width / d.logoImg.height); g.drawImage(d.logoImg, ((W - lw) / 2) * k, y * k, lw * k, lh2 * k); (c.__fotos = c.__fotos || []).push([((W - lw) / 2) * k, y * k, lw * k, lh2 * k]); y += lh2 + 2; }
-    const gd = Object.assign({ titulo: '¡Gracias!', texto: '', firma: '' }, d.gracias || {});
-    let sz = 1.9; for (; sz > 0.6; sz -= 0.05) { if (centered(g, F, k, gd, y, cw, W, sz, true) <= mid - 4) break; }
-    const alto = centered(g, F, k, gd, y, cw, W, sz, true) - y; centered(g, F, k, gd, y + Math.max(0, (mid - 2 - y - alto) / 2), cw, W, sz, false);
-    g.setLineDash([1.2 * k, 1.2 * k]); line(g, m * k, (mid + 1) * k, (W - m) * k, (mid + 1) * k, 0.3 * k); g.setLineDash([]);
-    // ── mitad de abajo: SOLO para el equipo ──
-    let yb = mid + 3;
-    g.fillRect(m * k, yb * k, (W - 2 * m) * k, 10 * k); g.fillStyle = '#fff';
-    // 17-10 · la CUENTA (o la plataforma) va en la barra negra, a la derecha: antes era la última fila al lado del QR y se montaba
-    // encima de la raya y de «Qué va dentro»
-    const donde = d.cuenta || d.canal || '', wDonde = donde ? (g.font = F(7.5, 700), Math.min(36, g.measureText(donde).width / k + 0.5)) : 0;
-    g.font = F(d.conjunto ? 13 : 16, 800); g.fillText(fit(g, (d.conjunto ? 'ENVÍO CONJUNTO Nº ' : 'PEDIDO Nº ') + (d.numero || ''), (W - 2 * m - 4 - (wDonde ? wDonde + 3 : 0)) * k), (m + 2) * k, (yb + 2) * k);
-    if (donde) { g.textAlign = 'right'; g.font = F(5.5, 600); g.fillText(d.cuenta ? 'CUENTA' : 'PLATAFORMA', (W - m - 2) * k, (yb + 1.6) * k); g.font = F(7.5, 700); g.fillText(fit(g, donde, 36 * k), (W - m - 2) * k, (yb + 4.4) * k); g.textAlign = 'left'; }
-    g.fillStyle = '#000'; yb += 12;
-    // v30.6.1 · DÓNDE SE LLEVA, bien grande (InPost, Vinted Go, SEUR…) y su nº de seguimiento
-    const D0 = d.destino && d.destino.t ? d.destino : null;
-    if (D0) { const hb = 9; g.lineWidth = 0.5 * k; g.strokeRect((m + 0.25) * k, (yb + 0.25) * k, (W - 2 * m - 0.5) * k, (hb - 0.5) * k); g.font = F(6.5, 700); g.fillText('LLEVAR A', (m + 2) * k, (yb + 1.2) * k);
-      g.font = F(15, 800); g.fillText(fit(g, String(D0.t).toUpperCase(), (W - 2 * m - 22) * k), (m + 20) * k, (yb + 1.6) * k); yb += hb + 1.5; }
-    const qs = D0 ? 37 : 42; qr(g, d.qr, m * k, yb * k, qs * k);
-    const xr = m + qs + 3, wr = W - xr - m;
-    // las filas al lado del QR: si no caben en su alto, se aprietan un poco (nunca se montan sobre lo de abajo)
-    const filas = [['Código', d.codigo, 10, 800], ['Cliente', d.cliente, 10, 700], ['Enviar antes de', d.limite, 11, 800],
-      D0 ? ['Seguimiento', D0.seguimiento || d.seguimiento, 9, 800] : ['Transporte', [d.transportista, d.seguimiento].filter(Boolean).join(' · '), 8.5, 700]].filter(f => f[1]);
-    const lineasDe = (v, pt, wt, ancho, max) => { g.font = F(pt, wt); return Math.min(max, wrap(g, v, ancho * k).length); };
-    const altoFilas = s => filas.reduce((a, [, v, pt, wt]) => a + 2.8 + lineasDe(v, pt * s, wt, wr, 2) * pt * s * 0.3528 * 1.2 + 1.6 * s, 0);
-    let sf = 1; while (sf > 0.7 && altoFilas(sf) > qs - 1) sf -= 0.05;
-    let yr = yb + 1;
-    filas.forEach(([et, v, pt, wt]) => { g.font = F(6.5, 600); g.fillText(et.toUpperCase(), xr * k, yr * k); yr += 2.8; yr = T(v, xr, yr, wr, pt * sf, wt, 2) + 1.6 * sf; });
-    const finFilas = yr; yb = Math.max(yb + qs, yr) + 2; const raya = yb;
-    line(g, m * k, yb * k, (W - m) * k, yb * k, 0.3 * k); yb += 1.8;
-    g.font = F(6.5, 600); g.fillText('QUÉ VA DENTRO', m * k, yb * k); yb += 3;
-    // lo que va dentro, con su casilla dibujada (para ir marcando), lo más grande que quepa (de 13 a 8 pt)
-    const todas = d.lineas || [], ls = todas.slice(0, 5), pie = H - m - 4.5, tx = m + 5, tw = W - tx - m;
-    const altoNota = d.nota ? lineasDe(d.nota, 8.5, 600, W - 2 * m - 15, 3) * 8.5 * 0.3528 * 1.2 + 2.4 : 0;
-    const altoLs = pt => ls.reduce((a, l) => a + lineasDe(l, pt, 700, tw, 2) * pt * 0.3528 * 1.2 + 0.8, 0) + (todas.length > 5 ? 4 : 0);
-    const hueco = pie - yb - (altoNota ? altoNota + 1.5 : 0), unaLinea = pt => ls.every(l => lineasDe(l, pt, 700, tw, 9) === 1);
-    let pl = 13; while (pl > 9.5 && (altoLs(pl) > hueco || !unaLinea(pl))) pl -= 0.5; // (si se puede, cada cosa en una sola línea)
-    if (altoLs(pl) > hueco || !unaLinea(pl)) { pl = 13; while (pl > 8 && altoLs(pl) > hueco) pl -= 0.5; }
-    ls.forEach(l => { const sq = Math.min(3.6, pl * 0.3528 * 0.95); g.lineWidth = 0.35 * k; g.strokeRect((m + 0.4) * k, (yb + pl * 0.3528 * 0.15) * k, sq * k, sq * k); yb = T(l, tx, yb, tw, pl, 700, 2) + 0.8; });
-    if (todas.length > 5) yb = T('… y ' + (todas.length - 5) + ' más', tx, yb, tw, 8, 600, 1) + 0.6;
-    // la NOTA en su recuadro (antes llevaba un emoji 📝 que en la térmica no salía)
-    if (d.nota) { const ny = Math.min(yb + 1.2, pie - altoNota); g.lineWidth = 0.4 * k; g.strokeRect(m * k, ny * k, (W - 2 * m) * k, altoNota * k);
-      g.fillRect(m * k, ny * k, 12 * k, 4.2 * k); g.fillStyle = '#fff'; g.font = F(6.5, 800); g.fillText('NOTA', (m + 1.6) * k, (ny + 1) * k); g.fillStyle = '#000';
-      T(d.nota, m + 14, ny + 1.1, W - 2 * m - 15, 8.5, 600, 3); yb = ny + altoNota; }
-    c.__medidas = { finFilas, raya, finDentro: yb, pie, letra: pl }; // (para las pruebas: nada se monta)
-    g.textAlign = 'center'; g.font = F(6, 500); g.fillText('Uso interno · la dirección va en la etiqueta de la plataforma', (W / 2) * k, (H - m - 1.5) * k); g.textAlign = 'left';
+    etiquetaPaquete(c, g, k, F, T, W, H, d); // 18-11-2026: la nueva (sin logo, gracias corto, nº enorme, SELLO, qué va dentro)
   } else if (tpl === 'gracias') {
     let y = m - 0.5;
     const cw = W - 2 * m;

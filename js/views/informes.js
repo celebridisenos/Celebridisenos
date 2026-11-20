@@ -43,8 +43,15 @@ export function render(el) {
     const ped = S.t.pedidos.filter(o => o.fecha && o.fecha >= a && o.fecha <= b);
     const valid = ped.filter(o => !CL.stateOf(cp, o.estado).cancelled);
     const total = valid.reduce((s, o) => s + CL.orderTotal(o), 0);
-    const shipped = S.t.pedidos.filter(o => o.fechaEnvio && o.fechaEnvio >= a && o.fechaEnvio <= b);
-    const late = shipped.filter(o => { const t = CL.orderTiming(Object.assign({}, o, { estado: CL.stateOfPhase(cp, 'confirmado') || 'Confirmado' }), cp, o.fechaEnvio); return t.limite && o.fechaEnvio > t.limite; });
+    // 18-11-2026 · repaso de Números: «Enviados» y «A tiempo» cuentan PAQUETES. Un envío conjunto (varios pedidos en una caja) es un solo
+    // paquete: los 4 pedidos de Kayma D. contaban como 4 enviados y 4 retrasos (noviembre: 24 → 21 paquetes). Los cancelados no cuentan.
+    const tarde = o => { const t = CL.orderTiming(Object.assign({}, o, { estado: CL.stateOfPhase(cp, 'confirmado') || 'Confirmado' }), cp, o.fechaEnvio); return !!(t.limite && o.fechaEnvio > t.limite); };
+    const paq = {};
+    S.t.pedidos.filter(o => o.fechaEnvio && o.fechaEnvio >= a && o.fechaEnvio <= b && !CL.stateOf(cp, o.estado).cancelled).forEach(o => {
+      const k = String(o.envioConjunto || o.id || o.numero).trim(), x = paq[k] || (paq[k] = Object.assign({}, o, { numeros: [], productos: [], tarde: false }));
+      x.numeros.push(o.numero); x.productos.push(o.producto); if (tarde(o)) x.tarde = true; if (o.id === k) x.id = o.id;
+    });
+    const shipped = Object.values(paq), late = shipped.filter(x => x.tarde);
     const group = (list, key, val) => { const m = {}; list.forEach(o => { const k = key(o) || '—'; m[k] = (m[k] || 0) + val(o); }); return Object.keys(m).map(k => [k, m[k]]).sort((x, y) => y[1] - x[1]); };
     const firstOrder = {};
     S.t.pedidos.filter(o => !CL.stateOf(cp, o.estado).cancelled).forEach(o => { const k = o.clienteId || CL.norm(o.cliente); if (!firstOrder[k] || o.fecha < firstOrder[k]) firstOrder[k] = o.fecha; });
@@ -70,7 +77,7 @@ export function render(el) {
       biCard(),
       rankingCard(d),
       profitCard(d),
-      h('div.grid.g4.kpis', [sales ? ['Ventas', eur(d.total)] : null, ['Pedidos', num(d.valid.length)], sales ? ['Ticket medio', eur(d.valid.length ? d.total / d.valid.length : 0)] : null, ['Enviados', num(d.shipped.length)], ['A tiempo', d.shipped.length ? Math.round((d.shipped.length - d.late.length) / d.shipped.length * 100) + '%' : '—'],
+      h('div.grid.g4.kpis', [sales ? ['Ventas', eur(d.total)] : null, ['Pedidos', num(d.valid.length)], sales ? ['Ticket medio', eur(d.valid.length ? d.total / d.valid.length : 0)] : null, ['Paquetes enviados', num(d.shipped.length)], ['A tiempo', d.shipped.length ? Math.round((d.shipped.length - d.late.length) / d.shipped.length * 100) + '%' : '—'],
         ['Clientes que compran', num(d.clientsIn.length)], ['Clientes nuevos', num(d.nuevos)], ['Tareas completadas', num(d.tareas.length)]].filter(Boolean).map(x => h('div.kpi', { style: { cursor: 'default' } }, h('span.n', x[1]), h('span.l', x[0])))),
       sales ? h('div.card', h('div.card-h', h('h3', 'Ventas de los últimos 12 meses')), h('div.row', { style: { alignItems: 'flex-end', gap: '6px', height: '160px' } }, last12.map(m => h('div.col', { style: { flex: 1, alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }, title: m[0] + ': ' + eur(m[1]) },
         h('div.tiny.muted', m[1] ? Math.round(m[1]) + '€' : ''), h('div', { style: { width: '100%', maxWidth: '38px', height: Math.max(2, m[1] / maxM * 120) + 'px', background: 'var(--brand)', borderRadius: '6px 6px 2px 2px', opacity: m[0] === S.hoy.slice(0, 7) ? 1 : .6 } }), h('div.tiny.muted', m[0].slice(5)))))) : null,
@@ -81,7 +88,7 @@ export function render(el) {
         sales ? h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Mejores clientes'), d.topCli.length ? bars(d.topCli, eur) : h('p.muted.small', 'Sin ventas')) : null,
         h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Tareas completadas por persona'), d.tareasPor.length ? bars(d.tareasPor) : h('p.muted.small', 'Ninguna en este periodo')),
         h('div.card', h('h3', { style: { marginBottom: '10px' } }, 'Publicaciones en redes'), d.redesPor.length ? bars(d.redesPor) : h('p.muted.small', 'Ninguna en este periodo'), h('p.small.muted', d.redes.filter(r => r.estado === 'Publicado').length + ' publicadas de ' + d.redes.length + ' planificadas'))),
-      d.late.length ? h('div.card', h('h3', 'Enviados con retraso (' + d.late.length + ')'), h('div.list', d.late.slice(0, 20).map(o => h('div.item', { onclick: () => location.hash = '#/pedidos/' + o.id }, h('b', 'nº ' + o.numero), h('span.grow', o.cliente + ' · ' + o.producto), h('span.small.bad-t', 'enviado ' + fdate(o.fechaEnvio)))))) : null);
+      d.late.length ? h('div.card', h('h3', 'Enviados con retraso (' + d.late.length + ')'), h('div.list', d.late.slice(0, 20).map(o => h('div.item', { onclick: () => location.hash = '#/pedidos/' + o.id }, h('b', 'nº ' + (o.numeros && o.numeros.length > 1 ? o.numeros.join(', ') : o.numero)), h('span.grow', o.cliente + ' · ' + (o.productos && o.productos.length > 1 ? o.productos.length + ' pedidos en un paquete' : o.producto)), h('span.small.bad-t', 'enviado ' + fdate(o.fechaEnvio)))))) : null);
   }
   // 20-10-2026 · 🏆 RANKING DE VENTAS DEL EQUIPO (plan maestro 10): por persona, con el periodo de arriba (semana, mes, año…), comparado con el
   // periodo anterior del mismo largo y con su evolución. Atribución y «sin duplicados»: CL.rankingVentas (shared/logic.js) y lo explica abajo.
@@ -121,14 +128,19 @@ export function render(el) {
       h('div.fin-kpis', [['Ventas', eur(f.ventas), ''], ['Costes', eur(f.costes), ''], ['Beneficio', eur(f.beneficioBruto), f.beneficioBruto < 0 ? 'bad' : 'ok'], ['Impuestos estimados', eur(f.ivaPagar + f.irpf), 'warn'], ['Beneficio neto', eur(f.beneficioNeto), f.beneficioNeto < 0 ? 'bad' : 'ok'], ['Margen neto', pc(f.margenNeto), '']]
         .map(x => h('div.fin-k' + (x[2] ? '.' + x[2] : ''), h('span.l', x[0]), h('span.v', x[1])))),
       h('div.wf',
-        step('Cobrado (con coste conocido)', f.ventasConCoste, 'pos'),
-        step('Fabricación', f.fabricacion, 'neg', 'Filamento, luz, mano de obra, pintado y extras de cada producto'),
+        // 18-11-2026 · repaso de Números: son los pedidos del periodo por su FECHA (cobrados o no), no lo cobrado; y la cascada lleva todo lo
+        // que resta el beneficio (antes faltaban el embalaje y la mano de obra y no cuadraba)
+        step('Vendido (pedidos con coste conocido)', f.ventasConCoste, 'pos'),
+        step('Fabricación', f.fabricacion, 'neg', 'Filamento, luz, pintado y extras de cada producto'),
+        f.embalaje !== undefined ? step('Embalaje', f.embalaje, 'neg', 'Caja, sobre, papel y cinta de cada paquete') : null,
+        f.manoObra ? step('Mano de obra y pérdidas apuntadas', f.manoObra, 'neg') : null,
         step('Envíos pagados', f.envios, 'neg'), step('Comisiones de plataformas', f.comisiones, 'neg'), f.otros ? step('Otros gastos de pedidos', f.otros, 'neg') : null,
+        f.negocio ? step('Móvil, SIM y gastos del negocio', f.negocio, 'neg') : null,
         step('Beneficio', f.beneficioBruto, 'sub'),
-        S.cfg.finanzas && S.cfg.finanzas.repercuteIva === false ? null : step('IVA a pagar (' + eur(f.ivaRepercutido) + ' de ventas − ' + eur(f.ivaSoportado) + ' de compras)', f.ivaPagar, 'neg', 'Precios con IVA incluido'),
+        S.cfg.finanzas && S.cfg.finanzas.repercuteIva === false ? null : f.ivaPct === 0 ? step('IVA: 0 % (Configuración → Facturación)', 0, 'neg', 'No sumas IVA a tus precios') : step('IVA a pagar (' + eur(f.ivaRepercutido) + ' de ventas − ' + eur(f.ivaSoportado) + ' de compras)', f.ivaPagar, 'neg', 'Precios con IVA incluido'),
         step('IRPF estimado (' + Math.round(f.irpfPct * 100) + ' %)', f.irpf, 'neg', 'Se cambia en Configuración → Precios y comisiones'),
         step('Beneficio neto', f.beneficioNeto, 'total')),
-      f.sinCoste ? h('p.small.warn-t', '⚠️ ' + f.sinCoste + ' pedido(s) sin coste del producto no cuentan en el beneficio (' + eur(f.ventas - f.ventasConCoste) + ' cobrados). Añade su coste en Productos.') : null,
+      f.sinCoste ? h('p.small.warn-t', '⚠️ ' + f.sinCoste + ' pedido(s) sin coste del producto no cuentan en el beneficio (' + eur(f.ventas - f.ventasConCoste) + ' vendidos). Añade su coste en Productos.') : null,
       f.estimados ? h('p.tiny.muted', f.estimados + ' pedido(s) con envío o comisión estimados (sin importe real).') : null,
       f.meses.length > 1 ? h('div', h('div.lbl', 'Beneficio por meses'), bars(f.meses.map(m => [m.mes + ' · ' + eur(m.ventas) + ' cobrado', m.beneficio]), eur)) : null,
       f.bajos.length ? h('div', h('div.lbl', { style: { marginTop: '10px' } }, 'Pedidos con margen por debajo del ' + Math.round(minM * 100) + ' % (' + f.bajos.length + ')'),

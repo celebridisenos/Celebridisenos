@@ -389,35 +389,55 @@ var CL = (function () {
     // v11.3: el coste CONGELADO del pedido (precios de su fecha) manda sobre el coste de hoy
     var snap = o.costeSnap && typeof o.costeSnap === 'object' ? o.costeSnap : null;
     if (snap && snap.unidad !== null && snap.unidad !== undefined && snap.unidad !== '') unit = n(snap.unidad);
+    var list = Array.isArray(o.gastosPedido) ? o.gastosPedido : [];
+    // 18-11-2026 · repaso de Números con sus datos: en los pedidos de antes del embalaje nuevo el coste de la calculadora ya llevaba DENTRO
+    // la mano de obra, el embalaje de Configuración y el gasto «PACKAGING», y el pedido apuntaba además su «PACKAGING» en sus gastos: la
+    // Maceta Basquetball contaba 6,13 € + 1,20 € (73 g de PLA y 4 h de luz = 1,21 €; el embalaje, tres veces). Ahora se cuentan como los
+    // pedidos nuevos: la fabricación (filamento, luz, pintado, extras) + el embalaje UNA vez: el apuntado en el pedido (coste de embalaje o
+    // un gasto de packaging) o, si no hay ninguno, el de Configuración, marcado como ESTIMADO. Si solo hay el total del Excel, como antes.
+    var embV = 0, embEst = false;
+    if (!(snap && has(snap.unidad))) {
+      var fb = fabOf(o, data || {}, pp);
+      if (fb && fb.estado !== 'revisar') {
+        unit = n(fb.unidad);
+        var gPack = list.some(function (g) { return g && n(g.coste) > 0 && /(embal|packag|caja|sobre|bolsa)/.test(norm(g.concepto)); });
+        if (has(o.costeEmbalaje)) embV = n(o.costeEmbalaje); else if (!gPack && n(pp.embalaje) > 0) { embV = n(pp.embalaje); embEst = true; }
+      }
+    }
     var envReal = has(o.costeEnvio), comReal = has(o.comision);
     var env = envReal ? n(o.costeEnvio) : n(pp.envio);
     var com = comReal ? n(o.comision) : estComision(o.canal, total, pp);
-    var list = Array.isArray(o.gastosPedido) ? o.gastosPedido : [];
     var otros = list.reduce(function (a, g) { return a + n(g && g.coste); }, 0), neg = cuotaAplicada(cfg, data, o.fecha); // (28-10) móvil, SIM… (13-11: solo con la casilla)
     var prod = unit === null ? null : r2(unit * qty);
-    var coste = prod === null ? null : r2(prod + env + com + otros + neg.cuota);
+    var coste = prod === null ? null : r2(prod + embV + env + com + otros + neg.cuota);
     var ben = coste === null ? null : r2(total - coste);
-    return { costeCongelado: snap ? snap.fecha : '', total: r2(total), unidad: unit === null ? null : r2(unit), produccion: prod, envio: r2(env), envioEstimado: !envReal, comision: r2(com), comisionEstimada: !comReal,
+    return { costeCongelado: snap ? snap.fecha : '', total: r2(total), unidad: unit === null ? null : r2(unit), produccion: prod, embalaje: r2(embV), embalajeEstimado: embEst, envio: r2(env), envioEstimado: !envReal, comision: r2(com), comisionEstimada: !comReal,
       otros: r2(otros), gastos: list, negocio: neg.cuota, negocioLineas: neg.lineas, coste: coste, beneficio: ben, margen: ben !== null && total > 0 ? ben / total : null, conCoste: unit !== null };
   }
   // v11 · Centro financiero: de lo cobrado al beneficio neto (estimación orientativa, no sustituye al gestor)
   // Precios con IVA incluido. IVA a pagar ≈ IVA de las ventas − IVA de lo que compras (costes con IVA y comisiones).
   function finance(data, cfg, desde, hasta) {
     var ps = profitSummary(data, cfg, desde, hasta);
-    var fz = (cfg && cfg.finanzas) || {}, iva = n(((cfg || {}).facturacion || {}).tipoIva) || 0.21, irpfP = fz.irpf === undefined ? 0.2 : n(fz.irpf);
-    var costOf = costIndex(data, (cfg && cfg.precios) || {}), cp = (cfg && cfg.pedidos) || {}, fab = 0;
+    // 18-11-2026 · repaso de Números: su IVA está a 0 % (Configuración → Facturación) y aquí «0 || 0,21» lo volvía 21 %: le restaba un IVA que
+    // no paga (25,50 € en noviembre). Solo sin dato se supone el 21 %.
+    var tIva = ((cfg || {}).facturacion || {}).tipoIva;
+    var fz = (cfg && cfg.finanzas) || {}, iva = tIva === undefined || tIva === null || tIva === '' ? 0.21 : n(tIva), irpfP = fz.irpf === undefined ? 0.2 : n(fz.irpf);
+    // 18-11-2026 · la cascada lleva TODO lo que resta el beneficio (antes faltaban el embalaje y la mano de obra: «Costes» 45,48 € y el
+    // beneficio salía de restar 65,56 €), y solo de los pedidos con coste conocido, que son los que se suman arriba.
+    var costOf = costIndex(data, (cfg && cfg.precios) || {}), cp = (cfg && cfg.pedidos) || {}, fab = 0, emb = 0, mo = 0, envC = 0, comC = 0, otrC = 0, negC = 0;
     (data.pedidos || []).forEach(function (o) {
       if (!o.fecha || (desde && o.fecha < desde) || (hasta && o.fecha > hasta) || stateOf(cp, o.estado).cancelled) return;
-      var p = orderProfit(o, data, cfg, costOf); if (p.produccion !== null) fab += p.produccion;
+      var p = orderProfit(o, data, cfg, costOf); if (!p.conCoste) return;
+      fab += n(p.produccion); emb += n(p.embalaje); mo += n(p.manoObra) + n(p.perdidas); envC += n(p.envio); comC += n(p.comision); otrC += n(p.otros); negC += n(p.negocio);
     });
-    fab = r2(fab);
+    fab = r2(fab); emb = r2(emb); mo = r2(mo); envC = r2(envC); comC = r2(comC); otrC = r2(otrC); negC = r2(negC);
     var bruto = ps.beneficio, ventas = ps.ventasConCoste;
     var ivaRep = fz.repercuteIva === false ? 0 : r2(ventas * iva / (1 + iva));
-    var ivaSop = fz.repercuteIva === false ? 0 : r2((fab + ps.comisiones + ps.otros) * iva / (1 + iva));
+    var ivaSop = fz.repercuteIva === false ? 0 : r2((fab + emb + comC + otrC) * iva / (1 + iva));
     var ivaPagar = Math.max(0, r2(ivaRep - ivaSop));
     var baseIrpf = Math.max(0, r2(bruto - ivaPagar)), irpf = r2(baseIrpf * irpfP);
-    return { ventas: ps.ventas, ventasConCoste: ventas, fabricacion: fab, envios: ps.envios, comisiones: ps.comisiones, otros: ps.otros, costes: r2(fab + ps.envios + ps.comisiones + ps.otros),
-      beneficioBruto: bruto, ivaRepercutido: ivaRep, ivaSoportado: ivaSop, ivaPagar: ivaPagar, irpf: irpf, irpfPct: irpfP, beneficioNeto: r2(bruto - ivaPagar - irpf),
+    return { ventas: ps.ventas, ventasConCoste: ventas, fabricacion: fab, embalaje: emb, manoObra: mo, envios: envC, comisiones: comC, otros: otrC, negocio: negC, costes: r2(fab + emb + mo + envC + comC + otrC + negC),
+      beneficioBruto: bruto, ivaPct: fz.repercuteIva === false ? 0 : iva, ivaRepercutido: ivaRep, ivaSoportado: ivaSop, ivaPagar: ivaPagar, irpf: irpf, irpfPct: irpfP, beneficioNeto: r2(bruto - ivaPagar - irpf),
       margen: ps.margen, margenNeto: ventas > 0 ? r2(bruto - ivaPagar - irpf) / ventas : null, pedidos: ps.pedidos, sinCoste: ps.sinCoste, estimados: ps.estimados, meses: ps.meses, bajos: ps.bajos };
   }
   // Resumen de beneficio real de un conjunto de pedidos (por meses)
@@ -468,13 +488,17 @@ var CL = (function () {
   function bi(data, cfg, hoy, per) {
     hoy = hoy || today();
     var cp = cfg.pedidos, R = periodRange(per || 'mes', hoy), costOf = costIndex(data, cfg.precios);
+    // 18-11-2026 · repaso de Números: aquí el coste era el de la ficha del producto HOY (con mano de obra y embalaje estándar) y no el del
+    // pedido: en Informes salían dos «Beneficio» distintos del mismo mes (86,81 € aquí y 126,84 € en el Centro financiero). Ahora es el
+    // beneficio de cada pedido (orderProfit), el mismo de Ingresos, Informes y la ficha del pedido.
+    var prof = {}, profitOf = function (o) { var k = s(o.id) || (s(o.numero) + '|' + s(o.producto)); return prof[k] || (prof[k] = orderProfit(o, data, cfg, costOf)); };
     function agg(a, b) {
       var r = { pedidos: 0, ventas: 0, coste: 0, conCoste: 0, ventasConCoste: 0, clientes: {} };
       (data.pedidos || []).forEach(function (o) {
         if (!o.fecha || o.fecha < a || o.fecha > b || stateOf(cp, o.estado).cancelled) return;
-        var t = orderTotal(o), ci = costOf(o);
+        var t = orderTotal(o), pf = profitOf(o);
         r.pedidos++; r.ventas += t; r.clientes[norm(o.cliente)] = 1;
-        if (ci) { r.conCoste++; r.coste += ci.coste * (n(o.cantidad) || 1); r.ventasConCoste += t; }
+        if (pf.conCoste) { r.conCoste++; r.coste += n(pf.coste); r.ventasConCoste += t; }
       });
       r.beneficio = r2(r.ventasConCoste - r.coste); r.ventas = r2(r.ventas);
       r.margen = r.ventasConCoste > 0 ? (r.ventasConCoste - r.coste) / r.ventasConCoste : null;
@@ -487,10 +511,10 @@ var CL = (function () {
     var prods = {};
     (data.pedidos || []).forEach(function (o) {
       if (!o.fecha || o.fecha < R.desde || stateOf(cp, o.estado).cancelled) return;
-      var k = s(o.producto) || '(sin producto)', ci = costOf(o), q = n(o.cantidad) || 1, t = orderTotal(o);
+      var k = s(o.producto) || '(sin producto)', pf = profitOf(o), q = n(o.cantidad) || 1, t = orderTotal(o);
       var p = prods[k] || (prods[k] = { producto: k, unidades: 0, ventas: 0, beneficio: 0, conCoste: true });
       p.unidades += q; p.ventas += t;
-      if (ci) p.beneficio += t - ci.coste * q; else p.conCoste = false;
+      if (pf.conCoste) p.beneficio += n(pf.beneficio); else p.conCoste = false;
     });
     var plist = Object.keys(prods).map(function (k) { var p = prods[k]; p.ventas = r2(p.ventas); p.beneficio = r2(p.beneficio); p.margen = p.conCoste && p.ventas > 0 ? p.beneficio / p.ventas : null; return p; });
     var rentables = plist.filter(function (p) { return p.conCoste; }).sort(function (a, b) { return b.beneficio - a.beneficio; }).slice(0, 5);
@@ -1000,6 +1024,8 @@ var CL = (function () {
     var p = productOf(o, data), bam = p && filled(p.bambuCoste) && n(p.bambuCoste) > 0 ? n(p.bambuCoste) : null;
     var snap = o.costeSnap && typeof o.costeSnap === 'object' && o.costeSnap.unidad !== null && o.costeSnap.unidad !== undefined && o.costeSnap.unidad !== '' ? o.costeSnap : null;
     var live = !snap && p && bomOf(p.id, data).length ? productCost(p.id, data, pp) : null;
+    var calcs = data.calculadora || [], calc = null, nm = norm(p ? p.nombre : o.producto);
+    for (var i = 0; i < calcs.length; i++) if ((p && calcs[i].id && s(calcs[i].id) === s(p.id)) || norm(calcs[i].nombre) === nm) { calc = calcs[i]; break; }
     if (snap || (live && live.total !== null)) {
       var g = snap ? (snap.grupos || {}) : live.grupos, uni = snap ? n(snap.unidad) : live.total;
       var sp = snap ? { emb: n(snap.embReceta), mo: filled(snap.moReceta) ? n(snap.moReceta) : n(g['Mano de obra']) } : recipeSplit(live);
@@ -1009,11 +1035,13 @@ var CL = (function () {
         var v = k === 'Filamento' && filB !== null ? filB : k === 'Embalaje' ? n(g[k]) - sp.emb : n(g[k]);
         return { n: k === 'Embalaje' ? 'Materiales de embalaje de la receta' : k, c: r2x(v), fuente: k === 'Filamento' ? (filB !== null ? 'bambu' : 'calculo') : '' };
       }).filter(function (l) { return Math.abs(l.c) >= 0.005 || l.n === 'Filamento'; });
+      // 18-11-2026 · repaso de Números: una receta (o su copia congelada en el pedido) que solo lleva el embalaje deja la fabricación en casi
+      // 0 €: la «Mano Magic» salía a 0,03 € (124 g de PLA y 6 h de luz = 2,08 €). Solo si no lleva filamento, queda por debajo de 5 céntimos Y la
+      // calculadora tiene gramos u horas, la fabricación sale de la calculadora (una caja de regalo hecha solo de materiales sigue igual).
+      if (!(fab < 0.05 && !(filG > 0) && filB === null && calc && (n(calc.gramos) > 0 || n(calc.horas) > 0)))
       return { unidad: r2x(fab), fuente: snap ? 'receta (congelado ' + snap.fecha + ')' : 'receta', filamento: { coste: r2x(filB !== null ? filB : filG), fuente: filB !== null ? 'bambu' : 'calculo' }, lineas: lineas, estado: snap ? snap.estado : live.estado,
         excluido: { embalaje: r2x(sp.emb), manoObra: r2x(sp.mo) } };
     }
-    var calcs = data.calculadora || [], calc = null, nm = norm(p ? p.nombre : o.producto);
-    for (var i = 0; i < calcs.length; i++) if ((p && calcs[i].id && s(calcs[i].id) === s(p.id)) || norm(calcs[i].nombre) === nm) { calc = calcs[i]; break; }
     if (calc && (n(calc.gramos) > 0 || n(calc.horas) > 0 || n(calc.costePintado) > 0 || calc.gasto1 || calc.gasto2 || bam !== null)) {
       var gb = n(calc.gramosBobina) || n(pp.gramosBobina) || 1000;
       var filC = n(calc.precioBobina) ? n(calc.precioBobina) / gb * n(calc.gramos) : n(pp.costeKg) / 1000 * n(calc.gramos);
@@ -1922,7 +1950,19 @@ var CL = (function () {
     var v = SALIDA_V.filter(function (x) { return x.k === c.v; })[0];
     return v.e + ' ' + v.t + (c.causas.length ? ': ' + c.causas.map(function (k) { return SALIDA_CAUSAS.filter(function (z) { return z.k === k; })[0].t.toLowerCase(); }).join(', ') : '') + (c.nota ? ' · ' + c.nota : '');
   }
-  return { SALIDA_V: SALIDA_V, SALIDA_CAUSAS: SALIDA_CAUSAS, salidaLimpia: salidaLimpia, salidasDeProducto: salidasDeProducto, salidaTexto: salidaTexto,
+  // 18-11-2026 · EL SELLO de la etiqueta (Biou: «que los QR él los pueda detectar bien… una funcionalidad que esté en la etiqueta»).
+  // Un QR CORTO con solo «S» + el nº del pedido («S1086»): 21 × 21 cuadros gordos. Medido con la cámara REAL de Shampú en el portátil
+  // (banco_sello.py): se lee 33 de 54 veces contra 12 de 54 el enlace de antes. Lo leen Shampú, CelebriFábrica y «Escanear» del programa.
+  function selloPedido(o) { var n = String((o && o.numero) || '').replace(/\D/g, ''); return n ? 'S' + n : ''; }
+  // Lo que se lee (o se dice) → el nº del pedido; acepta «S1086», «s1086», «S-1086» o «S 1086». Si no, ''.
+  function numeroDeSello(t) { var m = /^S\s*-?\s*(\d{1,7})$/i.exec(String(t || '').trim()); return m ? String(parseInt(m[1], 10)) : ''; }
+  // El código CEB escrito de otras formas («CEB-2026-000123» o «2026000123»). Si no, ''.
+  function codigoDeSello(t) {
+    var x = String(t || '').trim().toUpperCase();
+    var m = /^CEB-(\d{4})-(\d{6})$/.exec(x) || /^(\d{4})[\s-]?(\d{6})$/.exec(x);
+    return m ? 'CEB-' + m[1] + '-' + m[2] : '';
+  }
+  return { SALIDA_V: SALIDA_V, SALIDA_CAUSAS: SALIDA_CAUSAS, salidaLimpia: salidaLimpia, salidasDeProducto: salidasDeProducto, salidaTexto: salidaTexto, selloPedido: selloPedido, numeroDeSello: numeroDeSello, codigoDeSello: codigoDeSello,
     PLACA_ESTADOS: PLACA_ESTADOS, PLACA_MAX: PLACA_MAX, placaEstado: placaEstado, placaInfo: placaInfo, placaRank: placaRank, placasLista: placasLista, placasNormaliza: placasNormaliza, placasCrea: placasCrea, placasNombresLista: placasNombresLista, placasNombresTexto: placasNombresTexto,
     placasResumen: placasResumen, placasEstadoPedido: placasEstadoPedido, placasSuben: placasSuben, placaSiguiente: placaSiguiente, placaDeTrabajo: placaDeTrabajo,
     rankingVentas: rankingVentas, PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,

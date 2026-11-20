@@ -133,14 +133,15 @@ async function lookup(text, result, hist) {
   const link = appLinkFrom(text);
   if (/^#\/q\/mesa\/escanear/i.test(link)) { toast('Ya estás en «Escanear paquete».', 'ok'); return; }
   if (link) { beep(true); stopCam(null, null); location.hash = link; return; }
-  const code = E.codeFrom(text);
-  let o = code ? E.findByCode(code) : (S.t.pedidos || []).find(x => String(x.numero) === text.replace(/^n[ºo]?\s*/i, ''));
+  const code = E.codeFrom(text), sello = CL.numeroDeSello(text);
+  let o = sello ? E.findByCode(text) : code ? E.findByCode(code) : (S.t.pedidos || []).find(x => String(x.numero) === text.replace(/^n[ºo]?\s*/i, ''));
   let extra = null;
   if (!o && code) {
     try { extra = await api('pedidos.escanear', { codigo: code }); o = extra.pedido; upsertLocal('pedidos', o); emit(); }
     catch (e) { scanFail(result, e.code === 'NOT_FOUND' ? 'No encontrado' : 'No se pudo buscar', e.message); return; }
   }
-  if (!o) { scanFail(result, code ? 'QR no encontrado' : 'Código no válido', code ? 'No hay ningún pedido con el código ' + code + '.' : 'Esto no es un código de paquete (CEB-AAAA-NNNNNN) ni un nº de pedido.'); return; }
+  if (!o && sello) { scanFail(result, 'No encontrado', 'No hay ningún pedido con el nº ' + sello + '.'); return; }
+  if (!o) { scanFail(result, code ? 'QR no encontrado' : 'Código no válido', code ? 'No hay ningún pedido con el código ' + code + '.' : 'Esto no es un sello de paquete (S + nº), un código CEB-AAAA-NNNNNN ni un nº de pedido.'); return; }
   recent.unshift({ id: o.id, at: new Date().toISOString() }); recent.splice(8);
   showOrder(o, extra, result, true);
   drawHist(hist);

@@ -28,7 +28,10 @@ export function numeros(hoy = S.hoy || new Date().toISOString().slice(0, 10)) {
   const suma = l => Math.round(l.reduce((a, x) => a + x.t, 0) * 100) / 100;
   const top = (l, clave, valor) => { const m = {}; l.forEach(x => { const k = clave(x); if (k) m[k] = (m[k] || 0) + valor(x); }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
   const primerDia = r90.length ? r90.map(x => x.f).sort()[0] : hoy, diasCon = Math.max(1, Math.round((new Date(hoy) - new Date(primerDia)) / 86400000) + 1);
-  const porCliente = top(L, x => x.o.clienteId || CL.norm(x.o.cliente), () => 1), SEM = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  // 18-11-2026 · repaso de Números: «repite» = ha comprado en DOS momentos. Un envío conjunto (varios pedidos en un paquete) es una sola
+  // compra: Abraham (1010 y 1012, mismo paquete) salía como cliente que repite (4 % → 3 % con sus datos)
+  const compras = {}; L.forEach(x => { const k = x.o.clienteId || CL.norm(x.o.cliente); if (k) (compras[k] = compras[k] || new Set()).add(String(x.o.envioConjunto || x.o.id || x.o.numero)); });
+  const porCliente = Object.entries(compras).map(([k, v]) => [k, v.size]), SEM = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const paises = {}; let sinPais = [];
   const vistos = new Set();
   L.forEach(x => { const c = x.o.clienteId ? byId('clientes', x.o.clienteId) : null, p = paisDe((c && c.pais) || x.o.pais);
@@ -131,7 +134,7 @@ export function planeta(N, repinta) {
 function ideas(N) {
   const dinero = can('productos.costes') || can('informes.ver'), l = [];
   if (N.pedidosTotales < 5) l.push(['🌱', 'Aún hay pocos pedidos', 'Con ' + N.pedidosTotales + ' pedidos los números todavía no dicen mucho. A partir de 5 en 90 días empiezo a sacar medias de verdad.']);
-  if (N.ticket && dinero) l.push(['🧾', 'Cada pedido te deja ' + eur(N.ticket) + ' de media', 'Sale de ' + N.r90.pedidos + ' pedidos en los últimos ' + N.r90.dias + ' días. Subirla 2 € es más fácil que conseguir clientes nuevos: packs, extras, personalización.']);
+  if (N.ticket && dinero) l.push(['🧾', 'Cada pedido es una venta de ' + eur(N.ticket) + ' de media', 'Lo que paga el cliente (lo que te queda, en 💶 Ingresos). Sale de ' + N.r90.pedidos + ' pedidos en los últimos ' + N.r90.dias + ' días. Subirla 2 € es más fácil que conseguir clientes nuevos: packs, extras, personalización.']);
   if (N.r90.pedidos) l.push(['📦', 'Haces unos ' + String(N.pedidosMes).replace('.', ',') + ' pedidos al mes', 'Es tu ritmo real de los últimos ' + N.r90.dias + ' días.']);
   if (N.diaSemana) l.push(['📅', 'Tu mejor día es el ' + N.diaSemana, 'Es cuando más pedidos entran. Buen día para publicar o lanzar una oferta la víspera.']);
   if (N.canal) l.push(['🛒', 'Donde más vendes: ' + N.canal[0], dinero ? eur(Math.round(N.canal[1] * 100) / 100) + ' en 90 días. Cuida primero ese canal.' : 'Cuida primero ese canal.']);

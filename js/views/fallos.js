@@ -8,6 +8,7 @@
 //   4 stock de lo que no está → stock.recuento a 0 (no hay orden para borrar la fila de la hoja Stock)
 //   5 embalajes «estimado»   → embalajes.guardar (quita la marca «consumo estimado» de cada línea) · «Cambiar precio» abre su edición
 //   6 bobinas a precios distintos → bobinas.guardar {precio}
+//   7 materiales en negativo (18-11-2026: cajas, sobres, filamento…) → materiales.stock {nuevo}: ÉL escribe cuántos tiene (nunca se pone 0 a ciegas)
 // «Dejar así» se recuerda en ESTE aparato (localStorage «cd.fallos.dejados»: fallo + los nombres afectados). Si aparece algo nuevo en ese
 // fallo, vuelve a salir. No toca el servidor de Google (Servidor.gs).
 import { h, mount, btn, toast, modal, empty, eur } from '../ui.js';
@@ -26,6 +27,7 @@ const guardaDejados = o => { try { localStorage.setItem(KEY, JSON.stringify(o));
 const llave = ids => ids.slice().map(String).sort().join('|');
 const lista = (L, max = 6) => L.slice(0, max).join(', ') + (L.length > max ? ' y ' + (L.length - max) + ' más' : '');
 const e0 = v => (Math.round(n(v) * 100) / 100).toLocaleString('es-ES') + ' €';
+const ud = (v, u) => { const x = Math.round(n(v) * 100) / 100; return (x < 0 ? '−' + Math.abs(x).toLocaleString('es-ES') : x.toLocaleString('es-ES')) + ' ' + (String(u || '').trim() || 'ud'); };
 
 // ---------- 🔎 DETECTAR (todo sale de sus datos) ----------
 export function detecta() {
@@ -62,6 +64,12 @@ export function detecta() {
       nombres: precios.map(p => { const c = {}; g[p].forEach(b => { const k = String(b.color || '').trim() || '(sin color)'; c[k] = (c[k] || 0) + 1; }); return g[p].length + ' × ' + e0(p) + ': ' + lista(Object.entries(c).map(([k, q]) => k + (q > 1 ? ' ×' + q : '')), 4); }),
       ids: B.map(b => b.id), datos: { mat, g, precios } });
   });
+  // 7 · materiales en negativo (18-11-2026). Las cajas, sobres y demás se descuentan al empaquetar: si salen menos de cero es que
+  //     se gastaron más de las apuntadas (o nunca se contaron). Solo se arregla CONTANDO: él escribe cuántas tiene.
+  const mneg = mats.filter(m => activo(m) && nom(m) && lleno(m.stock) && n(m.stock) < 0).sort((a, b) => n(a.stock) - n(b.stock));
+  if (mneg.length) F.push({ clave: 'matneg', e: '📦', n: mneg.length, titulo: mneg.length === 1 ? 'Material en negativo' : 'Materiales en negativo',
+    linea: 'Has gastado más de los que tenías apuntados. Cuéntalos y escribe cuántos tienes ahora.',
+    nombres: mneg.map(m => nom(m) + ' (' + ud(m.stock, m.unidad) + ')'), ids: mneg.map(m => m.id + '@' + n(m.stock)), datos: mneg });
   return F;
 }
 export const abiertos = () => { const D = leeDejados(); return detecta().filter(f => D[f.clave] !== llave(f.ids)); };
@@ -118,6 +126,15 @@ export function render(el) {
       let q = 0; const B = (S.t.bobinas || []).filter(b => f.ids.includes(b.id) && n(b.precio) !== p);
       for (const b of B) { await api('bobinas.guardar', { id: b.id, datos: { precio: p }, motivo: 'Precio unificado (Fallos del inventario)' }); q++; }
       await ok(f, q + (q === 1 ? ' bobina a ' : ' bobinas a ') + e0(p));
+    },
+    async matneg(f, m, valor) {
+      if (!pide('stock.mover', f)) return;
+      if (String(valor).trim() === '' || !(n(valor) >= 0)) return toast('Escribe cuántos tienes ahora (0 si no queda ninguno).', 'warn');
+      const v = Math.round(n(valor) * 100) / 100;
+      await api('materiales.stock', { id: m.id, nuevo: v, motivo: 'Recuento: estaba en ' + ud(m.stock, m.unidad) + ' (Fallos del inventario, ' + S.hoy + ')' });
+      await pull();
+      const quedan = (S.t.materiales || []).filter(x => CL.norm(x.activo) !== 'no' && nom(x) && lleno(x.stock) && n(x.stock) < 0).length;
+      await ok(f, nom(m) + ': ' + ud(v, m.unidad) + (quedan ? ' · quedan ' + quedan + ' por contar' : ''));
     }
   };
 
@@ -139,6 +156,11 @@ export function render(el) {
       const rapidos = f.datos.precios.map(p => { const x = btn(e0(p), () => corre(f, () => ARREGLA.bobinas(f, p)), { cls: 'fl-rapido', disabled: busy }); x.dataset.precio = String(p); return x; });
       const pocas = f.datos.precios.slice().sort((a, b) => f.datos.g[a].length - f.datos.g[b].length)[0];
       botones = [h('div.fl-pregunta', h('b', '¿Cuánto te costó una bobina?'), h('div.fl-rap', rapidos, campo, btn('Poner', () => corre(f, () => ARREGLA.bobinas(f, campo.value)), { cls: 'primary fl-arreglar', disabled: busy }))), dejarB('Esas sí valían ' + e0(pocas))];
+    } else if (f.clave === 'matneg') {
+      botones = [h('div.fl-pregunta', h('b', '¿Cuántos tienes ahora?'), f.datos.map(m => {
+        const campo = h('input.inp.fl-cuenta', { type: 'number', min: '0', step: '1', inputmode: 'numeric', placeholder: String(m.unidad || 'ud'), 'aria-label': 'Cuántos ' + nom(m) + ' tienes ahora' });
+        return h('div.fl-rap.fl-mat', { 'data-material': m.id }, h('span.fl-matnom', nom(m)), campo, btn('Poner', () => corre(f, () => ARREGLA.matneg(f, m, campo.value)), { cls: 'primary fl-arreglar', disabled: busy }));
+      })), dejarB()];
     } else botones = [arreglar('Arreglar'), dejarB()];
     return h('div.fl-t', { 'data-fallo': f.clave },
       h('div.fl-num', h('b', String(f.n)), h('span', f.e)), h('div.fl-cuerpo', h('b.fl-tit', f.titulo), h('div.fl-lin', f.linea), h('div.fl-nombres', lista(f.nombres, 8))), h('div.fl-botones', botones));

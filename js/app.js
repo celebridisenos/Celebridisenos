@@ -11,6 +11,9 @@ import { debeEstrenarFinal } from './marca.js'; // 11-11-2026 · ✍️ el estre
 import { debeRegalar } from './regalos302.js'; // v30.2 · 🎁 los 4 regalos (sale una vez, después del estreno)
 import { debeEstrenar30 } from './estreno30.js'; // v30: el estreno de la 30 (va antes que el de la 20) // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
 import { desktop } from './desktop.js';
+import * as BD from './borrador.js'; // 19-11-2026 · ✍️ lo escrito no se pierde si el móvil cierra la app (Biou: «se reinicia, eso es perder información»)
+BD.registraReabrir(/^Nuevo pedido$/, () => import('./views/pedidos.js').then(m => m.orderForm()));
+BD.registraReabrir(/^Editar pedido nº (\d+)/, mt => { const o = (S.t.pedidos || []).find(x => String(x.numero) === mt[1] && !x.borrado); if (o) import('./views/pedidos.js').then(m => m.orderForm(o)); });
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
 import { menuNav, editarMenu } from './menuorden.js';
@@ -187,6 +190,7 @@ async function route() {
     if (parseHash().name !== name) return;
     clear(content);
     current = { name, view: mod.render(content, params) || {}, params };
+    BD.alPintarVista(content); // (19-11: ✍️ los campos que vuelven vacíos se rellenan con lo que tenías)
     window.scrollTo(0, 0);
     if (name === 'chatsnav') return; // (02-11: esa ventana solo es para los chats: sin estrenos ni nada encima de las páginas)
     entrada(content); // v14.0: el contenido entra suave
@@ -756,7 +760,7 @@ export async function start() {
   if (!start._watch) { start._watch = true; import('./views/notificaciones.js').then(m => m.watchNotifications()).catch(() => { }); }
   startAutoSync();
   import('./hologramas.js').then(m => m.iniciar()).catch(() => { }); // v16
-  pull().then(() => { if (location.hash.startsWith('#/chatsnav')) return; /* (02-11: de avisos, trabajos e impresoras se ocupa la ventana principal) */ startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }); if (desktop.on) import('./shampu_puente.js').then(m => m.startShampuPuente()).catch(() => { }) /* 17-11-2026: 🤖 el PC de casa hace de puente para ver a Shampú desde la calle */ /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
+  pull().then(() => { if (location.hash.startsWith('#/chatsnav')) return; BD.arrancar(); /* (02-11: de avisos, trabajos e impresoras se ocupa la ventana principal) */ startChat(); startWorker(); import('./popups.js').then(m => m.startPopups()); startNovaWatch(); import('./bambu.js').then(m => m.startBambuSync()); import('./autoimpresion.js').then(m => m.startAutoPrint()); import('./premium.js').then(m => m.startCelebraciones()); import('./voz.js').then(m => m.startVoz()); import('./nuevopedido.js').then(m => m.startNuevoPedido()); if (desktop.on) import('./biou/motor.js').then(() => import('./reels/render.js')).then(() => import('./pc_encargos.js')).then(() => import('./trabajospc.js')).then(m => m.startTrabajadorPC()).catch(() => { }); if (desktop.on) import('./shampu_puente.js').then(m => m.startShampuPuente()).catch(() => { }) /* 17-11-2026: 🤖 el PC de casa hace de puente para ver a Shampú desde la calle */ /* (16-10: + lo que encarga el iPad: mirar prendas y el PDF del catálogo, pc_encargos.js) */; });
   api('roles.lista', {}).then(r => { S._roles = r.roles; refreshShell(); }).catch(() => { });
   if (desktop.on) { desktopDaily(); } // v30.7.1: la IA ya no se carga en la tarjeta gráfica al arrancar (ver warmUp)
   if (desktop.on && isAdminUser() && !start._claves) { start._claves = true; setTimeout(() => import('./mudanza.js').then(M => M.clavesPendientes()).catch(() => { }), 4000); } // (28-10) en el ordenador NUEVO de un traslado: poner las claves que vinieron cifradas

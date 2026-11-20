@@ -30,13 +30,17 @@ export async function bobinaPaquete(texto) {
   return confirmDlg('Bobina 50 × 50 mm', 'Coloca la bobina de 50 × 50 mm. ' + texto, 'Bobina puesta');
 }
 export const CODE_RX = /CEB-\d{4}-\d{6}/i;
-export const codeFrom = t => { const m = String(t || '').match(CODE_RX); return m ? m[0].toUpperCase() : ''; };
+export const codeFrom = t => { const m = String(t || '').match(CODE_RX); return m ? m[0].toUpperCase() : CL.codigoDeSello(t); };
 
 // ---------- Código del paquete ----------
 // v30.6.1 (la dueña: «el número de seguimiento que se incorpora en el QR de identificador de paquetes»): si el paquete ya tiene nº de
 // seguimiento, va DENTRO del QR, detrás del código: …#/q/ceb/CEB-AAAA-NNNNNN/s/<seguimiento>. El programa y el servidor siguen sacando
 // el código igual (lo buscan por su forma, esté donde esté), y un QR impreso antes de tener seguimiento sigue valiendo.
 const segLimpio = t => String(t || '').replace(/\s+/g, '').slice(0, 40);
+// 18-11-2026 · EL SELLO: el QR de las etiquetas del paquete lleva solo «S» + el nº del pedido (CL.selloPedido: «S1086»): 21 × 21 cuadros
+// gordos que la cámara de Shampú lee casi 3 veces más que el enlace de antes (medido en su portátil: 33/54 contra 12/54). Sin nº, el enlace
+// de siempre. (La cámara normal del móvil ya no abre la app con él: se lee desde «Escanear».)
+export function selloQR(o) { return (o && CL.selloPedido(o)) || qrPayload(o); }
 export function qrPayload(o) { const b = appUrl(); if (!o.codigo) return ''; if (!b) return o.codigo; const sg = segLimpio((destinoDe(o) || {}).seguimiento || o.seguimiento); return b + '#/q/ceb/' + o.codigo + (sg ? '/s/' + encodeURIComponent(sg) : ''); }
 // ¿DÓNDE SE LLEVA EL PAQUETE? Las tres de casi siempre («normalmente son estas 3»: InPost, Vinted Go, SEUR), con su color; lo demás, por su nombre
 export const DESTINOS = [{ k: 'inpost', t: 'InPost', rx: /in\s?post/i, ic: '🟡' }, { k: 'vintedgo', t: 'Vinted Go', rx: /vinted\s*go|vintedgo/i, ic: '🟢' }, { k: 'seur', t: 'SEUR', rx: /\bseur\b/i, ic: '🔴' }];
@@ -47,7 +51,11 @@ export async function ensureCode(o) {
   upsertLocal('pedidos', r); emit();
   return r;
 }
-export function findByCode(code) { code = codeFrom(code); return code ? (S.t.pedidos || []).find(o => o.codigo === code) || null : null; }
+export function findByCode(code) {
+  const n = CL.numeroDeSello(code); // el sello «S1086» → el pedido nº 1086
+  if (n) return (S.t.pedidos || []).find(o => String(o.numero) === n && !o.borrado) || null;
+  code = codeFrom(code); return code ? (S.t.pedidos || []).find(o => o.codigo === code) || null : null;
+}
 
 // ---------- Plantillas con {marcadores} ----------
 export const MARCAS = [['cliente', 'nombre del cliente'], ['producto', 'producto'], ['pedido', 'nº de pedido'], ['codigo', 'código del paquete'], ['cantidad', 'unidades'], ['tienda', 'tu tienda'], ['transportista', 'transportista'], ['seguimiento', 'nº de seguimiento'], ['total', 'importe total'], ['pago', 'forma de pago'], ['hasta', 'hasta cuándo se guarda']];
@@ -460,15 +468,16 @@ export async function buildFor(o, tipo, L) {
   // (17-10: la nota del envío va entera hasta 170 letras; si es más larga, cortada por palabra y con «…»)
   if (tipo === 'paquete' && formatoPaquete() === 'largo') {
     const g = grupoDe(o).length ? grupoDe(o) : [o], t = CL.orderTiming(o, S.cfg.pedidos, S.hoy), gd = thanksData(o), lo = labelOwner(o), et = (lo.etiquetaEnvio || {});
-    const d = { qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, conjunto: g.length > 1,
+    const d = { qr: selloQR(o), sello: CL.selloPedido(o), marcaNombre: (emisor().comercial || '').trim() || 'CelebriDiseños', codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, conjunto: g.length > 1,
       cliente: (() => { const p = String(o.cliente || '').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1].charAt(0).toUpperCase() + '.' : ''); })(),
       limite: t && t.limite ? t.limite.split('-').reverse().slice(0, 2).join('/') : '', transportista: lo.envio || et.transportista || '', seguimiento: lo.seguimiento || '', canal: o.canal || '', cuenta: [...new Set(g.map(p => p.cuenta).filter(Boolean))].join(' + '), // v14.1: desde qué cuenta se vendió
       lineas: g.map(p => (Number(p.cantidad) > 1 ? p.cantidad + ' × ' : '') + p.producto + (p.color ? ' · ' + p.color : '') + (p.personalizacion ? ' · «' + String(p.personalizacion).slice(0, 40) + '»' : '') + (g.length > 1 ? ' (nº ' + p.numero + ')' : '')),
       nota: (t => t.length > 170 ? t.slice(0, 168).replace(/\s+\S*$/, '') + '…' : t)(String(o.obsEnvio || '').trim()), gracias: { titulo: gd.titulo, texto: gd.texto, firma: gd.firma }, destino: destinoDe(o) };
     if (gd.logo) d.logoImg = await L.loadLogo();
+    if (L.cargaLigada) await L.cargaLigada(); // (19-11: «CelebriDiseños» en letra ligada)
     return { tpl: 'paquete150', data: d };
   }
-  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { gracias: thanksData(o).titulo || '¡Gracias!', qr: qrPayload(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, producto: g.length > 1 ? g.length + ' productos' : o.producto, color: g.length > 1 ? '' : o.color, cantidad: g.length > 1 ? '' : o.cantidad, canal: o.canal || '', estilo: (await L.labelCfg()).estiloPaquete || 'clasico', cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + '), destino: destinoDe(o) } }; }
+  if (tipo === 'paquete') { const g = grupoDe(o); return { tpl: 'paquete', data: { gracias: thanksData(o).titulo || '¡Gracias!', qr: selloQR(o), codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, producto: g.length > 1 ? g.length + ' productos' : o.producto, color: g.length > 1 ? '' : o.color, cantidad: g.length > 1 ? '' : o.cantidad, canal: o.canal || '', estilo: (await L.labelCfg()).estiloPaquete || 'clasico', cliente: String(o.cliente || '').split(/\s+/)[0], cuenta: [...new Set((g.length ? g : [o]).map(p => p.cuenta).filter(Boolean))].join(' + '), destino: destinoDe(o) } }; }
   const d = thanksData(o);
   if (d.logo) d.logoImg = await L.loadLogo();
   d.fondoImg = await L.loadCardBg(d.diseno);

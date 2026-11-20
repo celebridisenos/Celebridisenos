@@ -9,7 +9,7 @@ import { miniPedido } from '../fotopedido.js'; // v13.10: foto de lo que pidió 
 import * as COL from '../colores.js'; // v14.1: selector de colores
 import { cuentaSelect, cuentasVenta } from '../cuentas.js'; // v14.1: desde qué cuenta se vendió
 import { PAISES, paisDe } from './inteligencia.js'; // v17.1: de qué país es el cliente
-import { barra5 } from '../pasos.js'; // 14-11: los 5 pasos (Confirmado → … → Enviado), discretos en la lista y la ficha
+import { barra5, estado4, siguiente4, ESTADOS4, paso4 } from '../pasos.js'; // 18-11: los 4 estados (Confirmado · Imprimiendo · En mesa · Listo), en la lista y la ficha
 import * as PL from '../placas.js'; // v60.13: varias placas por pedido, cada una con su estado, y «¿cómo salió?»
 
 const CL = window.CL;
@@ -22,9 +22,9 @@ const PRESETS = [
   { k: 'reservas', t: 'Reservas', f: o => ph(o) === 'reserva' },
   { k: 'fabricar', t: 'Por imprimir', f: o => ph(o) === 'confirmado' },
   { k: 'fabricando', t: 'Imprimiendo', f: o => ph(o) === 'impresion' },
-  { k: 'postpro', t: 'En mesa', f: o => ph(o) === 'postpro' },
-  { k: 'empaquetar', t: 'Empaquetar', f: o => ph(o) === 'empaquetar' },
-  { k: 'enviar', t: 'Por enviar', f: o => ph(o) === 'listo' },
+  { k: 'postpro', t: 'En mesa', f: o => ph(o) === 'postpro' || ph(o) === 'empaquetar' }, // 18-11: «Empaquetar» cuenta como «En mesa»
+  { k: 'empaquetar', t: 'Empaquetar', hidden: true, f: o => ph(o) === 'empaquetar' },
+  { k: 'enviar', t: 'Listo', f: o => ph(o) === 'listo' },
   { k: 'enviados', t: 'Enviados', cls: 'ok', f: o => ph(o) === 'enviado' },
   { k: 'completados', t: 'Completados', cls: 'ok', f: o => ph(o) === 'entregado' }, // v16
   { k: 'porcobrar', t: '💶 Por cobrar', cls: 'warn', f: o => (ph(o) === 'enviado' || ph(o) === 'entregado') && !/^s/i.test(String(o.cobrado || '')) },
@@ -125,14 +125,14 @@ export function render(el, params) {
       miniPedido(o, 46),
       h('div.grow', h('div.row', h('b', 'nº ' + o.numero), hijo ? null : h('span.ellipsis.grow', o.cliente), o.prioridad === 'Urgente' ? pill('Urgente', 'bad') : null),
         h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null, o.cuenta ? h('span.cv-mini', ' · ' + o.cuenta) : null),
-        h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pill(o.estado, '', stateColor(o.estado)), PL.mini(o), dueBadge(t)), barra5(o, { mini: true })),
+        h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pillEstado(o), PL.mini(o), dueBadge(t)), barra5(o, { mini: true })),
       h('div.bold', eur(CL.orderTotal(o))));
     const colorDe = o => { const c = String(((S.cfg.pedidos.estados || []).find(s => s.k === o.estado) || {}).c || ''); return /^#[0-9a-f]{3,8}$/i.test(c) ? c : 'transparent'; };
     const tRow = ({ o, t }, hijo) => h('tr.ped-fila' + (hijo ? '.cli-hijo' : '') + (t.incidencia ? '.inc' : ''), { onclick: () => go('pedidos/' + o.id), 'data-fase': ph(o), title: t.incidencia ? '⚠️ Incidencia: ' + (o.incidencia || '') : '', style: 'box-shadow: inset 6px 0 0 ' + (t.incidencia ? 'var(--bad, #dc2626)' : colorDe(o)) + '; --est: ' + colorDe(o) }, // v17.1: color del estado a la vista (franja + tinte suave)
       h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
       h('td.nowrap', fdate(o.fecha), horaDe(o) ? h('div.tiny.muted.ped-hora', { title: 'Hora a la que entró el pedido' }, '🕒 ' + horaDe(o)) : null), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
       h('td', h('div.row.fp-prod', { style: { gap: '8px', alignItems: 'center', flexWrap: 'nowrap' } }, miniPedido(o, 34), h('div.ellipsis', { style: { maxWidth: '240px' } }, (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null))),
-      h('td', pill(o.estado, '', stateColor(o.estado)), PL.mini(o), barra5(o, { mini: true })), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
+      h('td', pillEstado(o), PL.mini(o), barra5(o, { mini: true })), h('td', dueBadge(t)), h('td.nowrap', eur(CL.orderTotal(o))),
       h('td', o.responsable || h('span.muted', '—')), h('td', o.canal || h('span.muted', '—'), o.cuenta && o.cuenta.split(' · ')[1] ? h('div.tiny.muted', o.cuenta.split(' · ')[1]) : null));
     const cliTitle = g => (g.items[0].o.cliente || '—');
     // v13.10: «Un paquete, un QR»: junta los pedidos abiertos del cliente en un envío conjunto e imprime UN solo QR para todos
@@ -142,7 +142,7 @@ export function render(el, params) {
     // ventana al lado con todos sus pedidos; desplegarse para abajo no es estético». La fila del cliente es UNA tarjeta tranquila (sus
     // fotos juntas, «2 pedidos» y el resumen en palabras) y al pulsarla sale el globito al lado con cada pedido y sus botones.
     const fotosG = g => h('span.cg-fotos', g.items.slice(0, 3).map(x => miniPedido(x.o, 34)), g.items.length > 3 ? h('span.cg-mas', '+' + (g.items.length - 3)) : null);
-    const estadosG = items => { const c = {}; items.forEach(({ o }) => { c[o.estado] = (c[o.estado] || 0) + 1; }); return h('span.cg-est', Object.keys(c).map(k => h('span', h('i', { style: { background: stateColor(k) || 'var(--muted)' } }), c[k] + ' ' + k.toLowerCase()))); };
+    const estadosG = items => { const c = {}, col = {}; items.forEach(({ o }) => { const e = estado4(o); c[e.t] = (c[e.t] || 0) + 1; col[e.t] = e.c; }); return h('span.cg-est', Object.keys(c).map(k => h('span', h('i', { style: { background: col[k] } }), c[k] + ' ' + k.toLowerCase()))); }; // 18-11: con los 4 nombres
     const productosG = items => items.map(x => (x.o.cantidad > 1 ? x.o.cantidad + ' × ' : '') + x.o.producto).join(' · ');
     const abreG = (g, ev) => { ev.stopPropagation(); grupoPop(g.items.map(x => x.o), ev.currentTarget, drawList); };
     const body = mobile
@@ -205,7 +205,7 @@ export function grupoPop(lista, ancla, redraw) {
           miniPedido(o, 56),
           h('div.cg-ped-t', h('div.row', h('b', 'nº ' + o.numero), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, h('span.grow'), h('b', eur(CL.orderTotal(o)))),
             h('div.small.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null),
-            h('div.row.wrap', { style: { gap: '6px', marginTop: '4px' } }, h('span.cg-chip', h('i', { style: { background: stateColor(o.estado) || 'var(--muted)' } }), o.estado), dueBadge(t)),
+            h('div.row.wrap', { style: { gap: '6px', marginTop: '4px' } }, h('span.cg-chip', h('i', { style: { background: estado4(o).c } }), estado4(o).t), dueBadge(t)),
             h('div.row.wrap', { style: { gap: '6px', marginTop: '6px' } },
               btn('Abrir', () => { cierra(); go('pedidos/' + o.id); }, { cls: 'sm' }),
               edit && !t.enviado && !t.cancelado ? btn('🚚 Enviado…', () => shipDialog(o), { cls: 'sm ghost', title: 'Te pregunta: este, el otro o los dos' }) : null,
@@ -229,11 +229,6 @@ export function grupoPop(lista, ancla, redraw) {
   return { cierra, el: caja };
 }
 // ---------- Ficha del pedido ----------
-function nextState(o) {
-  const list = S.cfg.pedidos.estados.filter(s => !s.issue && !s.cancelled);
-  const i = list.findIndex(s => s.k === o.estado);
-  return i >= 0 && i < list.length - 1 ? list[i + 1].k : (i < 0 ? list[0].k : null);
-}
 // v11: ¿hay piezas libres en la estantería para este pedido? (mismo criterio que el servidor)
 export function freePieces(o) {
   const k = CL.norm(o.producto); let fab = 0, out = 0, held = 0;
@@ -251,7 +246,6 @@ function fromStockBtn(o) {
   }, { cls: 'ok-btn' });
 }
 // v16 · El camino del pedido, con tus palabras: llega → se prepara → imprimir → en la mesa → empaquetar → enviar → completado → cobrado
-const PASO_FLUJO = { reserva: 'Llega', confirmado: 'Preparado', impresion: 'Imprimiendo', postpro: 'En la mesa', empaquetar: 'Empaquetar', listo: 'Listo para enviar', enviado: 'Enviado', entregado: 'Completado' };
 // v16 · Filamento del pedido. Si falta el consumo se pregunta UNA vez: queda guardado en el producto.
 const FALTA_FIL = { consumo: 'No sé cuántos gramos gasta este producto', color: 'No sé de qué color se imprimió', bobina: 'No hay ninguna bobina de ese material y color', stock: 'No había filamento suficiente', producto: 'El producto no está en el catálogo' };
 function filamentoLinea(o, redraw) {
@@ -279,21 +273,17 @@ export function orderDrawer(id, onClose) {
       const o = byId('pedidos', id);
       if (!o) { mount(d, h('div.drawer-h', h('h2.grow', 'Pedido'), btn('', closeAll, { cls: 'ghost icon', icon: 'x' })), h('div.drawer-b', empty('alert', 'Este pedido ya no existe', 'Puede que otra persona lo haya borrado. Está en la papelera.'))); return; }
       const t = timing(o);
-      const nx = nextState(o);
+      const nx4 = siguiente4(o);
       const editable = can('pedidos.editar');
-      const states = S.cfg.pedidos.estados.filter(s => !s.issue && !s.cancelled);
-      const idx = states.findIndex(s => s.k === o.estado);
       const c = byId('clientes', o.clienteId);
       const cobrado = /^s/i.test(String(o.cobrado || '')); // v16
       const tabs = [['resumen', 'Resumen'], can('productos.costes') ? ['beneficio', 'Beneficio'] : null, ['fechas', 'Fechas'], ['envio', 'Envío'], can('taller.ver') ? ['taller', 'Impresión (' + (S.t.trabajos || []).filter(j => j.pedidoId === o.id && j.estado !== 'Cancelado').length + ')'] : null, ['archivos', 'Archivos (' + filesOf('pedidos', o.id).length + ')'], ['tareas', 'Tareas (' + S.t.tareas.filter(k => k.pedidoId === o.id).length + ')'], ['historial', 'Historial']].filter(Boolean);
       if (!tabs.some(x => x[0] === tab)) tab = 'resumen';
       const body = h('div');
       mount(d,
-        h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), horaDe(o) ? h('div.tiny.muted.ped-entro', { title: 'Cuándo se apuntó este pedido en el programa' }, '🕒 Entró el ' + fdate(diaDe(o)) + ' a las ' + horaDe(o)) : null, h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pill(o.estado, '', stateColor(o.estado)), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, cobrado ? pill('💶 Cobrado', 'ok') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
+        h('div.drawer-h', miniPedido(o, 76, 'grande'), h('div.grow', h('h2', 'Pedido nº ' + o.numero), horaDe(o) ? h('div.tiny.muted.ped-entro', { title: 'Cuándo se apuntó este pedido en el programa' }, '🕒 Entró el ' + fdate(diaDe(o)) + ' a las ' + horaDe(o)) : null, h('div.row.wrap', { style: { gap: '8px', marginTop: '4px' } }, pillEstado(o), dueBadge(t), o.prioridad === 'Urgente' ? pill('⚡ Urgente', 'bad') : null, cobrado ? pill('💶 Cobrado', 'ok') : null, o.codigo ? h('code.small', { title: 'Código interno del paquete (va en su QR)' }, o.codigo) : null)),
           btn('', closeAll, { cls: 'ghost icon', icon: 'x', title: 'Cerrar' })),
         h('div.drawer-b.col', { style: { gap: '14px' } },
-          h('div.flow', { title: 'Progreso' }, states.map((s, i) => h('div.fs' + (i < idx ? '.done' : i === idx ? '.on' : '') + (i === idx && o.incidencia ? '.bad' : ''), { title: s.k + (s.hint ? ' · ' + s.hint : '') }, h('i'), h('span', PASO_FLUJO[s.f] || s.k))),
-            h('div.fs.fs-cobro' + (cobrado ? '.done' : ''), { title: cobrado ? 'Cobrado el ' + fdate(o.cobradoEn) : 'Todavía sin cobrar' }, h('i'), h('span', '💶 Cobrado'))), // v16
           o.incidencia && t.abierto ? h('div.issue-bar', icon('alert', 's'), h('span.grow', h('b', 'Incidencia: '), o.incidencia), editable ? btn('Resuelta', () => save(o, { incidencia: '' }, 'Incidencia resuelta · nº ' + o.numero), { cls: 'sm', icon: 'check' }) : null) : null,
           barra5(o), // 14-11: los 5 pasos
           PL.bloque(o, draw, { alEmpaquetar: () => changeState(byId('pedidos', o.id) || o, CL.stateOfPhase(S.cfg.pedidos, 'empaquetar')) }), // v60.13: placas del pedido
@@ -302,7 +292,7 @@ export function orderDrawer(id, onClose) {
           ENV.bloquePedido(o, draw), // v13.9: EMBALAJE DEL PEDIDO
           filamentoLinea(o, draw), // v16: filamento descontado solo (o el dato que falta)
           editable ? h('div.row.wrap',
-            nx && !(ph(o) === 'listo' && nx && S.cfg.pedidos.estados.find(s => s.k === nx && s.shipped)) ? btn('Pasar a: ' + nx, () => changeState(o, nx), { cls: 'primary', icon: 'check' }) : null,
+            nx4 ? btn('Pasar a: ' + nx4.e + ' ' + nx4.t, () => irA4(o, nx4.f), { cls: 'primary' }) : null, // 18-11: el siguiente de los 4
             !t.enviado && !t.cancelado ? btn(ph(o) === 'listo' ? 'Preparado para enviar' : 'Enviar pedido', () => ['listo', 'empaquetar'].includes(ph(o)) ? EV.sendCheck(o) : shipDialog(o), { icon: 'truck', cls: ph(o) === 'listo' ? 'primary' : '' }) : null,
             fromStockBtn(o),
             !t.cancelado ? (cobrado ? btn('💶 Cobrado ✓', () => confirmDlg('¿Quitar el cobro?', 'El pedido nº ' + o.numero + ' dejará de contar en los ingresos de su mes.', 'Quitar cobro', true).then(ok => ok && import('./ingresos.js').then(m => m.cobrarPedido(o, false)).then(draw)), { cls: 'ok-b', title: 'Cobrado el ' + fdate(o.cobradoEn) + '. Pulsa para quitarlo.' })
@@ -541,18 +531,32 @@ async function applyState(o, estado, extra, quiet) {
   if (st.done && !o.fechaEntrega) ch.fechaEntrega = S.hoy;
   return save(o, ch, 'Estado de nº ' + o.numero + ' → ' + estado);
 }
-// v16.2 · CAMBIAR ESTADO, sencillo (lo pidió la dueña): ocho botones y ya está.
-//   Confirmado · En impresión · En mesa · Empaquetado · Listo · Enviado · Entregado · Cancelado
-// Por dentro siguen siendo los estados de siempre (los datos no cambian): aquí solo se enseñan con su nombre corto.
-export const ESTADOS_SIMPLES = [['confirmado', 'Confirmado', '✅'], ['impresion', 'En impresión', '🖨️'], ['postpro', 'En mesa', '🛠️'], ['empaquetar', 'Empaquetado', '📦'], ['listo', 'Listo', '🏷️'], ['enviado', 'Enviado', '🚚'], ['entregado', 'Entregado', '🏁'], ['cancelado', 'Cancelado', '✖️']];
+// 18-11-2026 · CAMBIAR ESTADO con 4 botones grandes (Biou: «mejor que haya 4 estados, es que es mucho lío… confirmado,
+// imprimiendo, en mesa y listo»). Debajo, en pequeño: Enviado, Entregado y Cancelar. Por dentro siguen los estados de siempre (los
+// datos no cambian): «Empaquetar» se ve como «En mesa». Cada botón lleva al estado de la configuración que tiene esa fase.
+export const ESTADOS_SIMPLES = ESTADOS4.map(x => [x.f, x.t, x.e]).concat([['enviado', 'Enviado', '🚚'], ['entregado', 'Entregado', '🏁'], ['cancelado', 'Cancelado', '✖️']]);
+export function pillEstado(o) { const e = estado4(o); return pill(e.e + ' ' + e.t, '', e.c); }
+const estadoDeFase = f => S.cfg.pedidos.estados.find(s => s.f === f && !s.issue);
+// Ir a una de las fases (la que sea: de los 4 o de las pequeñas), con las mismas preguntas de siempre (envío, incidencia…)
+export function irA4(o, f) {
+  const s = estadoDeFase(f); if (!s) return toast('No hay ningún estado «' + f + '» en tu configuración', 'bad');
+  if (s.issue) return issueDialog(o);
+  if (s.shipped && !o.seguimiento) return shipDialog(o, s.k);
+  return changeState(o, s.k);
+}
 export function stateDialog(o) {
-  const de = f => S.cfg.pedidos.estados.find(s => s.f === f && !s.issue), actual = ph(o);
-  const ir = s => { m.close(); if (s.issue) issueDialog(o); else if (s.shipped && !o.seguimiento) shipDialog(o, s.k); else changeState(o, s.k); };
-  const otro = !ESTADOS_SIMPLES.some(x => x[0] === actual) ? S.cfg.pedidos.estados.find(s => s.k === o.estado) : null; // (p. ej. «Reservado» de un pedido web sin cobrar)
+  const f = ph(o), i4 = paso4(o), en4 = i4 >= 0 && i4 <= 3 && f !== 'enviado' && f !== 'entregado';
+  const ir = x => { m.close(); irA4(o, x); };
+  const grande = (x, i) => { const on = en4 && i === i4, s = estadoDeFase(x.f); if (!s) return null;
+    return h('button.est4' + (on ? '.on' : ''), { type: 'button', 'data-f': x.f, 'aria-pressed': on ? 'true' : 'false', style: { background: x.c }, onclick: () => ir(x.f) },
+      h('span.est4-e', x.e), h('b', x.t), on ? h('em', f === 'empaquetar' ? 'ahora · empaquetando' : 'ahora') : null); };
+  const chico = ([fx, t, ic]) => { const s = estadoDeFase(fx); if (!s) return null;
+    return h('button.est4-chico' + (f === fx ? '.on' : '') + (fx === 'cancelado' ? '.cancel' : ''), { type: 'button', 'data-f': fx, 'aria-pressed': f === fx ? 'true' : 'false', onclick: () => ir(fx) }, ic + ' ' + t, f === fx ? h('em', ' · ahora') : null); };
+  const fuera = !en4 && !['enviado', 'entregado', 'cancelado'].includes(f) ? h('p.small.muted', 'Ahora está en «' + o.estado + '».') : null; // (p. ej. «Reservado» de un pedido web sin cobrar)
   const m = modal('Cambiar estado · nº ' + o.numero, h('div.col',
-    otro ? h('p.small.muted', 'Ahora está en «' + otro.k + '».') : null,
-    h('div.est-simple', ESTADOS_SIMPLES.map(([f, t, ic]) => { const s = de(f); if (!s) return null;
-      return h('button.est-b' + (f === actual ? '.on' : '') + (f === 'cancelado' ? '.cancel' : ''), { type: 'button', 'data-f': f, 'aria-pressed': f === actual ? 'true' : 'false', onclick: () => ir(s) }, h('i', { style: { background: s.c } }), h('span', ic + ' ' + t), f === actual ? h('em', 'ahora') : null); }))), null, { size: 'narrow' });
+    fuera,
+    h('div.est4-g', ESTADOS4.map(grande)),
+    h('div.est4-mas', ESTADOS_SIMPLES.slice(4).map(chico))), null, { size: 'narrow' });
 }
 // ---------- v13.7 · DATOS DEL ENVÍO ----------
 // Empresa de transporte (se guarda en «envio», el campo de siempre) · Dirección de envío de ESTE pedido (no cambia la ficha del cliente) · Observaciones.

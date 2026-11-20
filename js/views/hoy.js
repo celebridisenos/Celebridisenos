@@ -158,9 +158,10 @@ export function render(el) {
       paso('💶', 'Por cobrar', porCobrar.length, 'pedidos/?f=porcobrar', porCobrar.length ? 'aviso' : ''),
       can('productos.costes') ? paso('💰', 'Cobrado este mes', cobradosMes.length, 'ingresos', 'ok', CL.eur2(totalCobrado)) : null);
     // 14-11: el tablero de los 5 pasos, en dibujo (foto de cada producto + número que sube + flecha al siguiente paso)
-    const grupos = [[ordersT.filter(x => ph(x.o) === 'confirmado').map(x => x.o), 'fabricar'], [printing.map(x => x.o), 'fabricando'], [enMesa.map(x => x.o), 'postpro'],
-      [aEmpaquetar.map(x => x.o).concat(toShip.map(x => x.o)), 'empaquetar'], [enviados, 'enviados']];
-    const tablero = h('div.hoy-tab', { role: 'navigation', 'aria-label': 'Los 5 pasos de los pedidos' }, PASOS5.map((p, i) => {
+    // 18-11: 4 estados (Confirmado · Imprimiendo · En mesa · Listo): «Por empaquetar» cuenta como «En mesa»
+    const grupos = [[ordersT.filter(x => ph(x.o) === 'confirmado').map(x => x.o), 'fabricar'], [printing.map(x => x.o), 'fabricando'], [enMesa.map(x => x.o).concat(aEmpaquetar.map(x => x.o)), 'postpro'],
+      [toShip.map(x => x.o), 'enviar']];
+    const tablero = h('div.hoy-tab.hoy-tab4', { role: 'navigation', 'aria-label': 'Los 4 estados de los pedidos' }, PASOS5.map((p, i) => {
       const L = grupos[i][0];
       return h('button.ht' + (L.length ? '' : '.cero') + (i === 1 && L.length ? '.activo' : ''), { type: 'button', 'data-k': p.k, style: { '--i': i }, title: 'Ver en Pedidos', onclick: () => go('pedidos/?f=' + grupos[i][1]) },
         h('span.ht-e', p.e), h('b.ht-n', { 'data-v': String(L.length) }, '0'), h('span.ht-t', p.t),

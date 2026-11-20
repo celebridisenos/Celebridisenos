@@ -50,7 +50,9 @@ export function render(el) {
         h('div.card',
           h('h3', '🧮 De lo cobrado al beneficio'),
           fila('Cobrado', eur(d.ingresos)),
-          fila('Coste de materiales', '− ' + eur(d.materiales), d.sinCoste ? d.sinCoste + ' sin coste apuntado' : ''),
+          // 18-11-2026 · lo cobrado de pedidos SIN coste conocido no cuenta en el beneficio (servidor 18-11; con uno anterior no viene)
+          d.sinCosteImporte ? fila('Pedidos sin coste conocido', '− ' + eur(d.sinCosteImporte), d.sinCoste + (d.sinCoste === 1 ? ' pedido: no cuenta' : ' pedidos: no cuentan') + ' en el beneficio') : null,
+          fila('Coste de materiales', '− ' + eur(d.materiales), d.sinCoste && !d.sinCosteImporte ? d.sinCoste + ' sin coste apuntado' : 'filamento, luz, pintado y extras'),
           fila('Coste de embalaje', '− ' + eur(d.embalaje), 'ya va sumado a tus precios (lo paga el cliente)'),
           fila('Costes asociados', '− ' + eur(d.asociados), 'envío, comisiones y otros' + (d.estimados ? ' (parte estimada)' : '')),
           fila('Beneficio neto estimado', d.pedidos ? eur(d.beneficio) : '—', '', 'total'))),

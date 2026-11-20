@@ -51,7 +51,8 @@
         w && w.addEventListener('statechange', function () {
           if (w.state === 'installed' && navigator.serviceWorker.controller) {
             // v16.3.3: AUTOMÁTICO. Si no estás escribiendo ni tienes una ventana abierta, se aplica sola en 2 segundos.
-            var a = document.activeElement, ocupado = (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) || document.querySelector('.modal, .drawer');
+            // 19-11-2026: y tampoco si has escrito algo en la última media hora o hay un borrador (al volver de otra app el cursor ya no está en el campo y se recargaba sola: Biou «se reinicia, eso es perder información»)
+            var a = document.activeElement, ocupado = (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) || document.querySelector('.modal, .drawer') || window.__cdHayBorrador || (window.__cdEscribio && Date.now() - window.__cdEscribio < 30 * 60000);
             if (!ocupado) { var av = document.createElement('div'); av.className = 'toast'; av.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:400'; av.textContent = '🔄 Actualizando la app…'; document.body.appendChild(av); setTimeout(function () { w.postMessage('skip'); }, 2000); return; }
             var b = document.createElement('div');
             b.className = 'toast'; b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:90px;z-index:400';
