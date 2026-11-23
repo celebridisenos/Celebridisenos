@@ -87,6 +87,7 @@ export function cintaResultado(r, paradas) {
   const g = v => coma(Math.round(v * 10) / 10);
   return [
     r.experto ? /* (14-11 noche: lo primero, la nota del 🧠 experto) */ (SEMAFORO[r.experto.semaforo] || '🧠') + ' Experto 3D: ' + r.experto.nota + '/100 · ' + r.experto.titular : '',
+    r.limpia ? /* (20-11: el «…_LIMPIA_…» de su carpeta, comprobado con su Bambu; desktop/host/limpia.go) */ '🧽 Su versión LIMPIA (comprobada con su Bambu, deja menos marcas de soporte): ' + r.limpia : '',
     r.posturaNombre ? '📐 Colocada: ' + r.posturaNombre : '',
     r.posturaNombre || r.soporte != null ? (r.soporte >= 0.3 ? '🌳 Soporte ≈ ' + g(r.soporte) + ' g · ' + (r.delDisenador ? 'el de su diseñador, que gasta menos' : r.arreglo === 'normal' ? 'normal ajustado (el de árbol dejaba algo en el aire)' : 'fácil de quitar') : '✨ Sin soporte') : '',
     r.recolocada ? '🧩 Recolocada para que quepa en tu cama, con todas sus piezas' : '',
@@ -121,28 +122,28 @@ export function dibujoImpresora(k) {
 // generar unos soportes correctos… que permita abrir el archivo original, descargarlo, llevarlo a Bambu Studio y preparar los soportes
 // a mano. El original nunca debe perderse ni sobrescribirse». Se abre una COPIA idéntica (desktop/host/original.go): si en Bambu le das
 // a Guardar, el original no se toca. Antes «Abrirlo tal cual» abría el mismo archivo del producto.
-function origenEl(ruta, nombre, opts, remoto, cerrar) {
+// 22-11-2026 · 🔘 SOLO DOS BOTONES. Biou (con la foto de la bandeja del gato rugosa por debajo): «no puede haber tantos botones, abrir en
+// Bambu tal cual, abrir en Bambu… no: un solo abrir original sin tocar nada y otro abrir de nuestro programa arreglado, dos claros botones…
+// tiene que salir bien, no podemos perder dinero». Antes había en esta ventana TRES maneras de abrir el original («🛟 📂 Abrir el original»,
+// «Abrirlo tal cual», más «Bajar» y «Ver dónde está»). Ahora abajo hay dos botones iguales de grandes, uno al lado del otro:
+//   📂 ORIGINAL, sin tocar nada  ·  ✅ ARREGLADO por CelebriDiseños
+// El original sigue el mismo camino que antes (opts.talCual = abrirEnBambu: copia del archivo, de este PC o de la nube; si no hay talCual,
+// desktop.original). El original NUNCA es un «…_LIMPIA_…»: esos los elige solo el ARREGLADO (desktop/host/limpia.go).
+function botonOriginal(ruta, nombre, opts, remoto, cerrar) {
   const local = !remoto && desktop.on && !!ruta && typeof desktop.original === 'function';
   if (!local && typeof opts.talCual !== 'function') return null;
-  const hace = que => async ev => {
-    const b = ev.currentTarget; b.disabled = true;
+  const b = h('button.ab-dos.ab-dos-orig.ab-talcual.ab-orig-bambu', { type: 'button' },
+    h('span.ab-dos-e', '📂'), h('b', 'ORIGINAL'), h('small', 'sin tocar nada: el archivo del diseñador tal cual'));
+  b.onclick = async () => {
+    if (typeof opts.talCual === 'function') { cerrar(); return opts.talCual(); }
+    b.disabled = true;
     try {
-      // 16-11 (noche): «Abrir el original» va por el mismo camino que «tal cual» (abrirEnBambu): sabe si el archivo está en ESTE PC o hay
-      // que bajarlo de la nube (el portátil no tiene la ruta de la torre), y el programa abre siempre una COPIA (bambu-abrir → copiaParaAbrir).
-      if (que === 'bambu' && typeof opts.talCual === 'function') { cerrar(); return opts.talCual(); }
-      const r = await desktop.original(ruta, que);
-      if (que === 'bambu') { cerrar(); toast(r && r.abierto ? '📂 Abierto en Bambu el ORIGINAL de «' + (nombre || r.nombre) + '» (una copia: pon el soporte a tu gusto y guarda sin miedo)' : 'No encuentro Bambu Studio en este PC. La copia del original está en ' + (r && r.copia), r && r.abierto ? 'ok' : 'warn', 9000); }
-      else if (que === 'bajar') toast('⬇️ Copia del original en Descargas: ' + String(r.copia || '').split(/[\\/]/).pop(), 'ok', 8000);
-      else toast('📁 Te enseño dónde está el original (no se ha copiado ni tocado nada)', 'ok', 6000);
+      const r = await desktop.original(ruta, 'bambu'); cerrar();
+      toast(r && r.abierto ? '📂 Abierto en Bambu el ORIGINAL de «' + (nombre || r.nombre) + '» (una copia: el original nunca se pisa)' : 'No encuentro Bambu Studio en este PC. La copia del original está en ' + (r && r.copia), r && r.abierto ? 'ok' : 'warn', 9000);
     } catch (e) { toast('No se pudo: ' + (e.message || e), 'bad', 8000); }
     b.disabled = false;
   };
-  return h('div.ab-orig', { 'data-orig': '1' },
-    h('div.ab-orig-t', h('b', '🛟 ¿Prefieres poner el soporte tú?'), h('small', 'El archivo original del diseñador, sin tocar. Se abre una copia: el original nunca se pisa.')),
-    h('div.ab-orig-bs',
-      h('button.btn.sm.ab-orig-bambu', { type: 'button', onclick: hace('bambu') }, '📂 Abrir el original en Bambu'),
-      local ? h('button.btn.ghost.sm.ab-orig-bajar', { type: 'button', onclick: hace('bajar') }, '⬇️ Bajar el original') : null,
-      local ? h('button.btn.ghost.sm.ab-orig-carpeta', { type: 'button', onclick: hace('carpeta') }, '📁 Ver dónde está') : null));
+  return b;
 }
 export function elegirAcabado(ruta, nombre, opts = {}) {
   const remoto = typeof opts.remoto === 'function';
@@ -173,14 +174,18 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
   const sopNo = () => ams ? 'Con colores, la pieza se queda en su postura: las paradas van por altura.' : esc !== 100 || opts.paredes || opts.relleno ? 'Con otro tamaño o reforzada, de momento no: ábrela al 100 % sin reforzar.' : '';
   let sop = false;
   const sopEl = h('div.ab-sopw');
-  const bAbrir = h('button.btn.primary.ab-abrir', { type: 'button', onclick: () => abrir() }, '🖨️ Abrir en Bambu listo para imprimir');
+  const bAbrir = h('button.ab-dos.ab-dos-arr.ab-abrir', { type: 'button', onclick: () => abrir() });
+  const pintaAbrir = () => mount(bAbrir, sop
+    ? [h('span.ab-dos-e', '🪄'), h('b', 'ARREGLADO'), h('small', 'buscar la postura con menos soportes')]
+    : [h('span.ab-dos-e', '✅'), h('b', 'ARREGLADO'), h('small', 'por CelebriDiseños, listo para imprimir con lo de arriba')]);
+  pintaAbrir();
   function pintaSop() {
     if (!puedeSop) return;
     const no = sopNo(); if (no) sop = false;
     mount(sopEl, h('div.ab-ams',
       h('button.ab-am.ab-sop' + (!sop ? '.on' : ''), { type: 'button', 'data-sop': 'no', onclick: () => { sop = false; pintaSop(); } }, h('span.ab-e', '📦'), h('b', 'Tal como está'), h('small', 'En la postura en que está guardada')),
       h('button.ab-am.ab-sop' + (sop ? '.on' : ''), { type: 'button', 'data-sop': 'si', disabled: !!no, onclick: () => { sop = true; pintaSop(); } }, h('span.ab-e', '🪄'), h('b', 'Menos soportes'), h('small', no || 'Prueba varias posturas con tu Bambu y te enseña la de menos soporte (o ninguno)'))));
-    bAbrir.textContent = sop ? '🪄 Buscar la postura con menos soportes' : '🖨️ Abrir en Bambu listo para imprimir';
+    pintaAbrir();
   }
   // ---- 2 bis · 🎯 la CALIBRACIÓN de cada impresora (11-11-2026, Biou: «prueba de calibre para cada máquina, rápida… así ya tienes los
   // ajustes perfectos de cada una»): lo medido con la probeta en ESA impresora va puesto (agujeros, contorno, pie de elefante).
@@ -306,8 +311,10 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     return import('./r8/calibracion.js').then(m => { CAL = m; }).catch(() => { }).then(() => abrir());
   }
   pinta();
+  const bOrig = botonOriginal(ruta, nombre, opts, remoto, () => md.close());
   mount(body,
     nombre ? h('p.ab-pieza', '📦 ' + nombre + (esc !== 100 ? ' · al ' + esc + ' %' : '')) : null,
+    bOrig ? h('p.ab-dos-pista', 'Abajo hay dos botones: ', h('b', '📂 ORIGINAL'), ' (sin tocar nada) o ', h('b', '✅ ARREGLADO'), ' (con lo que elijas aquí).') : null,
     remoto ? (esOrdenador() && !desktop.on ? h('p.ab-remoto.ab-remoto-pc', '⚠️ Estás en la app de internet: se abrirá en el Bambu de la TORRE, no en este ordenador. Para abrirlo aquí, abre el programa CelebriDiseños con su icono.') : h('p.small.ab-remoto', '🖥️ Lo prepara la torre y se abre allí, en su Bambu Studio.')) : null, // (14-11: en un ordenador sin el programa, bien claro)
     h('h3.ab-paso', h('i', '1'), '¿Qué acabado?'), tiles,
     h('h3.ab-paso', h('i', '2'), '¿En qué impresora?'), imps, calEl, placaTit, placas,
@@ -315,11 +322,8 @@ export function elegirAcabado(ruta, nombre, opts = {}) {
     h('h3.ab-paso', h('i', '4'), '¿De un color o con colores?', h('small.ab-paso-s', 'sin AMS: se para y cambias tú la bobina')), coloresEl,
     puedeSop ? h('h3.ab-paso.ab-paso-sop', h('i', '5'), '¿Con menos soportes?', h('small.ab-paso-s', 'la gira hasta que necesite el mínimo')) : null, puedeSop ? sopEl : null,
     resumen,
-    origenEl(ruta, nombre, opts, remoto, () => md.close()),
-    h('div.ab-pie', bAbrir,
-      // (16-11 noche: vuelve a salir SIEMPRE. Esconderlo en el PC dejaba al portátil sin manera de abrirlo: la ruta es la de la torre.
-      //  Ya no pisa nada: el programa abre una copia del original, comprobada por huella.)
-      typeof opts.talCual === 'function' ? h('button.btn.ghost.sm.ab-talcual', { type: 'button', onclick: () => { md.close(); opts.talCual(); } }, 'Abrirlo tal cual, sin tocar nada') : null),
+    // (16-11 noche: el original sale SIEMPRE, también en el portátil, que no tiene la ruta de la torre. Abre una copia comprobada por huella.)
+    h('div.ab-pie.ab-pie-dos', bOrig, bAbrir),
     h('p.tiny.muted.ab-nota', 'Usa el perfil de serie de esa impresora con estos ajustes (probado con tu Bambu Studio: 0 avisos). No cambia nada de tu Bambu Studio.'));
   return md;
 }

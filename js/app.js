@@ -1,6 +1,6 @@
 // ================= Arranque, navegación y estructura =================
 import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
-import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes, embalajeReal } from './store.js';
+import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, cambiarPersona, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes, embalajeReal } from './store.js';
 import { aplicarColor, colorActual, dialogoColores, dialogoPlan } from './v17.js'; // v17: colores, plan de impresión y calendario
 import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
@@ -16,7 +16,7 @@ BD.registraReabrir(/^Nuevo pedido$/, () => import('./views/pedidos.js').then(m =
 BD.registraReabrir(/^Editar pedido nº (\d+)/, mt => { const o = (S.t.pedidos || []).find(x => String(x.numero) === mt[1] && !x.borrado); if (o) import('./views/pedidos.js').then(m => m.orderForm(o)); });
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
-import { menuNav, editarMenu } from './menuorden.js';
+import { menuNav, editarMenu, OCULTOS_DE_SERIE } from './menuorden.js';
 import * as MP from './menu_principal.js'; // 17-10-2026 · 🧭 menú principal nuevo (buscador, grupos por lo que quieres hacer), «← Atrás» y la ruta arriba
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
@@ -80,6 +80,7 @@ const VIEWS = {
   chat: () => import('./views/chat.js'),
   estado: () => import('./views/estado.js'),
   informes: () => import('./views/informes.js'),
+  masvendidos: () => import('./views/masvendidos.js'), // 22-11-2026: 🏆 Más vendidos (unidades, dinero, beneficio, margen, periodo y canal)
   notificaciones: () => import('./views/notificaciones.js'),
   pedidosweb: () => import('./views/pedidosweb.js'),
   bandeja: () => import('./views/bandeja.js'), // v14.1: correos de todas las cuentas de Vinted, Wallapop…
@@ -124,6 +125,7 @@ export const NAV = [
   { k: 'ingresos', t: 'Ingresos 💶', i: 'euro', p: 'productos.costes' }, // v16,
   { k: 'costes', t: 'Materiales y costes', i: 'euro', p: 'productos.costes' },
   { k: 'informes', t: 'Informes', i: 'chart', p: 'informes.ver' },
+  { k: 'masvendidos', t: 'Más vendidos 🏆', i: 'chart', p: 'pedidos.ver' }, // 22-11-2026
   { k: 'inteligencia', t: 'Inteligencia 🧠', i: 'sparkles', p: 'pedidos.ver' }, // v17.1: banco de metas, planeta de clientes y tus números (en lugar del calendario)
   { k: 'trailer', t: 'Tráiler del mes 🎬', i: 'play', p: 'pedidos.ver' }, // v18 · 15-11-2026: de «Tienda y redes» a «Números» (son tus números del mes en vídeo)
   { sep: true, t: 'Más' },
@@ -266,6 +268,7 @@ function accountMenu(anchor) {
     h('button', { onclick: () => { m.remove(); go('config/perfil'); } }, icon('user', 's'), 'Mi perfil'),
     h('button', { onclick: () => { m.remove(); go('config'); } }, icon('settings', 's'), 'Configuración'),
     h('button.acct-ui', { onclick: () => { m.remove(); const k = es18() ? 'nueva' : 'v18'; ponInterfaz(k); toast(k === 'v18' ? '🛰️ Sala de mando (18)' : '✨ Interfaz 14', 'ok', 2500); } }, icon('sparkles', 's'), es18() ? 'Volver a la interfaz de antes (14)' : 'Usar la Sala de mando (18)'),
+    h('button.acct-persona', { onclick: async () => { m.remove(); await cambiarPersona(); shell = null; start(); } }, icon('user', 's'), '👥 Cambiar de persona (sin contraseña)'), // 23-11: la sesión queda guardada
     h('button.danger', { onclick: async () => { m.remove(); await logout(); start(); } }, icon('logout', 's'), 'Cerrar sesión'));
   document.body.appendChild(m);
   setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
@@ -584,8 +587,12 @@ export function accionesPaleta() {
     fn('Ver el estreno de la 18', 'sparkles', () => estreno({ ir: go }), '', 'estreno inauguración fiesta novedades cine'),
     fn('Tema oscuro / claro', 'sparkles', () => { if (es18()) return ponInterfaz(es30() ? 'v30' : 'v18', document.documentElement.dataset.modo === 'noche' ? 'dia' : 'noche'); const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
     fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),
+    fn('👥 Cambiar de persona (sin contraseña)', 'user', async () => { await cambiarPersona(); shell = null; start(); }, '', 'usuario perfil otra persona quien soy entrar biou adriana'),
     fn('Cerrar sesión', 'logout', async () => { await logout(); start(); }, '', 'salir')
   ];
+  // 23-11-2026 · cada apartado del menú se encuentra aquí, también los ocultos de serie (menuorden.js · OCULTOS_DE_SERIE)
+  const ya = new Set(lista.filter(a => a.path).map(a => a.path));
+  NAV.filter(n => !n.sep && n.k && !ya.has(n.k) && (!n.d || desktop.on)).forEach(n => lista.push(nav('Ir a ' + n.t, n.i || 'dot', n.k, n.p, 'apartado menú ' + n.k + (OCULTOS_DE_SERIE[n.k] ? ' oculto ' + OCULTOS_DE_SERIE[n.k] : ''))));
   return lista.filter(a => !a.perm || can(a.perm));
 }
 // ---------- Buscador global (Ctrl+K) ----------
@@ -679,7 +686,7 @@ function lockScreen() {
   const o = h('div.overlay', { style: { background: 'var(--bg)', zIndex: 300 } }, h('div.card.auth-card.col', { style: { padding: '28px' } },
     h('div.row', avatar(S.me, 'l'), h('div', h('h2', 'Pantalla bloqueada'), h('p.muted', S.me.nombre + ' · por inactividad'))),
     field('Contraseña', p), msg, btn('Desbloquear', go2, { cls: 'primary' }),
-    btn('Cambiar de usuario', async () => { o.remove(); locked = false; await logout(); start(); }, { cls: 'ghost' })));
+    btn('Cambiar de persona', async () => { o.remove(); locked = false; await cambiarPersona(); shell = null; start(); }, { cls: 'ghost' })));
   document.body.appendChild(o);
   setTimeout(() => p.focus(), 50);
 }

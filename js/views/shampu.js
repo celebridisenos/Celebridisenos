@@ -538,8 +538,13 @@ function vista(el) {
         // 18-11 · el interruptor: con él encendido, Shampú pasa pedidos HACIA DELANTE al leer el sello de la caja (shampu.fase)
         h('div.sh-mueve' + (i.mueve ? '.on' : ''),
           h('div', h('b', i.mueve ? '🟢 Shampú puede mover pedidos' : '⚪ Shampú NO mueve pedidos'),
-            h('small', 'Lee el sello de la caja y la pasa a Imprimiendo, En mesa o Listo. Solo hacia delante: nunca a Enviado, ni hacia atrás, ni toca clientes ni precios.')),
-          boton(i.mueve ? 'Apagar' : 'Encender', () => pedir('mover', { si: !i.mueve }).then(() => toast(i.mueve ? 'Shampú ya no mueve pedidos.' : '🟢 Shampú ya puede mover pedidos.')), { cls: i.mueve ? 'sh-b-claro' : 'sh-b-amarillo' })));
+            h('small', 'Lee el sello de la caja y la pasa a Imprimiendo, En mesa o Listo. Solo hacia delante: nunca hacia atrás, ni toca clientes ni precios.')),
+          boton(i.mueve ? 'Apagar' : 'Encender', () => pedir('mover', { si: !i.mueve }).then(() => toast(i.mueve ? 'Shampú ya no mueve pedidos.' : '🟢 Shampú ya puede mover pedidos.')), { cls: i.mueve ? 'sh-b-claro' : 'sh-b-amarillo' })),
+        // 23-11 · 🚚 su otro interruptor: de LISTO a ENTREGADO (ya se lo diste al transportista). Apagado de serie (servidor 18.14.0)
+        h('div.sh-mueve.sh-entrega' + (i.entrega ? '.on' : ''),
+          h('div', h('b', i.entrega ? '🟢 Shampú puede marcar ENTREGADO' : '⚪ Shampú NO marca ENTREGADO'),
+            h('small', 'Cuando ya se lo has dado al transportista: pasa el pedido de Listo a Entregado y desaparece de la lista. Solo desde Listo, nunca hacia atrás.')),
+          boton(i.entrega ? 'Apagar' : 'Encender', () => pedir('entregar', { si: !i.entrega }).then(() => toast(i.entrega ? 'Shampú ya no marca ENTREGADO.' : '🟢 Shampú ya puede marcar ENTREGADO.')), { cls: i.entrega ? 'sh-b-claro' : 'sh-b-amarillo' })));
       else cosas.push(h('p.sh-nota', i.quitada ? 'La llave se quitó el ' + fecha(i.quitada) + '. Ahora Shampú no lee nada.' : 'Shampú todavía no tiene llave.'),
         boton('🔑 Crear la llave de Shampú', () => crear(false), { cls: 'sh-b-amarillo sh-b-grande' }));
       mount(caja, ...cosas);

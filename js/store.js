@@ -9,7 +9,7 @@ const CL = window.CL;
 // 04-11-2026 · «somos dos trabajadores… debemos de cobrar»: si el Servidor.gs aún es el de antes (no trae minutosPieza), vuestro trabajo
 // por pieza se cuenta igual: 10 min (lo mismo que trae el Servidor 18.6.0 por defecto). Si lo cambiáis en Configuración, manda lo vuestro.
 function conTrabajo(cfg) { if (cfg && cfg.precios && (cfg.precios.minutosPieza === undefined || cfg.precios.minutosPieza === null || cfg.precios.minutosPieza === '')) cfg.precios = Object.assign({}, cfg.precios, { minutosPieza: 10 }); return cfg; }
-export const APP_VERSION = '60.19.0';
+export const APP_VERSION = '60.20.1';
 export const SERVIDOR_NECESARIO = '18.0.0'; // v20: la versión MÍNIMA del Servidor.gs que necesita esta app (la 20 no cambia nada del servidor)
 const TABLES = ['pedidos', 'clientes', 'productos', 'calculadora', 'gastos', 'stock', 'fabricacion', 'tareas', 'noticias', 'comentarios', 'reacciones', 'redes', 'archivos', 'usuarios', 'notificaciones', 'solicitudes', 'biblioteca', 'memoria', 'logros', 'impresoras', 'trabajos', 'bobinas', 'compras', 'presupuestos', 'facturas', 'materiales', 'preciosHist', 'embalajes', 'recetas', 'anuncios', 'anunciosHist', 'fallos', 'movMateriales', 'impresiones', 'pedidosWeb', 'correosPlat'];
 
@@ -106,7 +106,7 @@ export async function api(a, d, opts = {}) {
     try { j = await r.json(); } catch (e) { throw new ApiError('NET', 'Respuesta no válida del servidor. ¿Es correcta la dirección?'); }
     lentas = 0; ultimaOk = Date.now(); setOnline(true);
     if (!j.ok) {
-      if (j.err.code === 'AUTH' && a !== 'auth.login' && a !== 'auth.desbloquear') onAuthLost(j.err.msg);
+      if (j.err.code === 'AUTH' && a !== 'auth.login' && a !== 'auth.desbloquear' && !opts.perfil) onAuthLost(j.err.msg); // (23-11: probar un perfil guardado que caducó no echa a nadie)
       throw new ApiError(j.err.code, j.err.msg, j.err.extra);
     }
     medida(a, performance.now() - t0, j.ms);
@@ -185,7 +185,47 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 let authLostCb = null;
 export function onAuthLostHandler(fn) { authLostCb = fn; }
-function onAuthLost(msg) { S.token = ''; saveToken(''); if (authLostCb) authLostCb(msg); }
+function onAuthLost(msg) { const t = S.token; S.token = ''; saveToken(''); olvidaToken(t); if (authLostCb) authLostCb(msg); }
+
+// ---------- 23-11-2026 · 👥 PERFILES GUARDADOS EN ESTE APARATO (entrar sin contraseña) ----------
+// Biou: «somos dos personas trabajando en casa; no quiero introducir continuamente la contraseña para entrar». Cada persona entra UNA vez
+// con su contraseña en cada aparato; su sesión queda guardada (en el PC, en secretos.dat del programa; en el móvil, en el aparato) y luego
+// entra con un toque en su cara. «Cambiar de persona» NO cierra la sesión; «Cerrar sesión» sí (y la quita de aquí). En modo USB no se guarda.
+// La seguridad sigue en el servidor: cada sesión es la de esa persona (sus permisos), caduca si no se usa en 60 días y se puede cerrar
+// desde Configuración › Seguridad (sesiones de cada usuario).
+async function leePerfiles() {
+  try { const raw = desktop.on ? await desktop.secretGet('perfiles') : localStorage.getItem('cd.perfiles'); const L = JSON.parse(raw || '[]'); return Array.isArray(L) ? L.filter(p => p && p.token && p.usuario) : []; } catch (e) { return []; }
+}
+async function guardaPerfiles(L) { const t = JSON.stringify(L.slice(0, 8)); if (desktop.on) await desktop.secretSet('perfiles', t); else localStorage.setItem('cd.perfiles', t); }
+async function recuerdaPerfil(token, u) {
+  if (desktop.portable || !token || !u || !u.usuario) return;
+  const L = (await leePerfiles()).filter(p => !(p.usuario === u.usuario && (p.server || '') === (S.server || '')));
+  L.unshift({ usuario: u.usuario, nombre: u.nombre || u.usuario, color: u.color || '', avatarId: u.avatarId || '', token, server: S.server || '' });
+  await guardaPerfiles(L);
+}
+async function olvidaToken(t) { if (!t) return; const L = await leePerfiles(), M = L.filter(p => p.token !== t); if (M.length !== L.length) await guardaPerfiles(M); }
+// Las caras guardadas de ESTE servidor, sin la sesión (eso no sale de aquí)
+export async function perfilesGuardados() { return (await leePerfiles()).filter(p => (p.server || '') === (S.server || '')).map(p => ({ usuario: p.usuario, nombre: p.nombre, color: p.color, avatarId: p.avatarId })); }
+// Entrar con un toque. Si esa sesión ya no vale (caducó o se cerró), se quita y hay que escribir la contraseña una vez.
+export async function entrarPerfil(usuario) {
+  const p = (await leePerfiles()).find(x => x.usuario === usuario && (x.server || '') === (S.server || ''));
+  if (!p) throw new ApiError('AUTH', 'Escribe tu contraseña una vez en este aparato.');
+  let r;
+  try { r = await api('auth.yo', {}, { token: p.token, perfil: true }); }
+  catch (e) { if (e.code === 'AUTH') { await olvidaToken(p.token); throw new ApiError('AUTH', 'Tu sesión en este aparato caducó: escribe tu contraseña una vez y se vuelve a guardar.'); } throw e; }
+  S.token = p.token; S.me = r.user; S.perms = r.perms;
+  await saveToken(p.token); await kv.del('unlock');
+  localStorage.setItem('cd.lastUser', usuario);
+  await recuerdaPerfil(p.token, r.user); // (nombre y color al día; la última en entrar, la primera)
+  await pull(true);
+  return r;
+}
+// Cambiar de persona SIN cerrar la sesión: la de ahora queda guardada para volver con un toque
+export async function cambiarPersona() {
+  if (S.token && S.me) await recuerdaPerfil(S.token, S.me);
+  S.token = ''; S.me = null; await saveToken(''); await kv.del('me'); await kv.del('unlock');
+  emit();
+}
 
 // ---------- Sesión ----------
 export async function loadLocal() {
@@ -197,6 +237,7 @@ export async function loadLocal() {
   if (me && S.token) { S.me = me.me; S.perms = me.perms; S.cfg = conTrabajo(me.cfg); }
   // Hay sesión guardada pero no la ficha local (caché borrada): se recupera sin pedir contraseña
   if (S.token && !S.me && S.server) await pull(true);
+  if (S.token && S.me && !(await leePerfiles()).some(p => p.token === S.token)) await recuerdaPerfil(S.token, S.me); // (23-11: la sesión que ya había queda como perfil)
   document.documentElement.dataset.ws = S.ws;
   await loadTables(S.ws);
   S.queue = (await kv.get('queue')) || [];
@@ -267,11 +308,13 @@ export async function afterLogin(res, password) {
   S.token = res.token; S.me = res.user; S.perms = res.perms;
   await saveToken(res.token);
   localStorage.setItem('cd.lastUser', res.user.usuario);
+  await recuerdaPerfil(res.token, res.user); // (23-11: la próxima vez, con un toque)
   if (password) await setLocalUnlock(password);
   await pull(true);
 }
 export async function logout(local) {
   if (!local) { try { await api('auth.logout', {}); } catch (e) { } }
+  await olvidaToken(S.token); // (23-11: «Cerrar sesión» de verdad: deja de estar guardada en este aparato)
   S.token = ''; S.me = null; await saveToken(''); await kv.del('me'); await kv.del('unlock');
   emit();
 }

@@ -60,20 +60,25 @@ export function contarPlacas(xml) {
 // nombres de las piezas que tiene dentro (sin «.stl», sin guiones bajos). Una por cada placa que cuenta contarPlacas, en el mismo orden.
 const xmlTxt = t => String(t || '').replace(/&quot;/g, '"').replace(/&apos;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 const limpiaNombre = t => xmlTxt(t).replace(/\.(stl|3mf|obj|step|stp)$/i, '').replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+// 23-11-2026 · solo los nombres que se entienden en español («Körper13», «Default 2477», «plate 1» no; «Tray and grate» → «Bandeja y rejilla»)
+const legible = t => { const C = typeof window !== 'undefined' && window.CL; return C && C.placaNombreLegible ? C.placaNombreLegible(t) : t; };
 export function nombresPlacas(xml) {
   xml = String(xml || '');
   const objetos = {}; let m; const reO = /<object\b[^>]*\bid="(\d+)"[^>]*>\s*<metadata\s+key="name"\s+value="([^"]*)"/g;
-  while ((m = reO.exec(xml))) objetos[m[1]] = limpiaNombre(m[2]);
+  while ((m = reO.exec(xml))) objetos[m[1]] = legible(limpiaNombre(m[2]));
   const bloques = xml.match(/<plate>[\s\S]*?<\/plate>/g) || [], conPieza = bloques.filter(b => /<model_instance[ >\/]/.test(b)), lista = conPieza.length ? conPieza : bloques;
-  return lista.map(b => {
-    const pn = /<metadata\s+key="plater_name"\s+value="([^"]*)"/.exec(b), propio = pn ? limpiaNombre(pn[1]) : '';
+  const sale = lista.map(b => {
+    const pn = /<metadata\s+key="plater_name"\s+value="([^"]*)"/.exec(b), propio = pn ? legible(limpiaNombre(pn[1])) : '';
     if (propio) return propio.slice(0, 40);
     const ids = []; const reI = /<metadata\s+key="object_id"\s+value="(\d+)"/g; let q;
     while ((q = reI.exec(b))) if (!ids.includes(q[1])) ids.push(q[1]);
     const nom = []; ids.forEach(i => { const n = objetos[i]; if (n && !nom.some(x => x.toLowerCase() === n.toLowerCase())) nom.push(n); });
-    const txt = nom.length <= 1 ? nom.join('') : nom.length === 2 ? nom[0] + ' y ' + nom[1] : nom[0] + ', ' + nom[1] + ' y ' + (nom.length - 2 === 1 ? nom[2] : (nom.length - 2) + ' más');
+    if (ids.some(i => !objetos[i])) return ''; // (23-11) si alguna pieza de la placa no se entiende, mejor el nombre del producto que medio nombre
+    const txt = nom.length <= 1 ? nom.join('') : nom.length === 2 ? nom[0] + ' y ' + nom[1] : '';
     return txt.slice(0, 40);
   });
+  // (23-11) un nombre repetido en dos placas no sirve para distinguirlas
+  return sale.map(x => x && sale.filter(y => y.toLowerCase() === x.toLowerCase()).length > 1 ? '' : x);
 }
 // «Metadata/slice_info.config» → lo que calculó el laminador (por bandeja)
 function leerLaminado(xml) {

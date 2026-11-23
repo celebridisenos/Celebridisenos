@@ -2816,3 +2816,23 @@ tr.cli-grupo.cg:hover, .item.cli-grupo.cg:hover { background: var(--brand-soft);
   html .modal, html .drawer, html .drawer-h, html .topbar, html .rail50 { background-color: var(--surface) !important; background-image: none !important; }
   html .topbar { background-color: var(--bg) !important; }
 }
+/* 22-11-2026 · 🏆 Más vendidos */
+.mv-filtros { gap: 10px; align-items: flex-end; } .mv-f { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted); } .page-head .mv-f { color: rgba(255,255,255,.92); } .mv-f .inp { min-width: 160px; }
+.mv-lista { display: grid; gap: 6px; }
+.mv-fila { display: grid; grid-template-columns: 34px minmax(140px, 1.4fr) minmax(80px, 1.2fr) 110px 110px; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--surface-2, rgba(0,0,0,.03)); }
+.mv-fila:hover { background: var(--surface-3, rgba(0,0,0,.06)); }
+.mv-pos { font-size: 20px; text-align: center; font-weight: 800; }
+.mv-quien { display: grid; min-width: 0; } .mv-quien b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mv-quien small { font-size: 11.5px; }
+.mv-barra { height: 10px; border-radius: 9px; background: var(--surface-3, rgba(0,0,0,.06)); overflow: hidden; } .mv-barra i { display: block; height: 100%; background: var(--brand); border-radius: 9px; }
+.mv-num { display: grid; text-align: right; } .mv-num small { font-size: 11.5px; }
+@media (max-width: 760px) { .mv-fila { grid-template-columns: 30px 1fr auto; } .mv-barra { display: none; } .mv-fila > .mv-num:last-child:not(:nth-child(4)) { grid-column: 2 / 4; text-align: left; } }
+
+/* 23-11-2026 · 👥 «¿Quién eres?»: entrar con un toque, sin contraseña (renderLogin + store.js perfiles) */
+.avatar.xl { width: 84px; height: 84px; font-size: 30px; }
+.quien-eres h2 { margin: 4px 0 0; }
+.qe-caras { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin: 14px 0 6px; }
+.qe-cara { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 120px; padding: 16px 12px; border-radius: 18px;
+  border: 2px solid var(--border, #ddd); background: var(--surface, #fff); color: inherit; font: inherit; cursor: pointer; transition: transform .12s, border-color .12s; }
+.qe-cara:hover, .qe-cara:focus-visible { transform: translateY(-2px); border-color: var(--accent, #14b8a6); }
+.qe-cara b { font-size: 18px; }
+.qe-cara.entrando { opacity: .6; pointer-events: none; }

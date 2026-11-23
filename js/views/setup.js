@@ -1,6 +1,6 @@
 // ================= Primera conexión, configuración inicial y entrada =================
 import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials, area, modal } from '../ui.js';
-import { S, api, setServer, afterLogin, pull, login, passHashes, checkNewPassword, parseInvite, joinWithInvite } from '../store.js';
+import { S, api, setServer, afterLogin, pull, login, passHashes, checkNewPassword, parseInvite, joinWithInvite, perfilesGuardados, entrarPerfil } from '../store.js';
 import { rolePicker, ROLE_INFO } from '../roles.js';
 import { iaSetupStep } from '../ai/models.js';
 import { desktop } from '../desktop.js';
@@ -40,11 +40,27 @@ export function renderConnect(app, done) {
 }
 
 // ---------- Entrar ----------
-export function renderLogin(app, done, st) {
+// 23-11-2026 · 👥 «¿Quién eres?»: las personas que ya entraron en este aparato, con un toque y SIN contraseña (store.js · perfiles)
+export async function renderLogin(app, done, st, aviso, conClave) {
+  const caras = desktop.portable || conClave ? [] : await perfilesGuardados().catch(() => []);
+  if (caras.length) {
+    const msg = h('p.bad-t'); if (aviso) msg.textContent = aviso;
+    const tocar = async (c, b) => {
+      msg.textContent = ''; b.disabled = true; b.classList.add('entrando');
+      try { await entrarPerfil(c.usuario); done(); }
+      catch (e) { b.disabled = false; b.classList.remove('entrando'); if (e.code === 'AUTH') { localStorage.setItem('cd.lastUser', c.usuario); renderLogin(app, done, st, e.message, true); } else msg.textContent = e.code === 'NET' ? 'Sin conexión: prueba otra vez en un momento.' : e.message; }
+    };
+    mount(app, page(h('div.card.auth-card.col.quien-eres', { style: { padding: '28px' } }, logo(),
+      h('h2', '¿Quién eres? 👋'), h('p.muted', 'Toca tu cara para entrar. Sin contraseña en este aparato.'),
+      h('div.qe-caras', caras.map(c => { const b = h('button.qe-cara', { 'data-u': c.usuario, onclick: () => tocar(c, b) }, avatar(c, 'xl'), h('b', c.nombre || c.usuario)); return b; })),
+      msg,
+      h('button.btn.ghost.sm', { onclick: () => { localStorage.removeItem('cd.lastUser'); renderLogin(app, done, st, '', true); } }, '➕ Entra otra persona (con su contraseña)'))));
+    return;
+  }
   const last = localStorage.getItem('cd.lastUser') || '';
   const u = inp({ placeholder: 'Tu usuario', value: last, autocomplete: 'username', autocapitalize: 'off' });
   const p = inp({ type: 'password', placeholder: 'Tu contraseña', autocomplete: 'current-password' });
-  const msg = errBox();
+  const msg = errBox(); if (aviso) msg.textContent = aviso;
   // «No soy yo» / cambiar de usuario: antes borraba el texto pero el campo seguía oculto y no se podía escribir otro usuario
   const userField = field('Usuario', u, null, last ? 'hidden' : '');
   const whoRow = h('div.row', avatar({ nombre: last }), h('div.grow', h('div.bold', last), h('button.btn.ghost.sm', { onclick: () => { u.value = ''; userField.classList.remove('hidden'); userField.style.display = ''; whoRow.style.display = 'none'; try { localStorage.removeItem('cd.lastUser'); } catch (e) { } u.focus(); } }, 'No soy yo (cambiar de usuario)')));

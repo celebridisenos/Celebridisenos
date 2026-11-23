@@ -472,7 +472,7 @@ export async function buildFor(o, tipo, L) {
       cliente: (() => { const p = String(o.cliente || '').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1].charAt(0).toUpperCase() + '.' : ''); })(),
       limite: t && t.limite ? t.limite.split('-').reverse().slice(0, 2).join('/') : '', transportista: lo.envio || et.transportista || '', seguimiento: lo.seguimiento || '', canal: o.canal || '', cuenta: [...new Set(g.map(p => p.cuenta).filter(Boolean))].join(' + '), // v14.1: desde qué cuenta se vendió
       lineas: g.map(p => (Number(p.cantidad) > 1 ? p.cantidad + ' × ' : '') + p.producto + (p.color ? ' · ' + p.color : '') + (p.personalizacion ? ' · «' + String(p.personalizacion).slice(0, 40) + '»' : '') + (g.length > 1 ? ' (nº ' + p.numero + ')' : '')),
-      nota: (t => t.length > 170 ? t.slice(0, 168).replace(/\s+\S*$/, '') + '…' : t)(String(o.obsEnvio || '').trim()), gracias: { titulo: gd.titulo, texto: gd.texto, firma: gd.firma }, destino: destinoDe(o) };
+      nota: (t => t.length > 170 ? t.slice(0, 168).replace(/\s+\S*$/, '') + '…' : t)(String(o.obsEnvio || '').trim()), gracias: { titulo: gd.titulo, texto: gd.texto, firma: gd.firma }, destino: destinoDe(o), discreto: !!(S.cfg.envio && S.cfg.envio.discreta) }; // 22-11: 🔒 discreta
     if (gd.logo) d.logoImg = await L.loadLogo();
     if (L.cargaLigada) await L.cargaLigada(); // (19-11: «CelebriDiseños» en letra ligada)
     return { tpl: 'paquete150', data: d };

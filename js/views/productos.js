@@ -389,6 +389,9 @@ function stockCard(p) {
 // Arriba de la ficha: el archivo 3D del producto (subido o en su carpeta del PC) con 🧊 Ver el 3D · 🖨️ Abrir en Bambu Studio ·
 // 🧰 Abrir en el Estudio (CelebriR8). Lo de la carpeta del PC se mira una vez por producto (no en cada repintado).
 const ES_3D = n => ['stl', '3mf', 'obj'].includes(extOf(n));
+// 22-11-2026 · «…_LIMPIA_<impresora>.3mf» (desktop/host/limpia.go) es NUESTRA versión arreglada, no el original del diseñador: no sale en la
+// lista ni se abre con «📂 ORIGINAL». La usa solo «✅ ARREGLADO» (el programa del PC la busca junto al original).
+const ES_LIMPIA = n => /_limpia_/i.test(String(n || ''));
 const LOCALES_3D = new Map(); // producto → [{ name, path }]
 export async function abrirEnBambu(x) {
   if (!desktop.on) return toast('«Abrir en Bambu Studio» funciona en el programa del PC. Aquí puedes descargarlo.', 'warn', 6000);
@@ -436,12 +439,12 @@ export async function abrirConAcabado(x, o = {}) {
 // 02-11-2026: los botones de la pieza salen también en la tablet y el móvil (lo hace la torre por encargo)
 const conPieza = () => desktop.on || can('archivos.subir');
 export async function acabadoDeProducto(p, o = {}) {
-  const remoto = remotoDe(p), sub0 = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre))[0];
+  const remoto = remotoDe(p), sub0 = filesOf('productos', p.id).filter(a => ES_3D(a.nombre) && !ES_LIMPIA(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre))[0];
   const base = Object.assign({ medidas: medidasDe(p), pid: p.id }, sub0 ? { cargar3D: async () => ({ buf: await (await fetchFile(sub0)).arrayBuffer(), nombre: sub0.nombre }) } : {}, o); // 02-11-2026: portátil, tablet y móvil → la torre
   if (!desktop.on) return elegirAcabado(null, p.nombre, Object.assign({}, base, { remoto }));
-  const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
+  const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre) && !ES_LIMPIA(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
   if (subidos.length) return abrirConAcabado({ nombre: subidos[0].nombre, a: subidos[0], p }, o);
-  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) return abrirConAcabado({ nombre: L[0].name, ruta: L[0].path, p }, o); } catch (e) { /* su carpeta está en la torre */ return elegirAcabado(null, p.nombre, Object.assign({}, base, { remoto })); } }
+  if (p.ruta) { try { const r = await desktop.list(p.ruta); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name) && !ES_LIMPIA(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) return abrirConAcabado({ nombre: L[0].name, ruta: L[0].path, p }, o); } catch (e) { /* su carpeta está en la torre */ return elegirAcabado(null, p.nombre, Object.assign({}, base, { remoto })); } }
   toast('Este producto no tiene archivo 3D todavía. Súbelo o ábrelo primero en Bambu.', 'warn', 7000);
 }
 // 🛠️ Reparar por fragilidad (01-11-2026): necesita el STL (no 3MF). Decoración → engorda; con encaje → no toca la medida.
@@ -462,11 +465,11 @@ export async function reforzarDeProducto(p) {
 }
 // 10-11-2026 · Biou: «que cada producto, cuando se vaya a abrir en Bambu, me pregunte cómo quieres el acabado… y la impresora».
 export async function bambuDeProducto(p) {
-  const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
+  const subidos = filesOf('productos', p.id).filter(a => ES_3D(a.nombre) && !ES_LIMPIA(a.nombre)).sort((a, b) => primero3MF(a.nombre, b.nombre));
   if (!desktop.on) return subidos.length ? elegirAcabado(null, p.nombre, { remoto: remotoDe(p), medidas: medidasDe(p), pid: p.id, cargar3D: async () => ({ buf: await (await fetchFile(subidos[0])).arrayBuffer(), nombre: subidos[0].nombre }), talCual: () => encargarPieza(p, 'bambu') }) : toast('Este producto no tiene su archivo 3D en el programa: súbelo (STL o 3MF) y se abre en la torre.', 'warn', 8000); // 02-11: tablet/móvil → la torre
   if (subidos.length) { const x = { nombre: subidos[0].nombre, a: subidos[0], p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); }
   const pr = p.ruta ? await carpetaAqui(p.ruta) : null; // 12-11: en el portátil, la carpeta de la torre por la red de casa
-  if (pr) { try { const r = await desktop.list(pr); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) { const x = { nombre: L[0].name, ruta: L[0].path, p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); } } catch (e) { /* sin su carpeta: se pide el archivo */ } }
+  if (pr) { try { const r = await desktop.list(pr); const L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name) && !ES_LIMPIA(e.name)).sort((a, b) => primero3MF(a.name, b.name)); if (L.length) { const x = { nombre: L[0].name, ruta: L[0].path, p }; return abrirConAcabado(x, { talCual: () => abrirEnBambu(x) }); } } catch (e) { /* sin su carpeta: se pide el archivo */ } }
   const elegir = h('input', { type: 'file', accept: '.stl,.3mf,.obj', hidden: true });
   let cerrar = () => { };
   const usa = async f => {
@@ -534,8 +537,12 @@ function barra3D(p, closeAll) {
     mount(caja, h('div.prod-3d-t', h('span.prod-3d-ic', '🧊'), h('div.grow', h('b', 'Archivo 3D'), todos.length > 1 ? h('select.inp.sm.prod-3d-sel', { 'aria-label': 'Archivo 3D', onchange: e => { i = Number(e.target.value); cargado = ''; ver(x()); } }, todos.map((t, k) => h('option', { value: k }, t.nombre))) : h('div.tiny.muted.ellipsis', todos[0].nombre))),
       visor, sop,
       h('div.row.wrap.prod-3d-b',
-        desktop.on ? btn('🖨️ Abrir en Bambu', () => { const y = Object.assign({}, x(), { p }); abrirConAcabado(y, { talCual: () => abrirEnBambu(y) }); }, { cls: 'sm primary prod-3d-bambu', title: 'Te pregunta el acabado y la impresora y la abre lista para imprimir (o tal cual)' }) : null,
-        btn('🎯 Elegir perfil e imprimir', () => perfilEImprimir(x(), p), { cls: 'sm prod-3d-perfil' + (desktop.on ? '' : ' primary'), title: 'Alta calidad, normal, robusta… Te dice si necesita soportes y la abre ya configurada: solo laminar e imprimir' }),
+        // 22-11-2026 · 🔘 SOLO DOS BOTONES en el PC (Biou: «un solo abrir original sin tocar nada y otra abrir de nuestro programa
+        // arreglado, dos claros botones»). Se quita «🎯 Elegir perfil e imprimir» del PC: era una tercera manera de abrir. Sin el programa
+        // del PC (móvil, web) no hay Bambu aquí y sigue saliendo, porque baja el 3MF con el perfil.
+        desktop.on ? btn('📂 ORIGINAL, sin tocar nada', () => abrirEnBambu(Object.assign({}, x(), { p })), { cls: 'sm prod-3d-original', title: 'El archivo del diseñador tal cual (se abre una copia: el original nunca se pisa)' }) : null,
+        desktop.on ? btn('✅ ARREGLADO por CelebriDiseños', () => { const y = Object.assign({}, x(), { p }); abrirConAcabado(y, { talCual: () => abrirEnBambu(y) }); }, { cls: 'sm primary prod-3d-bambu', title: 'Te pregunta el acabado y la impresora y la abre lista para imprimir (con su versión LIMPIA si la tiene)' }) : null,
+        desktop.on ? null : btn('🎯 Elegir perfil e imprimir', () => perfilEImprimir(x(), p), { cls: 'sm primary prod-3d-perfil', title: 'Alta calidad, normal, robusta… Te dice si necesita soportes y te da el 3MF ya configurado' }),
         btn('🧊 Ver el 3D en grande', () => x().a ? openFile(x().a) : view3DLocal(x().ruta, x().nombre), { cls: 'sm prod-3d-ver' }),
         btn('🧰 Abrir en el Estudio', async () => { try { const f = await archivoDe(x()); const E = await import('../r8/estado.js'); E.paraEstudio(f); closeAll(); go('celebrir8'); } catch (e) { toast(e.message || String(e), 'bad'); } }, { cls: 'sm prod-3d-r8', title: 'Lo abre en el Estudio para cambiarlo (medidas, agujeros, partirlo…)' })));
     ver(x());
@@ -544,8 +551,8 @@ function barra3D(p, closeAll) {
   if (desktop.on && p.ruta && !LOCALES_3D.has(p.id)) {
     LOCALES_3D.set(p.id, []);
     desktop.list(p.ruta).then(async r => {
-      let L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name));
-      for (const d of (r.entries || []).filter(e => e.type === 'dir')) { try { const sub = await desktop.list(d.path); L = L.concat((sub.entries || []).filter(e => e.type === 'file' && ES_3D(e.name))); } catch (e) { } }
+      let L = (r.entries || []).filter(e => e.type === 'file' && ES_3D(e.name) && !ES_LIMPIA(e.name)); // (22-11: los LIMPIA no son el original)
+      for (const d of (r.entries || []).filter(e => e.type === 'dir')) { try { const sub = await desktop.list(d.path); L = L.concat((sub.entries || []).filter(e => e.type === 'file' && ES_3D(e.name) && !ES_LIMPIA(e.name))); } catch (e) { } }
       LOCALES_3D.set(p.id, L.map(e => ({ name: e.name, path: e.path }))); if (L.length) { cargado = ''; pinta(); }
     }).catch(() => { });
   }
@@ -555,7 +562,7 @@ async function view3DLocal(path, name) {
   const c = h('canvas.stl-view');
   const info = h('p.small.muted', 'Cargando…');
   const sim = h('div.row.wrap', { style: { gap: '6px' } });
-  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim), close => [desktop.on ? btn('🪄 Menos soportes', () => import('../sinsoportes_ui.js').then(m => m.abrirMenosSoportes({ nombre: name, ruta: path })), { cls: 'v3d-soportes' }) : null, desktop.on ? btn('🖨️ Abrir en Bambu Studio', () => abrirEnBambu({ nombre: name, ruta: path }), { cls: 'v3d-bambu' }) : null, btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
+  const m = modal(name, h('div.col', c, info, h('p.tiny.muted', 'Arrastra para girar · rueda o pellizco para acercar'), sim), close => [desktop.on ? btn('🪄 Menos soportes', () => import('../sinsoportes_ui.js').then(m => m.abrirMenosSoportes({ nombre: name, ruta: path })), { cls: 'v3d-soportes' }) : null, desktop.on ? btn('📂 Abrir el ORIGINAL en Bambu (sin tocar)', () => abrirEnBambu({ nombre: name, ruta: path }), { cls: 'v3d-bambu' }) : null, btn('Cerrar', close, { cls: 'primary' })], { size: 'wide' });
   try { const pos = await parse3D(await desktop.file(path), name), v = viewer(c, pos); info.textContent = v.dims.map(x => x.toFixed(1)).join(' × ') + ' mm · ' + v.triangles.toLocaleString('es-ES') + ' triángulos';
     mount(sim, btn('▶️ Ver cómo se imprime', () => import('../simulacion.js').then(SM => SM.simularImpresion(pos, { nombre: name })), { cls: 'primary sm' })); }
   catch (e) { info.textContent = 'No se pudo mostrar: ' + e.message; }
@@ -1027,7 +1034,7 @@ async function readBambu(p, f) {
     if (!xml) return toast('Este .3mf no está laminado: en Bambu Studio pulsa «Laminar» y guarda o exporta la placa laminada.', 'warn', 7000);
     const b = CL.bambuSlice(xml, proj || null);
     if (!b.placas.length || !(b.placas[0].gramos > 0)) return toast('El archivo no trae los gramos de filamento.', 'warn');
-    const pl = sel(b.placas.map(x => ({ v: String(x.placa), t: 'Placa ' + x.placa + ' · ' + String(x.gramos).replace('.', ',') + ' g · ' + (Math.round(x.segundos / 360) / 10).toString().replace('.', ',') + ' h' + (x.coste !== null ? ' · ' + eur(x.coste) : '') })), String(b.placas[0].placa));
+    const pl = sel(b.placas.map(x => ({ v: String(x.placa), t: 'Placa ' + x.placa + (CL.placasNombresLista(p && p.placasNombres)[x.placa - 1] ? ' «' + CL.placasNombresLista(p.placasNombres)[x.placa - 1] + '»' : '') + ' · ' + String(x.gramos).replace('.', ',') + ' g · ' + (Math.round(x.segundos / 360) / 10).toString().replace('.', ',') + ' h' + (x.coste !== null ? ' · ' + eur(x.coste) : '') })), String(b.placas[0].placa));
     const piezas = inp({ type: 'number', min: 1, step: 1, value: 1, style: { width: '90px' } }), out = h('div');
     const upd = () => { const x = b.placas.find(q => String(q.placa) === pl.value) || b.placas[0], n = Math.max(1, Number(piezas.value) || 1);
       mount(out, h('div.card.flat', h('div', 'Por pieza: ', h('b', String(Math.round(x.gramos / n * 10) / 10).replace('.', ',') + ' g'), ' · ', (Math.round(x.segundos / n / 36) / 100).toString().replace('.', ',') + ' h'),

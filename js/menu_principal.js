@@ -15,7 +15,7 @@ export const GRUPOS = [
   { k: 'vender', t: 'Vender', e: '🛒', c: '#ec4899', items: ['pedidosweb', 'bandeja', 'clientes', 'presupuestos', 'facturas', 'micuentas', 'rapidas'] },
   { k: 'crear', t: 'Crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'catalogo', 'cotizador', 'estudio'] }, // 16-11-2026: sin Escaparate (se duplica con CelebriMesa)
   { k: 'web', t: 'Tienda y redes', e: '🌐', c: '#14b8a6', items: ['tienda', 'resenas', 'fotosproductos', 'mitienda', 'estanteria'] }, // 16-11-2026: Reels, Instagram y Redes fuera (se hacen en CelebriMesa); // 15-11-2026: sin «Anuncios con IA»; el Tráiler pasa a Números
-  { k: 'numeros', t: 'Números', e: '📊', c: '#22c55e', items: ['ingresos', 'costes', 'informes', 'inteligencia', 'trailer'] },
+  { k: 'numeros', t: 'Números', e: '📊', c: '#22c55e', items: ['ingresos', 'masvendidos', 'costes', 'informes', 'inteligencia', 'trailer'] },
   { k: 'otros', t: 'Más', e: '🧰', c: '#64748b', items: ['puente', 'inicio', 'hoy', 'tallervivo', 'escanear', 'chat', 'tareas', 'noticias', 'archivos', 'ia', 'centroia', 'celebrimesa', 'shampu', 'config', 'estado', 'noventas', 'fallos', 'stock', 'inventario'] },
 ];
 // para qué sirve cada sección (una línea, como lo diría ella)
@@ -30,7 +30,7 @@ export const DESCR = {
   responder: 'Facebook, Vinted, Wallapop, Milanuncios, Opla y WhatsApp: abrir y enseñar productos', resenas: 'Sube la captura de una reseña: sale sola en tu web', fotosproductos: 'Todas las fotos de tus productos, ordenadas, y usarlas en su ficha',
   tienda: 'Tu tienda web: productos y textos', mitienda: 'Abrir, compartir y el QR de tu tienda', estanteria: 'Tus productos en una estantería bonita',
   reels: 'Vídeos para Instagram y TikTok', instagram: 'Publicaciones de Instagram', redes: 'Calendario de redes sociales', estudio: 'Fotos de producto con IA (Biouvision)', anuncios: 'Anuncios con inteligencia artificial', trailer: 'El vídeo resumen de tu mes',
-  ingresos: 'Lo que entra y lo que sale', informes: 'Gráficas de ventas y pedidos', inteligencia: 'Metas, clientes y tus números con IA',
+  ingresos: 'Lo que entra y lo que sale', informes: 'Gráficas de ventas y pedidos', masvendidos: 'Lo que más vendes: unidades, dinero y beneficio', inteligencia: 'Metas, clientes y tus números con IA',
   chat: 'Hablar con tu equipo', celebrimesa: 'El otro programa: tareas, páginas e inventos (en la torre)', shampu: 'Tu robot: la cámara de casa, vigilar, fotos, impresoras y la tele. También desde la calle', tareas: 'Tareas del equipo', noticias: 'Novedades del negocio', archivos: 'Tus archivos y documentos', ia: 'Pregúntale a tu asistente', centroia: 'Todas las herramientas de IA',
   noventas: 'Los productos que nunca se han vendido: a la papelera de una vez', fallos: 'Lo que está mal en tu inventario, y arreglarlo juntos',
   config: 'Empresa, usuarios, impresoras…', estado: 'Si todo funciona bien',
@@ -47,7 +47,7 @@ export const SINONIMOS = {
   responder: 'chat chats mensaje mensajes facebook vinted wallapop milanuncios opla whatsapp contestar responder comprador enseñar', fotosproductos: 'fotos foto imagenes producto productos carpeta chatgpt render real portada', resenas: 'resena resenas opinion opiniones valoracion estrellas confianza globito',
   tienda: 'web subir publicar tienda online pagina', mitienda: 'compartir enlace qr tienda', estanteria: 'escaparate exponer',
   reels: 'video tiktok reel', instagram: 'instagram post publicar foto', redes: 'redes calendario publicar', estudio: 'foto fotos fondo ia biouvision producto', anuncios: 'anuncio publicidad ads', trailer: 'video resumen mes',
-  ingresos: 'dinero ganancias caja ingresos gastos', informes: 'grafica estadistica ventas', inteligencia: 'metas objetivos numeros ia',
+  ingresos: 'dinero ganancias caja ingresos gastos', informes: 'grafica estadistica ventas', masvendidos: 'mas vendidos top ranking exito productos estrella ventas canal beneficio', inteligencia: 'metas objetivos numeros ia',
   noventas: 'borrar limpiar quitar productos no vendidos vender papelera sin ventas muchos', fallos: 'inventario fallos errores arreglar negativo stock materiales vacios bobinas embalajes precios revisar',
   shampu: 'shampu shampoo robot camara casa vigilar cuidador fotos tele mando impresoras calle', chat: 'hablar equipo mensaje', tareas: 'tarea pendiente lista', noticias: 'novedad noticia', archivos: 'archivo documento pdf', ia: 'nova asistente ayuda pregunta', centroia: 'ia inteligencia artificial',
   config: 'ajustes configuracion usuario empresa impresora contrasena', estado: 'sistema funciona error diagnostico',
@@ -104,5 +104,5 @@ export function abre(o) {
   document.addEventListener('keydown', tecla, true); document.body.append(capa); pinta(); try { busca2.focus(); } catch (e) { } setTimeout(() => { try { if (document.activeElement !== busca2) busca2.focus(); } catch (e) { } }, 30); // (18-10: el foco AL MOMENTO: con Ctrl + espacio y a escribir enseguida, las primeras letras se perdían)
   return capa;
 }
-const EMO = { almacen: '🗄️', micuentas: '📱', celebrimesa: '🗂️', shampu: '🤖', /* (05-11-2026: sin dibujo salían con un punto) */ responder: '💬', resenas: '⭐', fotosproductos: '📸', puente: '🛰️', inicio: '🏠', hoy: '📋', tallervivo: '🏭', pedidos: '🧾', pedidosweb: '🛍️', bandeja: '📬', clientes: '👥', presupuestos: '💬', facturas: '🧮', rapidas: '⚡', celebrir8: '🧊', escaparate: '✨', productos: '📦', catalogo: '📚', cotizador: '💶', taller: '🖨️', stock: '🗄️', inventario: '🧵', costes: '⚖️', embalaje: '🎁', escanear: '📷', tienda: '🌐', mitienda: '🔗', estanteria: '🏬', reels: '🎬', instagram: '📸', redes: '🗓️', estudio: '✨', anuncios: '📣', trailer: '🎞️', ingresos: '💰', informes: '📈', inteligencia: '🧠', chat: '💭', tareas: '✅', noticias: '📰', archivos: '📁', ia: '🤖', centroia: '🪄', config: '⚙️', estado: '🩺', noventas: '🧹', fallos: '🩺' };
+const EMO = { masvendidos: '🏆', almacen: '🗄️', micuentas: '📱', celebrimesa: '🗂️', shampu: '🤖', /* (05-11-2026: sin dibujo salían con un punto) */ responder: '💬', resenas: '⭐', fotosproductos: '📸', puente: '🛰️', inicio: '🏠', hoy: '📋', tallervivo: '🏭', pedidos: '🧾', pedidosweb: '🛍️', bandeja: '📬', clientes: '👥', presupuestos: '💬', facturas: '🧮', rapidas: '⚡', celebrir8: '🧊', escaparate: '✨', productos: '📦', catalogo: '📚', cotizador: '💶', taller: '🖨️', stock: '🗄️', inventario: '🧵', costes: '⚖️', embalaje: '🎁', escanear: '📷', tienda: '🌐', mitienda: '🔗', estanteria: '🏬', reels: '🎬', instagram: '📸', redes: '🗓️', estudio: '✨', anuncios: '📣', trailer: '🎞️', ingresos: '💰', informes: '📈', inteligencia: '🧠', chat: '💭', tareas: '✅', noticias: '📰', archivos: '📁', ia: '🤖', centroia: '🪄', config: '⚙️', estado: '🩺', noventas: '🧹', fallos: '🩺' };
 const emoji = n => EMO[n.k] || '•';

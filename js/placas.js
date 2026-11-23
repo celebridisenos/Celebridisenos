@@ -8,7 +8,9 @@ import { handleError } from './app.js';
 
 const CL = window.CL;
 const SVGNS = 'http://www.w3.org/2000/svg';
-export const lista = o => CL.placasLista(o && o.placas);
+// 23-11-2026 · Biou: «las placas no se leen bien». Las de antes con nombre raro del 3MF («Körper13», «Placa 1») se enseñan con el producto:
+// «Trío Decorativo 1/2 — Negro» (CL.placaNombreVisto). Lo que él escribió a mano se respeta.
+export const lista = o => { const L = CL.placasLista(o && o.placas); return L.map((p, i) => { const n = CL.placaNombreVisto(p, i, L, o); return n === p.nombre ? p : Object.assign({}, p, { nombre: n }); }); };
 const fase = o => CL.phaseOf(S.cfg.pedidos, o.estado);
 export const SERVIDOR_VIEJO = 'Tu servidor de Google aún es el antiguo: para las placas hay que pegar el Servidor.gs nuevo (carpeta de la versión → LEEME).';
 const viejo = e => /Acción desconocida: pedidos\.(placa|placas|salida)/.test((e && e.message) || '');
@@ -148,7 +150,7 @@ export function crearDialog(o, redraw) {
   // «que NO se llamen Placa 1: gato y bandeja, figura y pájaro»: una casilla por placa, con lo que se sabe del diseño ya puesto
   const pintaNombres = () => {
     mount(nom, h('div.small.muted', '¿Qué lleva cada placa? (si quieres)'), Array.from({ length: n }, (_, i) => {
-      const c = h('input.inp.cp-nom', { type: 'text', maxlength: 40, placeholder: 'Placa ' + (i + 1), value: escritos[i] !== undefined ? escritos[i] : (conocidos[i] || ''), 'aria-label': 'Nombre de la placa ' + (i + 1), 'data-i': i });
+      const c = h('input.inp.cp-nom', { type: 'text', maxlength: 40, placeholder: CL.placaNombreCompleto ? CL.placaNombreCompleto((o.producto || 'Placa') + ' ' + (i + 1) + '/' + n, { color: o.color, material: prod && prod.material }) : 'Placa ' + (i + 1), value: escritos[i] !== undefined ? escritos[i] : (conocidos[i] || ''), 'aria-label': 'Nombre de la placa ' + (i + 1), 'data-i': i });
       c.addEventListener('input', () => { escritos[i] = c.value; });
       return c;
     }));

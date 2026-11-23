@@ -1741,6 +1741,44 @@ var CL = (function () {
   // importados, el sistema) NO son de nadie: van aparte, por canal. SIN DUPLICADOS: un pedido de varios productos ocupa varias filas con el
   // MISMO número → cuenta como UN pedido (los euros y las unidades de todas sus filas se suman). Los CANCELADOS no cuentan. Fecha = la del pedido.
   var RANK_AUTO = /^(sistema|tienda|tienda web|web|automatico|automatica|auto|importado|importacion|shopify|etsy|wallapop|vinted|cults|cults3d|api|bot)$/;
+  // 22-11-2026 · 🏆 MÁS VENDIDOS (Biou: «ordenar por unidades, ingresos, periodo, canal y rendimiento… datos reales, no visitas ni favoritos»).
+  // Solo pedidos de verdad (sin cancelados), por su fecha. El beneficio es el de cada pedido (orderProfit, el mismo de Ingresos e
+  // Informes); si un pedido del producto no tiene coste, su beneficio no se inventa: sale «sin coste» y no cuenta en el margen.
+  // o: { desde, hasta, canal, orden: 'unidades'|'ingresos'|'beneficio'|'margen' } · «antes» = el periodo anterior del mismo largo.
+  function masVendidosRanking(data, cfg, o) {
+    o = o || {}; data = data || {};
+    var cp = cfg.pedidos, costOf = costIndex(data, cfg.precios), canal = norm(o.canal || ''), a = s(o.desde) || '0000-01-01', b = s(o.hasta) || '9999-12-31';
+    var largo = a > '0000-01-01' && b < '9999-12-31' ? days(a, b) + 1 : 0, pa = largo ? addDays(a, -largo) : '', pb = largo ? addDays(a, -1) : '';
+    var prods = {}, canales = {}, total = { unidades: 0, ingresos: 0, pedidos: 0 };
+    var clave = function (x) { return s(x.productoId) || ('n:' + norm(x.producto)); };
+    (data.pedidos || []).forEach(function (x) {
+      if (!x.fecha || !s(x.producto) || stateOf(cp, x.estado).cancelled) return;
+      var c = s(x.canal) || 'Sin canal';
+      if (x.fecha >= a && x.fecha <= b) canales[c] = (canales[c] || 0) + (n(x.cantidad) || 1);
+      if (canal && norm(c) !== canal) return;
+      var k = clave(x), q = n(x.cantidad) || 1;
+      var p = prods[k] || (prods[k] = { id: s(x.productoId), producto: s(x.producto), unidades: 0, pedidos: 0, ingresos: 0, beneficio: 0, sinCoste: 0, canales: {}, ultima: '', antes: 0 });
+      if (largo && x.fecha >= pa && x.fecha <= pb) { p.antes += q; return; }
+      if (x.fecha < a || x.fecha > b) return;
+      var t = orderTotal(x), pf = orderProfit(x, data, cfg, costOf);
+      p.unidades += q; p.pedidos++; p.ingresos += t; p.canales[c] = (p.canales[c] || 0) + q;
+      if (pf && pf.conCoste) p.beneficio += n(pf.beneficio); else p.sinCoste++;
+      if (x.fecha > p.ultima) p.ultima = x.fecha;
+      total.unidades += q; total.ingresos += t; total.pedidos++;
+    });
+    var lista = Object.keys(prods).map(function (k) { return prods[k]; }).filter(function (p) { return p.unidades > 0; }).map(function (p) {
+      p.ingresos = r2(p.ingresos); p.beneficio = r2(p.beneficio);
+      var conCoste = p.pedidos - p.sinCoste;
+      p.margen = conCoste > 0 && p.sinCoste === 0 && p.ingresos > 0 ? p.beneficio / p.ingresos : null;
+      p.porUnidad = p.sinCoste === 0 && p.unidades ? r2(p.beneficio / p.unidades) : null;
+      p.cambio = largo ? (p.antes ? (p.unidades - p.antes) / p.antes : null) : null;
+      p.canalPrincipal = Object.keys(p.canales).sort(function (x, y) { return p.canales[y] - p.canales[x]; })[0] || '';
+      return p;
+    });
+    var ord = o.orden || 'unidades', val = function (p) { return ord === 'ingresos' ? p.ingresos : ord === 'beneficio' ? (p.sinCoste ? -1e9 + p.beneficio : p.beneficio) : ord === 'margen' ? (p.margen === null ? -1e9 : p.margen) : p.unidades; };
+    lista.sort(function (x, y) { return val(y) - val(x) || y.unidades - x.unidades || y.ingresos - x.ingresos; });
+    return { lista: lista, total: { unidades: total.unidades, ingresos: r2(total.ingresos), pedidos: total.pedidos }, canales: Object.keys(canales).sort(function (x, y) { return canales[y] - canales[x]; }), antesDesde: pa, antesHasta: pb };
+  }
   function rankingVentas(pedidos, usuarios, cfgPedidos, a, b, o) {
     o = o || {}; var equipo = {};
     (usuarios || []).forEach(function (u) { if (u && u.nombre) equipo[norm(u.nombre)] = u.nombre; });
@@ -1858,14 +1896,84 @@ var CL = (function () {
   }
   // «gato y bandeja | figura y pájaro» (o '' si no hay ningún nombre)
   function placasNombresTexto(v) { var L = placasNombresLista(v); return L.some(function (x) { return x; }) ? L.join(' | ') : ''; }
-  function placaNombre(nombres, k) { var x = nombres && nombres[k] ? s(nombres[k]).trim() : ''; return x ? x.charAt(0).toUpperCase() + x.slice(1) : 'Placa ' + (k + 1); }
-  function placasCrea(porUnidad, cantidad, fase, ahora, quien, nombres) {
+  function placaNombre(nombres, k) { var x = placaNombreLegible(nombres && nombres[k]); return x ? x.charAt(0).toUpperCase() + x.slice(1) : 'Placa ' + (k + 1); }
+  // 23-11-2026 · Biou: «las placas no se leen bien» (nombre raro). Los 3MF traen los nombres del diseñador: «Körper13», «Default 2477»,
+  // «plate 1», «drzew.stl 3», «Hand with butterflies рука», «sordofinal y ciecofinaL»… Un nombre solo vale si se entiende en español;
+  // el inglés corriente se traduce entero («Tray and grate» → «Bandeja y rejilla»). Si no, '' y la placa se llama como el producto
+  // («Trío Decorativo 1/2 — Negro»).
+  var PLACA_EN = { cat: 'gato', cats: 'gatos', tray: 'bandeja', grate: 'rejilla', lantern: 'farolillo', ring: 'anillo', stand: 'soporte',
+    glass: 'vaso', heart: 'corazón', hand: 'mano', rose: 'rosa', cup: 'taza', lid: 'tapa', cover: 'tapa', top: 'tapa', bottom: 'fondo', box: 'caja',
+    body: 'cuerpo', head: 'cabeza', bird: 'pájaro', eagle: 'águila', butterfly: 'mariposa', butterflies: 'mariposas', frame: 'marco', vase: 'jarrón',
+    flower: 'flor', flowers: 'flores', tree: 'árbol', leaf: 'hoja', leaves: 'hojas', pot: 'maceta', planter: 'maceta', holder: 'soporte', hook: 'gancho',
+    door: 'puerta', drawer: 'cajón', handle: 'asa', wheel: 'rueda', wheels: 'ruedas', arm: 'brazo', arms: 'brazos', leg: 'pata', legs: 'patas',
+    tail: 'cola', ear: 'oreja', ears: 'orejas', eye: 'ojo', eyes: 'ojos', man: 'hombre', woman: 'mujer', figure: 'figura', statue: 'estatua',
+    moon: 'luna', star: 'estrella', sun: 'sol', swing: 'columpio', swan: 'cisne', swans: 'cisnes', dog: 'perro', fish: 'pez', candle: 'vela',
+    dish: 'plato', bowl: 'cuenco', spoon: 'cuchara', key: 'llave', keys: 'llaves', letter: 'letra', letters: 'letras', sign: 'letrero',
+    brush: 'cepillo', toothbrush: 'cepillo', soap: 'jabón', basket: 'cesta', bow: 'lazo', cube: 'cubo', wing: 'ala', wings: 'alas', mouse: 'ratón',
+    black: 'negro', white: 'blanco', blue: 'azul', green: 'verde', yellow: 'amarillo', orange: 'naranja', brown: 'marrón', grey: 'gris',
+    gray: 'gris', gold: 'dorado', pink: 'rosa', purple: 'morado', small: 'pequeño', big: 'grande', large: 'grande', middle: 'mediano', medium: 'mediano',
+    left: 'izquierda', right: 'derecha', front: 'delante', back: 'detrás', inner: 'interior', outer: 'exterior', and: 'y', with: 'con' };
+  var PLACA_RARO = /\.(stl|3mf|obj|step|stp|amf)\b|\b(cuerpo|body|pieza|parte|part|piece) ?\d+|\b[a-záéíóúñ]+ \d+ \d+\b|\b(plate|placa \d+|default|part ?studio|object|objeto|mesh|untitled|modifier|entwurf|k[öo]rper|teil|copy|copia)\b|[äößÄÖ]|[Ͱ-῿Ⰰ-￿]/i;
+  var PLACA_EN_NO = /^(full|part|parts|set|only|light|dark|tan|dispenser|metalic|metallic|housing|attachments?|attachements|colou?rs?|the|of|for|one|two|version|smooth|stripe|piece|pieces|model|print|support|supports|test|new|old|hole|holes|mount|clip|insert|cap|bolts?|nut|screw|plug|extra|spare|addtl|additional|pins?|sizes?|pole|toy|stripes?|home)$/;
+  function placaNombreLegible(x) {
+    var t = s(x).replace(/\s+/g, ' ').trim();
+    if (!t || PLACA_RARO.test(t)) return '';
+    if (/[a-zñ][A-Z]/.test(t)) return ''; // «ciecofinaL», «CatchAll»: pegado de archivo
+    var pal = t.replace(/[()\[\],.+_\-–—]/g, ' ').split(' ').filter(Boolean);
+    if (!pal.some(function (w) { return /[a-záéíóúñ]{3,}/i.test(w); })) return ''; // «1 final», «M», «XS», «01 (3)»
+    var ingles = pal.some(function (w) { var l = w.toLowerCase(); return (PLACA_EN[l] && l !== 'red') || PLACA_EN_NO.test(l) || /w|k|th|sh|ph|oo|ee|ing$|^s[bcdfgklmnpqrtvwz]|[^aeiouy]y$|(final|raw|fixed|update|v\d+)$/.test(l); });
+    if (!ingles) return t;
+    var tr = pal.map(function (w) { return /^\d+$/.test(w) ? w : PLACA_EN[w.toLowerCase()]; });
+    if (tr.some(function (w) { return !w; })) return '';
+    // palabra a palabra solo sirve sin dos seguidas («Brush Holder» saldría «Cepillo soporte»): una sola, o unidas con «and / with»
+    for (var j = 1; j < tr.length; j++) if (!/^\d+$/.test(tr[j]) && !/^\d+$/.test(tr[j - 1]) && !/^(y|con)$/.test(tr[j]) && !/^(y|con)$/.test(tr[j - 1])) return '';
+    var out = tr.join(' ');
+    if (/\d+ \d+/.test(out)) return ''; // «Vaso 1 1»
+    return out.charAt(0).toUpperCase() + out.slice(1);
+  }
+  // Para ENSEÑAR una placa ya creada (pedidos de antes con «Körper13 — Blanco» o «Placa 1»): si el nombre guardado no se entiende, el del
+  // producto + k/N con lo mismo de antes y de después. `i` = su sitio en la lista, `L` = la lista entera, `o` = el pedido.
+  function placaNombreVisto(p, i, L, o) {
+    var nom = s(p && p.nombre).trim(), m = /^(Unidad \d+ · )?(.*?)( — .+)?$/.exec(nom) || ['', '', nom, ''], prod = s(o && o.producto).trim();
+    if (!prod || (nom && placaNombreLegible(m[2]) && !/^Placa \d+$/.test(m[2]))) return nom || ('Placa ' + (i + 1));
+    var pre = s(m[1]), suf = s(m[3]), suyas = pre ? (L || []).filter(function (q) { return s(q && q.nombre).indexOf(pre) === 0; }) : (L || []); // (con «Unidad 2 · », cuenta solo las de esa unidad)
+    var N = suyas.length || 1, k = pre ? suyas.indexOf(p) + 1 || 1 : i + 1, base = prod + (N > 1 ? ' ' + k + '/' + N : ''), sitio = 40 - pre.length - suf.length;
+    if (base.length > sitio) base = base.substring(0, Math.max(8, sitio - 1)).trim() + '…';
+    return pre + base + suf;
+  }
+  // 22-11-2026 · Biou: «las placas se identifican como Placa 1, Placa 2… no es útil con muchos productos: Gato Bandeja — Blanco,
+  // Joyero OLA — Grafito, Portavelas OLA — PETG». Con `info` ({ producto, color, material }) el nombre lleva el producto (si la placa
+  // no tiene nombre propio) y el color (y PETG si no es PLA): «Gato con Bandeja 1/2 — Blanco», «Peana — PETG Negro». Sin color
+  // único (varios colores) no se pone. Máximo 40 letras: se acorta el nombre del producto, nunca el color.
+  function placaEtiqueta(info) {
+    if (!info) return '';
+    var col = s(info.color).trim(), mat = s(info.material).trim().toUpperCase();
+    if (/[+·×,\/]| y /i.test(col)) col = '';
+    col = col ? col.charAt(0).toUpperCase() + col.slice(1) : '';
+    return mat && mat !== 'PLA' ? (mat + (col ? ' ' + col : '')) : col;
+  }
+  function placaNombreCompleto(base, info, prefijo) {
+    var et = placaEtiqueta(info), suf = et ? ' — ' + et : '', pre = prefijo || '', sitio = 40 - pre.length - suf.length;
+    if (sitio < 8) { suf = ''; sitio = 40 - pre.length; }
+    var b = s(base).trim(); if (b.length > sitio) b = b.substring(0, Math.max(1, sitio - 1)).trim() + '…';
+    return pre + b + suf;
+  }
+  function placasCrea(porUnidad, cantidad, fase, ahora, quien, nombres, info) {
     var pu = Math.max(1, Math.min(PLACA_MAX, Math.round(n(porUnidad)) || 1)), c = Math.max(1, Math.round(n(cantidad)) || 1), NN = placasNombresLista(nombres || []);
     var est = fase === 'postpro' ? 'en_mesa' : (['empaquetar', 'listo', 'enviado', 'entregado'].indexOf(fase) >= 0 ? 'acabada' : 'por_imprimir');
-    var out = [], tot = Math.min(PLACA_MAX, pu * c);
+    var out = [], tot = Math.min(PLACA_MAX, pu * c), prod = info ? s(info.producto).trim() : '';
     for (var i = 0; i < tot; i++) {
-      var u = Math.floor(i / pu) + 1, k = (i % pu) + 1;
-      out.push({ id: 'p' + (i + 1), nombre: c > 1 ? 'Unidad ' + u + ' · ' + placaNombre(NN, k - 1) : placaNombre(NN, i), estado: est, actualizado: s(ahora), por: s(quien) });
+      var u = Math.floor(i / pu) + 1, k = (i % pu) + 1, nombre;
+      if (info && (prod || placaEtiqueta(info))) {
+        var lg = placaNombreLegible(NN[k - 1]), propio = lg ? lg.charAt(0).toUpperCase() + lg.slice(1) : '', delProd = prod ? prod + (pu > 1 ? ' ' + k + '/' + pu : '') : '';
+        // (23-11) lo que él escribió en español manda («Gato y bandeja — Blanco»). Lo traducido del 3MF va DETRÁS del producto si cabe
+        // («Farolillo de Gato 1/2 · gato — Blanco»); si no cabe, solo el producto («Farolillo de Gato 2/2 — Blanco»).
+        var suyo = lg && lg === s(NN[k - 1]).replace(/\s+/g, ' ').trim(), et = placaEtiqueta(info);
+        var junto = !suyo && delProd && lg && lg.toLowerCase() !== prod.toLowerCase() ? delProd + ' · ' + lg.toLowerCase() : '';
+        var base = suyo ? propio : junto && (c > 1 ? ('Unidad ' + u + ' · ').length : 0) + junto.length + (et ? et.length + 3 : 0) <= 40 ? junto : (delProd || propio || 'Placa ' + k);
+        nombre = placaNombreCompleto(base, info, c > 1 ? 'Unidad ' + u + ' · ' : '');
+      } else nombre = c > 1 ? 'Unidad ' + u + ' · ' + placaNombre(NN, k - 1) : placaNombre(NN, i);
+      out.push({ id: 'p' + (i + 1), nombre: nombre, estado: est, actualizado: s(ahora), por: s(quien) });
     }
     return out;
   }
@@ -1963,13 +2071,13 @@ var CL = (function () {
     return m ? 'CEB-' + m[1] + '-' + m[2] : '';
   }
   return { SALIDA_V: SALIDA_V, SALIDA_CAUSAS: SALIDA_CAUSAS, salidaLimpia: salidaLimpia, salidasDeProducto: salidasDeProducto, salidaTexto: salidaTexto, selloPedido: selloPedido, numeroDeSello: numeroDeSello, codigoDeSello: codigoDeSello,
-    PLACA_ESTADOS: PLACA_ESTADOS, PLACA_MAX: PLACA_MAX, placaEstado: placaEstado, placaInfo: placaInfo, placaRank: placaRank, placasLista: placasLista, placasNormaliza: placasNormaliza, placasCrea: placasCrea, placasNombresLista: placasNombresLista, placasNombresTexto: placasNombresTexto,
+    PLACA_ESTADOS: PLACA_ESTADOS, PLACA_MAX: PLACA_MAX, placaEstado: placaEstado, placaInfo: placaInfo, placaRank: placaRank, placasLista: placasLista, placasNormaliza: placasNormaliza, placasCrea: placasCrea, placaEtiqueta: placaEtiqueta, placaNombreCompleto: placaNombreCompleto, placaNombreLegible: placaNombreLegible, placaNombreVisto: placaNombreVisto, placasNombresLista: placasNombresLista, placasNombresTexto: placasNombresTexto,
     placasResumen: placasResumen, placasEstadoPedido: placasEstadoPedido, placasSuben: placasSuben, placaSiguiente: placaSiguiente, placaDeTrabajo: placaDeTrabajo,
     rankingVentas: rankingVentas, PW_ESTADOS: PW_ESTADOS, PW_NOMBRE: PW_NOMBRE, PW_ACCIONES: PW_ACCIONES, PW_PENDIENTES: PW_PENDIENTES, pwEstado: pwEstado,
     RAPIDAS: RAPIDAS, rapidMatch: rapidMatch, rapid: rapid, anomalies: anomalies, costParts: costParts, productDrift: productDrift, DRIFT_F: DRIFT_F, webMargin: webMargin, webDiscountAnalysis: webDiscountAnalysis, webOpportunities: webOpportunities, campaignState: campaignState, promoAnalysis: promoAnalysis,
     LABOR_TIPOS: LABOR_TIPOS, LABOR_MIN: LABOR_MIN, FALLO_MOTIVOS: FALLO_MOTIVOS, isPackGasto: isPackGasto, parseDims: parseDims, boxOptions: boxOptions, defaultPack: defaultPack, packStd: packStd, fichaCoste: fichaCoste, productOf: productOf, productWeight: productWeight, packPlan: packPlan, packSnap: packSnap, laborOf: laborOf, fabOf: fabOf, orderCosts: orderCosts, bambuSlice: bambuSlice,
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
-    finance: finance, cuotaNegocio: cuotaNegocio, cuotaAplicada: cuotaAplicada, aplicaMovil: aplicaMovil, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
+    finance: finance, cuotaNegocio: cuotaNegocio, cuotaAplicada: cuotaAplicada, aplicaMovil: aplicaMovil, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, masVendidosRanking: masVendidosRanking, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
     stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,

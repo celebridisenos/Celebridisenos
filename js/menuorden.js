@@ -7,7 +7,19 @@ import { h, mount, btn, modal, toast, icon } from './ui.js';
 import { S, api, emit, can } from './store.js';
 
 const NO_OCULTAR = ['inicio', 'config'];
-export const menuCfg = () => { const m = (S.cfg && S.cfg.menu) || {}; return { orden: Array.isArray(m.orden) ? m.orden : [], ocultos: Array.isArray(m.ocultos) ? m.ocultos : [] }; };
+// 23-11-2026 · Biou: «más compacto, hay muchos menús repetidos entre todos los ecosistemas» (punto 15: «los tres programas no necesitan
+// mostrar los mismos menús»). Ocultos DE SERIE (no se borra nada: siguen por el buscador, por su dirección y desde el apartado que los
+// enlaza; en «Ordenar el menú» se vuelven a enseñar). Mientras no se guarde el menú con esta versión (serie), se suman a los suyos.
+export const OCULTOS_DE_SERIE = {
+  tareas: 'en CelebriMesa (Quién hace qué)', noticias: 'en CelebriMesa', chat: 'en CelebriMesa (hilos)', rapidas: 'en CelebriMesa y en Chats con clientes',
+  estudio: 'en CelebriMesa (Celebrivision)', trailer: 'en CelebriMesa (vídeos)', escanear: 'en CelebriFábrica y en Embalaje',
+  stock: 'en Mi almacén', inventario: 'en Mi almacén', estanteria: 'en Mi tienda', estado: 'en Configuración', inteligencia: 'en el Puente de mando',
+  tallervivo: 'adorno', ia: 'Celeby Nova está cancelada'
+};
+export const menuCfg = () => {
+  const m = (S.cfg && S.cfg.menu) || {}, oc = Array.isArray(m.ocultos) ? m.ocultos : [];
+  return { orden: Array.isArray(m.orden) ? m.orden : [], ocultos: m.serie ? oc : [...new Set(oc.concat(Object.keys(OCULTOS_DE_SERIE)))] };
+};
 export const menuPersonal = () => { const m = menuCfg(); return !!(m.orden.length || m.ocultos.length); };
 
 // Devuelve la lista para pintar (con separadores solo si el orden es el de siempre)
@@ -46,7 +58,7 @@ export function editarMenu(NAV, visible, alGuardar) {
       ondragover: e => { e.preventDefault(); fila.classList.add('sobre'); },
       ondragleave: () => fila.classList.remove('sobre'),
       ondrop: e => { e.preventDefault(); fila.classList.remove('sobre'); if (arrastre < 0 || arrastre === i) return; const [x] = lista.splice(arrastre, 1); lista.splice(i, 0, x); arrastre = -1; pintar(); } },
-      h('span.mo-asa', { title: 'Arrastra para mover', 'aria-hidden': 'true' }, '⠿'), icon(n.i || 'dot', 's'), h('span.mo-t', n.t), oculto ? h('span.mo-tag', 'oculto') : null,
+      h('span.mo-asa', { title: 'Arrastra para mover', 'aria-hidden': 'true' }, '⠿'), icon(n.i || 'dot', 's'), h('span.mo-t', n.t), oculto ? h('span.mo-tag', { title: OCULTOS_DE_SERIE[n.k] ? 'Oculto de serie: ' + OCULTOS_DE_SERIE[n.k] : '' }, OCULTOS_DE_SERIE[n.k] ? 'oculto · ' + OCULTOS_DE_SERIE[n.k] : 'oculto') : null,
       h('button.btn.ghost.icon.sm.mo-up', { type: 'button', title: 'Subir', 'aria-label': 'Subir ' + n.t, disabled: i === 0, onclick: () => mover(i, -1) }, '▲'),
       h('button.btn.ghost.icon.sm.mo-down', { type: 'button', title: 'Bajar', 'aria-label': 'Bajar ' + n.t, disabled: i === lista.length - 1, onclick: () => mover(i, 1) }, '▼'),
       fijo ? h('span.mo-fijo', { title: 'Este apartado siempre se ve' }, '🔒') :
@@ -56,7 +68,7 @@ export function editarMenu(NAV, visible, alGuardar) {
   pintar();
   const guardar = async (restablecer) => {
     try {
-      S.cfg = await api('menu.guardar', restablecer ? { restablecer: true } : { orden: lista.map(n => n.k), ocultos: [...ocultos] });
+      S.cfg = await api('menu.guardar', restablecer ? { restablecer: true } : { orden: lista.map(n => n.k), ocultos: [...ocultos], serie: 1 }); // (23-11: serie = ya cuenta con los ocultos de serie)
       emit(); try { alGuardar && alGuardar(); } catch (x) { } toast(restablecer ? 'Menú como venía de serie' : 'Menú guardado para todo el equipo', 'ok'); dlg.close();
     } catch (e) { toast(e.message || 'No se pudo guardar', 'bad'); }
   };

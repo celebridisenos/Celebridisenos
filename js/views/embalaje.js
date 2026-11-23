@@ -516,6 +516,7 @@ function drawCard(el) {
   const ck = (k, t) => { const c = h('input', { type: 'checkbox', checked: !!im[k] }); c.onchange = () => { im[k] = c.checked; }; return h('label.check', c, t); };
   const auto = h('input', { type: 'checkbox', checked: !!c0.autoAlEscanear });
   const autoImp = h('input', { type: 'checkbox', checked: c0.autoImprimir !== false });
+  const discreta = h('input', { type: 'checkbox', checked: !!c0.discreta }); // 22-11-2026: 🔒 etiqueta del paquete sin marca ni contenido por fuera
   const mbox = h('div.col', { style: { gap: '10px' } });
   const drawMsgs = () => mount(mbox, msgs.map((m, i) => {
     const t = inp({ value: m.t, maxlength: 60 }), x = area({ rows: 3, maxlength: 1000 }); x.value = m.texto;
@@ -525,7 +526,7 @@ function drawCard(el) {
   drawMsgs();
   // v13.10: la etiqueta del paquete en la MISMA bobina que la de envío (sin cambiar de rollo) o la antigua de 50 × 50
   const fmtPq = sel([{ v: 'largo', t: 'Larga 100 × 150 (misma bobina que la de envío): arriba «gracias», abajo QR e info · recomendado' }, { v: 'pequeno', t: 'Pequeña 50 × 50 (bobina aparte)' }], (c0.formatoPaquete === 'pequeno') ? 'pequeno' : 'largo', { 'aria-label': 'Formato de la etiqueta del paquete' });
-  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, formatoPaquete: fmtPq.value, autoAlEscanear: auto.checked, autoImprimir: autoImp.checked, mensajes: msgs, formas, contorno: contorno.checked } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
+  const save = () => call('config.guardar', { clave: 'envio', valor: { gracias: curG(), tarjeta: curT(), imprimir: im, formatoPaquete: fmtPq.value, autoAlEscanear: auto.checked, autoImprimir: autoImp.checked, discreta: discreta.checked, mensajes: msgs, formas, contorno: contorno.checked } }, 'Tarjeta y mensajes guardados').then(r => { if (r) S.cfg = Object.assign(S.cfg, r); }).catch(() => { });
   mount(el,
     h('div.card', h('h3', '💌 Tarjetas de agradecimiento'),
       h('p.small.muted', 'Tarjeta UNIVERSAL: sin el nombre del cliente, sirve para todos los pedidos. Así se imprimen varias juntas en una hoja A4 de papel fotográfico y se recortan.'),
@@ -547,7 +548,7 @@ function drawCard(el) {
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '🖨️ Imprimir hojas de tarjetas'), stockTarjetas(), h('div', { id: 'card-print' })),
     h('div.card', { style: { marginTop: '12px' } }, h('h3', '📦 Qué va con cada paquete'),
       ck('paquete', 'Etiqueta del paquete con su QR (CEB-…) para escanearlo'),
-      h('label.row', { style: { gap: '8px', alignItems: 'center', margin: '2px 0 8px 26px' } }, h('span.small', 'Formato:'), fmtPq), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
+      h('label.row', { style: { gap: '8px', alignItems: 'center', margin: '2px 0 8px 26px' } }, h('span.small', 'Formato:'), fmtPq), h('label.check', { style: { margin: '0 0 8px 26px' } }, discreta, '🔒 Discreta: por fuera sin «CelebriDiseños» ni lo que va dentro (para que no se sepa qué lleva; se ve escaneando el sello)'), ck('gracias', 'Tarjeta de agradecimiento (se marca «metida en el paquete»; en modo etiqueta se imprime)'), ck('propiaSinOficial', 'Si no hay etiqueta oficial, mi etiqueta de dirección 10 × 15'),
       h('label.check', autoImp, 'Imprimir solo lo que falte cuando un pedido llegue a «Empaquetar» (programa del PC; si falla, avisa)'),
       h('label.check', auto, 'Al escanear un pedido en «Empaquetar», imprimir solo lo que falte'),
       h('p.tiny.muted', 'La etiqueta oficial (Vinted, Correos, InPost…) se imprime siempre que esté adjunta. Nada se imprime dos veces: para otra copia está «Reimprimir», que queda apuntado.')),

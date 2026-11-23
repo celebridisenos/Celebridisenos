@@ -273,6 +273,10 @@ function etiquetaPaquete(c, g, k, F, T, W, H, d) {
   const nombre = String(d.marcaNombre || 'CelebriDiseños'), gd = d.gracias || {};
   const tit = String(gd.titulo || '¡Gracias!').split('\n')[0].trim();
   const L2 = pt => Math.round(pt * 0.3528 * k) + 'px "Great Vibes", "Segoe Script", "Brush Script MT", cursive'; // (Great Vibes: OFL, vendor/fonts; se carga en cargaLigada)
+  // 22-11-2026 · 🔒 DISCRETA (Biou: «intentos de robo… las etiquetas permiten deducir el contenido»): sin la marca ni «hecho a mano»
+  // por fuera; solo una referencia neutra. Lo de dentro se ve escaneando el sello (Escanear, Shampú o CelebriFábrica).
+  if (d.discreto) { g.textAlign = 'center'; g.font = P(11, 800); try { g.letterSpacing = Math.round(0.6 * k) + 'px'; } catch (e) { } g.fillText('ENVÍO · REF. ' + String(d.sello || d.numero || ''), mid * k, 6.5 * k); try { g.letterSpacing = '0px'; } catch (e) { } }
+  else {
   g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   let zl = 32; g.font = L2(zl); while (zl > 16 && g.measureText(nombre).width > (cw - 8) * k) { zl -= 1; g.font = L2(zl); }
   g.lineWidth = 0.16 * k; g.lineJoin = 'round'; g.fillText(nombre, mid * k, 13 * k); g.strokeText(nombre, mid * k, 13 * k); // (con su trazo: en la térmica no se corta)
@@ -280,10 +284,11 @@ function etiquetaPaquete(c, g, k, F, T, W, H, d) {
   const sub = (tit.toUpperCase() + ' · HECHO A MANO PARA TI'); g.font = P(7, 600); try { g.letterSpacing = Math.round(0.35 * k) + 'px'; } catch (e) { }
   const ws = Math.min(g.measureText(sub).width / k, cw - 20); g.fillText(una(sub, cw - 20), mid * k, 14.9 * k); try { g.letterSpacing = '0px'; } catch (e) { }
   [[mx + 2, mid - ws / 2 - 2.5], [mid + ws / 2 + 2.5, W - mx - 2]].forEach(([x1, x2]) => { if (x2 - x1 > 2) line(g, x1 * k, 16.8 * k, x2 * k, 16.8 * k, 0.3 * k); });
+  }
   g.textAlign = 'left';
   g.setLineDash([1.2 * k, 1.2 * k]); line(g, mx * k, 19.6 * k, (W - mx) * k, 19.6 * k, 0.3 * k); g.setLineDash([]);
   // ── 2 · banda negra: nº de pedido + plataforma / cuenta ──
-  const yb = 21.4, hb = 14, plat = String(d.canal || '').toUpperCase(), cuenta = String(d.cuenta || '');
+  const yb = 21.4, hb = 14, plat = String(d.canal || '').toUpperCase(), cuenta = d.discreto ? '' : String(d.cuenta || ''); // (discreta: el nombre de la cuenta también delata la marca)
   g.fillRect(mx * k, yb * k, cw * k, hb * k); g.fillStyle = '#fff';
   g.font = P(11, 800); const wPlat = plat || cuenta ? Math.min(34, Math.max(g.measureText(plat).width, (g.font = P(7.5, 500), g.measureText(cuenta).width)) / k + 1) : 0;
   const tNum = (d.conjunto ? 'CONJUNTO ' : 'PEDIDO ') + (d.numero || ''), wNum = cw - 6 - (wPlat ? wPlat + 3 : 0);
@@ -326,6 +331,13 @@ function etiquetaPaquete(c, g, k, F, T, W, H, d) {
   if (seg && yr < ys + ss - 7.5) { g.font = P(6.5, 600); g.fillText('SEGUIMIENTO', xr * k, yr * k); yr += 3.6; g.font = P(7.5, 700); g.fillText(una(seg, wr), xr * k, yr * k); yr += 3.6; }
   // ── 5 · qué va dentro, con su casilla, lo más grande que quepa ──
   let y = ys + ss + 3.5; const raya = y;
+  if (d.discreto) { // (discreta: ni qué va dentro ni la nota del cliente por fuera)
+    line(g, mx * k, y * k, (W - mx) * k, y * k, 0.35 * k); y += 4;
+    g.font = P(9, 700); g.textAlign = 'center'; g.fillText('CONTENIDO: ESCANEA EL SELLO', mid * k, y * k); g.textAlign = 'left'; y += 5;
+    c.__medidas = { finFilas: yr, raya, llevarA: true, transportista: trans, letraCliente: zc, cliente: cli, finDentro: y, pie: H - 6.5, letra: 9, sello: d.sello || '', discreto: true };
+    g.textAlign = 'center'; g.font = P(6, 400); g.fillText('Uso interno · la dirección va en la etiqueta de la plataforma', mid * k, (H - 4.6) * k); g.textAlign = 'left';
+    return;
+  }
   line(g, mx * k, y * k, (W - mx) * k, y * k, 0.35 * k); y += 2;
   g.font = P(6.5, 600); g.fillText('QUÉ VA DENTRO', mx * k, y * k); y += 3.4;
   const todas = d.lineas || [], ls = todas.slice(0, 5), pie = H - 6.5, tx = mx + 6, txw = W - tx - mx;
