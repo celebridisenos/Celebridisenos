@@ -13,7 +13,11 @@ export const COLORES = [
   ['Rojo', '#dc2626'], ['Rosa', '#f472b6'], ['Rosa pastel', '#f9c6d9'], ['Fucsia', '#d9468f'], ['Naranja', '#f97316'],
   ['Amarillo', '#facc15'], ['Beige', '#e8d8b9'], ['Marrón', '#8b5a2b'], ['Verde', '#16a34a'], ['Verde menta', '#9ee6c8'],
   ['Verde oliva', '#7a8a3a'], ['Azul', '#2563eb'], ['Azul cielo', '#93c5fd'], ['Azul marino', '#1e3a8a'], ['Turquesa', '#14b8a6'],
-  ['Morado', '#7c3aed'], ['Lila', '#c4b5fd'], ['Transparente', 'transparent'], ['Multicolor', 'multi'], ['Madera', '#b07a46'], ['Mármol', 'marmol']
+  ['Morado', '#7c3aed'], ['Lila', '#c4b5fd'], ['Transparente', 'transparent'], ['Multicolor', 'multi'], ['Madera', '#b07a46'], ['Mármol', 'marmol'],
+  // 26-11-2026 · Biou: «que ponga más colores del producto y que lo seleccione el programa» (PARA_CD_COLORES_DEL_PRODUCTO.md): los que Fábrica ya conoce, con el mismo código
+  ['Hueso', '#f1e8d0'], ['Marfil', '#f1e8d0'], ['Crema', '#f1e8d0'], ['Caramelo', '#b8742a'], ['Granate', '#8e1b2b'], ['Celeste', '#8fd3f4'], ['Marino', '#1e3a8a'],
+  ['Rosa claro', '#f9c6d9'], ['Rosa oscuro', '#be185d'], ['Azul claro', '#93c5fd'], ['Azul oscuro', '#1e3a8a'], ['Verde claro', '#86efac'], ['Verde oscuro', '#14532d'],
+  ['Gris claro', '#d1d5db'], ['Gris oscuro', '#4b5563']
 ];
 const norm = s => CL.norm(String(s || '')).trim();
 // Color de muestra para un nombre (también «rosa claro», «azul marino mate»…). '' si no se conoce.

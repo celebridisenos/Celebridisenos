@@ -15,7 +15,7 @@ const de = document.documentElement;
 
 // [ruta, nombre corto, icono]
 export const LADO = [
-  { t: 'El día', items: [['puente', 'Inicio', 'home'], ['pedidos', 'Pedidos', 'bag'], ['hoy', 'Hoy en el taller', 'list'], ['responder', 'Chats', 'msg'], ['taller', 'Imprimir', 'printer'], ['embalaje', 'Empaquetar', 'paquete']] },
+  { t: 'El día', items: [['puente', 'Inicio', 'home'], ['pedidos', 'Pedidos', 'bag'], ['hoy', 'Hoy en el taller', 'list'], ['responder', 'Chats', 'msg'], ['taller', 'Imprimir', 'printer'], ['epson', 'Tu Epson', 'image'], ['embalaje', 'Empaquetar', 'paquete']] },
   { t: 'Productos', items: [['productos', 'Productos', 'cube'], ['almacen', 'Mi almacén', 'cabinet'], ['celebrir8', 'Diseñar', 'pen'], ['catalogo', 'Catálogo', 'book']] },
   { t: 'Vender', items: [['cotizador', '¿Cuánto cobro?', 'euro'], ['pedidosweb', 'Pedidos web', 'cart'], ['clientes', 'Clientes', 'users'], ['tienda', 'Tienda web', 'globe'], ['ingresos', 'Números', 'chart']] },
   { t: 'Conectado', items: [['shampu', 'Shampú', 'robot'], ['celebrimesa', 'CelebriMesa', 'grid']] },

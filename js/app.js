@@ -62,6 +62,7 @@ const VIEWS = {
   camaras: () => import('./views/camaras.js'), // v11.7: cámaras de las Bambu Lab (en el PC) // v11.6: escanear el QR del paquete y empaquetar
   anuncios: () => import('./views/anuncios.js'),
   taller: () => import('./views/taller.js'),
+  epson: () => import('./imprenta/vista_epson.js'), // 26-11-2026: 🖨️ Tu Epson (papel, hoja de prueba, calibrar)
   stock: () => import('./views/stock.js'),
   presupuestos: () => import('./views/presupuestos.js'),
   facturas: () => import('./views/facturas.js'),
@@ -100,6 +101,7 @@ export const NAV = [
   { k: 'responder', t: 'Chats con clientes 💬', i: 'msg', p: 'pedidos.ver' }, // 01-11-2026: contestar a los compradores con sus productos, precios y catálogo a mano (Biou: «un menú muy muy claro»)
   { k: 'embalaje', t: 'Embalaje', i: 'box', p: 'pedidos.ver' }, // v11.4: centro de embalaje,
   { k: 'taller', t: 'Impresión', i: 'printer', p: 'taller.ver' }, // v11.5: 3D + etiquetas y papel en un solo sitio,
+  { k: 'epson', t: 'Tu Epson 🖨️', i: 'printer', p: 'taller.ver', d: true }, // 26-11-2026: la Epson ET-2860 (papel, calidad, hoja de prueba sin gastar papel)
   { k: 'almacen', t: 'Mi almacén 📦', i: 'box', p: 'productos.ver' }, // 26-10-2026: lo que tengo y lo que compro (sustituye en el menú a Stock, Inventario y Costes)
   { sep: true, t: 'Vender' },
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes),

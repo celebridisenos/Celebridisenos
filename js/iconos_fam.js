@@ -70,8 +70,9 @@ for (const k in TABLA) for (const e of TABLA[k]) MAPA.set(e, k);
 const RE = new RegExp('([' + [...MAPA.keys(), ...Object.keys(PUNTOS)].join('') + '])\\uFE0F?', 'u');
 const HAY = /[⌀-⯿\uD83C-\uD83E]/;
 const NO = /^(OPTION|TITLE|STYLE|SCRIPT|TEXTAREA|PRE|CODE|OPTGROUP)$/;
-const SVG = 'http://www.w3.org/2000/svg', de = document.documentElement;
-export const esFam = () => de.classList.contains('fam');
+const SVG = 'http://www.w3.org/2000/svg';
+// 26-11-2026 · sin leer «document» al cargarse: en las pruebas sin página (node) el módulo se importa igual (antes, «document is not defined»)
+export const esFam = () => typeof document !== 'undefined' && document.documentElement.classList.contains('fam');
 // svg con sus medidas y su trazo puestos a mano: también se ve bien fuera de la página (al imprimir)
 export function trazo(d, cls) {
   const s = document.createElementNS(SVG, 'svg');
