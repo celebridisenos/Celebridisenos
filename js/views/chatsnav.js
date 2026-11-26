@@ -5,7 +5,7 @@
 // «Adjuntar» pega en el chat abierto, como él con Ctrl + V. NUNCA envía: el mensaje lo manda él.
 // 04-11-2026 · «📤 Subir» (subir_anuncio.js): abre «subir producto» de la plataforma y rellena fotos, título, descripción y precio.
 // PUBLICAR lo pulsa él. Y la idea «💤 dormidos»: lo subido hace 3 semanas o más se marca para volver a subirlo.
-import { h, mount, btn, inp, empty } from '../ui.js';
+import { h, mount, btn, inp, empty, texto } from '../ui.js';
 import { S } from '../store.js';
 import { desktop } from '../desktop.js';
 import { CHATS, mensajeCatalogo, urlTienda } from '../chats_menu.js';
@@ -129,7 +129,7 @@ export function render(el, params) {
     // 💤 los que llevan 3 semanas o más subidos en la plataforma abierta
     const dormidos = activa && SUBIR[activa] ? vivos.filter(p => { const d = diasSubido(p.id, activa); return d !== null && d >= DIAS_DORMIDO; }) : [];
     chipDormidos.hidden = !dormidos.length && !soloDormidos;
-    chipDormidos.textContent = '💤 Dormidos en ' + nombreSitio(activa) + ' (' + dormidos.length + ')';
+    texto(chipDormidos, '💤 Dormidos en ' + nombreSitio(activa) + ' (' + dormidos.length + ')');
     const L = (soloDormidos ? dormidos : vivos)
       .filter(p => !q || (CL.matches ? CL.matches([p.nombre, p.sku, p.categoria, p.color, p.material].join(' '), q) : String(p.nombre || '').toLowerCase().includes(q.toLowerCase())))
       .slice(0, 60);
@@ -151,6 +151,12 @@ export function render(el, params) {
   buscador.addEventListener('input', pinta);
   const panel = h('aside.chn-panel', h('h3', '📎 Adjuntar o 📤 subir producto'), buscador, h('div.chn-dorm-caja', chipDormidos), lista,
     h('div.col', { style: { gap: '6px' } }, estado,
+      // 25-11-2026 · 💶 cuando el cliente pregunta «¿cuánto cuesta?»: el cotizador y, con el precio, la frase lista para pegar
+      btn('💶 ¿Cuánto cobro?', () => import('./cotizar_ui.js').then(m => m.cuantoCobro(async (v, x) => {
+        const t = 'Te sale por ' + Number(v).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' + (x && x.cantidad > 1 ? ' cada una' : '') + ' + envío.';
+        if (!haySitio()) { try { await navigator.clipboard.writeText(t); } catch (e) { } return aviso('📋 Copiado: «' + t + '». Elige arriba dónde contestar y pégalo (Ctrl + V).', 'ok'); }
+        try { await pegaTexto(t); aviso(enVentana() ? '✅ Pegado en el chat: «' + t + '». Revísalo y pulsa ENVIAR tú.' : '📋 Copiado: «' + t + '». Pégalo en el chat con Ctrl + V.', 'ok'); } catch (e) { aviso('No se ha podido pegar: ' + (e.message || e), 'bad'); }
+      })).catch(e => aviso(e.message || String(e), 'bad')), { cls: 'chn-cuanto', title: 'Calcula el precio de una pieza y te pone la frase «Te sale por … + envío.» en el chat' }),
       btn('📤 Catálogo al día', async () => { if (!haySitio()) return; await pegaTexto(mensajeCatalogo()); fin(); }, { title: 'Pega el enlace de tu web: siempre tiene los productos y precios de hoy' })));
 
   el.append(h('div.chn', barra, hueco, panel));

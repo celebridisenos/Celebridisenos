@@ -1,7 +1,7 @@
 // ================= v12.9 · 🎁 Regalo con QR =================
 // Para un pedido: escribes la dedicatoria, eliges si quien lo recibe ve la pieza en 3D, y se crea un enlace secreto + QR para la caja.
 // La tienda guarda solo lo que escribes aquí. Nada del comprador (ni nombre, ni dirección, ni importe, ni nº de pedido) viaja a la web.
-import { h, mount, btn, modal, toast, field, inp, area, sel, copyText, fdt } from './ui.js';
+import { h, mount, btn, modal, toast, field, inp, area, sel, copyText, fdt, texto } from './ui.js';
 import { S, api, upsertLocal } from './store.js';
 
 const CUIDADOS = 'Límpiala con un paño húmedo y evita dejarla al sol o cerca de fuentes de calor intenso.';
@@ -23,7 +23,7 @@ export function giftDialog(o) {
   const c3 = h('input', { type: 'checkbox', checked: reg ? reg.ver3d !== false : true }), act = h('input', { type: 'checkbox', checked: reg ? reg.activo !== false : true });
   const aviso = h('p.small.muted'), estado = h('p.small'), vista = h('div.col');
   const prod = () => lista.find(p => p.id === selP.value);
-  const refrescaAviso = () => { const p = prod(); aviso.textContent = !p ? '' : p.web && p.web.modelo && p.web.modelo.id ? '✅ Este producto tiene vista 3D publicada: quien reciba el regalo podrá girarlo.' : 'ℹ️ Este producto no tiene vista 3D publicada: quien lo reciba verá la foto. (Se publica en el producto → Tienda web → «Vista 3D en la web».)'; };
+  const refrescaAviso = () => { const p = prod(); texto(aviso, !p ? '' : p.web && p.web.modelo && p.web.modelo.id ? '✅ Este producto tiene vista 3D publicada: quien reciba el regalo podrá girarlo.' : 'ℹ️ Este producto no tiene vista 3D publicada: quien lo reciba verá la foto. (Se publica en el producto → Tienda web → «Vista 3D en la web».)'); };
   selP.onchange = refrescaAviso; refrescaAviso();
   let actual = reg;
   async function pintaVista() {
@@ -36,7 +36,7 @@ export function giftDialog(o) {
         btn('Copiar enlace', () => copyText(actual.url), { icon: 'copy' }),
         btn('Abrir la página', () => window.open(actual.url, '_blank', 'noopener'), { icon: 'eye' })),
       h('p.tiny.muted', 'El enlace es secreto: solo lo tiene quien tenga el QR. Si lo desactivas, el QR deja de abrir el regalo.'));
-    try { const r = await api('tienda.regaloEstado', { pedidoId: o.id }, { quiet: true }); estado.textContent = r && r.regalo ? (r.vistas ? '👀 Se ha abierto ' + r.vistas + (r.vistas === 1 ? ' vez' : ' veces') + (r.ultimaVista ? ' · última ' + fdt(r.ultimaVista) : '') + '.' : 'Aún no se ha abierto.') + (r.activo ? '' : ' (Enlace desactivado)') : ''; } catch (e) { estado.textContent = ''; }
+    try { const r = await api('tienda.regaloEstado', { pedidoId: o.id }, { quiet: true }); texto(estado, r && r.regalo ? (r.vistas ? '👀 Se ha abierto ' + r.vistas + (r.vistas === 1 ? ' vez' : ' veces') + (r.ultimaVista ? ' · última ' + fdt(r.ultimaVista) : '') + '.' : 'Aún no se ha abierto.') + (r.activo ? '' : ' (Enlace desactivado)') : ''); } catch (e) { estado.textContent = ''; }
   }
   const body = h('div.col', { style: { gap: '12px' } },
     h('p.small.muted', 'Crea una página «Tu regalo» para quien lo reciba: dedicatoria, la pieza en 3D y un botón para pedir uno igual. Va en un QR dentro de la caja. Solo se envía lo que escribas aquí (nada del comprador).'),

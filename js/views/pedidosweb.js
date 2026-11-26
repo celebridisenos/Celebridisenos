@@ -4,7 +4,7 @@
 // · Acciones según el estado (las valida el SERVIDOR con su máquina de estados): Aprobar, Rechazar (con motivo), En espera,
 //   Pasar a producción, Completar, Cancelar. Cada cambio se publica en la tienda al momento y el cliente lo ve.
 // · Abrir un pedido NUEVO lo marca «En revisión» (el cliente ve que lo estamos mirando).
-import { h, mount, btn, modal, drawer, toast, eur, fdt, ago, pill, empty, inp, area, debounce, confirmDlg, icon, copyText } from '../ui.js';
+import { h, mount, btn, modal, drawer, toast, eur, fdt, ago, pill, empty, inp, area, debounce, confirmDlg, icon, copyText, texto } from '../ui.js';
 import { S, can, api, pull, pwFilas, upsertLocal, removeLocal, emit } from '../store.js';
 import { go, handleError } from '../app.js';
 import { sonidoActivo, sonidoPedidoWeb } from '../popups.js';
@@ -82,7 +82,7 @@ export function render(el, params) {
       ind(estado.email.activo && estado.email.permiso ? 'ok' : 'warn', estado.email.activo ? (estado.email.permiso ? '✉️ Emails al cliente: activos' : '✉️ Emails al cliente: falta el permiso de correo') : '✉️ Emails al cliente: apagados'),
       estado.ultimaImport ? h('span.tiny.muted', 'Última revisión ' + ago(estado.ultimaImport)) : null,
       h('span.grow'),
-      btn(sonidoActivo() ? '🔔 Sonido' : '🔕 Sin sonido', ev => { try { localStorage.setItem('cd.pw.sonido', sonidoActivo() ? '0' : '1'); } catch (e) { } if (sonidoActivo()) sonidoPedidoWeb(true); ev.currentTarget.querySelector('span').textContent = sonidoActivo() ? '🔔 Sonido' : '🔕 Sin sonido'; }, { cls: 'sm ghost', title: 'Sonido al llegar un pedido web' }),
+      btn(sonidoActivo() ? '🔔 Sonido' : '🔕 Sin sonido', ev => { try { localStorage.setItem('cd.pw.sonido', sonidoActivo() ? '0' : '1'); } catch (e) { } if (sonidoActivo()) sonidoPedidoWeb(true); texto(ev.currentTarget.querySelector('span'), sonidoActivo() ? '🔔 Sonido' : '🔕 Sin sonido'); }, { cls: 'sm ghost', title: 'Sonido al llegar un pedido web' }),
       'Notification' in window && Notification.permission === 'default' ? btn('Avisos del sistema', async ev => { const b = ev.currentTarget; try { const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Avisos del sistema activados en este aparato' : 'No se han permitido los avisos del sistema', r === 'granted' ? 'ok' : 'warn'); } catch (e) { } b.remove(); }, { cls: 'sm ghost', title: 'Aviso de Windows/del móvil al llegar un pedido web aunque la app esté detrás' }) : null,
       estado.telegram.bot && estado.telegram.conectado ? btn('Probar Telegram', async () => { try { await api('telegram.probar', {}); toast('Mensaje de prueba enviado a tu Telegram', 'ok'); } catch (e) { handleError(e); } cargarEstado(); }, { cls: 'sm ghost' }) : null,
       can('tienda.gestionar') && estado.tienda ? btn('Probar aviso', async () => {

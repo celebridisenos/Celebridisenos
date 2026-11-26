@@ -1,4 +1,5 @@
 import * as BD from './borrador.js'; // 19-11-2026 · ✍️ borradores (lo escrito no se pierde si el móvil cierra la app)
+import { iconiza, TRAZOS } from './iconos_fam.js'; // 25-11-2026 · cara «Familia»: los emojis de los textos, como iconos de línea
 // ================= Utilidades de interfaz =================
 const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -27,9 +28,12 @@ function add(el, kids) {
   kids.forEach(k => {
     if (k === null || k === undefined || k === false || k === '') return;
     if (Array.isArray(k)) add(el, k);
-    else el.appendChild(k instanceof Node ? k : document.createTextNode(String(k)));
+    else if (k instanceof Node) el.appendChild(k);
+    else { const s = String(k), L = iconiza(el, s, P); if (L) L.forEach(n => el.appendChild(n)); else el.appendChild(document.createTextNode(s)); }
   });
 }
+// 25-11-2026 · como «el.textContent = …» pero, en la cara Familia, con los emojis pintados como iconos de línea (en las demás caras, igual que antes)
+export function texto(el, s) { if (!el) return el; el.replaceChildren(); add(el, [s]); return el; }
 export function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 // v30.6.3 · «bajo en una barra lateral, elijo algo y vuelve arriba» (la dueña, 12-10-2026). Pasa al repintar un panel que lleva
 // DENTRO lo que se acaba de tocar (el botón con el foco): al quitarlo, el navegador recoloca la barra con el panel a medio vaciar y
@@ -105,6 +109,7 @@ const P = {
   qr: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h3v3h-3zM18 18h3v3h-3zM14 20h2M20 14v2',
   key: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 11-7.8 7.8 5.5 5.5 0 017.8-7.8zM15.5 7.5l3 3L22 7l-3-3'
 };
+Object.assign(P, TRAZOS);
 export function icon(name, cls) {
   const s = document.createElementNS(SVGNS, 'svg');
   s.setAttribute('viewBox', '0 0 24 24');
@@ -180,7 +185,7 @@ export function stringColor(s) {
 export function pill(text, cls, color) {
   const p = h('span.pill' + (cls ? '.' + cls : ''));
   if (color) { p.appendChild(h('span.d', { style: { background: color } })); p.style.background = `color-mix(in srgb, ${color} 14%, transparent)`; p.style.color = `color-mix(in srgb, ${color} 80%, var(--text))`; }
-  p.appendChild(document.createTextNode(text));
+  add(p, [text]);
   return p;
 }
 export function dueBadge(t) { return h('span.due.' + (t.nivel === 'none' ? 'x' : t.nivel), t.texto); }

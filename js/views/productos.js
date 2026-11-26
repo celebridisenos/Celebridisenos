@@ -1,5 +1,5 @@
 // ================= Productos: catálogo, nuevo producto con Foto/Vídeo/STL y asistente de precio =================
-import { h, mount, icon, btn, modal, drawer, toast, eur, fdate, ago, pill, empty, field, inp, sel, area, debounce, confirmDlg, bytes, na } from '../ui.js';
+import { h, mount, icon, btn, modal, drawer, toast, eur, fdate, ago, pill, empty, field, inp, sel, area, debounce, confirmDlg, bytes, na, texto } from '../ui.js';
 import { S, can, mutate, api, byId, upsertLocal, removeLocal, emit, timing, stateColor } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { dropZone, gallery, filesOf, filesSection, openFile, RULES, extOf, fetchFile } from '../files.js';
@@ -41,7 +41,7 @@ export function render(el, params) {
   const pasaWeb = (p, ind, k) => { const e = estadoProducto(p, ind); return !k ? true : k === 'pub' ? e.publicado : k === 'nopub' ? !e.publicado : k === 'est' ? e.estanteria > 0 : k === 'fab' ? e.porFabricar > 0 : e.disponible !== null && e.disponible > 0; };
   const pintarChips = ind => mount(chipsBox, FILTROS.map(([k, t]) => h('button.chip' + (st.web === k ? '.on' : ''), { type: 'button', 'data-f': k, onclick: () => { st.web = k; st.limit = 60; drawList(); } }, t, h('span.c', String(S.t.productos.filter(p => pasaWeb(p, ind, k)).length)))));
   const bNoVentas = h('button.btn.nv-entrada', { type: 'button', hidden: true, onclick: () => go('noventas') });
-  const pintaNoVentas = () => { const q = can('productos.borrar') ? cuantosNunca() : 0; bNoVentas.hidden = !q; bNoVentas.textContent = '🧹 Los que no se venden (' + q + ')'; };
+  const pintaNoVentas = () => { const q = can('productos.borrar') ? cuantosNunca() : 0; bNoVentas.hidden = !q; texto(bNoVentas, '🧹 Los que no se venden (' + q + ')'); };
   el.append(h('div.page-head', h('h1', 'Productos'), h('div.row.wrap', bNoVentas, can('productos.editar') ? btn('Nuevo producto', () => productWizard(), { cls: 'primary', icon: 'plus' }) : null)),
     h('div.row.wrap', { style: { marginBottom: '10px' } }, h('div.inp-icon.grow', icon('search', 's'), search), h('div', { style: { width: '200px' } }, fCat), h('div', { style: { width: '180px' } }, fEst)), chipsBox, listBox);
   function fill() { const k = fCat.value; const cats = [...new Set(S.t.productos.map(p => p.categoria).filter(Boolean))].sort(); mount(fCat, h('option', { value: '' }, 'Todas las categorías'), cats.map(c => h('option', { value: c }, pretty(c)))); fCat.value = k; }

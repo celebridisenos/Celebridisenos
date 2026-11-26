@@ -9,7 +9,7 @@
 //  · Para Google: un título y una frase con las palabras que la gente busca (no se ven en la ficha, sí en el buscador).
 //  · «Aplicar» guarda en el programa y vuelve a publicar en la web los que ya estaban, con sus MISMAS fotos, precio y todo lo demás.
 //    14-10 (tarde): los que aún no están en la web TAMBIÉN se suben (sus fotos de verdad y su precio), salvo los que no se deben (se dice por qué).
-import { h, mount, btn, toast, inp, area } from './ui.js';
+import { h, mount, btn, toast, inp, area, texto } from './ui.js';
 import { S, can, api, pull } from './store.js';
 import { filesOf, fetchFile, previewUrl } from './files.js';
 import { circuloDe } from './colores.js';
@@ -158,7 +158,7 @@ export function panel(b) {
     const tit = inp({ value: x.titulo, maxlength: 60, 'aria-label': 'Título', oninput: e => { x.titulo = e.target.value; } });
     const tx = area({ rows: 3, value: x.texto, 'aria-label': 'Descripción', oninput: e => { x.texto = e.target.value; cuenta(); } });
     const st = inp({ value: x.seoT, maxlength: 70, 'aria-label': 'Título para Google', oninput: e => { x.seoT = e.target.value; } }), sd = area({ rows: 2, maxlength: 160, value: x.seoD, 'aria-label': 'Frase para Google', oninput: e => { x.seoD = e.target.value; } });
-    const cnt = h('small.muted'), cuenta = () => { cnt.textContent = x.texto.length + ' letras' + (x.texto.length > 220 ? ' · ⚠️ largo: mejor menos de 200' : ''); }; cuenta();
+    const cnt = h('small.muted'), cuenta = () => { texto(cnt, x.texto.length + ' letras' + (x.texto.length > 220 ? ' · ⚠️ largo: mejor menos de 200' : '')); }; cuenta();
     const chk = h('input', { type: 'checkbox', checked: it.usar, onchange: e => { it.usar = e.target.checked; el.classList.toggle('off', !it.usar); pinta(); } });
     const el = h('div.dv-it' + (it.usar ? '' : '.off'), { 'data-id': p.id }, img,
       h('div.dv-campos', h('div.row.wrap', h('label.check.small', chk, 'Usar'), h('span.tiny.muted', p.id + ' · antes: «' + p.nombre + '»'), w.publicado ? h('span.pill.ok.tiny', '🟢 en la web') : h('span.pill.tiny', 'no está en la web'), h('span.tiny.dv-origen', x.origen)),

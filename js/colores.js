@@ -89,8 +89,18 @@ export function selector(opts = {}) {
     return h('button.chip.col-chip' + (on ? '.on' : '') + (deProducto ? '.prod' : ''), { type: 'button', 'data-color': c, title: c, onclick: () => pon(c) },
       hx ? h('i.col-punto', { style: { background: fondo(hx) } }) : h('i.col-punto.sin'), c);
   }
+  // 20-11-2026 · «Nuevo pedido» fácil: con opts.compacto salen SOLO los colores del producto (o 8 de los de siempre) y «🎨 Más colores»
+  // abre el selector entero (los tres modos y todos los colores). Si lo guardado ya es de varios colores, sale entero.
+  let mas = !opts.compacto || st.modo !== 'uno';
   function pinta() {
     const delProd = coloresDeProducto(prod);
+    if (!mas) {
+      const base = delProd.length ? delProd : COLORES.slice(0, 8).map(x => x[0]);
+      const extra = st.items.map(x => x.c).filter(c => !base.some(p => norm(p) === norm(c)));
+      ponHijos(el, h('div.chips.col-compacto', base.map(c => chip(c, delProd.length > 0)), extra.map(c => chip(c)),
+        h('button.chip.col-mas', { type: 'button', onclick: () => { mas = true; pinta(); } }, '🎨 Más colores')));
+      return;
+    }
     const resto = COLORES.map(x => x[0]).filter(c => !delProd.some(p => norm(p) === norm(c)));
     const propios = st.items.map(x => x.c).filter(c => !delProd.concat(resto).some(p => norm(p) === norm(c))); // colores escritos a mano
     const otro = inp({ placeholder: 'Otro color (p. ej. verde agua)', 'aria-label': 'Otro color', style: { maxWidth: '220px' } });
@@ -112,7 +122,7 @@ export function selector(opts = {}) {
     salida.replaceChildren(t ? h('span', 'Se guardará: ', muestras(t), ' ', h('b', t)) : h('span.muted', st.modo === 'uno' ? 'Toca un color (o déjalo vacío si no importa).' : 'Toca los colores que lleva.'));
   }
   pinta();
-  return { el, value: () => texto(st), setProducto(p) { prod = p; pinta(); }, total };
+  return { el, value: () => texto(st), setProducto(p) { if (p === prod) return; prod = p; pinta(); } /* 20-11: si es el mismo, no se repinta (el «change» al salir del campo se comía el toque en el color) */, total, setValor(t) { const n = leer(t); st.modo = n.modo; st.items = n.items; if (st.modo !== 'uno') mas = true; pinta(); } };
 }
 
 // ================= v16.2 · COLORES DEL PRODUCTO: se eligen tocando círculos, no escribiendo =================

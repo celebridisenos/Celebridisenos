@@ -5,7 +5,7 @@
 // y escala 100 % (sin diálogo). En el móvil se genera un PDF con el tamaño de página exacto.
 // Plantillas: envío 10×15, producto, almacén/caja y QR. La impresora se elige sola (térmica 4×6
 // para envíos; si no hay, la de folios con la etiqueta a tamaño real) y cada PC recuerda la suya.
-import { h, mount, btn, modal, toast, field, sel, inp, eur, fdate } from './ui.js';
+import { h, mount, btn, modal, toast, field, sel, inp, eur, fdate, texto } from './ui.js';
 import { S, api } from './store.js';
 import { desktop } from './desktop.js';
 import { qrPlan, qrPlanFixed } from './qr.js';
@@ -733,7 +733,7 @@ export async function labelDialog(tpl, datas, opts = {}) {
     const sheet = isSheet(pr, s);
     const pl = PL.EDITABLES.includes(cur) ? PL.activa(cur) : null;
     if (bEdit) bEdit.style.display = PL.EDITABLES.includes(cur) ? '' : 'none';
-    info.textContent = (pl ? '✏️ Diseño: ' + pl.nombre + ' · ' : '') + s.w + ' × ' + s.h + ' mm · escala 100 % · márgenes 0 mm · ' + dpi + ' ppp' + (pr ? ' · ' + (sheet ? 'en folio A4 a tamaño real (' + Math.max(1, Math.floor(205 / (s.w + 4))) * Math.max(1, Math.floor(291 / (s.h + 4))) + ' por hoja)' : 'papel ' + s.w + ' × ' + s.h + ' mm') : ' · PDF de tamaño exacto') + (datas.length > 1 ? ' · ' + datas.length + ' etiquetas' : '') + (formaDe(cur) !== 'rect' ? ' · forma: ' + SHAPES[formaDe(cur)].t.toLowerCase() + ' (Embalaje → Tarjeta y mensajes)' : '');
+    texto(info, (pl ? '✏️ Diseño: ' + pl.nombre + ' · ' : '') + s.w + ' × ' + s.h + ' mm · escala 100 % · márgenes 0 mm · ' + dpi + ' ppp' + (pr ? ' · ' + (sheet ? 'en folio A4 a tamaño real (' + Math.max(1, Math.floor(205 / (s.w + 4))) * Math.max(1, Math.floor(291 / (s.h + 4))) + ' por hoja)' : 'papel ' + s.w + ' × ' + s.h + ' mm') : ' · PDF de tamaño exacto') + (datas.length > 1 ? ' · ' + datas.length + ' etiquetas' : '') + (formaDe(cur) !== 'rect' ? ' · forma: ' + SHAPES[formaDe(cur)].t.toLowerCase() + ' (Embalaje → Tarjeta y mensajes)' : ''));
     cv.dataset.forma = formaDe(cur); cutPreview(cv, formaDe(cur), s.w);
   };
   if (prSel) { const p = pickPrinter(cur, list, c); if (p) prSel.value = p.name; prSel.onchange = refresh; }

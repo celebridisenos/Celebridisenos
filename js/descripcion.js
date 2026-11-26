@@ -2,7 +2,7 @@
 // Una sola pregunta: «¿Qué vas a vender?» (+ la foto, si quieres). Sale una descripción CORTA de una biblioteca de frases,
 // distinta cada vez y en cuatro tonos (pícaro, elegante, divertido, profesional). v16: habla del artículo, no de «impreso en 3D». Con la foto se detecta el color y el acabado. Si la IA del PC está disponible
 // (con el modelo que ve imágenes), «✨ Con IA» mira la foto y la redacta; si no, se usa la biblioteca. Nunca textos largos.
-import { h, mount, btn, modal, toast, inp, copyText, sel } from './ui.js';
+import { h, mount, btn, modal, toast, inp, copyText, sel, texto } from './ui.js';
 import { S, can, mutate, byId, upsertLocal, emit } from './store.js';
 
 const CL = window.CL;
@@ -141,7 +141,7 @@ export function rapida(opts = {}) {
     h('div.row.wrap', { style: { gap: '6px' } }, btn('✨ Crear descripción', otra, { cls: 'primary' }), btn('🔁 Otras', otra, { cls: 'ghost' }),
       btn('🤖 Con IA', async ev => { const b = ev.currentTarget; if (!q.value.trim()) return toast('Escribe qué vas a vender', 'warn'); b.disabled = true; estado.textContent = 'La IA está mirando' + (foto ? ' la foto' : '') + '…';
         try { const t = await conIA(q.value.trim(), foto, [info.colores && info.colores.length ? 'color ' + info.colores.join(' y ') : info.color ? 'color ' + info.color : '', info.medidas || '', info.personalizable ? 'se puede personalizar' : ''].filter(Boolean).join('; ')); mount(lista, tarjeta(t.replace(/^["«]|["»]$/g, '')), generar(q.value, info, 2, semilla + 1).map(tarjeta)); estado.textContent = ''; }
-        catch (e) { estado.textContent = '🤖 ' + e.message + ' Mientras, tienes las de la biblioteca.'; otra(); } b.disabled = false; }, { cls: 'ghost', title: 'Usa la IA del PC (y la foto, si tiene el modelo que ve imágenes)' })),
+        catch (e) { texto(estado, '🤖 ' + e.message + ' Mientras, tienes las de la biblioteca.'); otra(); } b.disabled = false; }, { cls: 'ghost', title: 'Usa la IA del PC (y la foto, si tiene el modelo que ve imágenes)' })),
     destino ? h('label.row', { style: { gap: '6px', alignItems: 'center' } }, h('span.small', 'Guardar en:'), destino) : null, estado, lista);
   verFoto().then(() => { if (q.value.trim()) otra(); });
   return modal('✨ Descripción rápida', body, close => [btn('Cerrar', close)], { size: 'narrow' });

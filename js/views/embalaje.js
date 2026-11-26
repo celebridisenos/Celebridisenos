@@ -3,11 +3,12 @@
 // packaging calculado solo (caja, kraft, burbuja, cinta…) · trabajo adicional (solo si lo indicas) ·
 // pérdidas de impresión pendientes (solo si lo confirmas) · costes y beneficio.
 // FABRICACIÓN ≠ EMBALAJE ≠ MANO DE OBRA. Peso del producto ≠ peso del embalaje ≠ peso total.
-import { h, mount, btn, modal, toast, eur, empty, field, inp, area, sel, pill, confirmDlg, fdt, fdate } from '../ui.js';
+import { h, mount, btn, modal, toast, eur, empty, field, inp, area, sel, pill, confirmDlg, fdt, fdate, texto } from '../ui.js';
 import { S, can, api, upsertLocal, emit, byId, pull, pullSiHaceFalta, mutate, on } from '../store.js';
 import { handleError, requestAccess, go } from '../app.js';
 import * as E from '../envio.js';
 import { miniPedido } from '../fotopedido.js';
+import { esFam } from '../iconos_fam.js'; import { pillEstado } from './pedidos.js'; // 25-11-2026 · cara Familia: el estado con sus 5 colores comunes
 import { FUENTES_TARJETA, DISENO_DEF, resetCardBg } from '../labels.js';
 
 const CL = window.CL;
@@ -53,7 +54,7 @@ function drawOrders(el) {
   const card = o => {
     const c = CL.orderCosts(o, packData(), cfg()), p = CL.productOf(o, packData());
     return h('div.card', { style: { cursor: 'pointer' }, onclick: () => packPanel(o.id) },
-      h('div.row', { style: { gap: '10px', alignItems: 'center' } }, miniPedido(o, 56), h('b.grow', 'Nº ' + o.numero + ' · ' + o.cliente), pill(o.estado, '', (cfg().pedidos.estados.find(s => s.k === o.estado) || {}).c)),
+      h('div.row', { style: { gap: '10px', alignItems: 'center' } }, miniPedido(o, 56), h('b.grow', 'Nº ' + o.numero + ' · ' + o.cliente), (esFam() ? pillEstado(o) : pill(o.estado, '', (cfg().pedidos.estados.find(s => s.k === o.estado) || {}).c))),
       h('div.small', (Number(o.cantidad) > 1 ? o.cantidad + ' × ' : '') + o.producto),
       h('div.tiny.muted', [c.embalaje.caja ? '📦 ' + c.embalaje.caja : '📦 sin caja', c.pesos.total !== null ? '⚖️ ' + gTxt(c.pesos.total) : (p && p.pesoG ? '⚖️ pieza ' + gTxt(p.pesoG) + ' + embalaje ¿?' : '⚖️ peso pendiente'),
         verCostes() ? '🧾 packaging ' + eur(c.embalaje.coste) : null].filter(Boolean).join(' · ')),
@@ -106,7 +107,7 @@ export function packPanel(id) {
         : h('span.muted', 'Sin indicar: 0 € (se pregunta al cerrar el paquete)')), can('pedidos.editar') ? btn(c.manoObra.respondido ? 'Cambiar' : 'Indicar', () => laborDialog(o, true), { cls: 'sm' }) : null)),
       lossesBlock(o, c),
       sec('PEDIDO', h('div.facts', fact('Cliente', o.cliente), fact('País', (cli && cli.pais && cli.pais !== '•••') ? cli.pais : h('span.muted', 'sin indicar')), fact('Envío', o.envio || h('span.muted', 'sin indicar')),
-        fact('Estado', pill(o.estado, '', (cfg().pedidos.estados.find(s => s.k === o.estado) || {}).c)), o.seguimiento ? fact('Seguimiento', o.seguimiento) : null)),
+        fact('Estado', (esFam() ? pillEstado(o) : pill(o.estado, '', (cfg().pedidos.estados.find(s => s.k === o.estado) || {}).c))), o.seguimiento ? fact('Seguimiento', o.seguimiento) : null)),
       E.printBlock(o, { redraw: draw }),
       E.conjuntoBlock(o, draw),
       verCostes() ? costCenter(c) : null,
@@ -447,12 +448,12 @@ function drawCard(el) {
   const fuentes = FUENTES_TARJETA.map(f => ({ v: f.k, t: f.t }));
   const fondoSel = dsSel('fondo', [{ v: 'blanco', t: 'Blanco' }, { v: 'suave', t: 'Suave (color de acento)' }, { v: 'degradado', t: 'Degradado' }, { v: 'imagen', t: 'Imagen de fondo' }]);
   const imgInfo = h('span.small.muted'), imgIn = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', style: { display: 'none' } });
-  const pintaImg = () => { const a = (S.t.archivos || []).find(x => x.id === ds.imagenId); imgInfo.textContent = a ? '🖼️ ' + a.nombre : ds.imagenId ? 'Imagen guardada' : 'Sin imagen'; };
+  const pintaImg = () => { const a = (S.t.archivos || []).find(x => x.id === ds.imagenId); texto(imgInfo, a ? '🖼️ ' + a.nombre : ds.imagenId ? 'Imagen guardada' : 'Sin imagen'); };
   imgIn.onchange = async () => {
     const f = imgIn.files[0]; imgIn.value = ''; if (!f) return;
     imgInfo.textContent = 'Subiendo la imagen…';
     try { const F = await import('../files.js'); const a = await F.uploadFile(f, { entidad: '', entidadId: '' }); ds.imagenId = a.id; ds.fondo = 'imagen'; fondoSel.value = 'imagen'; resetCardBg(); pintaImg(); dsVis(); redraw(); toast('Imagen de fondo lista. Pulsa «Guardar» para que la use todo el equipo.', 'ok'); }
-    catch (e) { imgInfo.textContent = '⚠️ ' + (e.message || e); }
+    catch (e) { texto(imgInfo, '⚠️ ' + (e.message || e)); }
   };
   pintaImg();
   const filaDeg = h('div.form.diseno-deg', field('Segundo color', dsColor('color2'), 'El primero es el color de acento'), field('Dirección', dsRange('angulo', 0, 360, 15, v => v + '°')));

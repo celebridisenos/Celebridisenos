@@ -1,7 +1,7 @@
 // ================= 🧾 Facturas y paquete trimestral para el gestor =================
 // Numeración correlativa automática (F = completa con NIF, FS = simplificada, R = rectificativa).
 // Las facturas no se borran: si hay un error se rectifican.
-import { h, mount, btn, modal, toast, eur, fdate, pill, empty, field, inp, sel, area } from '../ui.js';
+import { h, mount, btn, modal, toast, eur, fdate, pill, empty, field, inp, sel, area, texto } from '../ui.js';
 import { S, can, api, upsertLocal, emit, byId } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { invoiceDoc, printDoc, preview, fiscalReady } from '../print.js';
@@ -85,12 +85,13 @@ export function invoiceForm(o) {
     notas: inp({ placeholder: 'Opcional (p. ej. forma de pago)' })
   };
   f.cliente.addEventListener('change', () => { const cc = S.t.clientes.find(x => CL.norm(x.nombre) === CL.norm(f.cliente.value)); if (cc && cc.extra) { if (!f.nif.value && cc.extra.nif) f.nif.value = cc.extra.nif; if (!f.direccion.value && (cc.extra.direccionFiscal || cc.direccion)) f.direccion.value = cc.extra.direccionFiscal || cc.direccion; } upd(); });
-  const lines = o ? [{ descripcion: o.producto + (o.personalizacion ? ' (' + o.personalizacion + ')' : ''), cantidad: n(o.cantidad) || 1, precio: n(o.precio) }] : [{ descripcion: '', cantidad: 1, precio: '' }];
+  const lines = o ? [{ descripcion: o.producto + (o.personalizacion ? ' (' + o.personalizacion + ')' : ''), cantidad: n(o.cantidad) || 1, precio: n(o.precio) }]
+    .concat(CL.suplementosDe(o).map(x => ({ descripcion: 'Suplemento: ' + CL.suplementoTexto(Object.assign({}, x, { cantidad: 1 })), cantidad: x.cantidad, precio: x.precio }))) : [{ descripcion: '', cantidad: 1, precio: '' }]; // 20-11: + los suplementos
   const box = h('div.lines'), tot = h('div.totals'), tipo = h('div.small');
   const upd = () => {
     const am = CL.invoiceAmounts(lines.map(l => ({ descripcion: l.descripcion, cantidad: n(l.cantidad), precio: n(l.precio) })), n(f.iva.value));
     mount(tot, h('div', h('span', 'Base imponible'), h('span', eur(am.base))), h('div', h('span', 'IVA ' + Math.round(n(f.iva.value) * 100) + ' %'), h('span', eur(am.cuota))), h('div.big', h('span', 'Total'), h('span', eur(am.total))));
-    tipo.textContent = f.nif.value.trim() ? '🧾 Factura completa (serie F): con NIF y dirección del cliente.' : '🧾 Factura simplificada (serie FS): sin NIF, válida para particulares' + (am.total > 400 ? '. Si el cliente es empresa o autónomo, pídele el NIF.' : '.');
+    texto(tipo, f.nif.value.trim() ? '🧾 Factura completa (serie F): con NIF y dirección del cliente.' : '🧾 Factura simplificada (serie FS): sin NIF, válida para particulares' + (am.total > 400 ? '. Si el cliente es empresa o autónomo, pídele el NIF.' : '.'));
   };
   const drawLines = () => {
     mount(box, h('div.line-row.hdr', h('span', 'Concepto'), h('span', 'Cant.'), h('span', 'Precio (IVA inc.)'), h('span.lr-imp', 'Importe'), h('span'), h('span')),

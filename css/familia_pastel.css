@@ -1,0 +1,83 @@
+/* ================= 25-11-2026 · LAS CARAS PASTEL (html.fam.pas): «Rosa y lila» (Adriana), «Azul pastel» y «Naranja pastel» (Biou) =================
+   Biou: «para Adriana, más de chica: rosa y lila pastel». Y luego, de la suya: «a mí cambia el verde por azul pastel o naranja pastel». La misma cara «Familia» (familia.css) con otra paleta (cada una es un
+   juego de variables; las reglas son comunes); mate y de adulta, sin dibujos. La de Adriana se pone sola al entrar ella (ui18.js, ponPersona) y se puede elegir en Configuración.
+   Los 5 colores de los ESTADOS no cambian. Contraste AA medido (tools/ver_familia.js, tema «pastel»). */
+html.fam.fam[data-tema50="pastel"] {
+  --turq: #D79BC8; --turq-tinta: #35173F; --grafito: #3B2547; --carbon: #533D5E; --hueso: #FAF3F8;
+  --bg: #FAF3F8; --surface: #FFFFFF; --surface-2: #F8EEF6; --surface-3: #EEDFEC; --line: #EEDDEA; --line-2: #DCC3D9;
+  --text: #35213F; --text-2: #533D5E; --muted: #75617F; --brand: #8C3F87; --brand-2: #7A3476; --brand-text: #FFFFFF; --brand-soft: #F8E4F2;
+  --ok: #1A7A55; --ok-soft: #E3F3EB; --warn: #94560B; --warn-soft: #FBF0DF; --bad: #B3283C; --bad-soft: #FBE8EA; --info: #5A4AA0; --info-soft: #ECE8FA;
+  --a50-1: #C77FB5; --a50-2: #9A4A93; --a50-3: #F0B0CB; --a1: #C77FB5; --a2: #C77FB5; --a3: #9A4A93; --grad: linear-gradient(120deg, #F0B0CB, #CBA9EE); --oro-letra: #35173F;
+  --lado: #EEDFF5; --lado-2: #FBEFF6; --lado-linea: #E0CBE6; --lado-t: #3B2547; --lado-m: #735A7E; --rail-bg: var(--lado); --tinta: #5F3F78; --tinta-letra: #FFFFFF;
+  --shadow: 0 1px 2px rgba(105, 60, 118, .05), 0 8px 22px -10px rgba(105, 60, 118, .24); --shadow-l: 0 24px 60px -16px rgba(105, 60, 118, .36);
+  --focus: 0 0 0 3px rgba(199, 127, 181, .32); --u18-panel: #FFFFFF; --u18-brillo: transparent; color-scheme: light;
+  --p-tinta: #3B2547; --p-tinta2: #533D5E; --p-sobre: #35173F; --p-hondo: #5F3F78; --p-hondo1: #5A3A70; --p-hondo2: #75488A; --p-hondo3: #80508A; --p-acento: #93307F; --p-ic: #9A4A93; --p-on: #B0358F; --p-filo: #C77FB5; --p-lm: #735A7E; --p-m1: #F9E1EC; --p-m2: #EFE0F7; --p-m3: #E4DCF8; --p-m: #EEDFF5; --p-mb: #E0CBE6; --p-h1: #FAD9E6; --p-h2: #E9D3F5; --p-h3: #D5D8FA; --p-hb: #EFD6EE; --p-hl: #EBD3E8; --p-b1: #F0B0CB; --p-b2: #CBA9EE; --p-b: #DCA6D4; --p-bh1: #F3BDD4; --p-bh2: #D4B7F1; --p-bh: #E3B2DA; --p-suave: #F8E4F2; --p-toast: #432B52; --p-cl: #F6E0F2; --p-f1: #FBEFF6; --p-f2: #F6F0FB; --p-f3: #F8F3FA; --p-n1: #F6E7F1; --p-n2: #F3ECFA; --p-n3: #F6F1FA; --p-nieve: rgba(202, 170, 214, .8); --p-nieve2: rgba(202, 170, 214, .3); --p-somb: rgba(140, 63, 135, .5); --p-somb2: rgba(215, 155, 200, .38);
+}
+html.fam.fam[data-tema50="azul"] {
+  --turq: #86B8E8; --turq-tinta: #0F2440; --grafito: #1B3150; --carbon: #3E526C; --hueso: #F1F6FC;
+  --bg: #F1F6FC; --surface: #FFFFFF; --surface-2: #EDF4FB; --surface-3: #DDE9F6; --line: #D9E6F4; --line-2: #BACFE6;
+  --text: #182B45; --text-2: #3E526C; --muted: #566A84; --brand: #235C9E; --brand-2: #1C4F8B; --brand-text: #FFFFFF; --brand-soft: #E1EEFC;
+  --ok: #1A7A55; --ok-soft: #E3F3EB; --warn: #94560B; --warn-soft: #FBF0DF; --bad: #B3283C; --bad-soft: #FBE8EA; --info: #35598C; --info-soft: #E6EEF9;
+  --a50-1: #6FA6DD; --a50-2: #2F6CB0; --a50-3: #9FD0F6; --a1: #6FA6DD; --a2: #6FA6DD; --a3: #2F6CB0; --grad: linear-gradient(120deg, #9FD0F6, #A6B9F3); --oro-letra: #0F2440;
+  --lado: #D6E7FA; --lado-2: #EBF5FD; --lado-linea: #BFD5EE; --lado-t: #1B3150; --lado-m: #50657F; --rail-bg: var(--lado); --tinta: #35588A; --tinta-letra: #FFFFFF;
+  --shadow: 0 1px 2px rgba(40, 80, 130, .05), 0 8px 22px -10px rgba(40, 80, 130, .24); --shadow-l: 0 24px 60px -16px rgba(40, 80, 130, .36);
+  --focus: 0 0 0 3px rgba(111, 166, 221, .36); --u18-panel: #FFFFFF; --u18-brillo: transparent; color-scheme: light;
+  --p-tinta: #1B3150; --p-tinta2: #3E526C; --p-sobre: #0F2440; --p-hondo: #35588A; --p-hondo1: #2F4F80; --p-hondo2: #3F689E; --p-hondo3: #4A74AC; --p-acento: #235C9E; --p-ic: #2F6CB0; --p-on: #1F66B4; --p-filo: #6FA6DD; --p-lm: #50657F; --p-m1: #DFF0FC; --p-m2: #D3E6FA; --p-m3: #CFDCF7; --p-m: #D6E7FA; --p-mb: #BFD5EE; --p-h1: #CFE9FB; --p-h2: #C6DDFA; --p-h3: #D3D6FA; --p-hb: #CADFFA; --p-hl: #BBD5F0; --p-b1: #9FD0F6; --p-b2: #A6B9F3; --p-b: #A2C5F4; --p-bh1: #B2DAF8; --p-bh2: #B6C6F6; --p-bh: #B4D0F7; --p-suave: #E1EEFC; --p-toast: #22395A; --p-cl: #DCEBFC; --p-f1: #EBF5FD; --p-f2: #EDF2FC; --p-f3: #F1F5FC; --p-n1: #E2EFFA; --p-n2: #E7EFFB; --p-n3: #EFF4FC; --p-nieve: rgba(140, 180, 222, .8); --p-nieve2: rgba(140, 180, 222, .3); --p-somb: rgba(40, 90, 150, .5); --p-somb2: rgba(120, 170, 220, .38);
+}
+html.fam.fam[data-tema50="naranja"] {
+  --turq: #EFAA72; --turq-tinta: #3D1F0A; --grafito: #472813; --carbon: #674630; --hueso: #FDF6F0;
+  --bg: #FDF6F0; --surface: #FFFFFF; --surface-2: #FDF1E7; --surface-3: #F8E2D0; --line: #F6E2D2; --line-2: #E7C6AB;
+  --text: #3F2412; --text-2: #674630; --muted: #7D6150; --brand: #98480F; --brand-2: #843D0B; --brand-text: #FFFFFF; --brand-soft: #FFEDDD;
+  --ok: #1A7A55; --ok-soft: #E3F3EB; --warn: #94560B; --warn-soft: #FBF0DF; --bad: #B3283C; --bad-soft: #FBE8EA; --info: #35598C; --info-soft: #E8EEF6;
+  --a50-1: #EBA167; --a50-2: #A95A18; --a50-3: #FFCB98; --a1: #EBA167; --a2: #EBA167; --a3: #A95A18; --grad: linear-gradient(120deg, #FFCB98, #F8B08E); --oro-letra: #3D1F0A;
+  --lado: #FFE5D1; --lado-2: #FFF6EE; --lado-linea: #F0CDB0; --lado-t: #472813; --lado-m: #7A5A44; --rail-bg: var(--lado); --tinta: #8F4C1E; --tinta-letra: #FFFFFF;
+  --shadow: 0 1px 2px rgba(150, 90, 40, .05), 0 8px 22px -10px rgba(150, 90, 40, .24); --shadow-l: 0 24px 60px -16px rgba(150, 90, 40, .36);
+  --focus: 0 0 0 3px rgba(235, 161, 103, .38); --u18-panel: #FFFFFF; --u18-brillo: transparent; color-scheme: light;
+  --p-tinta: #472813; --p-tinta2: #674630; --p-sobre: #3D1F0A; --p-hondo: #8F4C1E; --p-hondo1: #844418; --p-hondo2: #97531F; --p-hondo3: #9F5A28; --p-acento: #98480F; --p-ic: #A95A18; --p-on: #B0520C; --p-filo: #EBA167; --p-lm: #7A5A44; --p-m1: #FFEEDD; --p-m2: #FFE4CC; --p-m3: #FCDACB; --p-m: #FFE5D1; --p-mb: #F0CDB0; --p-h1: #FFE6CB; --p-h2: #FFD8BD; --p-h3: #FBD2CE; --p-hb: #FFDCC2; --p-hl: #F6CDAE; --p-b1: #FFCB98; --p-b2: #F8B08E; --p-b: #FBBD92; --p-bh1: #FFD5AC; --p-bh2: #FABEA2; --p-bh: #FCC9A6; --p-suave: #FFEDDD; --p-toast: #4A2C17; --p-cl: #FFE7D3; --p-f1: #FFF6EE; --p-f2: #FFF1E8; --p-f3: #FDF5F0; --p-n1: #FCEEE2; --p-n2: #FDEFE8; --p-n3: #FDF4F0; --p-nieve: rgba(226, 178, 144, .8); --p-nieve2: rgba(226, 178, 144, .3); --p-somb: rgba(160, 90, 30, .5); --p-somb2: rgba(240, 180, 130, .42);
+}
+html.fam.fam.pas body { background: linear-gradient(180deg, var(--p-f1) 0, var(--p-f2) 60%, var(--p-f3) 100%) fixed var(--p-f3); }
+html.fam.fam.pas ::selection { background: var(--p-somb2); }
+/* el menú: de rosa a lila, letras ciruela */
+html.fam.fam.pas .rail50 { background: linear-gradient(180deg, var(--p-m1) 0, var(--p-m2) 46%, var(--p-m3) 100%) var(--p-m); color: var(--lado-t); border-right: 1px solid var(--p-mb); }
+html.fam.fam.pas .rail50 .fam-nom { color: var(--p-tinta); } html.fam.fam.pas .rail50 .fam-nom i { color: var(--p-acento); }
+html.fam.fam.pas .lado-g h4 { color: var(--p-lm); }
+html.fam.fam.pas .r50-it { color: var(--p-tinta); } html.fam.fam.pas .r50-it:hover { background: rgba(255, 255, 255, .6); color: var(--p-tinta); }
+html.fam.fam.pas .r50-it .r50-ic { color: var(--p-ic); }
+html.fam.fam.pas .r50-it.on { background: #FFFFFF; color: var(--p-tinta); box-shadow: 0 6px 16px -10px var(--p-somb); } html.fam.fam.pas .r50-it.on .r50-ic { color: var(--p-on); }
+html.fam.fam.pas .r50-it.on::before { background: var(--p-filo); } html.fam.fam.pas .r50-it:focus-visible { outline-color: var(--p-acento); }
+html.fam.fam.pas .r50-n { background: var(--p-on); color: #fff; } html.fam.fam.pas .r50-pie { border-top-color: var(--p-mb); }
+/* la portada: rosa, lila y un punto de cielo */
+html.fam.fam.pas .fam-hero { background: linear-gradient(108deg, var(--p-h1) 0, var(--p-h2) 56%, var(--p-h3) 100%) var(--p-hb); color: var(--p-tinta); border-color: var(--p-hl); }
+html.fam.fam.pas .fam-hero .fam-aura { background: radial-gradient(440px 300px at 88% 40%, rgba(255, 255, 255, .62), transparent 70%); }
+html.fam.fam.pas .fam-hero h1 { color: var(--p-tinta); } html.fam.fam.pas .fam-hero .pm-frase { color: var(--p-tinta2); } html.fam.fam.pas .fam-hero .pm-frase b { color: var(--p-tinta); }
+html.fam.fam.pas .fam-hero .pm-reloj b { color: var(--p-acento); } html.fam.fam.pas .fam-hero .pm-reloj small { color: var(--p-tinta2); } html.fam.fam.pas .fam-hero .bad-t { color: #A11D34; } html.fam.fam.pas .fam-hero .warn-t { color: #7A4505; }
+html.fam.fam.pas .fam-hero .btn:not(.primary) { background: rgba(255, 255, 255, .72); border-color: var(--p-mb); color: var(--p-tinta); } html.fam.fam.pas .fam-hero .btn:not(.primary):hover { background: #fff; border-color: var(--p-filo); color: var(--p-tinta); }
+html.fam.fam.pas .btn.primary, html.fam.fam.pas .fab { background: linear-gradient(120deg, var(--p-b1), var(--p-b2)) var(--p-b); color: var(--p-sobre); } html.fam.fam.pas .btn.primary:hover { background: linear-gradient(120deg, var(--p-bh1), var(--p-bh2)) var(--p-bh); color: var(--p-sobre); }
+html.fam.fam.pas .fab { box-shadow: 0 10px 24px -8px var(--p-somb); }
+html.fam.fam.pas .chip.on, html.fam.fam.pas .seg button.on, html.fam.fam.pas body[data-view="pedidos"] .content .kpi.on { background: var(--p-hondo); border-color: var(--p-hondo); color: #fff; }
+html.fam.fam.pas .p5-p.hecho .p5-d { background: var(--e-listo); border-color: var(--e-listo); color: #07191B; }
+html.fam.fam.pas .pchips .ven { background: var(--p-suave); color: var(--p-acento); }
+html.fam.fam.pas .empty > svg.i { color: var(--p-ic); }
+/* fichas, avisos y «Todo el menú» */
+html.fam.fam.pas .drawer-h { background: linear-gradient(105deg, var(--p-hondo1), var(--p-hondo2) 60%, var(--p-hondo3)) var(--p-hondo); } html.fam.fam.pas .drawer-h a { color: var(--p-cl); } html.fam.fam.pas .drawer-h .muted, html.fam.fam.pas .drawer-h code { color: var(--p-cl); }
+html.fam.fam.pas .toast, html.fam.fam.pas .toast.ok, html.fam.fam.pas .toast.warn, html.fam.fam.pas .toast.bad { background: var(--p-toast); border-color: var(--p-hondo); }
+html.fam.fam.pas .toast.ok { border-left-color: var(--p-filo); } html.fam.fam.pas .toast.warn { border-left-color: #E0922F; } html.fam.fam.pas .toast.bad { border-left-color: #E25668; }
+html.fam.fam.pas .mp-g-dia { background: linear-gradient(140deg, var(--p-hondo1), var(--p-hondo3)) var(--p-hondo); border-color: transparent; } html.fam.fam.pas .mp-g-dia h3 { color: var(--p-cl); } html.fam.fam.pas .mp-g-dia .mp-t-e { color: var(--p-cl); } html.fam.fam.pas .mp-g-dia .mp-t:hover, html.fam.fam.pas .mp-g-dia .mp-t:focus-visible { background: rgba(255, 255, 255, .18); }
+html.fam.fam.pas .mp-busca { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' stroke='%23726A80' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='10' cy='10' r='7'/%3E%3Cpath d='M15.5 15.5L20 20'/%3E%3C/svg%3E"); }
+html.fam.fam.pas .bloqueo-caras { background: var(--p-hondo) !important; }
+@media (max-width: 899px) { html.fam.fam.pas .topbar { background: linear-gradient(100deg, var(--p-hondo), var(--p-hondo3)) var(--p-hondo); } }
+/* Navidad con su paleta: el menú sigue en rosa y lila (nada de pino), el oro más hondo para que se lea, y la nieve sobre el pastel */
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] { --lado: var(--p-m); --lado-2: var(--p-f1); --lado-linea: var(--p-mb); --lado-m: var(--p-lm); --nav-pino: var(--p-hondo); }
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] .rail50 { background: linear-gradient(180deg, var(--p-m1) 0, var(--p-m2) 46%, var(--p-m3) 100%) var(--p-m); }
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] .r50-it.on { background: #fff; } html.fam.fam[data-temporada="navidad"].pas[data-tema50] .r50-it.on .r50-ic { color: var(--p-on); } html.fam.fam[data-temporada="navidad"].pas[data-tema50] .r50-it.on::before { background: #C9A227; }
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] .fam-marca .fam-nom i { color: var(--p-acento); }
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] .fam-marca small::after, html.fam.fam[data-temporada="navidad"].pas[data-tema50] .rail50::after { filter: saturate(1.3) brightness(.74); }
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] .fam-hero { background: linear-gradient(108deg, var(--p-h1) 0, var(--p-h2) 56%, var(--p-h3) 100%) var(--p-hb); }
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] .fam-hero::after { filter: saturate(1.25) brightness(.8); }
+html.fam.fam[data-temporada="navidad"].pas[data-tema50] body { background: linear-gradient(180deg, var(--p-n1) 0, var(--p-n2) 60%, var(--p-n3) 100%) fixed var(--p-n2); }
+html.fam.pas .nav-nieve { color: var(--p-nieve); border-color: var(--p-nieve2); } html.fam.pas .nav-nieve-h, html.fam.pas .nav-nieve-l { opacity: 1; }
+html.fam.fam.pas .tabbar .on, html.fam.fam.pas .tabbar .on svg.i { color: var(--p-acento); }
+@media (max-width: 899px) { html.fam.fam.pas .topbar .search-btn { color: #fff; } }
+/* la bienvenida de Navidad, con su color (Biou: «a mí cambia el verde…») */
+html.fam.pas .nav-bienvenida { background: radial-gradient(900px 520px at 50% 40%, var(--p-hondo3), var(--p-hondo) 58%, var(--p-toast)); } html.fam.pas .nav-bienvenida p.nav-bien-sub { color: #fff; } html.fam.pas .nav-bienvenida p { color: #FFE3A0; }
+html.fam.pas .nav-bien-paisaje svg > g:first-child { fill: var(--p-toast); }

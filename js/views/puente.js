@@ -4,7 +4,11 @@
 //  · las impresoras en directo (en el programa del PC) · lo que te necesita, por orden de urgencia · el mes (ventas, meta,
 //    y la curva de los últimos 30 días) · el planeta de clientes · los últimos pedidos.
 // El «Inicio» de antes sigue existiendo (enlace abajo): aquí no se ha quitado ninguna función.
-import { h, mount, btn, eur, ago } from '../ui.js';
+import { h, mount, btn, eur, ago, icon, dueBadge } from '../ui.js';
+import { esFam, emblema } from '../familia.js'; // 25-11-2026 · cara «Familia»
+import { ESTADOS4, estado4, paso4, fase, barra4 } from '../pasos.js';
+import { fotoPedido, miniPedido } from '../fotopedido.js'; // 25-11 noche · la portada viva enseña SUS piezas
+import { pillEstado } from './pedidos.js';
 import { S, can, timing } from '../store.js';
 import { go } from '../app.js';
 import { BAMBU } from '../bambu.js';
@@ -103,8 +107,54 @@ function ultimos() {
   const L = vivos().slice().sort((a, b) => String(b.creado || b.fecha || '').localeCompare(String(a.creado || a.fecha || ''))).slice(0, 6);
   return h('section.card.pm-ult', h('div.pm-h', h('h3', '📥 Últimos pedidos'), h('a', { href: '#/pedidos' }, 'Todos →')),
     L.length ? L.map(o => { const st = CL.stateOf(S.cfg.pedidos, o.estado), c = /^#[0-9a-f]{3,8}$/i.test(st.c || '') ? st.c : '#64748b';
+      if (esFam()) return h('button.pm-ped.fam-ped', { type: 'button', style: '--c: ' + estado4(o).c, onclick: () => go('pedidos/' + encodeURIComponent(o.id)) }, h('span.pm-num', o.numero ? 'nº ' + o.numero : ''), h('span.grow.fam-ped-t', h('b.ellipsis', o.producto || 'Sin producto'), h('small.ellipsis', [o.cliente || 'Sin nombre', o.creado ? ago(o.creado) : ''].filter(Boolean).join(' · '))), pillEstado(o));
       return h('button.pm-ped', { type: 'button', onclick: () => go('pedidos/' + encodeURIComponent(o.id)) }, h('i', { style: 'background:' + c }), h('span.pm-num', o.numero ? 'nº ' + o.numero : ''), h('span.grow.ellipsis', h('b', o.cliente || 'Sin nombre'), ' · ', o.producto || ''), h('span.pm-est', { style: 'color:' + c }, o.estado || ''), h('span.tiny.muted.nowrap', o.creado ? ago(o.creado) : '')); }) :
       h('p.muted.small', 'Todavía no hay pedidos.'));
+}
+
+// ---------- 25-11-2026 · la portada de la cara «Familia»: lo primero, lo primero ----------
+// Los 5 estados del contrato común (los mismos en CelebriMesa, CelebriFábrica y Shampú). «Empaquetar» cuenta como «En mesa», como en pasos.js.
+const EST_FAM = [['confirmado', 'ok', 'hoy'], ['imprimiendo', 'printer', 'taller'], ['mesa', 'tool', 'hoy'], ['listo', 'tag', 'pedidos/?f=enviar']];
+export function estadosFam() {
+  const ab = vivos().filter(o => (timing(o) || {}).abierto), n = [0, 0, 0, 0];
+  ab.forEach(o => { const i = paso4(o); if (i >= 0 && i < 4) n[i]++; else if (fase(o) === 'reserva') n[0]++; });
+  const mes = String(S.hoy || '').slice(0, 7), ent = vivos().filter(o => fase(o) === 'entregado' && String(o.fechaEntrega || '').slice(0, 7) === mes).length;
+  return EST_FAM.map(([k, i, r], j) => ({ k, i, r, t: ESTADOS4[j].t, c: ESTADOS4[j].c, n: n[j] })).concat({ k: 'entregado', i: 'flag', r: 'pedidos/?f=completados', t: 'Entregado', c: '#8A8F98', n: ent, sub: 'este mes' });
+}
+// 25-11 noche · solo en la versión B «más viva» (apagada: él eligió la A): lo que hay en marcha, con su foto, y EL SIGUIENTE (el que antes vence)
+const viva = () => document.documentElement.classList.contains('viva');
+const porFecha = () => vivos().map(o => ({ o, t: timing(o) || {} })).filter(x => x.t.abierto && paso4(x.o) >= 0).sort((a, b) => String(a.t.limite || '9').localeCompare(String(b.t.limite || '9')) || String(a.o.creado || '').localeCompare(String(b.o.creado || '')));
+function fotosHero() {
+  const vistos = new Set(), L = porFecha().map(x => x.o).filter(o => { const f = fotoPedido(o); if (!f || vistos.has(f)) return false; vistos.add(f); return true; }).slice(0, 3);
+  if (!L.length) return null;
+  return h('div.fam-fotos.n' + L.length, L.map(o => { const e = estado4(o); return h('button.fam-foto', { type: 'button', style: '--c: ' + e.c, title: (o.numero ? 'nº ' + o.numero + ' · ' : '') + (o.producto || '') + ' · ' + e.t, onclick: () => go('pedidos/' + encodeURIComponent(o.id)) },
+    h('img', { src: fotoPedido(o), alt: 'Foto de ' + (o.producto || 'la pieza') }), h('span.fam-foto-t', h('i', { 'aria-hidden': 'true' }), e.t)); }));
+}
+function siguienteFam() {
+  const x = porFecha()[0]; if (!x) return null;
+  const { o, t } = x, e = estado4(o), abrir = () => go('pedidos/' + encodeURIComponent(o.id));
+  return h('section.fam-sig.' + (t.nivel || 'none'), { style: '--c: ' + e.c, 'aria-label': 'El siguiente pedido' },
+    h('div.fam-sig-l', icon('clock'), h('b', 'El siguiente'), h('small', t.texto || '')),
+    h('div.fam-sig-f', miniPedido(o, 72)),
+    h('div.fam-sig-t', h('small', [o.numero ? 'Pedido nº ' + o.numero : '', o.cliente || ''].filter(Boolean).join(' · ')), h('b.ellipsis', o.producto || 'Sin producto'), h('span', dueBadge(t))),
+    h('div.fam-sig-p', barra4(o)),
+    btn('Abrir', abrir, { cls: 'primary', icon: 'right' }));
+}
+function portadaFam(P, N, frase, R, draw) {
+  const pl = can('pedidos.ver') ? planeta(N, draw) : null;
+  return [
+    h('section.fam-hero', h('div.fam-aura', { 'aria-hidden': 'true' }),
+      h('div.fam-hero-t', R.el, h('h1', P.saludo), h('p.pm-frase', frase),
+        h('div.row.wrap.fam-hero-b', can('pedidos.crear') ? btn('Nuevo pedido', () => go('pedidos/nuevo'), { cls: 'primary', icon: 'plus' }) : null,
+          can('productos.ver') ? btn('¿Cuánto cobro?', () => go('cotizador'), { icon: 'euro' }) : null, can('pedidos.ver') ? btn('Escanear', () => go('escanear'), { icon: 'qr' }) : null)),
+      viva() && can('pedidos.ver') ? fotosHero() : null, h('div.fam-hero-l', { 'aria-hidden': 'true' }, emblema(''))),
+    viva() && can('pedidos.ver') ? siguienteFam() : null,
+    can('pedidos.ver') ? h('section.fam-estados', { 'aria-label': 'Tus pedidos por estado' }, estadosFam().map(e =>
+      h('button.fam-estado' + (e.n ? '.on' : ''), { type: 'button', 'data-k': e.k, style: '--c: ' + e.c, onclick: () => go(e.r) }, h('span.fam-estado-i', icon(e.i)), h('b', String(e.n)), h('span.fam-estado-t', e.t, e.sub ? h('small', e.sub) : null)))) : null,
+    h('div.fam-rejilla',
+      h('div.fam-col', can('pedidos.ver') ? teNecesita(P) : null, can('pedidos.ver') ? ultimos() : null),
+      h('div.fam-col', can('taller.ver') ? impresoras() : null, elMes(N), pl ? h('div.pm-planeta', pl) : null)),
+    h('p.pm-pie', h('a', { href: '#/tallervivo' }, 'Taller vivo'), dinero() ? [' · ', h('a', { href: '#/trailer' }, 'Tráiler del mes')] : null, ' · ', h('a', { href: '#/inicio' }, 'El Inicio de antes'), ' · ', h('a', { href: '#/config/perfil' }, 'Cambiar de interfaz'))];
 }
 
 export function render(el) {
@@ -116,6 +166,8 @@ export function render(el) {
     const P = parte(), N = numeros(), F = flujo(), total = F.reduce((a, p) => a + p.n, 0);
     R = reloj();
     const frase = P.c.abiertos ? [h('b', String(P.c.abiertos)), P.c.abiertos === 1 ? ' pedido en marcha' : ' pedidos en marcha', P.c.tarde ? [' · ', h('span.bad-t', P.c.tarde + ' con retraso')] : null, P.c.hoy ? [' · ', h('span.warn-t', P.c.hoy + (P.c.hoy === 1 ? ' vence hoy' : ' vencen hoy'))] : null, P.c.incidencias ? [' · ', h('span.bad-t', P.c.incidencias + (P.c.incidencias === 1 ? ' incidencia' : ' incidencias'))] : null] : 'No hay pedidos en marcha ahora mismo.';
+    root.classList.toggle('pm-fam', esFam());
+    if (esFam()) { mount(root, ...portadaFam(P, N, frase, R, draw)); return; }
     const pl = can('pedidos.ver') ? planeta(N, draw) : null;
     mount(root,
       h('section.pm-hero',

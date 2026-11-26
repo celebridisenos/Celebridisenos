@@ -9,17 +9,18 @@ import { S } from './store.js';
 import * as PL from './placas.js';
 
 const CL = window.CL;
+// 25-11-2026 · los colores son los del contrato común (FAMILIA_VISUAL.md), iguales en CelebriMesa, CelebriFábrica y la pantalla de Shampú.
 // f = la fase de dentro a la que lleva el botón; c = su color (el mismo en los botones, la barra y la etiqueta del estado)
 export const ESTADOS4 = [
-  { k: 'confirmado', f: 'confirmado', t: 'Confirmado', e: '✅', c: '#3b82f6' },
-  { k: 'imprimiendo', f: 'impresion', t: 'Imprimiendo', e: '🖨️', c: '#f97316' },
-  { k: 'mesa', f: 'postpro', t: 'En mesa', e: '🛠️', c: '#eab308' },
-  { k: 'listo', f: 'listo', t: 'Listo', e: '🏷️', c: '#22c55e' },
+  { k: 'confirmado', f: 'confirmado', t: 'Confirmado', e: '✅', c: '#4A6FA5' },
+  { k: 'imprimiendo', f: 'impresion', t: 'Imprimiendo', e: '🖨️', c: '#E0922F' },
+  { k: 'mesa', f: 'postpro', t: 'En mesa', e: '🛠️', c: '#7B61C9' },
+  { k: 'listo', f: 'listo', t: 'Listo', e: '🏷️', c: '#00A6A6' },
 ];
 export const PASOS5 = ESTADOS4; // (nombre de antes)
 // fase real → paso que toca AHORA (0..3); 4 = todo hecho (enviado o entregado); -1 = aún no confirmado o cancelado
 const ACTUAL = { reserva: -1, confirmado: 0, impresion: 1, postpro: 2, empaquetar: 2, listo: 3, enviado: 4, entregado: 4, cancelado: -1 };
-const FUERA = { reserva: ['Por confirmar', '📥', '#94a3b8'], enviado: ['Enviado', '🚚', '#0ea5e9'], entregado: ['Entregado', '🏁', '#0f766e'], cancelado: ['Cancelado', '✖️', '#64748b'] };
+const FUERA = { reserva: ['Por confirmar', '📥', '#94a3b8'], enviado: ['Enviado', '🚚', '#6B7F95'], entregado: ['Entregado', '🏁', '#8A8F98'], cancelado: ['Cancelado', '✖️', '#64748b'] };
 export const fase = o => CL.phaseOf(S.cfg.pedidos, o.estado);
 export function paso4(o) { const f = fase(o); return f in ACTUAL ? ACTUAL[f] : -1; }
 export const paso5 = paso4;
@@ -41,7 +42,7 @@ export function barra4(o, opts = {}) {
       const hecho = i < c, actual = i === c;
       const sub = R && (i === 1 || i === 2) && actual ? R.hechas + '/' + R.n : null;
       return h('span.p5-p' + (hecho ? '.hecho' : actual ? '.actual' : '.falta'), { 'data-k': p.k, title: p.t + (hecho ? ' · hecho' : actual ? ' · ahora' : '') },
-        h('i.p5-d', actual ? { style: { background: p.c, borderColor: p.c } } : null, hecho ? '✓' : opts.mini ? '' : p.e), opts.mini ? null : h('b.p5-t', p.t), sub && !opts.mini ? h('small.p5-s', sub) : null);
+        h('i.p5-d', actual ? { style: 'background: ' + p.c + '; border-color: ' + p.c + '; --c: ' + p.c } : null, hecho ? '✓' : opts.mini ? '' : p.e), opts.mini ? null : h('b.p5-t', p.t), sub && !opts.mini ? h('small.p5-s', sub) : null);
     }));
   return el;
 }

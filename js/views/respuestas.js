@@ -1,7 +1,7 @@
 // ================= 💬 Respuestas a clientes con la IA (Wallapop, Vinted, WhatsApp…) =================
 // Pegas el mensaje del cliente y Celebrity propone la respuesta con tus datos reales:
 // precio de venta, precio mínimo (nunca lo revela), plazo y estado del pedido.
-import { h, mount, btn, modal, toast, eur, field, inp, sel, area, copyText } from '../ui.js';
+import { h, mount, btn, modal, toast, eur, field, inp, sel, area, copyText, texto } from '../ui.js';
 import { S, can, byId, timing } from '../store.js';
 import { write } from '../ai/engine.js';
 
@@ -66,7 +66,7 @@ export function replyAssistant({ pedido, producto, mensaje } = {}) {
     const tono = { cercano: 'cercano y amable, tuteando, como una pequeña tienda artesanal; 2 a 4 frases; como mucho 1 emoji', profesional: 'profesional y cordial, tratando de usted; 2 a 4 frases; sin emojis', breve: 'muy breve (1 o 2 frases), amable' }[f.tono.value];
     const prompt = 'Redacta la respuesta que voy a enviar a un cliente por ' + f.canal.value + '.\n\nMENSAJE DEL CLIENTE:\n«' + m + '»\n\nDATOS REALES (usa solo estos; si falta algo, no lo inventes y ofrece consultarlo):\n- ' + facts(curProd(), o).join('\n- ') +
       '\n\nREGLAS: responde en español de España; tono ' + tono + '. Si pide rebaja, puedes ofrecer un pequeño descuento o un detalle pero NUNCA por debajo del precio mínimo y sin decir que existe un mínimo. No des datos internos (costes, márgenes). Si es una queja, discúlpate, pide una foto y ofrece solución. No pongas saludo de despedida largo ni firma. Devuelve SOLO el texto del mensaje.';
-    out.value = ''; status.textContent = '✍️ Redactando…';
+    out.value = ''; texto(status, '✍️ Redactando…');
     try {
       const t = await write(prompt, { signal: ctrl.signal, onToken: x => { out.value = x; }, onStatus: s => { status.textContent = s; } });
       out.value = String(t || '').replace(/^["«]|["»]$/g, '').trim(); status.textContent = 'Revisa y cambia lo que quieras antes de enviarlo.';

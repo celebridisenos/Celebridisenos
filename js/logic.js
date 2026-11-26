@@ -72,7 +72,41 @@ var CL = (function () {
     return r;
   }
   // v12: + el envío que pagó el cliente (pedidos de la tienda web); es ingreso del pedido
-  function orderTotal(o) { return (o.total !== '' && o.total !== null && o.total !== undefined && n(o.total) > 0 ? n(o.total) : n(o.cantidad || 1) * n(o.precio)) + n(o.envioCobrado); }
+  // 19-11-2026: + los SUPLEMENTOS del pedido (el «total» de la hoja es solo cantidad × precio)
+  function orderTotal(o) { return (o.total !== '' && o.total !== null && o.total !== undefined && n(o.total) > 0 ? n(o.total) : n(o.cantidad || 1) * n(o.precio)) + n(o.envioCobrado) + suplementosTotal(o); }
+
+  // ---------- 19-11-2026 · SUPLEMENTOS de un pedido (Biou: «si quiere suplementos, por ejemplo el pájaro caído quiere 3 pajaritos de
+  // diferente color, cada suplemento pequeño son 0,70 €») ----------
+  // Van con el pedido (no por unidad): [{ nombre, cantidad, colores: ['Rosa', 'Azul'], precio (de CADA uno) }]. Suman al total, salen en la
+  // ficha, en la factura y en «Qué va dentro» de la etiqueta del paquete. Precio de fábrica de uno pequeño: 0,70 € (Configuración → precios.suplemento).
+  var SUPLEMENTO_PRECIO = 0.70, SUPLEMENTOS_MAX = 20;
+  function suplementosLimpia(lista) { // lo que llega (app, servidor) → lista limpia; { error } si algo no vale
+    if (lista === null || lista === undefined || lista === '') return { lista: [] };
+    if (typeof lista === 'string') { try { lista = JSON.parse(lista); } catch (e) { return { error: 'Suplementos no válidos.' }; } }
+    if (!Array.isArray(lista)) return { error: 'Suplementos no válidos.' };
+    var out = [];
+    for (var i = 0; i < lista.length; i++) {
+      var x = lista[i] || {}, nom = s(x.nombre).replace(/[<>]/g, '').trim().substring(0, 60);
+      if (!nom) continue;
+      var cols = (Array.isArray(x.colores) ? x.colores : s(x.colores).split(/\s*[,·]\s*/)).map(function (c) { return s(c).replace(/[<>]/g, '').trim().substring(0, 30); }).filter(Boolean).slice(0, 50);
+      var cant = Math.round(n(x.cantidad)) || cols.length || 1, pr = x.precio === '' || x.precio === null || x.precio === undefined ? SUPLEMENTO_PRECIO : Math.round(n(x.precio) * 100) / 100;
+      if (cant < 1 || cant > 999) return { error: 'La cantidad del suplemento «' + nom + '» debe estar entre 1 y 999.' };
+      if (!(pr >= 0) || pr > 9999) return { error: 'El precio del suplemento «' + nom + '» no es válido.' };
+      out.push({ nombre: nom, cantidad: cant, colores: cols, precio: pr });
+    }
+    if (out.length > SUPLEMENTOS_MAX) return { error: 'Como mucho ' + SUPLEMENTOS_MAX + ' suplementos por pedido.' };
+    return { lista: out };
+  }
+  function suplementosDe(o) { var r = suplementosLimpia(o && o.suplementos); return r.error ? [] : r.lista; }
+  function suplementosTotal(o) { return Math.round(suplementosDe(o).reduce(function (a, x) { return a + x.cantidad * x.precio; }, 0) * 100) / 100; }
+  // «3 × Pajarito (Rosa, Azul, Amarillo)» · con los colores repetidos agrupados: «Rosa ×2, Azul»
+  function suplementoTexto(x) {
+    var cuenta = {}, orden = [];
+    (x.colores || []).forEach(function (c) { var k = norm(c); if (!cuenta[k]) { cuenta[k] = { c: c, v: 0 }; orden.push(k); } cuenta[k].v++; });
+    var cols = orden.map(function (k) { return cuenta[k].c + (cuenta[k].v > 1 ? ' ×' + cuenta[k].v : ''); }).join(', ');
+    return (x.cantidad > 1 ? x.cantidad + ' × ' : '') + x.nombre + (cols ? ' (' + cols + ')' : '');
+  }
+  function suplementosTexto(o) { return suplementosDe(o).map(suplementoTexto); }
   function isUrgent(o, t) { return t.abierto && (o.prioridad === 'Urgente' || t.nivel === 'late' || t.nivel === 'today'); }
 
   // ---------- Clientes: estadísticas y etiquetas ----------
@@ -2079,7 +2113,7 @@ var CL = (function () {
     UNITS: UNITS, MAT_TIPOS: MAT_TIPOS, CONF: CONF, CONF_TXT: CONF_TXT, unitKey: unitKey, matCost: matCost, convertUnit: convert, linesCost: linesCost, bomOf: bomOf, productCost: productCost, feesOf: feesOf, costPricing: costPricing, costSnapshot: costSnapshot, costText: costText, worstConf: worst, eur2: eur2,
     finance: finance, cuotaNegocio: cuotaNegocio, cuotaAplicada: cuotaAplicada, aplicaMovil: aplicaMovil, phaseOf: phaseOf, stateOfPhase: stateOfPhase, PHASES: PHASES, stockLevels: stockLevels, orderProfit: orderProfit, masVendidosRanking: masVendidosRanking, profitSummary: profitSummary, estComision: estComision, invoiceAmounts: invoiceAmounts, objectiveProgress: objectiveProgress, OBJ_TIPOS: OBJ_TIPOS, sale: sale, costIndex: costIndex, convert: convert, cintaDe: cintaDe, orderAssist: orderAssist, periodRange: periodRange, bi: bi, alerts: alerts, gamify: gamify, levelOf: levelOf, xpForLevel: xpForLevel, BADGES: BADGES,
     day: day, s: s, n: n, norm: norm, today: today, parse: parse, days: days, addDays: addDays, weekStart: weekStart, dateStr: dateStr,
-    stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, isUrgent: isUrgent, ordersByClient: ordersByClient,
+    stateOf: stateOf, orderTiming: orderTiming, orderTotal: orderTotal, SUPLEMENTO_PRECIO: SUPLEMENTO_PRECIO, suplementosLimpia: suplementosLimpia, suplementosDe: suplementosDe, suplementosTotal: suplementosTotal, suplementoTexto: suplementoTexto, suplementosTexto: suplementosTexto, isUrgent: isUrgent, ordersByClient: ordersByClient,
     clientStats: clientStats, allClientStats: allClientStats, dashboard: dashboard, prices: prices, round10up: round10up, matches: matches,
     ENVASE_TIPOS: ENVASE_TIPOS, SIMPLE_DEF: SIMPLE_DEF, simpleCfg: simpleCfg, nivelStock: nivelStock, envaseTipo: envaseTipo, medidasTxt: medidasTxt, envaseNombre: envaseNombre, porMetro: porMetro, stockEstado: stockEstado, simplePlan: simplePlan,
     grupoEnvio: grupoEnvio, principalEnvio: principalEnvio, mismoCliente: mismoCliente, candidatosConjunto: candidatosConjunto, numerosGrupo: numerosGrupo,

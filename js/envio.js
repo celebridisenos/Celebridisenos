@@ -5,7 +5,7 @@
 // · Tarjeta de agradecimiento 50 × 50 con tu logo y tu texto ({cliente}, {producto}, {pedido}…).
 // · Cada impresión queda registrada: Pendiente / Enviando / Impreso / Error. Lo ya impreso solo se repite con «Reimprimir».
 // · Mensajes al cliente para copiar y pegar (Vinted, Wallapop, WhatsApp…): lo que falta se avisa, no se rellena.
-import { h, mount, btn, modal, toast, field, inp, area, sel, pill, fdt, copyText, confirmDlg } from './ui.js';
+import { h, mount, btn, modal, toast, field, inp, area, sel, pill, fdt, copyText, confirmDlg, texto } from './ui.js';
 import { S, api, can, byId, upsertLocal, emit, pull } from './store.js';
 import * as PLT from './plantillas.js'; // v16.2: saber si hay un diseño propio puesto
 import { appUrl, emisor } from './print.js';
@@ -471,7 +471,8 @@ export async function buildFor(o, tipo, L) {
     const d = { qr: selloQR(o), sello: CL.selloPedido(o), marcaNombre: (emisor().comercial || '').trim() || 'CelebriDiseños', codigo: o.codigo, numero: g.length > 1 ? CL.numerosGrupo(g) : o.numero, conjunto: g.length > 1,
       cliente: (() => { const p = String(o.cliente || '').trim().split(/\s+/); return p[0] + (p[1] ? ' ' + p[1].charAt(0).toUpperCase() + '.' : ''); })(),
       limite: t && t.limite ? t.limite.split('-').reverse().slice(0, 2).join('/') : '', transportista: lo.envio || et.transportista || '', seguimiento: lo.seguimiento || '', canal: o.canal || '', cuenta: [...new Set(g.map(p => p.cuenta).filter(Boolean))].join(' + '), // v14.1: desde qué cuenta se vendió
-      lineas: g.map(p => (Number(p.cantidad) > 1 ? p.cantidad + ' × ' : '') + p.producto + (p.color ? ' · ' + p.color : '') + (p.personalizacion ? ' · «' + String(p.personalizacion).slice(0, 40) + '»' : '') + (g.length > 1 ? ' (nº ' + p.numero + ')' : '')),
+      // 20-11-2026: cada SUPLEMENTO va en su propia fila con su casilla («+ 3 × Pajarito (Rosa, Azul, Amarillo)»), justo debajo de su producto
+      lineas: g.flatMap(p => [(Number(p.cantidad) > 1 ? p.cantidad + ' × ' : '') + p.producto + (p.color ? ' · ' + p.color : '') + (p.personalizacion ? ' · «' + String(p.personalizacion).slice(0, 40) + '»' : '') + (g.length > 1 ? ' (nº ' + p.numero + ')' : '')].concat(CL.suplementosTexto(p).map(t => '+ ' + t))),
       nota: (t => t.length > 170 ? t.slice(0, 168).replace(/\s+\S*$/, '') + '…' : t)(String(o.obsEnvio || '').trim()), gracias: { titulo: gd.titulo, texto: gd.texto, firma: gd.firma }, destino: destinoDe(o), discreto: !!(S.cfg.envio && S.cfg.envio.discreta) }; // 22-11: 🔒 discreta
     if (gd.logo) d.logoImg = await L.loadLogo();
     if (L.cargaLigada) await L.cargaLigada(); // (19-11: «CelebriDiseños» en letra ligada)
@@ -879,7 +880,7 @@ export function attachDialog(o, after, opts = {}) {
       const r = await officialCanvas(local(), { blob: file, pagina: Number(pagSel.value), recorte: rec });
       if (r.paginas > 1 && pagSel.options.length !== r.paginas) mount(pagSel, Array.from({ length: r.paginas }, (_, i) => h('option', { value: i + 1, selected: i + 1 === r.pagina }, 'Página ' + (i + 1))));
       const cv = document.createElement('canvas'); cv.width = r.canvas.width; cv.height = r.canvas.height; cv.getContext('2d').drawImage(r.canvas, 0, 0); cv.className = 'lbl-canvas'; cv.style.width = '100%'; cv.style.maxWidth = '260px';
-      mount(prev, cv, botonesTamQR(r, () => showPrev(false))); info.textContent = 'Así saldrá (100 × 150 mm)' + (r.qrMediano ? ' · 🔳 el QR ' + (r.qrRecortado ? 'recortado, ' : '') + 'centrado y de unos ' + r.qrMm + ' mm' : '') + (rec && !esPaginaEntera(rec) ? (rec.modo === 'auto' ? ' · ✂️ recortada sola: solo la etiqueta, sin las instrucciones' : ' · ✂️ con tu recorte') : r.recorte ? ' · sin el blanco de alrededor' : '') + (r.giro ? ' · girada' : '') + (r.paginas > 1 ? ' · el PDF tiene ' + r.paginas + ' páginas: elige la de la etiqueta' : '') + '.';
+      mount(prev, cv, botonesTamQR(r, () => showPrev(false))); texto(info, 'Así saldrá (100 × 150 mm)' + (r.qrMediano ? ' · 🔳 el QR ' + (r.qrRecortado ? 'recortado, ' : '') + 'centrado y de unos ' + r.qrMm + ' mm' : '') + (rec && !esPaginaEntera(rec) ? (rec.modo === 'auto' ? ' · ✂️ recortada sola: solo la etiqueta, sin las instrucciones' : ' · ✂️ con tu recorte') : r.recorte ? ' · sin el blanco de alrededor' : '') + (r.giro ? ' · girada' : '') + (r.paginas > 1 ? ' · el PDF tiene ' + r.paginas + ' páginas: elige la de la etiqueta' : '') + '.');
       mount(recBtns, btn('✂️ ' + (rec && !esPaginaEntera(rec) ? 'Ajustar el recorte' : 'Recortar'), async () => { const pg = await paginaEtiqueta(local(), { blob: file, pagina: Number(pagSel.value) }); const RC = await import('./recorte.js'); const v = await RC.recortarDialog(pg.src, esPaginaEntera(rec) ? null : rec, { auto: recAuto }); if (v !== undefined) { rec = v || PAGINA_ENTERA; showPrev(false); } }, { cls: 'sm' }),
         rec && !esPaginaEntera(rec) ? btn('Sin recortar', () => { rec = PAGINA_ENTERA; showPrev(false); }, { cls: 'sm ghost' }) : null);
     } catch (e) { mount(prev, h('p.bad-t.small', 'No se puede leer este archivo: ' + e.message)); }

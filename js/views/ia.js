@@ -1,5 +1,5 @@
 // ================= Asistente de IA LOCAL: conversación, biblioteca, memoria y actividad =================
-import { h, mount, icon, btn, toast, fdt, fdate, pill, sel, sw, modal, field, inp, area, confirmDlg, ago } from '../ui.js';
+import { h, mount, icon, btn, toast, fdt, fdate, pill, sel, sw, modal, field, inp, area, confirmDlg, ago, texto } from '../ui.js';
 import { S, can, api, mutate, kv, upsertLocal, removeLocal, emit, pull } from '../store.js';
 import { go, handleError } from '../app.js';
 import { desktop } from '../desktop.js';
@@ -313,7 +313,7 @@ export function biblioteca(body) {
         stEl.textContent = 'Indexando…';
         const r = await api('biblioteca.guardar', { titulo: f.t.value, categoria: f.cat.value, etiquetas: f.et.value, revisarDias: +f.rev.value || 0, visibilidad: f.v.vis.value, roles: f.v.roles.value, texto: ex.texto || '', tipo: file.name.split('.').pop().toLowerCase(), origen: 'documento', archivoId: archivo ? archivo.id : '' }, { timeout: 180000 });
         upsertLocal('biblioteca', r); emit();
-        stEl.textContent = r.estado === 'Indexado' ? '✅ Indexado' : '⚠️ ' + (r.error || r.estado);
+        texto(stEl, r.estado === 'Indexado' ? '✅ Indexado' : '⚠️ ' + (r.error || r.estado));
         setTimeout(() => row.remove(), 4000);
         drawList(); ensureIndex().then(() => { drawStatus(); startEmbedder(); });
       } catch (e) { stEl.textContent = '❌ ' + e.message; stEl.classList.add('bad-t'); }

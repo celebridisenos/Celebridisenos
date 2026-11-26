@@ -3,7 +3,7 @@
 // cambia delante de ti; cuando te gusta, descargas el STL o le pides precio al Cotizador. Y con «Editar un STL» abres un
 // archivo que ya tienes para escalarlo, cortarlo o ponerle (o cambiarle) el nombre.
 // La geometría está en js/r8/motor.js. Todo se hace en este aparato; lo estimado (el peso) se marca como ESTIMADO.
-import { h, mount, btn, toast } from '../ui.js';
+import { h, mount, btn, toast, texto } from '../ui.js';
 import { go } from '../app.js';
 import { parse3D, viewer } from '../stl.js';
 import { estimarGramos } from '../datos3d.js';
@@ -219,7 +219,7 @@ function renderMarco(el) {
   const ponFoco = v => { foco = v; apunta('cd.r8.foco', v ? '1' : '0'); document.documentElement.classList.toggle('r8-foco', v && ancho()); pintaCab(); };
   const bFoco = h('button.r8v-bt', { type: 'button', onclick: () => ponFoco(!foco) }), bAyuda = h('button.r8v-bt.r8v-ayuda', { type: 'button', title: 'Aprender a utilizar CelebriR8 (visita guiada)', onclick: () => aprender() }, '❓ ', h('span', 'Aprender'));
   // Noche / Día también dentro de CelebriR8 (en modo taller la barra del negocio no se ve)
-  const bModo = h('button.r8v-bt.r8v-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: async () => { const U = await import('../ui18.js'); const m = U.cambiaModo(); bModo.textContent = m === 'noche' ? '🌙' : '☀️'; const b = document.querySelector('.topbar .u18-modo'); if (b) b.textContent = bModo.textContent; } }, document.documentElement.getAttribute('data-modo') === 'dia' ? '☀️' : '🌙');
+  const bModo = h('button.r8v-bt.r8v-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: async () => { const U = await import('../ui18.js'); const m = U.cambiaModo(); texto(bModo, m === 'noche' ? '🌙' : '☀️'); const b = document.querySelector('.topbar .u18-modo'); if (b) texto(b, m === 'noche' ? '🌙' : '☀️'); } }, document.documentElement.getAttribute('data-modo') === 'dia' ? '☀️' : '🌙');
   const bTema = h('span.r8v-tema'); import('../ui18.js').then(U => { if (U.selectorTema) bTema.replaceWith(U.selectorTema()); }).catch(() => { }); // v30.7.1: el desplegable de temas, también aquí
   const bNegocio = h('button.r8v-bt.r8v-negocio', { type: 'button', title: 'Volver al programa del negocio (pedidos, clientes…)', onclick: () => go('puente') }, '← ', h('span', 'Negocio'));
   const barra = h('div.r8v-estado', { role: 'status', 'aria-live': 'polite' });

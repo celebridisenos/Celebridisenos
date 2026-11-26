@@ -4,13 +4,14 @@
 // · En la calle (el móvil, la tablet o un PC fuera de casa): a través del PC de casa y el servidor de Google (shampu.ver / shampu.orden;
 //   el puente es shampu_puente.js). Se actualiza cada pocos segundos mientras la pantalla está abierta y para al salir.
 // Solo administradoras (es la cámara de su casa). Las órdenes son una lista cerrada: nunca «olvidar el wifi».
-import { h, mount, toast, modal, btn, copyText, confirmDlg } from '../ui.js';
+import { h, mount, toast, modal, btn, copyText, confirmDlg, texto } from '../ui.js';
 import { S, api } from '../store.js';
 import { desktop } from '../desktop.js';
 import * as C from '../shampu_comun.js';
 
 const Sh = desktop.shampu;
-const TABS = [['cuidador', '🛡️', 'Cuidador'], ['fotos', '🖼️', 'Fotos'], ['timelapse', '⏱️', 'Time-lapse'], ['impresoras', '🖨️', 'Impresoras'], ['mando', '🕹️', 'Mando'], ['pantalla', '🖥️', 'Pantalla'], ['tele', '📺', 'Tele'], ['salud', '🩺', 'Salud'], ['llave', '🔑', 'Llave']];
+const CL = window.CL;
+const TABS = [['juntos', '🤝', 'Trabajamos'], ['cuidador', '🛡️', 'Cuidador'], ['fotos', '🖼️', 'Fotos'], ['timelapse', '⏱️', 'Time-lapse'], ['impresoras', '🖨️', 'Impresoras'], ['mando', '🕹️', 'Mando'], ['pantalla', '🖥️', 'Pantalla'], ['tele', '📺', 'Tele'], ['salud', '🩺', 'Salud'], ['llave', '🔑', 'Llave']];
 const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
 
@@ -25,7 +26,7 @@ export function render(el) {
 
 function vista(el) {
   const st = { modo: null, estado: null, impresoras: null, fotos: null, foto: null, recibido: null, ahoraSrv: null, tomado: 0, puente: null, ok: null, error: '',
-    servidorViejo: false, tab: lsGet('cd.shampu.tab', 'cuidador'), msg: '', voz: '', msgColor: 'a', pantallaSrc: null, pantallaNombre: '', pantallaEspera: false, filtro: 'todas', fotosCalle: {}, pedidas: new Set(), ordenes: new Map(), ultimaFotoCasa: 0, url: '',
+    servidorViejo: false, tab: lsGet('cd.shampu.juntos25', '') ? lsGet('cd.shampu.tab', 'juntos') : 'juntos', msg: '', voz: '', msgColor: 'a', pantallaSrc: null, pantallaNombre: '', pantallaEspera: false, filtro: 'todas', fotosCalle: {}, pedidas: new Set(), ordenes: new Map(), ultimaFotoCasa: 0, url: '',
     cam: null, tl: null, tlCada: Number(lsGet('cd.shampu.tlcada', 5)) || 5, tlDura: Number(lsGet('cd.shampu.tldura', 60)), tlVideo: Number(lsGet('cd.shampu.tlvideo', 30)), haciendo: null };
   const vivo = () => root.isConnected && /^#\/shampu/.test(location.hash || '#/shampu');
   const visible = () => vivo() && !document.hidden;
@@ -56,7 +57,7 @@ function vista(el) {
     tabs, panel,
     h('p.sh-pie', '🔒 Solo lo ves tú. Desde la calle va a través del ordenador de casa y de tu Google: nada se guarda en hojas ni en Drive, y las fotos se borran solas en minutos.'));
   mount(el, root);
-  TABS.forEach(([k, e, t]) => tabs.appendChild(h('button.sh-tab', { type: 'button', dataset: { tab: k }, onclick: () => { st.tab = k; lsSet('cd.shampu.tab', k); pintarTabs(); pintarPanel(true); } }, h('span', e), ' ', t)));
+  TABS.forEach(([k, e, t]) => tabs.appendChild(h('button.sh-tab', { type: 'button', dataset: { tab: k }, onclick: () => { st.tab = k; lsSet('cd.shampu.tab', k); lsSet('cd.shampu.juntos25', '1'); pintarTabs(); pintarPanel(true); } }, h('span', e), ' ', t)));
 
   function boton(texto, fn, o = {}) {
     const b = h('button.sh-b' + (o.cls ? '.' + o.cls.split(' ').join('.') : ''), { type: 'button', title: o.title || null, style: o.style || null, dataset: o.dataset || null }, texto);
@@ -105,7 +106,7 @@ function vista(el) {
   camImg.onload = () => { camMsg.hidden = true; if (st.modo !== 'casa') return; if (video) { fallosVideo = 0; return; } st.ultimaFotoCasa = Date.now(); setTimeout(siguienteFotoCasa, 150); };
   camImg.onerror = () => {
     if (st.modo !== 'casa') return;
-    const avisa = () => { camMsg.hidden = false; camMsg.textContent = '📷 La cámara no contesta ahora mismo. Reintentando…'; };
+    const avisa = () => { camMsg.hidden = false; texto(camMsg, '📷 La cámara no contesta ahora mismo. Reintentando…'); };
     if (video) { video = false; fallosVideo++; avisa(); setTimeout(abrirCamCasa, 2000); return; }
     if (!camImg.getAttribute('src')) return; // (el vídeo cerrado a propósito)
     avisa(); setTimeout(siguienteFotoCasa, 2000);
@@ -164,26 +165,26 @@ function vista(el) {
   }
 
   // ---------- pintar ----------
-  function pintarTodo() { pintarCabecera(); pintarAviso(); pintarRapidas(); ponerGiro(); if (['cuidador', 'salud', 'impresoras', 'mando'].includes(st.tab)) pintarPanel(); }
+  function pintarTodo() { pintarCabecera(); pintarAviso(); pintarRapidas(); ponerGiro(); if (['juntos', 'cuidador', 'salud', 'impresoras', 'mando'].includes(st.tab)) pintarPanel(); }
   function edadSnap() { if (!st.recibido || !st.ahoraSrv) return null; return new Date(st.ahoraSrv) - new Date(st.recibido) + (Date.now() - st.tomado); }
   function pintarCabecera() {
     const p = C.estadoEnPalabras(st.ok === false ? null : st.estado);
     pill.className = 'sh-pill sh-' + (st.ok === false ? 'bad' : p.nivel);
-    pill.textContent = st.ok === false ? '⚠ No contesta' : p.e + ' ' + p.t;
+    texto(pill, st.ok === false ? '⚠ No contesta' : p.e + ' ' + p.t);
     vig.hidden = !(st.estado && st.estado.vigila && st.ok !== false);
     const g = st.tl && st.tl.grabando; recTL.hidden = !g; if (g) recTL.textContent = '⏺ TIME-LAPSE · ' + g.fotos + (g.fotos === 1 ? ' foto' : ' fotos');
     if (st.modo === 'casa') {
       const c = st.cam || {}, fps = video && c.fps ? Math.round(c.fps) : 0;
-      sub.textContent = '🏠 En casa · en directo por la wifi'; edad.textContent = ''; live.className = 'sh-live sh-live-on';
+      texto(sub, '🏠 En casa · en directo por la wifi'); edad.textContent = ''; live.className = 'sh-live sh-live-on';
       live.textContent = '● EN DIRECTO' + (fps ? ' · ' + fps + ' img/s' + (c.ancho ? ' · ' + c.ancho + '×' + c.alto : '') : '');
     }
     else if (st.modo === 'calle') {
       const ms = edadSnap();
-      sub.textContent = '📡 Desde la calle' + (st.puente ? ' · a través de ' + st.puente.dispositivo : '');
+      texto(sub, '📡 Desde la calle' + (st.puente ? ' · a través de ' + st.puente.dispositivo : ''));
       edad.textContent = ms === null ? '' : C.haceCuanto(ms);
       live.className = 'sh-live' + (ms !== null && ms < 15000 ? ' sh-live-on' : '');
       live.textContent = st.foto ? (ms !== null && ms < 15000 ? '● CASI EN DIRECTO' : '⏸ ' + C.haceCuanto(ms)) : '';
-      if (!st.foto) { camMsg.hidden = false; camMsg.textContent = st.servidorViejo ? '📡 Falta el servidor nuevo para ver la cámara desde la calle.' : !st.puente ? '📡 Esperando al ordenador de casa…' : '📷 Pidiendo la cámara a casa… (tarda unos segundos)'; }
+      if (!st.foto) { camMsg.hidden = false; texto(camMsg, st.servidorViejo ? '📡 Falta el servidor nuevo para ver la cámara desde la calle.' : !st.puente ? '📡 Esperando al ordenador de casa…' : '📷 Pidiendo la cámara a casa… (tarda unos segundos)'); }
     }
     abrirApp.hidden = st.modo !== 'casa';
   }
@@ -221,11 +222,11 @@ function vista(el) {
   let firmaPanel = '';
   function pintarPanel(forzar) {
     const e = st.estado || {}, fotos = (st.fotos || []).join(), giro = e.giro, calle = [Object.keys(st.fotosCalle).length, st.pedidas.size];
-    const que = { cuidador: [e.vigila, e.fotosVig, e.aviso, giro, fotos, calle], fotos: [fotos, st.filtro, giro, calle], impresoras: [st.impresoras], salud: [e, st.ok, st.url, st.puente && st.puente.dispositivo, (window.__shampuPuente || {}).estado, (window.__shampuPuente || {}).mirando], mando: [e.lamp, e.vol, e.brillo, e.camTam, st.cam && st.cam.ancho], tele: [],
+    const que = { cuidador: [e.vigila, e.fotosVig, e.aviso, giro, fotos, calle], fotos: [fotos, st.filtro, giro, calle], impresoras: [st.impresoras], salud: [e, st.ok, st.url, st.puente && st.puente.dispositivo, (window.__shampuPuente || {}).estado, (window.__shampuPuente || {}).mirando], mando: [e.lamp, e.vol, e.brillo, e.camTam, st.cam && st.cam.ancho], tele: [], juntos: [e.estado, e.vigila, st.ok, st.modo, trabajoJuntos().firma, st.llave && st.llave.info && [st.llave.info.hay, st.llave.info.mueve, st.llave.info.entrega], st.hist && st.hist.length],
       timelapse: [st.tl && (st.tl.grabando ? [st.tl.grabando.id, st.tl.grabando.fotos, st.tl.grabando.fallos] : 0), st.tl && (st.tl.lista || []).map(x => [x.id, x.fotos, x.estado, x.video, x.videoKB]), st.tlCada, st.tlDura, st.tlVideo, st.haciendo && st.haciendo.id], pantalla: [st.pantallaSrc, st.pantallaEspera, st.msgColor] }[st.tab];
     const firma = st.tab + '|' + st.modo + '|' + st.ok + '|' + JSON.stringify(que);
     if (!forzar && firma === firmaPanel) return; firmaPanel = firma;
-    const f = { cuidador: panelCuidador, fotos: panelFotos, impresoras: panelImpresoras, mando: panelMando, pantalla: panelPantalla, tele: panelTele, salud: panelSalud, llave: panelLlave, timelapse: panelTimelapse }[st.tab] || panelCuidador;
+    const f = { cuidador: panelCuidador, fotos: panelFotos, impresoras: panelImpresoras, mando: panelMando, pantalla: panelPantalla, tele: panelTele, salud: panelSalud, llave: panelLlave, timelapse: panelTimelapse, juntos: panelJuntos }[st.tab] || panelJuntos;
     mount(panel, f());
   }
 
@@ -554,6 +555,80 @@ function vista(el) {
     return caja;
   }
   const tarjeta = (k, v, nivel, nota) => h('div.sh-tar' + (nivel ? '.sh-tar-' + nivel : ''), h('span', k), h('b', v), nota ? h('small', nota) : null);
+
+  // ---------- 25-11 · 🤝 Trabajamos: lo de los pedidos, con Shampú (las cuentas son las de server/53_shampu_fase.gs · shampuTrabajo) ----------
+  function trabajoJuntos() {
+    const cfg = (S.cfg || {}).pedidos, hoy = S.hoy || CL.today(), URGE = { late: 0, today: 1, soon: 2, ok: 3, none: 4 }, ORDEN = ['confirmado', 'impresion', 'postpro', 'listo'];
+    const NOMBRE = { confirmado: 'confirmados', impresion: 'imprimiendo', postpro: 'en mesa', listo: 'listos' }, TIT = { confirmado: 'Confirmado', impresion: 'Imprimiendo', postpro: 'En mesa', listo: 'Listo' };
+    const et = {}; (S.t.impresiones || []).forEach(r => { if (/^paquete/.test(String(r.tipo || '')) && String(r.estado) === 'Impreso' && r.pedidoId) et[r.pedidoId] = true; });
+    const lista = [];
+    (S.t.pedidos || []).forEach(o => {
+      if (o.borrado) return; const f = CL.phaseOf(cfg, o.estado); if (!['confirmado', 'impresion', 'postpro', 'empaquetar', 'listo'].includes(f)) return;
+      const t = CL.orderTiming(o, cfg, hoy);
+      lista.push({ id: o.id, numero: o.numero, producto: String(o.producto || ''), clave: f === 'empaquetar' ? 'postpro' : f, urgencia: t ? t.nivel : 'none', plazo: t ? t.texto : '', limite: t && t.limite ? t.limite : '', etiqueta: !!et[o.id] });
+    });
+    lista.sort((a, b) => (URGE[a.urgencia] - URGE[b.urgencia]) || String(a.limite || '9').localeCompare(String(b.limite || '9')) || (Number(a.numero) - Number(b.numero)));
+    const por = {}; ORDEN.forEach(k => { por[k] = []; }); lista.forEach(v => por[v.clave].push(v));
+    const vencidos = lista.filter(v => v.urgencia === 'late'), sinEt = lista.filter(v => (v.clave === 'postpro' || v.clave === 'listo') && !v.etiqueta);
+    const frase = !lista.length ? 'No hay pedidos pendientes. ¡Todo al día!' :
+      'Hay ' + lista.length + (lista.length === 1 ? ' pedido abierto: ' : ' pedidos abiertos: ') + ORDEN.filter(k => por[k].length).map(k => por[k].length + ' ' + NOMBRE[k]).join(', ') + '.' +
+      (vencidos.length ? ' Vencidos: ' + vencidos.length + ' (' + vencidos.slice(0, 5).map(v => v.numero).join(', ') + ').' : '') +
+      ' Lo primero: pedido ' + lista[0].numero + ', ' + lista[0].producto + (lista[0].plazo ? ', ' + lista[0].plazo.toLowerCase() : '') + '.' +
+      (sinEt.length ? ' Sin etiqueta del paquete: ' + sinEt.slice(0, 5).map(v => v.numero).join(', ') + '.' : '');
+    return { frase, lista, por, ORDEN, TIT, firma: JSON.stringify([frase, ORDEN.map(k => por[k].map(v => [v.id, v.urgencia, v.plazo]))]) };
+  }
+  // por voz caben 110 letras: se dicen las frases enteras que quepan (si ni la primera cabe, se corta)
+  function frasePara110(f) {
+    if (f.length <= 110) return f;
+    let r = ''; for (const x of f.match(/[^.!?]+[.!?]+\s*/g) || [f]) { if ((r + x).trim().length > 110) break; r += x; }
+    return (r.trim() || f.slice(0, 107).trim() + '…');
+  }
+  async function leerHistJuntos() {
+    if (st.histCargado) return; st.histCargado = true;
+    try {
+      const r = await api('auditoria.lista', { entidad: 'pedidos', userId: 'shampu' }, { quiet: true, timeout: 20000 });
+      st.hist = (r.filas || []).filter(a => a.usuario === 'Shampú' || a.userId === 'shampu').sort((a, b) => String(b.fecha).localeCompare(String(a.fecha))).slice(0, 5);
+    } catch (e) { st.hist = null; st.histError = e.message || String(e); }
+    if (st.tab === 'juntos' && root.isConnected) pintarPanel(true);
+  }
+  async function leerLlaveJuntos() {
+    if (st.llaveCargada) return; st.llaveCargada = true;
+    if (st.llave) return;
+    try { const r = await api('shampu.llave', { accion: 'ver' }, { quiet: true }); if (!st.llave) st.llave = { info: r.info }; }
+    catch (e) { if (!st.llave) st.llave = /Acción desconocida/.test(e.message || '') ? { viejo: true } : { error: e.message || String(e) }; }
+    if (st.tab === 'juntos' && root.isConnected) pintarPanel(true);
+  }
+  function panelJuntos() {
+    leerHistJuntos(); leerLlaveJuntos();
+    const T = trabajoJuntos(), p = C.estadoEnPalabras(st.ok === false ? null : st.estado), donde = st.modo === 'casa' ? '🏠 en casa' : st.modo === 'calle' ? '📡 desde la calle' : '';
+    const franja = h('div.sj-franja.sj-' + (st.ok === false ? 'bad' : st.ok ? p.nivel : 'muted'),
+      h('b', st.ok === false ? '⚠ Shampú no contesta ahora' : st.ok ? '● Shampú está conectado' : '… Buscando a Shampú'),
+      st.ok ? h('span', p.e + ' ' + p.t + (donde ? ' · ' + donde : '')) : null);
+    const hablado = frasePara110(T.frase);
+    const dice = h('section.sh-card.sj-dice', h('div.sj-tit', 'Lo que te diría Shampú ahora'), h('p.sj-frase', T.frase),
+      hablado !== T.frase ? h('p.sh-nota', 'Por voz dice lo que cabe en 110 letras: «' + hablado + '»') : null,
+      boton('🔊 Que lo diga Shampú', () => mandar({ di: hablado }), { cls: 'sh-b-amarillo sh-b-grande' }));
+    const cols = h('div.sj-cols', ...T.ORDEN.map(k => h('div.sj-col.sj-c-' + k, { dataset: { col: k } },
+      h('div.sj-col-cab', h('b', T.TIT[k]), h('span.sj-n', String(T.por[k].length))),
+      ...T.por[k].slice(0, 4).map(v => h('button.sj-card' + (v.urgencia === 'late' ? '.late' : ''), { type: 'button', dataset: { id: v.id }, onclick: () => { location.hash = '#/pedidos/' + v.id; } },
+        h('b', 'Nº ' + v.numero), h('span', v.producto || 'Pedido'), h('small', v.plazo))),
+      T.por[k].length > 4 ? h('small.sj-mas', '+ ' + (T.por[k].length - 4) + ' más') : null,
+      !T.por[k].length ? h('small.sj-vacia', 'Nada aquí') : null)));
+    const fechaCorta = iso => { try { return new Date(iso).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (x) { return iso || ''; } };
+    const numDe = a => { try { const d = JSON.parse(a.detalle); if (d.numero) return d.numero; } catch (x) { } const o = (S.t.pedidos || []).find(y => y.id === a.entidadId); return o ? o.numero : '?'; };
+    const cambio = a => { try { const d = JSON.parse(a.detalle), z = d.despues && d.despues.estado; if (z) return (d.antes && d.antes.estado ? d.antes.estado + ' → ' : '') + z; } catch (x) { } return 'lo cambió'; };
+    const ultimo = h('section.sh-card.sj-ult', h('div.sj-tit', 'Lo último que hizo Shampú'),
+      st.hist === undefined ? h('p.sh-nota', 'Mirando…') : st.hist === null ? h('p.sh-nota', 'No se pudo leer el historial ahora (' + (st.histError || 'sin conexión') + ').')
+        : !st.hist.length ? h('p.sh-nota', 'Todavía no ha movido ningún pedido.')
+          : h('div.sj-hist', ...st.hist.map(a => h('button.sj-h', { type: 'button', onclick: () => { location.hash = '#/pedidos/' + a.entidadId; } }, h('b', 'Nº ' + numDe(a)), h('span', cambio(a)), h('small', fechaCorta(a.fecha))))));
+    const i = (st.llave && st.llave.info) || null;
+    const pastilla = (on, si, no) => h('span.sj-pil' + (on ? '.on' : ''), on ? '🟢 ' + si : '⚪ ' + no);
+    const llave = h('section.sh-card.sj-llave', h('div.sj-tit', 'Qué puede hacer Shampú'),
+      i && i.hay ? h('div.sj-pils', pastilla(i.mueve, 'Shampú puede mover pedidos', 'Shampú NO mueve pedidos'), pastilla(i.entrega, 'Shampú puede marcar ENTREGADO', 'Shampú NO marca ENTREGADO'))
+        : h('p.sh-nota', !st.llave ? 'Mirando…' : (i && !i.hay) ? 'Shampú todavía no tiene llave: no puede leer ni mover pedidos.' : 'No se pudo comprobar ahora.'),
+      boton('🔑 Cambiarlo en la Llave →', () => { st.tab = 'llave'; lsSet('cd.shampu.tab', 'llave'); pintarTabs(); pintarPanel(true); }, { cls: 'sh-b-claro' }));
+    return h('div.sj', franja, h('div.sj-arriba', dice, ultimo), cols, llave);
+  }
 
   // ---------- arranque ----------
   pintarTabs(); pintarRapidas(); pintarPanel(true);

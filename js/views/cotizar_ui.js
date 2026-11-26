@@ -5,7 +5,7 @@
 // cuánto pedirle, lo que te cuesta, gramos, tiempo, medidas, mis consejos y la frase lista para mandarle.
 // Con el programa del PC y el 3D del producto, cada opción se LAMINA con su Bambu (sello «MEDIDO»); si no, cuentas calibradas
 // («ESTIMADO»). Las cuentas están en ../cotizar.js; los precios, con las mismas fórmulas de siempre (CL.prices).
-import { h, mount, modal, toast, eur, copyText, btn, inp } from '../ui.js';
+import { h, mount, modal, toast, eur, copyText, btn, inp, texto } from '../ui.js';
 import { S, can, mutate, upsertLocal, emit } from '../store.js';
 import { desktop } from '../desktop.js';
 import { filesOf, fetchFile, extOf } from '../files.js';
@@ -163,7 +163,7 @@ export async function abrirCotizador(p, opts = {}) {
     // 14-11 noche · 🧠 lo que dice el experto 3D de esta pieza (medido en ese laminado): lo importante, en «⚠️ Ojo»
     if (m && m.ok && m.experto) (m.experto.consejos || []).filter(c => c.nivel !== 'bajo' && c.clave !== 'al_aire').forEach(c => C.push({ n: c.nivel === 'alto' ? 'no' : 'ojo', t: (c.icono || '') + ' ' + c.texto }));
     if (m && m.error) C.push({ n: 'ojo', t: 'Tu Bambu no ha podido laminarla así (' + m.error + '): los números son ESTIMADOS.' });
-    sello.textContent = de === 'MEDIDO' ? '✅ MEDIDO con tu Bambu (laminada así)' : (m && m.midiendo ? '⏳ Laminando con tu Bambu… ' + (m.pct || 0) + ' %' + (m.fase ? ' · ' + m.fase : '') : (puedeMedir ? '≈ ESTIMADO · en un momento lo mido con tu Bambu' : '≈ ESTIMADO (calibrado con tus laminados)'));
+    texto(sello, de === 'MEDIDO' ? '✅ MEDIDO con tu Bambu (laminada así)' : (m && m.midiendo ? '⏳ Laminando con tu Bambu… ' + (m.pct || 0) + ' %' + (m.fase ? ' · ' + m.fase : '') : (puedeMedir ? '≈ ESTIMADO · en un momento lo mido con tu Bambu' : '≈ ESTIMADO (calibrado con tus laminados)')));
     sello.className = 'cq-sello ' + (de === 'MEDIDO' ? 'medido' : 'estimado');
     const dif = pr && ahora > 0 ? Math.round((pr.rec - ahora) * 100) / 100 : null;
     const I = impPorK(E.imp), a = acabadoPorK(E.acabado), cuota = cuotaMovil();
@@ -192,6 +192,7 @@ export async function abrirCotizador(p, opts = {}) {
       C.some(c => c.n !== 'ok') ? h('div.cq-consejos', h('h4', '⚠️ Ojo'), C.filter(c => c.n !== 'ok').map(c => h('div.cq-c.' + c.n, h('i', c.n === 'ojo' ? '⚠️' : '⛔'), h('span', c.t)))) : null,
       h('div.cq-cliente', h('div.row', h('h4.grow', '📋 Para mandarle al cliente'), btn('Copiar', () => copyText(fraseCliente(p, E, r, pr, dias)), { cls: 'primary sm cq-copiar', icon: 'copy' })), h('pre.cq-frase', fraseCliente(p, E, r, pr, dias))),
       h('div.cq-botones',
+        opts.alElegir && pr ? btn('✅ Usar este precio · ' + eur(pr.rec), () => { const v = Math.round(pr.rec * 100) / 100; md.close(); opts.alElegir(v, { cantidad: E.cant || 1 }); }, { cls: 'primary cq-usar', title: 'Cierra esto y pone este precio (por unidad) donde lo estabas pidiendo' }) : null,
         costes && pr ? btn(ya ? '🏷️ Ya guardada como «' + nombreDe(ya) + '» · cambiar' : '🏷️ Guardar y poner a la venta', () => ventanaGuardar(p, { E: Object.assign({}, E), r, g, hh, de, precio: pr.rec, minimo: pr.min, coste: pr.coste, movil: E.movil }, ya, () => { pintaVars(); pintaDer(); }),
           { cls: 'primary cq-variante', title: 'Lo apunta como VARIANTE de este producto: su tamaño, fuerza y acabado, su precio y dónde lo vendes. Se ve en la ficha.' }) : null,
         btn('🖨️ Abrir en Bambu así', abrirBambuAsi, { cls: 'cq-bambu', title: 'Se abre con este tamaño, esta fuerza, este acabado y esta impresora' }),
@@ -266,4 +267,21 @@ export async function abrirCotizador(p, opts = {}) {
     } catch (e) { console.warn('cotizar', e); }
   })();
   return md;
+}
+
+// 25-11-2026 · «💶 ¿Cuánto cobro?» desde otro sitio (Nuevo pedido, Chats con clientes): elige el producto y abre su cotizador;
+// al pulsar «Usar este precio» llama a alElegir(precioPorUnidad, { cantidad }). Si ya traes el producto (p), va directo.
+export async function cuantoCobro(alElegir, p) {
+  if (p) return abrirCotizador(p, { alElegir });
+  const lista = (S.t.productos || []).filter(x => !['archivado', 'borrador', 'papelera'].includes(String(x.estado || '').toLowerCase()));
+  const q = inp({ type: 'search', placeholder: '🔎 ¿De qué pieza te preguntan el precio?', 'aria-label': 'Buscar producto', class: 'inp' });
+  const caja = h('div.col', { style: { gap: '6px', maxHeight: '50vh', overflow: 'auto' } });
+  const md = modal('💶 ¿Cuánto cobro?', h('div.col', { style: { gap: '8px' } }, h('p.small.muted', 'Elige la pieza y te digo el precio.'), q, caja,
+    h('div.row', btn('⚡ Es un archivo 3D mío (STL o 3MF)', () => { md.close(); location.hash = '#/cotizador'; }, { cls: 'sm ghost cq-otro' }))), null);
+  const pinta = () => {
+    const t = q.value.trim().toLowerCase();
+    const L = lista.filter(x => !t || String(x.nombre || '').toLowerCase().includes(t) || String(x.sku || '').toLowerCase().includes(t)).slice(0, 30);
+    mount(caja, L.length ? L.map(x => btn(x.nombre || 'Pieza', () => { md.close(); abrirCotizador(x, { alElegir }); }, { cls: 'cq-elige', title: Number(x.precio) > 0 ? 'Ahora a ' + eur(x.precio) : '' })) : h('p.muted.small', 'Nada con «' + q.value + '».'));
+  };
+  q.addEventListener('input', pinta); pinta(); setTimeout(() => { try { q.focus(); } catch (e) { } }, 50);
 }

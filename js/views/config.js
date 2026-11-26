@@ -1,5 +1,5 @@
 // ================= Configuración: todo lo ajustable, sin tocar código =================
-import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText } from '../ui.js';
+import { h, mount, icon, btn, modal, toast, fdt, ago, pill, empty, field, inp, sel, area, sw, confirmDlg, promptDlg, avatar, eur, copyText, texto } from '../ui.js';
 import * as UI14 from '../ui14.js';
 import * as UI18 from '../ui18.js'; // v18
 import { S, can, api, pull, logout, emit, APP_VERSION, kv, dropQueue, passHashes, checkNewPassword, user, embalajeReal } from '../store.js';
@@ -10,6 +10,7 @@ import { go, handleError, requestAccess, applyTheme, roleName, lockBox, start, T
 import { desktop } from '../desktop.js';
 import { connectTelegram } from './notificaciones.js';
 import { dropZone } from '../files.js';
+import { esFam, interruptorTemporada, NAVIDAD_HECHA } from '../familia.js'; // 25-11-2026 · 🎄 temporada
 import { accionTxt, resumenDetalle } from './pedidos.js';
 import { qrSvg } from '../qr.js';
 
@@ -205,11 +206,12 @@ const SEC = {
     const sessions = h('div');
     b.append(card(null, h('div.row', avatar(u, 'l'), h('div', h('h3', u.nombre), h('div.muted', u.usuario + ' · ' + roleName(u.rol)))),
       h('div.form', field('Nombre que ven los demás', nombre), field('Mi color', color)), btn('Guardar', async () => { try { const r = await api('usuarios.editar', { id: u.id, nombre: nombre.value.trim(), color: color.value }); Object.assign(S.me, r); emit(); toast('Perfil guardado', 'ok'); } catch (e) { handleError(e); } }, { cls: 'primary' })),
-      UI18.es18() ? null : card('Apariencia', tema, h('p.small.muted', 'Cada persona elige su tema; se aplica en todos sus dispositivos.')), // (v30.7.1: en la Sala de mando / Atelier 30 este tema no se aplicaba —«no te deja»—: ahí manda el desplegable de temas de abajo)
+      UI18.es18() ? '' : card('Apariencia', tema, h('p.small.muted', 'Cada persona elige su tema; se aplica en todos sus dispositivos.')), // (v30.7.1: en la Sala de mando / Atelier 30 este tema no se aplicaba —«no te deja»—: ahí manda el desplegable de temas de abajo)
       card('Interfaz (este aparato)', uiElegir()),
-      desktop.on && isAdminUser() ? card('🖥️ Llevar el programa a otro ordenador', h('p.small.muted', { style: { margin: 0 } }, 'Ahora está en Configuración › Sistema › «Trasladar a otro ordenador» (solo administradoras).'), btn('Ir allí', () => go('config/traslado'), { cls: 'sm cfg-mudanza' })) : null, // (28-10: antes lo veía cualquiera aquí)
-      UI18.es50() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Seis temas: ✨ Nácar y ✨ Medianoche (los de la 60: cristal, letra de imprenta y oro), Perla y Champán y rosa (claros), Aurora y Eclipse (oscuros), y «Como Windows». En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : null,
-      UI18.es30() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Trece temas (siete claros y seis oscuros) y «Como Windows», que cambia solo de claro a oscuro. En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : null,
+      desktop.on && isAdminUser() ? card('🖥️ Llevar el programa a otro ordenador', h('p.small.muted', { style: { margin: 0 } }, 'Ahora está en Configuración › Sistema › «Trasladar a otro ordenador» (solo administradoras).'), btn('Ir allí', () => go('config/traslado'), { cls: 'sm cfg-mudanza' })) : '', // (28-10: antes lo veía cualquiera aquí)
+      UI18.es50() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Hueso, Azul pastel, Naranja pastel, Rosa y lila y Grafito (25-11-2026): la cara nueva, de la familia de CelebriMesa y CelebriFábrica. Cada persona guarda la suya. Las de antes siguen: ✨ Nácar y ✨ Medianoche (los de la 60: cristal, letra de imprenta y oro), Perla y Champán y rosa (claros), Aurora y Eclipse (oscuros), y «Como Windows». En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : '',
+      UI18.es30() ? card('🎨 Tema de colores (este aparato)', h('div.u30-temas-conf', UI18.selectorTema({ cls: 'conf' }), h('span.small.muted', 'Trece temas (siete claros y seis oscuros) y «Como Windows», que cambia solo de claro a oscuro. En todos se ha comprobado que las letras se leen. También está arriba, junto al sol / la luna.'))) : '',
+      NAVIDAD_HECHA && UI18.es50() && esFam() ? card('Temporada (este aparato)', interruptorTemporada()) : '', // 25-11-2026 · 🎄
       card(null, foto.el),
       card('Cambiar contraseña', h('div.form', field('Contraseña actual', p1), h('div'), field('Nueva contraseña', p2, 'Mínimo 6 caracteres'), field('Repite la nueva', p3)),
         btn('Cambiar contraseña', async () => { const er = checkNewPassword(p2.value, p3.value); if (er) return toast(er, 'bad'); try { const act = await passHashes(p1.value); await api('usuarios.editar', Object.assign({ id: u.id }, await passHashes(p2.value), { phActual: act.ph, ph3Actual: act.ph3, passwordActual: p1.value })); p1.value = p2.value = p3.value = ''; toast('Contraseña cambiada', 'ok'); } catch (e) { toast(e.message, 'bad'); } })),
@@ -526,7 +528,7 @@ const SEC = {
     const res = h('p.small');
     const tog = (k, t) => h('label.check', sw(c[k], v => { c[k] = v; }), t);
     b.append(card('Bot de Telegram', h('p.small.muted', 'Crea un bot con @BotFather en Telegram (/newbot) y pega aquí su token. Después, cada persona conecta su Telegram desde su perfil.'), h('p', S.cfg.secretos.telegram ? '✅ Bot configurado.' : 'Sin configurar (opcional).'), field('Token del bot', tok), res,
-      btn('Guardar y probar', async () => { if (!tok.value.trim()) return; try { const r = await api('config.secreto', { nombre: 'telegram', valor: tok.value.trim() }); tok.value = ''; res.textContent = r.error ? '⚠️ ' + r.error : '✅ Bot ' + r.prueba; await pull(); } catch (e) { res.textContent = e.message; } }, { cls: 'primary' })),
+      btn('Guardar y probar', async () => { if (!tok.value.trim()) return; try { const r = await api('config.secreto', { nombre: 'telegram', valor: tok.value.trim() }); tok.value = ''; texto(res, r.error ? '⚠️ ' + r.error : '✅ Bot ' + r.prueba); await pull(); } catch (e) { res.textContent = e.message; } }, { cls: 'primary' })),
       card('Qué avisos llegan a Telegram', tog('telegram', 'Enviar avisos a Telegram'), tog('pedidosUrgentes', 'Pedidos vencidos o a punto de vencer'), tog('tareas', 'Tareas asignadas y vencidas'), tog('seguridad', 'Alertas de seguridad y solicitudes de acceso'), tog('taller', 'Taller: impresora terminada y filamento bajo'), tog('stock', 'Stock por debajo del mínimo'), h('p.small.muted', 'Dentro de la app (campana) aparecen siempre todos.'),
         btn('Guardar', () => saveCfg('notificaciones', c), { cls: 'primary' })),
       resumenCard(c));
@@ -821,8 +823,8 @@ function uiElegir() {
     const k = UI18.interfaz(), m = UI18.modo();
     const op = (clave, modo, mini, t, d) => h('button.ui-op' + (k === clave && (!modo || m === modo) ? '.on' : ''), { type: 'button', 'data-ui': clave === 'v18' || clave === 'v30' || clave === 'v50' ? clave + modo : clave, onclick: () => { UI18.ponInterfaz(clave, modo); pinta(); } }, h('span.ui-mini.' + mini), h('b', t), h('span.tiny.muted', d));
     mount(caja, h('div.ui-elegir',
-      op('v50', 'noche', 'v50n', '🌌 CelebriDiseños · Noche', 'La nueva: barra lateral, todas las secciones en una pantalla (Ctrl + espacio) y auroras de color. Temas Aurora y Eclipse.'),
-      op('v50', 'dia', 'v50d', '🤍 CelebriDiseños · Día', 'La nueva en claro. Temas Perla y Champán y rosa.'),
+      op('v50', 'noche', 'v50n', '🌌 CelebriDiseños · Noche', 'La nueva en oscuro: menú a la izquierda por grupos y todas las secciones en una pantalla (Ctrl + espacio). Tema Grafito (y los de antes).'),
+      op('v50', 'dia', 'v50d', '🤍 CelebriDiseños · Día', 'La nueva en claro. Tema Hueso (y los de antes).'),
       op('v30', 'noche', 'v30n', '🌙 Atelier 30 · Noche', 'La 30: obsidiana, oro y coral, con títulos de estudio de diseño. Igual de rápida que la 18.'),
       op('v30', 'dia', 'v30d', '☀️ Atelier 30 · Día', 'La 30 en claro: papel cálido y tinta, para trabajar con mucha luz.'),
       op('v18', 'noche', 'v18n', '🌙 Sala de mando · Noche', 'La 18: oscura, de sala de control. La más rápida (sin cristales ni fondos que se mueven).'),

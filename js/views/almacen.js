@@ -10,7 +10,7 @@
 //  · 🛒 QUÉ COMPRO: se hace SOLA con lo que se acaba; «Ya lo he comprado» la suma con un toque.
 //  · Lo de antes (⚠️ por revisar, ↔️ entradas y salidas, 📊 este mes, avisos y opciones avanzadas) sigue, plegado en «Más detalles».
 // Mismos datos y mismas órdenes del servidor de siempre (un solo inventario). La regla de «se acaba» es la de todo el programa (CL.nivelStock).
-import { h, mount, btn, modal, toast, inp, empty, pill, confirmDlg, eur, fdate, copyText } from '../ui.js';
+import { h, mount, btn, modal, toast, inp, empty, pill, confirmDlg, eur, fdate, copyText, texto } from '../ui.js';
 import { S, can, api, upsertLocal, emit, pull } from '../store.js';
 import { requestAccess, go } from '../app.js';
 import { levels } from './stock.js';
@@ -186,7 +186,7 @@ export function render(el, params) {
     h('span.e', '🛒'), h('span.t', h('b', 'He comprado algo'), h('span', 'Cajas, sobres, bolsas o filamento: eliges, tocas y se suma solo')), h('span.f', '→'));
   const fallosB = h('button.alm2-fallos', { type: 'button', hidden: true, onclick: () => go('fallos') });
   const atajos = h('div.alm2-atajos', { role: 'toolbar', 'aria-label': 'Herramientas del almacén' });
-  const pintaFallos = () => { let q = 0; try { q = cuantosAbiertos(); } catch (e) { } fallosB.hidden = !q; fallosB.textContent = '🩺 Fallos del inventario (' + q + ')'; };
+  const pintaFallos = () => { let q = 0; try { q = cuantosAbiertos(); } catch (e) { } fallosB.hidden = !q; texto(fallosB, '🩺 Fallos del inventario (' + q + ')'); };
   const sv = String((S.cfg && S.cfg.version) || '0').split('.').map(Number), viejoSrv = (sv[0] || 0) * 1e6 + (sv[1] || 0) * 1e3 + (sv[2] || 0) < 18003000;
   el.append(
     h('div.page-head', h('div', h('h1', '📦 Mi almacén'), h('div.muted.small', 'Lo que gastas al imprimir, al vender y al empaquetar se descuenta solo. Tú solo apuntas lo que compras.'))),
@@ -866,7 +866,7 @@ export function cuento(opt = {}, tras) {
       }
       if (!opt.soloColor) { try { await api('almacen.contado', {}); } catch (e) { } }
       emit(); olvida(); await pull().catch(() => { }); toast('✔ Apuntado: ' + hechos + (hechos === 1 ? ' cambio' : ' cambios'), 'ok'); md.close(); if (tras) tras();
-    } catch (e) { emit(); msg.textContent = (hechos ? 'Se guardaron ' + hechos + '. ' : '') + (e.message || String(e)); bt.disabled = false; bt.textContent = '✔ Guardar'; }
+    } catch (e) { emit(); msg.textContent = (hechos ? 'Se guardaron ' + hechos + '. ' : '') + (e.message || String(e)); bt.disabled = false; texto(bt, '✔ Guardar'); }
   };
   const md = modal(opt.soloColor ? '⚖️ ' + (cols[0] ? cols[0].material + ' ' + cols[0].color : 'Filamento') : '✏️ Cuento lo que tengo',
     h('div.alm-cuento', h('p.small.muted', 'Cambia solo lo que no cuadre con lo que ves; a la derecha te digo cuánto falta o sobra. Si todo cuadra, pulsa Guardar igual: queda apuntado que has contado.'), secciones.length ? secciones : empty('box', 'No hay nada que contar todavía', 'Apunta primero lo que tienes con «He comprado».'), msg),

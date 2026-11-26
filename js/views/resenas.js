@@ -5,7 +5,7 @@
 // · Antes de subirla puedes TAPAR el nombre o la foto del comprador (pasas el ratón por encima y se pixela).
 // · Plataforma y estrellas ya vienen puestas (Vinted, 5): un clic y subida. El texto es opcional (es lo que dice el globito).
 // Las capturas viven en la tienda (servidor 18.4 + tienda 4.2): aquí se leen de allí y se manda el conjunto al cambiar algo.
-import { h, mount, btn, toast, inp, empty, confirmDlg, modal, fdate } from '../ui.js';
+import { h, mount, btn, toast, inp, empty, confirmDlg, modal, fdate, texto } from '../ui.js';
 import { S, api, can } from '../store.js';
 import { go } from '../app.js';
 import { webPhoto } from './tienda.js';
@@ -91,7 +91,7 @@ export function render(el) {
     function pixela(x, y, w, hh) {
       if (w < 6 || hh < 6) return; const t = Math.max(8, Math.round(Math.min(cv.width, cv.height) / 45));
       for (let i = x; i < x + w; i += t) for (let j = y; j < y + hh; j += t) { const p = cx.getImageData(Math.floor(i), Math.floor(j), 1, 1).data; cx.fillStyle = 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')'; cx.fillRect(Math.floor(i), Math.floor(j), t, t); }
-      tapadas++; tapTxt.textContent = '🙈 Tapado ' + tapadas + (tapadas === 1 ? ' trozo' : ' trozos') + ' · ';
+      tapadas++; texto(tapTxt, '🙈 Tapado ' + tapadas + (tapadas === 1 ? ' trozo' : ' trozos') + ' · ');
     }
     const tapTxt = h('span');
     const r = { id: nuevoId(), estrellas: 5, plataforma: 'vinted', autor: '', texto: '', fecha: hoy() };
@@ -111,7 +111,7 @@ export function render(el) {
         r.texto = texto.value.trim(); r.autor = autor.value.trim(); r.nueva = nueva;
         await publica([r].concat(st.lista), '⭐ ¡Subida! Ya sale en tu web.');
         close();
-      } catch (e) { b.disabled = false; b.textContent = '✅ Subir a mi web'; toast(VIEJO(e) ? MSJ_VIEJO : 'No se pudo subir: ' + (e.message || e), 'bad', 9000); }
+      } catch (e) { b.disabled = false; texto(b, '✅ Subir a mi web'); toast(VIEJO(e) ? MSJ_VIEJO : 'No se pudo subir: ' + (e.message || e), 'bad', 9000); }
     }, { cls: 'primary rs-subir' })], { size: 'wide' });
     window.__rsDlg = { r, cv, pixela, close: m.close }; // (para las pruebas)
   }

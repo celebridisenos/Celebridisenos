@@ -1,0 +1,164 @@
+/* ================= 25-11-2026 (noche) · LA CARA «FAMILIA», MÁS VIVA (html.fam.viva) =================
+   Biou, de la Mesa: «muy sosa, no dan ganas de trabajar» y, de la viva, «ara si!». De CelebriDiseños: «tiene que ser top».
+   Biou eligió la A (sobria) el 25-11 por la noche: esta B queda APAGADA y ni se carga (cd.viva = 1 la enciende, ui18.js).
+   Va encima de familia.css. Identidad TURQUESA, adulta y mate:
+   · cabecera de petróleo a turquesa · menú claro con un icono de color por sección (siempre el mismo) · portada con las fotos de SUS pedidos
+   · «El siguiente» en grande · los 5 estados con su color lleno · títulos en banda de color · filas con el tinte de su estado
+   Los 5 colores de los estados son los del contrato común y no cambian. Sin caritas. Todo texto con contraste AA (tools/ver_familia.js). */
+
+/* ---------- 0 · el color de cada sección (menú, «Todo el menú» y la banda del título) ---------- */
+html.fam.viva [data-k="puente"], html.fam.viva body[data-view="puente"] { --sec: #008A8C; }
+html.fam.viva [data-k="pedidos"], html.fam.viva body[data-view="pedidos"] { --sec: #CC5A3B; }
+html.fam.viva [data-k="hoy"], html.fam.viva body[data-view="hoy"] { --sec: #4A6FC4; }
+html.fam.viva [data-k="responder"], html.fam.viva body[data-view="responder"], html.fam.viva body[data-view="chatsnav"] { --sec: #0E86B8; }
+html.fam.viva [data-k="taller"], html.fam.viva body[data-view="taller"] { --sec: #B8741A; }
+html.fam.viva [data-k="embalaje"], html.fam.viva body[data-view="embalaje"] { --sec: #7B61C9; }
+html.fam.viva [data-k="productos"], html.fam.viva body[data-view="productos"] { --sec: #2B8A5E; }
+html.fam.viva [data-k="almacen"], html.fam.viva body[data-view="almacen"] { --sec: #5A7385; }
+html.fam.viva [data-k="celebrir8"], html.fam.viva body[data-view="celebrir8"] { --sec: #B8456F; }
+html.fam.viva [data-k="catalogo"], html.fam.viva body[data-view="catalogo"] { --sec: #9A7A14; }
+html.fam.viva [data-k="cotizador"], html.fam.viva body[data-view="cotizador"] { --sec: #00808A; }
+html.fam.viva [data-k="pedidosweb"], html.fam.viva body[data-view="pedidosweb"] { --sec: #B5522F; }
+html.fam.viva [data-k="clientes"], html.fam.viva body[data-view="clientes"] { --sec: #5F5BC0; }
+html.fam.viva [data-k="tienda"], html.fam.viva body[data-view="tienda"] { --sec: #2478B8; }
+html.fam.viva [data-k="ingresos"], html.fam.viva body[data-view="ingresos"] { --sec: #2F855A; }
+html.fam.viva [data-k="shampu"], html.fam.viva body[data-view="shampu"] { --sec: #0B87A6; }
+html.fam.viva [data-k="celebrimesa"], html.fam.viva body[data-view="celebrimesa"] { --sec: #7B61C9; }
+html.fam.viva [data-k="config"], html.fam.viva body[data-view="config"] { --sec: #5F6873; }
+
+html.fam.viva {
+  --v-hondo: #03474D; --v-petroleo: #006468; --v-turq: #00A6A6; --v-agua: #46CFC6;
+  --v-banda: linear-gradient(100deg, #03474D 0%, #00686C 46%, #008587 100%);
+  --v-sombra: 0 1px 2px rgba(3, 71, 77, .05), 0 10px 26px -14px rgba(3, 71, 77, .32);
+}
+html.fam.fam.viva[data-tema50="hueso"] { --bg: #E8EEEE; --surface-2: #F0F5F5; --surface-3: #DDE7E7; --line: #DBE4E4; --line-2: #BDCBCB; --shadow: var(--v-sombra); --lado: #FBFDFD; --lado-2: #E6F2F1; --lado-linea: #DFE8E8; --lado-t: #1F2328; --lado-m: #5E6A70; }
+html.fam.fam.viva[data-tema50="grafito"] { --bg: #12181B; --surface: #1B2327; --surface-2: #232D32; --surface-3: #2E3A40; --line: #2A363B; --line-2: #43525A; --lado: #161E21; --lado-2: #212C30; --lado-linea: #27333A; --v-sombra: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 30px -14px rgba(0, 0, 0, .6); --shadow: var(--v-sombra); }
+html.fam.fam.viva body { background: radial-gradient(1200px 520px at 84% -8%, color-mix(in srgb, var(--v-turq) 16%, transparent), transparent 70%) no-repeat, var(--bg); }
+html.fam.fam.viva[data-modo="noche"] body { background: radial-gradient(1200px 520px at 84% -8%, rgba(0, 166, 166, .14), transparent 70%) no-repeat, var(--bg); }
+
+/* ---------- 1 · el menú de la izquierda: claro, con su icono de color ---------- */
+@media (min-width: 900px) { html.fam.fam.viva .rail50 { color: var(--lado-t); border-right: 1px solid var(--lado-linea); } }
+html.fam.fam.viva .fam-marca { background: var(--v-hondo) linear-gradient(120deg, #02383D, #035056); padding: 5px 16px; height: var(--topbar); min-height: var(--topbar); box-sizing: border-box; }
+html.fam.fam.viva .fam-marca .fam-emb { width: 50px; height: 50px; }
+html.fam.fam.viva .fam-marca small { color: #BFE3E1; }
+html.fam.fam.viva .fam-nom i { color: #4FE0DB; }
+html.fam.fam.viva .r50-lista { padding-top: 12px; }
+html.fam.fam.viva .lado-g h4 { color: var(--lado-m); }
+html.fam.fam.viva .r50-it { color: var(--lado-t); min-height: 40px; padding: 0 8px; }
+html.fam.fam.viva .r50-ic { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: var(--sec, #5F6873); color: #fff; box-shadow: 0 3px 8px -4px var(--sec, #5F6873); transition: transform var(--t); }
+html.fam.fam.viva .r50-ic svg.i { width: 17px; height: 17px; stroke-width: 2; }
+html.fam.fam.viva .r50-it:hover { background: var(--lado-2); color: var(--lado-t); } html.fam.fam.viva .r50-it:hover .r50-ic { background: var(--sec, #5F6873); transform: scale(1.06); }
+html.fam.fam.viva .r50-it.on { background: #006468 linear-gradient(100deg, #03545A, #007C7E); color: #fff; box-shadow: 0 8px 18px -10px rgba(0, 100, 104, .8); }
+html.fam.fam.viva .r50-it.on .r50-ic { background: rgba(255, 255, 255, .18); color: #fff; box-shadow: none; } html.fam.fam.viva .r50-it.on::before { content: none; }
+html.fam.fam.viva .r50-n { background: #D9534A; color: #fff; background: #C2453D; }
+html.fam.fam.viva .r50-it.on .r50-n { background: #fff; color: #03474D; }
+html.fam.fam.viva .r50-pie { border-top-color: var(--lado-linea); }
+html.fam.fam.viva .r50-todo .r50-ic, html.fam.fam.viva .lado-plegar .r50-ic { background: var(--lado-2); color: var(--lado-t); box-shadow: none; }
+@media (min-width: 900px) and (max-width: 1180px) { html.fam.fam.viva .fam-marca { padding: 4px; } html.fam.fam.viva .r50-it { min-height: 42px; } }
+@media (min-width: 1181px) { html.fam.fam.viva.fam-plegado .fam-marca { padding: 4px; } }
+/* pantallas bajas: el pie en una fila (que no tape «Shampú» y «CelebriMesa») y todo más junto */
+@media (min-width: 1181px) and (max-height: 860px) {
+  html.fam.fam.viva:not(.fam-plegado) .r50-pie { flex-direction: row; gap: 4px; padding: 6px 10px; } html.fam.fam.viva:not(.fam-plegado) .r50-pie .r50-it { width: auto; flex: 1 1 0; justify-content: center; padding: 0 4px; } html.fam.fam.viva:not(.fam-plegado) .r50-pie .r50-it:not(.r50-todo) .r50-t { display: none; } html.fam.fam.viva:not(.fam-plegado) .r50-pie .r50-it:not(.r50-todo) { flex: 0 0 40px; } html.fam.fam.viva:not(.fam-plegado) .r50-pie .r50-todo { justify-content: flex-start; padding: 0 8px; }
+  html.fam.fam.viva .r50-it { min-height: 32px; font-size: 13.5px; gap: 10px; } html.fam.fam.viva .r50-ic { width: 24px; height: 24px; border-radius: 8px; } html.fam.fam.viva .r50-ic svg.i { width: 15px; height: 15px; }
+  html.fam.fam.viva .lado-g + .lado-g { margin-top: 6px; } html.fam.fam.viva .lado-g h4 { margin-bottom: 1px; } html.fam.fam.viva .r50-lista { padding: 8px 12px 6px; }
+}
+@media (min-width: 1181px) and (max-height: 800px) { html.fam.fam.viva .lado-g + .lado-g { margin-top: 4px; } html.fam.fam.viva .r50-lista { padding-top: 6px; } }
+
+/* ---------- 2 · la cabecera: de petróleo a turquesa ---------- */
+html.fam.fam.viva .topbar { background: #006468 var(--v-banda); border-bottom: 0; color: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 8px 24px -16px rgba(3, 71, 77, .7); }
+html.fam.fam.viva .topbar .miga, html.fam.fam.viva .topbar .miga b, html.fam.fam.viva .topbar .miga button { color: #fff; }
+html.fam.fam.viva .topbar .atras-btn { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .22); color: #fff; }
+html.fam.fam.viva .topbar .search-btn { background: #fff; border-color: transparent; color: #4C565C; box-shadow: 0 6px 18px -12px rgba(0, 0, 0, .5); }
+html.fam.fam.viva .topbar .search-btn kbd { background: #E8EEEE; color: #434952; border-color: transparent; }
+html.fam.fam.viva .topbar .chats-top { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .28); color: #fff; } html.fam.fam.viva .topbar .chats-top:hover { background: rgba(255, 255, 255, .24); color: #fff; }
+html.fam.fam.viva .topbar .sync:not(.off):not(.err):not(.recon) { color: #E6F6F5; } html.fam.fam.viva .topbar .sync:not(.off):not(.err):not(.recon):not(.busy) .dot { background: #6FF0B8; }
+html.fam.fam.viva .topbar .icon-btn, html.fam.fam.viva .topbar .u18-modo { color: #fff; } html.fam.fam.viva .topbar .icon-btn:hover, html.fam.fam.viva .topbar .u18-modo:hover { background: rgba(255, 255, 255, .16); color: #fff; }
+html.fam.fam.viva .topbar .me-chip { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .26); color: #fff; } html.fam.fam.viva .topbar .me-chip b, html.fam.fam.viva .topbar .me-txt { color: #fff; }
+html.fam.fam.viva .badge-n { background: #C2453D; color: #fff; box-shadow: 0 0 0 2px #00777A; }
+
+/* ---------- 3 · la banda del título de cada pantalla ---------- */
+html.fam.fam.viva .content > .page-head, html.fam.fam.viva .content > div > .page-head { background: radial-gradient(420px 160px at 100% 0%, rgba(94, 226, 218, .35), transparent 72%), linear-gradient(100deg, #02383D 0%, #00686C 55%, #008587 100%) #006468; color: #fff; padding: 18px 22px; border-radius: 18px; margin-bottom: 18px; box-shadow: var(--v-sombra); }
+html.fam.fam.viva .content > .page-head h1, html.fam.fam.viva .content > div > .page-head h1 { color: #fff; font-size: 28px; }
+html.fam.fam.viva .content > .page-head .muted, html.fam.fam.viva .content > .page-head p, html.fam.fam.viva .content > .page-head .sub, html.fam.fam.viva .content > div > .page-head .muted, html.fam.fam.viva .content > div > .page-head p { color: #D4ECEA; }
+html.fam.fam.viva .page-head .btn.primary, html.fam.fam.viva .page-head .btn.primary:hover { background: #fff; color: #03474D; box-shadow: 0 8px 20px -12px rgba(0, 0, 0, .55); }
+html.fam.fam.viva .content > .page-head .btn:not(.primary), html.fam.fam.viva .content > div > .page-head .btn:not(.primary) { background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .3); color: #fff; } html.fam.fam.viva .content > .page-head .btn:not(.primary):hover, html.fam.fam.viva .content > div > .page-head .btn:not(.primary):hover { background: rgba(255, 255, 255, .24); color: #fff; }
+html.fam.fam.viva .content > .page-head a:not(.btn), html.fam.fam.viva .content > div > .page-head a:not(.btn) { color: #BDF3F0; }
+
+/* ---------- 4 · la portada ---------- */
+html.fam.fam.viva .fam-hero, html.fam.fam.viva[data-modo="noche"] .fam-hero { grid-template-columns: minmax(0, 1fr) auto; background: #006468 linear-gradient(104deg, #02383D 0%, #005A5E 40%, #008A8C 78%, #2FB9B2 112%); border: 0; padding: 28px 32px; box-shadow: 0 18px 44px -24px rgba(3, 71, 77, .75); }
+html.fam.fam.viva .fam-aura { background: radial-gradient(460px 300px at 96% 0%, rgba(120, 240, 232, .28), transparent 70%); }
+html.fam.fam.viva .fam-hero .pm-frase { color: #E2F3F2; } html.fam.fam.viva .fam-hero .pm-reloj b { color: #7DF0EA; } html.fam.fam.viva .fam-hero .pm-reloj small { color: #E2F3F2; }
+html.fam.fam.viva .fam-hero .bad-t { color: #FFD0CC; font-weight: 800; } html.fam.fam.viva .fam-hero .warn-t { color: #FFE3A8; font-weight: 800; }
+html.fam.fam.viva .fam-hero .btn.primary, html.fam.fam.viva .fam-hero .btn.primary:hover { background: #fff; color: #03474D; box-shadow: 0 10px 24px -12px rgba(0, 0, 0, .55); }
+html.fam.fam.viva .fam-hero .btn:not(.primary) { background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .32); } html.fam.fam.viva .fam-hero .btn:not(.primary):hover { background: rgba(255, 255, 255, .24); border-color: #fff; color: #fff; }
+html.fam.viva .fam-fotos ~ .fam-hero-l { display: none; }
+html.fam.viva .fam-fotos { display: flex; align-items: center; gap: 12px; padding-left: 8px; }
+html.fam.viva .fam-foto { position: relative; width: 148px; height: 176px; padding: 0; border: 0; border-radius: 16px; overflow: hidden; background: #0a2a2d; cursor: pointer; box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .6); outline: 3px solid rgba(255, 255, 255, .9); outline-offset: -3px; transition: transform var(--t); }
+html.fam.viva .fam-foto:nth-child(2) { transform: translateY(-8px); } html.fam.viva .fam-foto:hover { transform: translateY(-12px); }
+html.fam.viva .fam-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+html.fam.viva .fam-foto-t { position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px); display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; background: #fff; color: #1F2328; font: 750 12px/1.2 var(--font); } html.fam.viva .fam-foto-t i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+@media (max-width: 1500px) { html.fam.viva .fam-foto { width: 124px; height: 152px; } }
+@media (max-width: 1240px) { html.fam.viva .fam-foto:nth-child(3) { display: none; } }
+/* «El siguiente»: lo que antes vence, entero y con su botón */
+html.fam.viva .fam-sig { display: grid; grid-template-columns: auto auto minmax(120px, 1fr) minmax(240px, 1.35fr) auto; align-items: center; gap: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; padding-right: 18px; box-shadow: var(--v-sombra); }
+html.fam.viva .fam-sig-l { align-self: stretch; display: grid; align-content: center; justify-items: center; gap: 3px; min-width: 116px; padding: 14px 12px; color: #fff; background: #03545A; text-align: center; }
+html.fam.viva .fam-sig-l svg.i { width: 24px; height: 24px; } html.fam.viva .fam-sig-l b { font: 800 14px/1.15 var(--font); } html.fam.viva .fam-sig-l small { font: 700 12px/1.2 var(--font); color: #D4ECEA; }
+html.fam.viva .fam-sig.soon .fam-sig-l, html.fam.viva .fam-sig.today .fam-sig-l { background: #E0922F; color: #1F1503; } html.fam.viva .fam-sig.soon .fam-sig-l small, html.fam.viva .fam-sig.today .fam-sig-l small { color: #1F1503; } html.fam.viva .fam-sig.late .fam-sig-l { background: #B3283C; } html.fam.viva .fam-sig.late .fam-sig-l small { color: #fff; }
+html.fam.viva .fam-sig-f { padding: 10px 0; } html.fam.viva .fam-sig-f .fp-mini { border-radius: 12px; }
+html.fam.viva .fam-sig-t { display: grid; gap: 3px; min-width: 0; justify-items: start; } html.fam.viva .fam-sig-t > small { color: var(--muted); font-weight: 650; font-size: 12.5px; } html.fam.viva .fam-sig-t > b { font: 800 18px/1.2 var(--font); letter-spacing: -.02em; max-width: 100%; }
+html.fam.viva .fam-sig-p { min-width: 0; } html.fam.viva .fam-sig-p .p5 { margin: 0; }
+@media (max-width: 1180px) { html.fam.viva .fam-sig { grid-template-columns: auto auto minmax(0, 1fr) auto; } html.fam.viva .fam-sig-p { display: none; } }
+/* los 5 estados, con su color lleno */
+html.fam.fam.viva .fam-estado { border: 0; padding: 16px 18px 18px; box-shadow: var(--v-sombra); background: var(--surface); transition: transform var(--t), box-shadow var(--t); }
+html.fam.fam.viva .fam-estado::before { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 5px; }
+html.fam.fam.viva .fam-estado.on { background: linear-gradient(180deg, color-mix(in srgb, var(--c) 6%, var(--surface)), color-mix(in srgb, var(--c) 17%, var(--surface))); background-color: color-mix(in srgb, var(--c) 17%, var(--surface)); }
+html.fam.fam.viva .fam-estado:hover { transform: translateY(-2px); }
+html.fam.fam.viva .fam-estado-i { width: 50px; height: 50px; border-radius: 50%; background: var(--c); color: #fff; box-shadow: 0 8px 16px -8px var(--c); } html.fam.fam.viva .fam-estado[data-k="imprimiendo"] .fam-estado-i, html.fam.fam.viva .fam-estado[data-k="listo"] .fam-estado-i { color: #0C1A1B; }
+html.fam.fam.viva .fam-estado b { font-size: 34px; }
+/* tarjetas de la portada */
+html.fam.fam.viva .pm-fam .card { border-color: transparent; box-shadow: var(--v-sombra); }
+html.fam.fam.viva .pm-h h3 .ie { width: 32px; height: 32px; padding: 7px; box-sizing: border-box; border-radius: 10px; background: #007C7E; color: #fff; margin-right: 11px; }
+html.fam.fam.viva .pm-urge .pm-h h3 .ie { background: #CC5A3B; } html.fam.fam.viva .pm-imp .pm-h h3 .ie { background: #B8741A; } html.fam.fam.viva .pm-ult .pm-h h3 .ie { background: #4A6FC4; }
+html.fam.fam.viva .pm-t .pm-n { background: #03545A; color: #fff; border-radius: 50%; }
+html.fam.fam.viva .pm-t .pm-e { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none; } html.fam.fam.viva .pm-t .pm-e .ie { width: 20px; height: 20px; margin: 0; }
+html.fam.fam.viva .pm-t.bad .pm-e { background: var(--bad-soft); color: var(--bad); } html.fam.fam.viva .pm-t.warn .pm-e { background: var(--warn-soft); color: var(--warn); }
+html.fam.fam.viva .pm-t::before { content: none; }
+html.fam.fam.viva .pm-mes { background: #03474D linear-gradient(150deg, #02383D, #00686C 90%); color: #fff; }
+html.fam.fam.viva .pm-mes h3, html.fam.fam.viva .pm-mes .pm-cifra b { color: #fff; } html.fam.fam.viva .pm-mes .muted, html.fam.fam.viva .pm-mes .pm-cifra span, html.fam.fam.viva .pm-mes .pm-prev { color: #D4ECEA; } html.fam.fam.viva .pm-mes a { color: #7DF0EA; } html.fam.fam.viva .pm-mes .pm-prev { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .16); } html.fam.fam.viva .pm-mes .pm-prev b { color: #fff; }
+html.fam.fam.viva .pm-mes .pm-h h3 .ie { background: rgba(255, 255, 255, .16); }
+
+/* ---------- 5 · botones, fichas, pedidos, productos ---------- */
+html.fam.fam.viva .btn.primary { background: #14B3AF linear-gradient(135deg, #24C0BA, #00A6A6); box-shadow: 0 8px 18px -12px rgba(0, 120, 120, .9); } html.fam.fam.viva .btn.primary:hover { background: #24C0BA; }
+html.fam.fam.viva .card, html.fam.fam.viva .table-wrap, html.fam.fam.viva .list.boxed { box-shadow: var(--v-sombra); }
+html.fam.fam.viva .pill.est, html.fam.fam.viva[data-modo="noche"] .pill.est { background: var(--c); color: #fff; border-color: transparent; }
+html.fam.fam.viva .pill.est[style*="E0922F"], html.fam.fam.viva .pill.est[style*="00A6A6"], html.fam.fam.viva .pill.est[style*="8A8F98"], html.fam.fam.viva .pill.est[style*="e0922f"], html.fam.fam.viva .pill.est[style*="00a6a6"], html.fam.fam.viva .pill.est[style*="8a8f98"] { color: #0C1416; }
+html.fam.fam.viva tr.ped-fila:not(.inc) { background: linear-gradient(90deg, color-mix(in srgb, var(--est, transparent) 13%, var(--surface)), var(--surface) 62%); background-color: var(--surface); } html.fam.fam.viva tr.ped-fila { box-shadow: inset 5px 0 0 var(--est, transparent) !important; }
+html.fam.fam.viva body[data-view="pedidos"] .content .kpi { border-color: transparent; box-shadow: var(--v-sombra); border-radius: 12px; }
+html.fam.fam.viva body[data-view="pedidos"] .content .kpi.on { background: #03545A; }
+html.fam.fam.viva body[data-view="pedidos"] .content .kpi::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--kc, transparent); flex: none; } html.fam.fam.viva body[data-view="pedidos"] .content .kpi:not([data-k="fabricar"]):not([data-k="fabricando"]):not([data-k="postpro"]):not([data-k="enviar"]):not([data-k="completados"]):not([data-k="urgentes"])::before { content: none; }
+html.fam.viva .kpi[data-k="fabricar"] { --kc: var(--e-confirmado); } html.fam.viva .kpi[data-k="fabricando"] { --kc: var(--e-imprimiendo); } html.fam.viva .kpi[data-k="postpro"] { --kc: var(--e-mesa); } html.fam.viva .kpi[data-k="enviar"] { --kc: var(--e-listo); } html.fam.viva .kpi[data-k="completados"] { --kc: var(--e-entregado); } html.fam.viva .kpi[data-k="urgentes"] { --kc: #C2453D; }
+html.fam.fam.viva .chip.on, html.fam.fam.viva .seg button.on { background: #03545A; color: #fff; } html.fam.fam.viva .tabs button.on { box-shadow: inset 0 -3px 0 var(--turq); }
+html.fam.fam.viva .drawer-h .muted, html.fam.fam.viva .drawer-h code { color: #E2F3F2; } html.fam.fam.viva .drawer-h { background: #006468 linear-gradient(100deg, #02383D, #006468 60%, #008587); }
+html.fam.fam.viva .modal-h { background: #006468 linear-gradient(100deg, #03474D, #007477); color: #fff; } html.fam.fam.viva .modal-h h2, html.fam.fam.viva .modal-h .icon-btn, html.fam.fam.viva .modal-h .x { color: #fff; } html.fam.fam.viva .modal-h .muted { color: #D4ECEA; }
+html.fam.fam.viva [data-prod] { border-color: transparent; transition: transform var(--t), box-shadow var(--t); } html.fam.fam.viva [data-prod]:hover { transform: translateY(-3px); box-shadow: 0 18px 34px -18px rgba(3, 71, 77, .55); }
+html.fam.fam.viva [data-prod] b { font-size: 17px; font-weight: 800; }
+html.fam.fam.viva .mp-t-e { background: var(--sec, #007C7E); color: #fff; } html.fam.fam.viva .mp-g-dia { background: #03474D linear-gradient(150deg, #02383D, #00686C); border-color: transparent; }
+html.fam.fam.viva .hoy-tab .ht { background: linear-gradient(180deg, color-mix(in srgb, var(--htc, transparent) 14%, var(--surface)), var(--surface)); background-color: var(--surface); border-color: transparent; border-top: 5px solid var(--htc, var(--line)); box-shadow: var(--v-sombra); }
+
+/* ---------- 6 · entrada ---------- */
+html.fam.fam.viva .fam-portada { background: #006468 linear-gradient(140deg, #02383D, #00686C 60%, #00A6A6 120%); } html.fam.fam.viva .bloqueo-caras { background: #03474D linear-gradient(140deg, #02383D, #00686C) !important; }
+
+/* ---------- 7 · móvil ---------- */
+@media (max-width: 899px) {
+  html.fam.fam.viva .topbar { background: #006468 var(--v-banda); }
+  html.fam.fam.viva .topbar .search-btn { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22); color: #fff; box-shadow: none; } html.fam.fam.viva .topbar .atras-btn, html.fam.fam.viva .topbar .chats-top, html.fam.fam.viva .topbar .me-chip { background: transparent; border-color: transparent; }
+  html.fam.fam.viva .content > .page-head, html.fam.fam.viva .content > div > .page-head { padding: 14px 16px; border-radius: 16px; }
+  html.fam.fam.viva .fam-hero { padding: 22px; }
+}
+@media (max-width: 700px) {
+  html.fam.fam.viva .fam-hero, html.fam.fam.viva[data-modo="noche"] .fam-hero { grid-template-columns: minmax(0, 1fr); }
+  html.fam.viva .fam-fotos { padding: 0; gap: 10px; } html.fam.viva .fam-foto, html.fam.viva .fam-foto:nth-child(3) { display: block; flex: 1 1 0; width: auto; min-width: 0; height: 118px; } html.fam.viva .fam-foto:nth-child(2) { transform: none; }
+  html.fam.viva .fam-foto-t { left: 6px; bottom: 6px; max-width: calc(100% - 12px); padding: 3px 8px; font-size: 11px; white-space: nowrap; overflow: hidden; }
+  html.fam.viva .fam-sig { grid-template-columns: auto minmax(0, 1fr); gap: 0 14px; padding: 0; } html.fam.viva .fam-sig-l { grid-column: 1 / -1; display: flex; justify-content: flex-start; gap: 10px; padding: 10px 16px; } html.fam.viva .fam-sig-l small { margin-left: auto; } html.fam.viva .fam-sig-f { padding: 12px 0 12px 16px; } html.fam.viva .fam-sig-t { padding-right: 16px; } html.fam.viva .fam-sig > .btn { grid-column: 1 / -1; margin: 0 16px 14px; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) { html.fam.viva .fam-foto:hover, html.fam.fam.viva .fam-estado:hover, html.fam.fam.viva [data-prod]:hover { transform: none; } }

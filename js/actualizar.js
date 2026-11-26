@@ -5,7 +5,7 @@
 //  · «Comprobar la publicación» repasa archivo por archivo lo subido a GitHub y dice cuáles faltan o son antiguos
 //    (una subida a medias era justo lo que dejaba los móviles atascados). También sirve desde el PC para mirar la de los móviles.
 //  · «Reinstalar» borra la copia guardada de la app y la baja entera otra vez.
-import { h, btn, modal, mount } from './ui.js';
+import { h, btn, modal, mount, texto } from './ui.js';
 import { S, APP_VERSION } from './store.js';
 
 const enPC = !!window.__HOST__;
@@ -75,7 +75,7 @@ export function dialogoActualizar() {
       mount(det, r.mal.length ? h('div.act-mal', h('b', '⚠️ ' + r.mal.length + ' de ' + r.total + ' archivos NO son de la versión ' + p.sw.split('-')[0] + ':'), h('ul', r.mal.slice(0, 40).map(x => h('li', x.f + ' · ' + x.por))), r.mal.length > 40 ? h('p.tiny.muted', '… y ' + (r.mal.length - 40) + ' más.') : null, h('p.small', 'Hay que volver a subir la app a GitHub (PUBLICAR_APP_MOVIL.bat de la carpeta de la versión). Los móviles NO cogen una versión a medias: siguen con la que tienen.'))
         : h('p.act-ok', '✅ Publicación completa: los ' + r.total + ' archivos son de la versión ' + p.sw.split('-')[0] + '.'));
     } catch (e) { mount(det, h('p.small', 'No he podido comprobarlo (' + (e.message || e) + '). ¿Hay Internet?')); }
-    finally { b.disabled = false; b.textContent = '🔎 Comprobar la publicación'; } }, { cls: 'sm act-comprobar' });
+    finally { b.disabled = false; texto(b, '🔎 Comprobar la publicación'); } }, { cls: 'sm act-comprobar' });
   const bReinst = () => btn('🧹 Reinstalar la app', () => instalar(estado, true), { cls: 'sm ghost act-reinstalar', title: 'Borra la copia guardada de la app y la baja entera otra vez. Tus datos no se tocan.' });
   async function busca() {
     mount(det); mount(bots); estado('🔍 Buscando…');

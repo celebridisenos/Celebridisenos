@@ -1,5 +1,5 @@
 // ================= 🖨️ Taller 3D: impresoras, cola de impresión, filamento y compras =================
-import { h, mount, btn, modal, toast, eur, fdate, pill, empty, field, inp, sel, area, confirmDlg, promptDlg, icon } from '../ui.js';
+import { h, mount, btn, modal, toast, eur, fdate, pill, empty, field, inp, sel, area, confirmDlg, promptDlg, icon, texto } from '../ui.js';
 import { S, can, api, upsertLocal, removeLocal, emit, byId, timing, stateColor } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { bambuFor } from '../bambu.js';
@@ -252,7 +252,7 @@ export function jobForm(j, pedido) {
     const sug = keep || (bestSpool(f.color.value, f.material.value, f.gramos.value) || {}).id || '';
     f.bobinaId.value = sug;
     const b = byId('bobinas', f.bobinaId.value);
-    hint.textContent = b && n(f.gramos.value) > n(b.restante) ? '⚠️ En esta bobina quedan ' + g(b.restante) + ' y la impresión necesita ' + g(f.gramos.value) + ': prepara otra.' : '';
+    texto(hint, b && n(f.gramos.value) > n(b.restante) ? '⚠️ En esta bobina quedan ' + g(b.restante) + ' y la impresión necesita ' + g(f.gramos.value) + ': prepara otra.' : '');
   };
   const fromOrder = (force) => {
     const o = byId('pedidos', f.pedidoId.value);

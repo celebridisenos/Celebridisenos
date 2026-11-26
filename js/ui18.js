@@ -5,7 +5,7 @@
 //   volver a la interfaz de antes vuelve el tema que tenías.
 // · La primera vez que se abre la 18 sale el ESTRENO: se apaga la sala, miles de puntos de luz forman un «18», estalla y
 //   detrás aparece el programa nuevo. Se puede saltar. No sale en las pruebas automáticas.
-import { h, btn } from './ui.js';
+import { h, btn, texto } from './ui.js';
 import { aplicarUI, reducido } from './ui14.js';
 
 const CLAVE = 'cd.ui', MODO = 'cd.modo18', VISTO = 'cd.estreno18';
@@ -26,7 +26,7 @@ export const es50 = () => interfaz() === 'v50';
 export const TEMAS30 = [['papel', 'Papel cálido', 'dia'], ['nieve', 'Blanco nieve', 'dia'], ['cuarzo', 'Rosa cuarzo', 'dia'], ['menta', 'Menta fresca', 'dia'], ['lavanda', 'Lavanda', 'dia'], ['cielo', 'Cielo', 'dia'], ['claro-fuerte', 'Alto contraste claro', 'dia'],
   ['obsidiana', 'Obsidiana y oro', 'noche'], ['medianoche', 'Medianoche azul', 'noche'], ['bosque', 'Bosque de noche', 'noche'], ['ciruela', 'Ciruela', 'noche'], ['grafito', 'Grafito', 'noche'], ['oscuro-fuerte', 'Alto contraste oscuro', 'noche']];
 // los temas de la cara «CelebriDiseños» (contraste comprobado con tools/temas50.py)
-export const TEMAS50 = [['nacar', '✨ Nácar', 'dia'], ['perla', 'Perla', 'dia'], ['champan', 'Champán y rosa', 'dia'], ['medianoche', '✨ Medianoche', 'noche'], ['aurora', 'Aurora', 'noche'], ['eclipse', 'Eclipse', 'noche']]; // 21-10 · la 60: Nácar y Medianoche (css/ui60.css)
+export const TEMAS50 = [['hueso', 'Hueso (día)', 'dia'], ['azul', 'Azul pastel (día)', 'dia'], ['naranja', 'Naranja pastel (día)', 'dia'], ['pastel', 'Rosa y lila (día)', 'dia'], ['grafito', 'Grafito (noche)', 'noche'], /* 25-11-2026 · la cara «Familia» (css/familia.css) */ ['nacar', '✨ Nácar', 'dia'], ['perla', 'Perla', 'dia'], ['champan', 'Champán y rosa', 'dia'], ['medianoche', '✨ Medianoche', 'noche'], ['aurora', 'Aurora', 'noche'], ['eclipse', 'Eclipse', 'noche']]; // 21-10 · la 60: Nácar y Medianoche (css/ui60.css)
 const LISTA = () => (es50() ? TEMAS50 : TEMAS30), POR_DEFECTO = m => (es50() ? (m === 'dia' ? 'perla' : 'aurora') : (m === 'dia' ? 'papel' : 'obsidiana'));
 const TEMA_ = () => (es50() ? 'cd.tema50' : 'cd.tema30'), esTema = k => LISTA().some(t => t[0] === k), oscuroWin = () => { try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; } };
 const ultimo = m => { const v = leer(TEMA_() + '.' + m); return esTema(v) && LISTA().find(t => t[0] === v)[2] === m ? v : POR_DEFECTO(m); };
@@ -35,8 +35,23 @@ export const tema30 = () => { const v = leer(TEMA_()); return v === 'auto' || es
 export const temaReal = () => { const k = tema30(); return k === 'auto' ? ultimo(oscuroWin() ? 'noche' : 'dia') : k; };
 export function ponTema30(k) {
   if (k !== 'auto' && !esTema(k)) return tema30();
-  guardar(TEMA_(), k); if (k !== 'auto') { const m = LISTA().find(t => t[0] === k)[2]; guardar(MODO, m); guardar(TEMA_() + '.' + m, k); }
+  guardar(TEMA_(), k); if (quien && es50()) guardar('cd.tema50.de.' + quien, k); if (k !== 'auto') { const m = LISTA().find(t => t[0] === k)[2]; guardar(MODO, m); guardar(TEMA_() + '.' + m, k); }
   tema18(); avisa(); return k;
+}
+// 25-11-2026 · Biou: «para Adriana, más de chica: rosa y lila pastel». Cada persona entra con SU cara: Adriana, «Rosa y lila»; Biou, «Naranja pastel»; los demás, la que tenían.
+// Si alguien elige otro tema, se queda con el suyo (cd.tema50.de.<usuario>, en este aparato). En las pruebas automáticas no, salvo que se pida (cd.persona.prueba).
+let quien = '';
+export function ponPersona(usuario) {
+  quien = String(usuario || '').trim().toLowerCase(); if (!quien || !es50() || (navigator.webdriver && !leer('cd.persona.prueba'))) return;
+  // 25-11-2026 23:10 · Biou eligió «2, naranja pastel» para él: Biou entra en «Naranja pastel»; Adriana, en «Rosa y lila».
+  const SERIE = { adriana: 'pastel', biou: 'naranja' }, PAS = ['pastel', 'azul', 'naranja'];
+  const ahora = tema30(), antes = leer('cd.tema50.quien'), suyo = leer('cd.tema50.de.' + quien), k = suyo === 'auto' || esTema(suyo) ? suyo : SERIE[quien] || (PAS.includes(ahora) || (antes && antes !== quien) ? leer('cd.tema50.antes') || (PAS.includes(ahora) ? 'hueso' : ahora) : ahora);
+  guardar('cd.tema50.quien', quien); guardar('cd.tema50.de.' + quien, k);
+  if (k === ahora) return;
+  if (PAS.includes(k) && !PAS.includes(ahora)) { guardar('cd.tema50.antes', ahora); guardar('cd.tema50.antes.dia', leer('cd.tema50.dia') || 'hueso'); }
+  guardar('cd.tema50', k); if (PAS.includes(k)) { guardar(MODO, 'dia'); guardar('cd.tema50.dia', k); }
+  else { if (PAS.includes(leer('cd.tema50.dia'))) guardar('cd.tema50.dia', leer('cd.tema50.antes.dia') || 'hueso'); if (k !== 'auto') guardar(MODO, TEMAS50.find(t => t[0] === k)[2]); }
+  tema18(); avisa();
 }
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if ((es30() || es50()) && tema30() === 'auto') { tema18(); avisa(); } }); } catch (e) { }
 // el desplegable (arriba, en CelebriR8 y en Configuración): todos los que haya en pantalla se ponen de acuerdo solos
@@ -58,6 +73,9 @@ export function tema18(real) {
   if (es30()) de.dataset.tema30 = temaReal(); else de.removeAttribute('data-tema30'); // v30.7.1
   if (es50()) de.dataset.tema50 = temaReal(); else de.removeAttribute('data-tema50');
   de.classList.toggle('ui60', es50() && (temaReal() === 'nacar' || temaReal() === 'medianoche')); // 21-10 · la cara 60 «Maison» (css/ui60.css)
+  de.classList.toggle('fam', es50() && ['hueso', 'grafito', 'pastel', 'azul', 'naranja'].includes(temaReal())); de.classList.toggle('pas', es50() && ['pastel', 'azul', 'naranja'].includes(temaReal())); // 25-11-2026 · la cara «Familia» (css/familia.css, js/familia.js)
+  const viva = de.classList.contains('fam') && leer('cd.viva') === '1', lv = document.getElementById('css-viva'); // 25-11 noche · Biou eligió la A (sobria); la B «más viva» queda apagada y sin cargar (cd.viva = 1 la enciende)
+  de.classList.toggle('viva', viva); if (viva && !lv) { const l = document.createElement('link'); l.id = 'css-viva'; l.rel = 'stylesheet'; l.href = 'css/familia_viva.css'; document.head.appendChild(l); } else if (!viva && lv) lv.remove();
   if (on) { de.classList.remove('ui14'); de.dataset.modo = modo(); return modo() === 'noche' ? 'oscuro' : 'claro'; }
   de.removeAttribute('data-modo');
   return real;
@@ -66,11 +84,12 @@ const avisa = () => { try { window.dispatchEvent(new Event('cd:interfaz')); } ca
 export function ponInterfaz(k, m) {
   guardar(CLAVE, k === 'v18' || k === 'v30' || k === 'v50' ? k : k === 'clasica' ? 'clasica' : 'nueva');
   if (m) { guardar(MODO, m === 'dia' ? 'dia' : 'noche'); if ((k === 'v30' || k === 'v50') && tema30() !== 'auto') guardar(TEMA_(), ultimo(m === 'dia' ? 'dia' : 'noche')); }
+  if (quien && es50()) guardar('cd.tema50.de.' + quien, tema30());
   aplicarUI(undefined, false); tema18(); avisa(); // app.js vuelve a aplicar el tema (y la paleta) al oír el aviso
   return interfaz();
 }
 export function cambiaModo() { const m = modo() === 'noche' ? 'dia' : 'noche'; if (es30() || es50()) { ponTema30(ultimo(m)); return m; } /* v30.7.1: el sol / la luna saltan entre tu último tema claro y tu último oscuro */ guardar(MODO, m); tema18(); avisa(); return m; }
-export const botonModo = () => h('button.u18-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: e => { const m = cambiaModo(); e.currentTarget.textContent = m === 'noche' ? '🌙' : '☀️'; } }, modo() === 'noche' ? '🌙' : '☀️');
+export const botonModo = () => h('button.u18-modo', { type: 'button', title: 'Cambiar entre Noche y Día', 'aria-label': 'Cambiar entre Noche y Día', onclick: e => { const m = cambiaModo(); texto(e.currentTarget, m === 'noche' ? '🌙' : '☀️'); } }, modo() === 'noche' ? '🌙' : '☀️');
 
 // ---------- el sonido del estreno (hecho aquí, sin archivos) ----------
 function sonido() {

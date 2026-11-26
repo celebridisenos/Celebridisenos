@@ -12,18 +12,18 @@
 // lo de CADA DÍA grande y arriba; lo demás por lo que quieres hacer. No se quita ninguna sección: solo se ordena.
 export const GRUPOS = [
   { k: 'dia', t: 'Cada día', e: '⭐', c: '#00838f', items: ['pedidos', 'productos', 'responder', 'embalaje', 'taller', 'almacen'], grande: true },
-  { k: 'vender', t: 'Vender', e: '🛒', c: '#ec4899', items: ['pedidosweb', 'bandeja', 'clientes', 'presupuestos', 'facturas', 'micuentas', 'rapidas'] },
-  { k: 'crear', t: 'Crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'catalogo', 'cotizador', 'estudio'] }, // 16-11-2026: sin Escaparate (se duplica con CelebriMesa)
+  { k: 'vender', t: 'Vender', e: '🛒', c: '#ec4899', items: ['pedidosweb', 'bandeja', 'clientes', 'cotizador', 'presupuestos', 'facturas', 'micuentas', 'rapidas'] },
+  { k: 'crear', t: 'Crear', e: '✏️', c: '#8b5cf6', items: ['celebrir8', 'catalogo', 'estudio'] }, // 16-11-2026: sin Escaparate (se duplica con CelebriMesa)
   { k: 'web', t: 'Tienda y redes', e: '🌐', c: '#14b8a6', items: ['tienda', 'resenas', 'fotosproductos', 'mitienda', 'estanteria'] }, // 16-11-2026: Reels, Instagram y Redes fuera (se hacen en CelebriMesa); // 15-11-2026: sin «Anuncios con IA»; el Tráiler pasa a Números
   { k: 'numeros', t: 'Números', e: '📊', c: '#22c55e', items: ['ingresos', 'masvendidos', 'costes', 'informes', 'inteligencia', 'trailer'] },
-  { k: 'otros', t: 'Más', e: '🧰', c: '#64748b', items: ['puente', 'inicio', 'hoy', 'tallervivo', 'escanear', 'chat', 'tareas', 'noticias', 'archivos', 'ia', 'centroia', 'celebrimesa', 'shampu', 'config', 'estado', 'noventas', 'fallos', 'stock', 'inventario'] },
+  { k: 'otros', t: 'Más', e: '🧰', c: '#64748b', items: ['shampu', 'celebrimesa', 'hoy', 'puente', 'inicio', 'tallervivo', 'escanear', 'chat', 'tareas', 'noticias', 'archivos', 'ia', 'centroia', 'fallos', 'noventas', 'stock', 'inventario', 'config', 'estado'] },
 ];
 // para qué sirve cada sección (una línea, como lo diría ella)
 export const DESCR = {
   puente: 'El resumen de todo de un vistazo', inicio: 'Tu día: ventas, pedidos y avisos', hoy: 'Lo que toca hacer hoy en el taller', tallervivo: 'Las impresoras y el taller en directo',
   pedidos: 'Ver, crear y seguir pedidos', pedidosweb: 'Lo que te piden desde la tienda web', bandeja: 'Los correos de ventas de todas tus cuentas', clientes: 'Tus clientes y lo que te han comprado',
   presupuestos: 'Hacer y mandar presupuestos', facturas: 'Facturas y cobros', rapidas: 'Respuestas listas para los clientes',
-  celebrir8: 'Diseñar piezas en 3D sin saber de 3D', escaparate: 'Fotos y vídeo 360° de tus productos en cualquier color', productos: 'Tus productos, fotos y abrir en Bambu', catalogo: 'Más de 300 diseños listos para imprimir', cotizador: 'Cuánto cobrar por una pieza impresa',
+  celebrir8: 'Diseñar piezas en 3D sin saber de 3D', escaparate: 'Fotos y vídeo 360° de tus productos en cualquier color', productos: 'Tus productos, fotos y abrir en Bambu', catalogo: 'Más de 300 diseños listos para imprimir', cotizador: 'Cotizador: el precio de una pieza en un momento',
   almacen: 'Lo que tienes y lo que has comprado (todo va solo)', taller: 'Impresoras 3D, etiquetas y papel', stock: 'Detalle de las piezas en stock (el día a día: Mi almacén)', inventario: 'Inventario completo: avisos de cada cosa (el día a día: Mi almacén)', costes: 'Cuánto te cuesta cada producto: precios de materiales y embalajes',
   embalaje: 'Empaquetar pedidos y sus etiquetas de envío', escanear: 'Leer el QR de un paquete',
   micuentas: 'Móvil, número, cuenta de Vinted y banco: quién vende y quién no',
@@ -40,7 +40,7 @@ export const SINONIMOS = {
   pedidos: 'pedido encargo venta vender comanda orden', pedidosweb: 'web solicitud encargo online', bandeja: 'correo email gmail mensajes ventas', clientes: 'cliente comprador contacto',
   presupuestos: 'presupuesto oferta cotizacion precio', facturas: 'factura cobrar cobro facturar pagar recibo iva', rapidas: 'respuesta whatsapp contestar plantilla mensaje',
   celebrir8: 'disenar diseno 3d pieza modelo stl caja llave juguete r8', escaparate: 'escaparate foto fotos estudio producto colores color vinted wallapop instagram video 360 render escena fondo anuncio mockup',
-  productos: 'producto foto articulo bambu laminar', catalogo: 'catalogo disenos listos imprimir modelos cults', cotizador: 'precio calcular cuanto coste presupuesto cobrar',
+  productos: 'producto foto articulo bambu laminar', catalogo: 'catalogo disenos listos imprimir modelos cults', cotizador: 'cotizador cotizar precio cuanto cobro cobrar calcular coste presupuesto rapido cliente pregunta',
   almacen: 'almacen stock inventario compra compras compre comprado tengo existencias filamento bobina bobinas caja cajas sobre sobres bolsa bolsas material materiales falta acaba comprar', taller: 'imprimir impresion impresora etiqueta etiquetas papel bambu a1 p1p', stock: 'existencias hecho guardado productos', inventario: 'historial estadisticas proveedor', costes: 'coste material gasto margen precio',
   embalaje: 'empaquetar paquete envio enviar etiqueta etiquetas correos seur caja', escanear: 'qr escaner leer paquete codigo',
   micuentas: 'cuenta cuentas movil moviles telefono numero vinted banco iban verificar vendiendo glamhome',
@@ -81,9 +81,10 @@ export function recientes() { try { return JSON.parse(localStorage.getItem(CLAVE
 export function abre(o) {
   const ya = document.querySelector('.mp'); if (ya) { ya._cierra(); return null; }
   const el = (t, a = {}, ...hijos) => { const e = document.createElement(t); Object.entries(a).forEach(([k, v]) => { if (k === 'onclick' || k === 'oninput' || k === 'onkeydown') e[k] = v; else if (k === 'style') Object.entries(v).forEach(([q, w]) => (q.startsWith('--') ? e.style.setProperty(q, w) : (e.style[q] = w))); else if (v != null) e.setAttribute(k, v); }); hijos.flat().forEach(c => { if (c == null) return; e.append(c.nodeType ? c : document.createTextNode(String(c))); }); return e; };
+  const dib = n => (o.icono ? o.icono(n) : emoji(n)); // 25-11: en la cara Familia, iconos de línea
   const G = agrupa(o.lista), todas = G.flatMap(g => g.items), cuenta = k => (o.counts || {})[k] || 0;
   const tarjeta = (n, g) => el('button', { type: 'button', class: 'mp-t' + (n.k === o.actual ? ' on' : ''), 'data-k': n.k, style: { '--mp-c': (g || grupoDe(n.k) || { c: '#8b5cf6' }).c }, onclick: () => ve(n.k) },
-    el('span', { class: 'mp-t-e' }, emoji(n)), el('span', { class: 'mp-t-x' }, el('b', {}, n.t.replace(/\s*[\u{1F300}-\u{1FAFF}☀-➿]️?/gu, '')), el('small', {}, DESCR[n.k] || '')), cuenta(n.k) ? el('i', { class: 'mp-t-n' }, String(cuenta(n.k))) : null);
+    el('span', { class: 'mp-t-e' }, dib(n)), el('span', { class: 'mp-t-x' }, el('b', {}, n.t.replace(/\s*[\u{1F300}-\u{1FAFF}☀-➿⬀-⯿]️?/gu, '')), el('small', {}, DESCR[n.k] || '')), cuenta(n.k) ? el('i', { class: 'mp-t-n' }, String(cuenta(n.k))) : null);
   const busca2 = el('input', { type: 'search', class: 'mp-busca', placeholder: '¿Qué quieres hacer? Escribe: etiquetas, ropa, cobrar, subir a la web…', 'aria-label': 'Buscar en el menú', autocomplete: 'off' });
   const cuerpo = el('div', { class: 'mp-cuerpo' }), cerrarB = el('button', { type: 'button', class: 'mp-x', 'aria-label': 'Cerrar el menú', title: 'Cerrar (Esc)', onclick: () => cierra() }, '✕');
   const clasico = o.clasico ? el('button', { type: 'button', class: 'mp-lista', title: 'El menú lateral de siempre', onclick: () => { cierra(); o.clasico(); } }, '≡ Lista clásica') : null;
@@ -94,7 +95,7 @@ export function abre(o) {
     if (q) { const R = busca(q, todas); cuerpo.append(el('div', { class: 'mp-g' }, el('h3', {}, R.length ? 'Lo que encaja con «' + q + '»' : 'No hay ninguna sección que se llame así'), el('div', { class: 'mp-ts' }, R.map(n => tarjeta(n))),
         o.buscarEnTodo ? el('button', { type: 'button', class: 'mp-todo', onclick: () => { cierra(); o.buscarEnTodo(q); } }, '🔎 Buscar «' + q + '» en pedidos, clientes y productos →') : null)); return; }
     const rec = recientes().map(k => todas.find(n => n.k === k)).filter(Boolean).slice(0, 6);
-    if (rec.length) cuerpo.append(el('div', { class: 'mp-rec' }, el('span', {}, 'Lo último:'), rec.map(n => el('button', { type: 'button', class: 'mp-chip', 'data-k': n.k, onclick: () => ve(n.k) }, emoji(n) + ' ' + n.t.replace(/\s*[\u{1F300}-\u{1FAFF}☀-➿]️?/gu, '')))));
+    if (rec.length) cuerpo.append(el('div', { class: 'mp-rec' }, el('span', {}, 'Lo último:'), rec.map(n => el('button', { type: 'button', class: 'mp-chip', 'data-k': n.k, onclick: () => ve(n.k) }, dib(n), ' ' + n.t.replace(/\s*[\u{1F300}-\u{1FAFF}☀-➿⬀-⯿]️?/gu, '')))));
     cuerpo.append(el('div', { class: 'mp-gs' }, G.map(g => el('section', { class: 'mp-g' + (g.grande ? ' mp-g-dia' : ''), style: { '--mp-c': g.c }, 'data-g': g.k }, el('h3', {}, el('span', {}, g.e), g.t), el('div', { class: 'mp-ts' }, g.items.map(n => tarjeta(n, g)))))));
   }
   function ve(k) { cierra(); o.ir(k); }

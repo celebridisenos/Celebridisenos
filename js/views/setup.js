@@ -1,12 +1,14 @@
 // ================= Primera conexión, configuración inicial y entrada =================
 import { h, mount, icon, btn, field, inp, sel, toast, avatar, initials, area, modal } from '../ui.js';
 import { S, api, setServer, afterLogin, pull, login, passHashes, checkNewPassword, parseInvite, joinWithInvite, perfilesGuardados, entrarPerfil } from '../store.js';
+import { escribirCodigo } from '../vincular.js'; // 25-11-2026 · 📱 entrar con el código del QR de otro aparato, sin contraseña
 import { rolePicker, ROLE_INFO } from '../roles.js';
 import { iaSetupStep } from '../ai/models.js';
 import { desktop } from '../desktop.js';
 import { marcaFinal } from '../marca.js';
+import { esFam, portadaEntrada } from '../familia.js'; // 25-11-2026 · cara «Familia»: el logo grande sobre grafito
 
-function page(...kids) { return h('div.center-page', marcaFinal('auth-marca', 'Versión final'), ...kids); } // 11-11-2026 · ✍️ CELEBRIDISEÑOS By Noorko (solo en la portada)
+function page(...kids) { if (esFam()) return h('div.center-page.fam-entrada', portadaEntrada(), h('div.fam-entrada-c', kids)); return h('div.center-page', marcaFinal('auth-marca', 'Versión final'), ...kids); } // 11-11-2026 · ✍️ CELEBRIDISEÑOS By Noorko (solo en la portada)
 function logo() { let src = 'icons/icon-192.png'; try { src = localStorage.getItem('cd.logo') || src; } catch (e) { } return h('div.brand', { style: { padding: '0 0 12px' } }, h('div.logo', h('img', { src, alt: '', style: { objectFit: 'contain' } })), h('div', h('b', 'CelebriDiseños'), h('small', 'Gestión del negocio'))); }
 function errBox() { return h('p.bad-t', { role: 'alert' }); }
 
@@ -54,7 +56,8 @@ export async function renderLogin(app, done, st, aviso, conClave) {
       h('h2', '¿Quién eres? 👋'), h('p.muted', 'Toca tu cara para entrar. Sin contraseña en este aparato.'),
       h('div.qe-caras', caras.map(c => { const b = h('button.qe-cara', { 'data-u': c.usuario, onclick: () => tocar(c, b) }, avatar(c, 'xl'), h('b', c.nombre || c.usuario)); return b; })),
       msg,
-      h('button.btn.ghost.sm', { onclick: () => { localStorage.removeItem('cd.lastUser'); renderLogin(app, done, st, '', true); } }, '➕ Entra otra persona (con su contraseña)'))));
+      h('div.row.wrap', { style: { justifyContent: 'center' } }, h('button.btn.ghost.sm', { onclick: () => { localStorage.removeItem('cd.lastUser'); renderLogin(app, done, st, '', true); } }, '➕ Entra otra persona (con su contraseña)'),
+        desktop.portable ? null : h('button.btn.ghost.sm.vin-tengo', { onclick: () => escribirCodigo(done) }, '📱 Tengo un código')))));
     return;
   }
   const last = localStorage.getItem('cd.lastUser') || '';
@@ -79,6 +82,7 @@ export async function renderLogin(app, done, st, aviso, conClave) {
     last ? whoRow : null,
     userField, field('Contraseña', p), msg, b,
     desktop.portable ? h('p.small', { style: { background: 'var(--surface-2)', padding: '8px 10px', borderRadius: '10px' } }, '🔌 Modo USB: tendrás que escribir la contraseña cada vez y, al cerrar el programa, no queda nada guardado en este ordenador.') : null,
+    desktop.portable ? null : h('div.vin-sin', h('button.btn.sm.vin-tengo', { onclick: () => escribirCodigo(done) }, '📱 Entrar sin contraseña: tengo un código'), h('div.tiny.muted', 'Lo sacas en el aparato donde ya estás dentro: tu cara › «📱 Entrar en otro aparato». En el móvil, apunta con la cámara a su QR.')),
     h('button.btn.ghost.sm', { onclick: () => forgotPassword(u.value.trim()) }, '¿Has olvidado tu contraseña?'),
     h('div.row.wrap', h('button.btn.ghost.sm', { onclick: () => renderInvite(app, done) }, '🎟️ Tengo una invitación'), h('span.grow'), h('button.btn.ghost.sm', { onclick: async () => { await setServer(''); done(); } }, 'Cambiar de servidor')))));
   // no quitar el foco si la persona ya ha empezado a escribir en otro campo

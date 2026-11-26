@@ -2836,3 +2836,13 @@ tr.cli-grupo.cg:hover, .item.cli-grupo.cg:hover { background: var(--brand-soft);
 .qe-cara:hover, .qe-cara:focus-visible { transform: translateY(-2px); border-color: var(--accent, #14b8a6); }
 .qe-cara b { font-size: 18px; }
 .qe-cara.entrando { opacity: .6; pointer-events: none; }
+/* 25-11-2026 · 🔓 bloqueo con las caras y 📱 entrar en otro aparato con un QR (vincular.js) */
+.qe-bloqueo h2 { margin: 4px 0 0; } .qe-cara small { font-size: 12px; }
+.vin-caja { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.vin-pasos { text-align: left; margin: 0; padding-left: 22px; font-size: 16px; line-height: 1.6; }
+.vin-qr { background: #fff; padding: 10px; border-radius: 14px; line-height: 0; box-shadow: 0 0 0 2px var(--border, #ddd); }
+.vin-qr svg { width: min(260px, 70vw); height: auto; }
+.vin-codigo { font: 700 30px/1.1 ui-monospace, Consolas, monospace; letter-spacing: .12em; padding: 8px 16px; border-radius: 12px; background: var(--surface-2, #f1f5f9); user-select: all; }
+.vin-caducado .vin-qr, .vin-caducado .vin-codigo { opacity: .25; filter: grayscale(1); }
+.vin-sin { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2, #f1f5f9); }
+.vin-sin .vin-tengo { align-self: flex-start; }

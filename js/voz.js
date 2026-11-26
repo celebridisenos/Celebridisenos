@@ -2,7 +2,7 @@
 // Te avisa HABLANDO (con la voz en español de tu equipo, sin internet ni servicios externos) cuando:
 // entra un pedido, termina o falla una impresión, un pedido queda listo para enviar o llega un aviso importante
 // (Wallapop/Vinted, incidencia, urgente). Apagada de fábrica y solo en ESTE dispositivo. No lee datos de contacto.
-import { h, btn, toast } from './ui.js';
+import { h, btn, toast, texto } from './ui.js';
 import { S, can, on } from './store.js';
 
 const CL = window.CL;
@@ -42,7 +42,7 @@ export function setVoz(v) {
 export function botonVoz(onChange) {
   if (!hayVoz()) return null;
   const b = btn('', () => { const v = !vozOn(); if (setVoz(v)) { pintar(); toast(v ? '🔊 Voz del taller activada' : '🔇 Voz del taller apagada'); onChange && onChange(v); } }, { cls: 'ghost' });
-  const pintar = () => { b.textContent = vozOn() ? '🔊 Voz activa' : '🔇 Voz apagada'; b.setAttribute('aria-pressed', vozOn() ? 'true' : 'false'); b.title = 'Te aviso hablando de pedidos nuevos, impresiones y avisos importantes (solo en este dispositivo)'; };
+  const pintar = () => { texto(b, vozOn() ? '🔊 Voz activa' : '🔇 Voz apagada'); b.setAttribute('aria-pressed', vozOn() ? 'true' : 'false'); b.title = 'Te aviso hablando de pedidos nuevos, impresiones y avisos importantes (solo en este dispositivo)'; };
   pintar();
   return b;
 }

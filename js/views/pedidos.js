@@ -1,5 +1,5 @@
 // ================= Pedidos: panel, filtros, ficha y formulario =================
-import { menu, h, mount, clear, icon, btn, modal, drawer, toast, eur, fdate, fdt, ago, pill, dueBadge, empty, field, inp, sel, area, debounce, confirmDlg, uid, copyText, avatar, na } from '../ui.js';
+import { menu, h, mount, clear, icon, btn, modal, drawer, toast, eur, fdate, fdt, ago, pill, dueBadge, empty, field, inp, sel, area, debounce, confirmDlg, uid, copyText, avatar, na, texto } from '../ui.js';
 import { S, can, mutate, api, timing, stateColor, byId, upsertLocal, removeLocal, emit, clientStats, on } from '../store.js';
 import { go, handleError, requestAccess } from '../app.js';
 import { filesSection, filesOf } from '../files.js';
@@ -9,7 +9,9 @@ import { miniPedido } from '../fotopedido.js'; // v13.10: foto de lo que pidió 
 import * as COL from '../colores.js'; // v14.1: selector de colores
 import { cuentaSelect, cuentasVenta } from '../cuentas.js'; // v14.1: desde qué cuenta se vendió
 import { PAISES, paisDe } from './inteligencia.js'; // v17.1: de qué país es el cliente
+import { esFam } from '../iconos_fam.js';
 import { barra5, estado4, siguiente4, ESTADOS4, paso4 } from '../pasos.js'; // 18-11: los 4 estados (Confirmado · Imprimiendo · En mesa · Listo), en la lista y la ficha
+import * as FAB from '../fabrica.js'; // 20-11: 🏭 atajo a CelebriFábrica (el programa de empaquetar del maletín)
 import * as PL from '../placas.js'; // v60.13: varias placas por pedido, cada una con su estado, y «¿cómo salió?»
 
 const CL = window.CL;
@@ -104,7 +106,7 @@ export function render(el, params) {
     const vis = PRESETS.filter(p => !p.hidden || p.k === st.preset);
     mount(kpis, vis.map(p => {
       const n = all.filter(x => p.f(x.o, x.t)).length;
-      return h('button.kpi' + (st.preset === p.k ? '.on' : '') + (p.cls && n ? '.' + p.cls : ''), { onclick: () => { st.preset = p.k; st.limit = 60; drawKpis(); drawList(); history.replaceState(null, '', '#/pedidos/?f=' + p.k); } }, h('span.n', String(n)), h('span.l', p.t));
+      return h('button.kpi' + (st.preset === p.k ? '.on' : '') + (p.cls && n ? '.' + p.cls : ''), { 'data-k': p.k, onclick: () => { st.preset = p.k; st.limit = 60; drawKpis(); drawList(); history.replaceState(null, '', '#/pedidos/?f=' + p.k); } }, h('span.n', String(n)), h('span.l', p.t));
     }));
   }
   function drawList() {
@@ -127,7 +129,7 @@ export function render(el, params) {
         h('div.small.muted.ellipsis', (o.cantidad > 1 ? o.cantidad + ' × ' : '') + o.producto, o.color ? [' ', COL.muestras(o.color)] : null, o.cuenta ? h('span.cv-mini', ' · ' + o.cuenta) : null),
         h('div.row.wrap', { style: { marginTop: '4px', gap: '8px' } }, pillEstado(o), PL.mini(o), dueBadge(t)), barra5(o, { mini: true })),
       h('div.bold', eur(CL.orderTotal(o))));
-    const colorDe = o => { const c = String(((S.cfg.pedidos.estados || []).find(s => s.k === o.estado) || {}).c || ''); return /^#[0-9a-f]{3,8}$/i.test(c) ? c : 'transparent'; };
+    const colorDe = o => { if (esFam()) return estado4(o).c; const c = String(((S.cfg.pedidos.estados || []).find(s => s.k === o.estado) || {}).c || ''); return /^#[0-9a-f]{3,8}$/i.test(c) ? c : 'transparent'; };
     const tRow = ({ o, t }, hijo) => h('tr.ped-fila' + (hijo ? '.cli-hijo' : '') + (t.incidencia ? '.inc' : ''), { onclick: () => go('pedidos/' + o.id), 'data-fase': ph(o), title: t.incidencia ? '⚠️ Incidencia: ' + (o.incidencia || '') : '', style: 'box-shadow: inset 6px 0 0 ' + (t.incidencia ? 'var(--bad, #dc2626)' : colorDe(o)) + '; --est: ' + colorDe(o) }, // v17.1: color del estado a la vista (franja + tinte suave)
       h('td.bold.nowrap', o.numero, o.prioridad === 'Urgente' ? h('span', { title: 'Urgente' }, ' ⚡') : null),
       h('td.nowrap', fdate(o.fecha), horaDe(o) ? h('div.tiny.muted.ped-hora', { title: 'Hora a la que entró el pedido' }, '🕒 ' + horaDe(o)) : null), h('td', h('div.ellipsis', { style: { maxWidth: '200px' } }, hijo ? h('span.muted', '↳ ') : null, o.cliente)),
@@ -306,6 +308,7 @@ export function orderDrawer(id, onClose) {
           h('div.row.wrap', { style: { marginTop: '10px', borderTop: '1px solid var(--line)', paddingTop: '14px' } },
             editable ? btn('Editar', () => orderForm(o), { icon: 'edit' }) : null,
             !t.cancelado ? btn('🏷️ Etiqueta o QR', () => EV.etiquetaOQr(o, draw), { title: 'Dos opciones: la etiqueta de envío (la que adjuntaste, tal cual) o el QR del paquete' }) : null,
+            !t.cancelado ? FAB.botonFabrica(o) : null, // 20-11: 🏭 abre CelebriFábrica con el sello de ESTE pedido
             btn('Mensaje', () => messageDialog(o), { icon: 'msg' }),
             can('facturas.emitir') ? btn(o.factura ? 'Factura ' + o.factura : 'Factura', () => import('./facturas.js').then(m => m.invoiceForm(o)), { icon: 'file' }) : null,
             h('span.grow'),
@@ -333,6 +336,7 @@ const TABS = {
       fact('Cliente', c ? h('a', { href: '#/clientes/' + c.id }, o.cliente) : na(o.cliente)),
       fact('Producto', o.productoId && byId('productos', o.productoId) ? h('a', { href: '#/productos/' + o.productoId }, o.producto) : na(o.producto)),
       fact('Cantidad', na(o.cantidad)), fact('Precio unidad', eur(o.precio)), fact('Total', h('b', eur(CL.orderTotal(o)))),
+      CL.suplementosDe(o).length ? h('div.fact.np-fact-sup', h('div.l', '＋ Suplementos'), h('div.v', CL.suplementosDe(o).map(x => h('div', CL.suplementoTexto(x) + ' · ' + eur(x.cantidad * x.precio) + (x.cantidad > 1 ? ' (' + eur(x.precio) + ' c/u)' : ''))))) : null, // 20-11
       fact('Canal / tienda', na(o.canal)), o.cuenta ? fact('Cuenta de venta', h('b', o.cuenta)) : null, fact('Responsable', na(o.responsable, 'Sin asignar')), fact('Prioridad', o.prioridad || 'Normal')),
       h('h4', { style: { margin: '16px 0 8px' } }, 'Personalización'),
       h('dl.kv', h('dt', 'Color'), h('dd', o.color ? h('span', COL.muestras(o.color), ' ', o.color) : na(o.color)), h('dt', 'Personalización'), h('dd', na(o.personalizacion))),
@@ -535,7 +539,7 @@ async function applyState(o, estado, extra, quiet) {
 // imprimiendo, en mesa y listo»). Debajo, en pequeño: Enviado, Entregado y Cancelar. Por dentro siguen los estados de siempre (los
 // datos no cambian): «Empaquetar» se ve como «En mesa». Cada botón lleva al estado de la configuración que tiene esa fase.
 export const ESTADOS_SIMPLES = ESTADOS4.map(x => [x.f, x.t, x.e]).concat([['enviado', 'Enviado', '🚚'], ['entregado', 'Entregado', '🏁'], ['cancelado', 'Cancelado', '✖️']]);
-export function pillEstado(o) { const e = estado4(o); return pill(e.e + ' ' + e.t, '', e.c); }
+export function pillEstado(o) { const e = estado4(o), p = pill(e.e + ' ' + e.t, '', e.c); if (esFam()) { p.classList.add('est'); p.style.cssText = '--c: ' + e.c; } return p; }
 const estadoDeFase = f => S.cfg.pedidos.estados.find(s => s.f === f && !s.issue);
 // Ir a una de las fases (la que sea: de los 4 o de las pequeñas), con las mismas preguntas de siempre (envío, incidencia…)
 export function irA4(o, f) {
@@ -548,7 +552,7 @@ export function stateDialog(o) {
   const f = ph(o), i4 = paso4(o), en4 = i4 >= 0 && i4 <= 3 && f !== 'enviado' && f !== 'entregado';
   const ir = x => { m.close(); irA4(o, x); };
   const grande = (x, i) => { const on = en4 && i === i4, s = estadoDeFase(x.f); if (!s) return null;
-    return h('button.est4' + (on ? '.on' : ''), { type: 'button', 'data-f': x.f, 'aria-pressed': on ? 'true' : 'false', style: { background: x.c }, onclick: () => ir(x.f) },
+    return h('button.est4' + (on ? '.on' : ''), { type: 'button', 'data-f': x.f, 'aria-pressed': on ? 'true' : 'false', style: 'background: ' + x.c + '; --c: ' + x.c, onclick: () => ir(x.f) },
       h('span.est4-e', x.e), h('b', x.t), on ? h('em', f === 'empaquetar' ? 'ahora · empaquetando' : 'ahora') : null); };
   const chico = ([fx, t, ic]) => { const s = estadoDeFase(fx); if (!s) return null;
     return h('button.est4-chico' + (f === fx ? '.on' : '') + (fx === 'cancelado' ? '.cancel' : ''), { type: 'button', 'data-f': fx, 'aria-pressed': f === fx ? 'true' : 'false', onclick: () => ir(fx) }, ic + ' ' + t, f === fx ? h('em', ' · ahora') : null); };
@@ -810,25 +814,74 @@ export function selectorConFoto(input, alElegir) { // 04-11: también lo usa el 
 }
 
 // ---------- Formulario (nuevo / editar) ----------
+// ================= 20-11-2026 · «NUEVO PEDIDO» FÁCIL =================
+// Biou (19-11): «pide muchas cosas… podrías ser lo más imprescindible y que la máquina lo haga todo mejor, más rápido… tardamos un montón
+// rellenando, y luego cuando quieres añadir un producto más al cliente tampoco, y si quiere suplementos, por ejemplo el pájaro caído quiere
+// 3 pajaritos de diferente color, cada suplemento pequeño son 0,70…».
+//  · A la vista solo: CLIENTE, CANAL (y su cuenta) y, por cada producto, PRODUCTO · COLOR · CANTIDAD · PRECIO (+ suplementos).
+//  · Lo demás lo pone el programa: el canal y la cuenta de su último pedido (o los últimos de este aparato), el país de su ficha, el precio del
+//    catálogo, el plazo, la fecha, el nº y el embalaje. Todo eso está en «⚙️ Más detalles», plegado (se recuerda si lo dejas abierto).
+//  · Varios productos en la MISMA ventana («➕ Otro producto»): al crear sale un pedido por producto, del mismo cliente y en UN solo paquete
+//    (envioConjunto = el primero). El embalaje, la etiqueta y los costes van con el primero.
+//  · SUPLEMENTOS por producto (CL.suplementos*): suman al total y salen en la ficha, la factura y «Qué va dentro» de la etiqueta del paquete.
+// El estado de TODAS las líneas se guarda también en un campo escondido («Productos del pedido», JSON): así un borrador del móvil vuelve a montar
+// todos los productos y sus suplementos, no solo el primero.
+const MEM_PED = 'cd.pedido.ultimo', MAS_PED = 'cd.pedido.mas';
+const memLee = () => { try { return JSON.parse(localStorage.getItem(MEM_PED) || '{}') || {}; } catch (e) { return {}; } };
+const memPon = (canal, cuenta) => { try { const m = memLee(); if (canal) { m.canal = canal; m.cuentas = Object.assign({}, m.cuentas, cuenta ? { [canal]: cuenta } : {}); } localStorage.setItem(MEM_PED, JSON.stringify(m)); } catch (e) { } };
+// Precio de un suplemento pequeño: 0,70 € (lo dijo Biou y cuadra con su calculadora: ver PEDIDO_FACIL_ESTADO.md). Se cambia en cada suplemento.
+export const precioSuplemento = () => { const v = Number((S.cfg.precios || {}).suplemento); return v > 0 ? Math.round(v * 100) / 100 : CL.SUPLEMENTO_PRECIO; };
+function nombresSuplemento() {
+  const v = new Map([[CL.norm('Pajarito'), 'Pajarito']]);
+  (S.t.pedidos || []).forEach(o => CL.suplementosDe(o).forEach(x => { const k = CL.norm(x.nombre); if (!v.has(k)) v.set(k, x.nombre); }));
+  return [...v.values()].slice(0, 60);
+}
+// Un suplemento: qué es · cuántos · de qué colores · cuánto cada uno. Con los colores escritos, «cuántos» se pone solo (3 colores = 3).
+function filaSuplemento(x, prodDe, alCambiar, quitar) {
+  const colTxt = Array.isArray(x.colores) ? x.colores.join(', ') : String(x.colores || '');
+  const nombre = inp({ value: x.nombre || '', placeholder: '¿Qué es? (p. ej. Pajarito)', list: 'dl-suplementos', autocomplete: 'off', 'aria-label': 'Suplemento' });
+  const cant = inp({ type: 'number', min: 1, max: 999, step: 1, value: x.cantidad || 1, 'aria-label': 'Cuántos' });
+  const precio = inp({ type: 'number', min: 0, step: 0.01, value: x.precio === undefined || x.precio === '' ? precioSuplemento() : x.precio, 'aria-label': 'Precio de cada uno (€)' });
+  const colores = inp({ value: colTxt, placeholder: 'Colores (p. ej. Rosa, Azul, Amarillo)', autocomplete: 'off', 'aria-label': 'Colores del suplemento' });
+  let cantTocada = x.ct !== undefined ? !!x.ct : !!(x.cantidad && x.cantidad !== CL.suplementosLimpia([{ nombre: 'x', colores: colTxt }]).lista[0].colores.length);
+  const sub = h('b.np-sup-sub');
+  const cuentaColores = () => String(colores.value).split(/\s*[,·]\s*/).filter(c => c.trim()).length;
+  const valor = () => { const r = CL.suplementosLimpia([{ nombre: nombre.value, cantidad: cant.value, colores: colores.value, precio: precio.value }]); return r.error ? null : r.lista[0] || null; };
+  const pinta = () => { const v = valor(); sub.textContent = v ? '= ' + eur(v.cantidad * v.precio) : ''; };
+  const cambia = () => { pinta(); alCambiar(); };
+  cant.addEventListener('input', e => { if (e.isTrusted) cantTocada = true; cambia(); });
+  colores.addEventListener('input', () => { const nc = cuentaColores(); if (!cantTocada && nc) cant.value = nc; cambia(); });
+  [nombre, precio].forEach(i => i.addEventListener('input', cambia));
+  const pon = c => { colores.value = colores.value.trim() ? colores.value.replace(/[\s,]+$/, '') + ', ' + c : c; colores.dispatchEvent(new Event('input', { bubbles: true })); };
+  const chips = h('div.chips.np-sup-cols');
+  const pintaChips = () => { const p = prodDe(), base = COL.coloresDeProducto(p).length ? COL.coloresDeProducto(p) : COL.COLORES.slice(0, 8).map(c => c[0]); mount(chips, base.map(c => h('button.chip.np-sup-col', { type: 'button', 'data-color': c, title: 'Añadir uno ' + c, onclick: () => pon(c) }, COL.punto(c, 12), c))); };
+  pintaChips(); pinta();
+  const el = h('div.np-sup',
+    h('div.np-sup-fila', h('span.np-sup-ic', '＋'), h('div.np-sup-nom', nombre), h('label.np-sup-n', h('span', '×'), cant), h('label.np-sup-p', precio, h('span', '€ c/u')), sub,
+      btn('', quitar, { cls: 'ghost icon sm', icon: 'x', title: 'Quitar este suplemento' })),
+    h('div.np-sup-fila2', colores, chips));
+  return { el, valor, foco: () => nombre.focus(), crudo: () => ({ nombre: nombre.value, cantidad: Number(cant.value) || '', colores: colores.value, precio: precio.value === '' ? '' : Number(precio.value), ct: cantTocada ? 1 : 0 }), pintaChips,
+    error: () => { if (!nombre.value.trim() && !colores.value.trim()) return ''; if (!nombre.value.trim()) return 'Pon qué es el suplemento (p. ej. Pajarito).'; const r = CL.suplementosLimpia([{ nombre: nombre.value, cantidad: cant.value, colores: colores.value, precio: precio.value }]); return r.error || ''; },
+    vacio: () => !nombre.value.trim() && !colores.value.trim() };
+}
+
 export function orderForm(o, duplicate, opts = {}) {
   const isNew = !o || !o.id;
   o = o || {};
   const cfg = S.cfg.pedidos;
+  const mem = memLee();
   const dlC = h('datalist', { id: 'dl-clientes' }, S.t.clientes.map(c => h('option', { value: c.nombre })));
-  const dlP = h('datalist', { id: 'dl-productos' }, S.t.productos.map(p => h('option', { value: p.nombre }, p.id)));
+  const dlS = h('datalist', { id: 'dl-suplementos' }, nombresSuplemento().map(n => h('option', { value: n })));
+  // canal y cuenta: los que vengan (duplicar, bandeja, otro producto…) o, en uno nuevo, los últimos de este aparato (se cambian con un toque)
+  const canal0 = o.canal || (isNew && !o.cliente && mem.canal && (cfg.canales || []).includes(mem.canal) ? mem.canal : '');
   const f = {
     cliente: inp({ value: o.cliente || '', list: 'dl-clientes', placeholder: 'Nombre o usuario (Vinted, Instagram…)', autocomplete: 'off' }),
-    producto: inp({ value: o.producto || '', placeholder: 'Producto', autocomplete: 'off', 'data-campo': 'producto' }), // (01-11: la lista sale con FOTO: selectorConFoto)
-    cantidad: inp({ type: 'number', min: 1, step: 1, value: o.cantidad || 1 }),
-    precio: inp({ type: 'number', min: 0, step: 0.01, value: o.precio ?? '', placeholder: 'El que has acordado con el cliente' }),
-    canal: sel([''].concat(cfg.canales), o.canal || ''),
+    canal: sel([''].concat(cfg.canales), canal0, { 'aria-label': 'Canal / tienda', class: 'np-canal-sel' }), // (escondido: se elige con los botones)
     plazoDias: inp({ type: 'number', min: 0, max: 365, value: o.plazoDias ?? cfg.plazoDias }),
     prioridad: sel(['Normal', 'Urgente'], o.prioridad || 'Normal'),
     responsable: sel([{ v: '', t: 'Sin asignar' }].concat(S.t.usuarios.filter(u => u.activo).map(u => ({ v: u.nombre, t: u.nombre }))), o.responsable || ''),
-    color: { value: o.color || '' }, // v14.1: lo rellena el selector de colores
-    cuenta: cuentaSelect(o.cuenta || '', o.canal || ''),
-    personalizacion: area({ value: o.personalizacion || '', placeholder: 'Nombre grabado, medidas, dedicatoria…', style: { minHeight: '64px' } }),
-    notas: area({ value: o.notas || '', style: { minHeight: '64px' } }),
+    cuenta: cuentaSelect(o.cuenta || '', canal0),
+    notas: area({ value: o.notas || '', style: { minHeight: '56px' } }),
     numero: inp({ value: isNew ? '' : o.numero || '', placeholder: 'Automático' }),
     fecha: inp({ type: 'date', value: (isNew && !duplicate) ? S.hoy : (o.fecha || S.hoy) }),
     envio: sel([''].concat(cfg.envios, o.envio && !cfg.envios.includes(o.envio) ? [o.envio] : []), o.envio || ''),
@@ -837,58 +890,161 @@ export function orderForm(o, duplicate, opts = {}) {
     obsEnvio: area({ value: o.obsEnvio || '', maxlength: 500, placeholder: 'Ej.: entregar por la tarde · frágil', style: { minHeight: '48px' } }),
     entregaEstimada: inp({ type: 'date', value: o.entregaEstimada || '' })
   };
-  const prodDe = () => S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value)) || null;
-  const colSel = COL.selector({ valor: o.color || '', producto: prodDe(), cantidad: () => Number(f.cantidad.value) || 1, alCambiarCantidad: n => { f.cantidad.value = n; f.cantidad.dispatchEvent(new Event('input')); }, onChange: t => { f.color.value = t; } });
-  f.producto.addEventListener('change', () => colSel.setProducto(prodDe()));
+  const COMUNES = ['cliente', 'canal', 'cuenta', 'plazoDias', 'prioridad', 'responsable', 'notas', 'numero', 'fecha', 'envio', 'seguimiento', 'direccionEnvio', 'obsEnvio', 'entregaEstimada'];
+  let canalTocado = !!o.canal, cuentaTocada = !!o.cuenta;
+  const cuentaPorId = id => [...f.cuenta.options].find(op => op.dataset.id === id);
   // al elegir la cuenta, el canal se pone solo (Vinted, Wallapop…)
-  f.cuenta.addEventListener('change', () => { const c = cuentasVenta().find(x => x.id === f.cuenta.selectedOptions[0]?.dataset.id); if (c && (S.cfg.pedidos.canales || []).includes(c.plataforma)) { f.canal.value = c.plataforma; f.canal.dispatchEvent(new Event('input')); } });
+  f.cuenta.addEventListener('change', e => { if (e.isTrusted) cuentaTocada = true; const c = cuentasVenta().find(x => x.id === f.cuenta.selectedOptions[0]?.dataset.id); if (c && (cfg.canales || []).includes(c.plataforma) && f.canal.value !== c.plataforma) { f.canal.value = c.plataforma; f.canal.dispatchEvent(new Event('change')); } });
+  // 20-11 · y al revés: al elegir el canal, su cuenta (si solo tienes una de esa plataforma, o la que usaste la última vez con ese canal)
+  const cuentaDelCanal = () => {
+    const cn = f.canal.value; if (!cn) return;
+    const actual = cuentasVenta().find(x => x.id === f.cuenta.selectedOptions[0]?.dataset.id);
+    if (actual && actual.plataforma === cn) return;
+    const deEse = cuentasVenta().filter(x => x.plataforma === cn), m = memLee(), rec = m.cuentas && m.cuentas[cn];
+    const op = deEse.length === 1 ? cuentaPorId(deEse[0].id) : rec ? [...f.cuenta.options].find(x => x.value === rec) : null;
+    f.cuenta.value = op ? op.value : (actual ? '' : f.cuenta.value);
+  };
+  const chipsCanal = h('div.chips.np-canales');
+  const pintaCanales = () => mount(chipsCanal, (cfg.canales || []).map(c => h('button.chip.np-canal' + (f.canal.value === c ? '.on' : ''), { type: 'button', 'data-canal': c, 'aria-pressed': f.canal.value === c ? 'true' : 'false', onclick: () => { canalTocado = true; f.canal.value = f.canal.value === c ? '' : c; f.canal.dispatchEvent(new Event('change')); } }, c)));
+  f.canal.addEventListener('change', () => { pintaCanales(); if (!cuentaTocada) cuentaDelCanal(); updAuto(); updAssist(); });
+  pintaCanales();
   const limitTxt = h('span.small.muted');
   const clientInfo = h('div.small.muted');
   // v17.1: el país del cliente. Va a SU ficha (no al pedido). Vacío = no se toca: nunca se inventa.
   const paisSel = sel([{ v: '', t: 'No lo sé todavía' }].concat(Object.keys(PAISES).map(k => ({ v: PAISES[k][0], t: PAISES[k][0] }))), ''); paisSel.setAttribute('aria-label', 'País del cliente');
-  let paisTocado = false; paisSel.addEventListener('change', () => { paisTocado = true; });
+  let paisTocado = false; paisSel.addEventListener('change', () => { paisTocado = true; updAuto(); });
   const costs = can('productos.costes') ? costsEditor(o) : null;
-  if (costs) [f.canal, f.precio, f.cantidad].forEach(x => x.addEventListener('input', () => costs.setCanal(f.canal.value, (Number(f.cantidad.value) || 1) * (Number(f.precio.value) || 0))));
   const updLimit = () => { const d = CL.addDays(f.fecha.value, f.plazoDias.value); limitTxt.textContent = d ? 'Fecha límite: ' + fdate(d, true) + ' (' + (CL.days(S.hoy, d) >= 0 ? 'quedan ' + CL.days(S.hoy, d) + ' días' : 'ya vencida') + ')' : ''; };
+  const ultimoDe = c => (S.t.pedidos || []).filter(p => !p.borrado && p.id !== o.id && (p.clienteId ? p.clienteId === c.id : CL.norm(p.cliente) === CL.norm(c.nombre))).sort((a, b) => String(b.creado || b.fecha || '').localeCompare(String(a.creado || a.fecha || '')))[0] || null;
   const updClient = () => {
     const c = S.t.clientes.find(x => CL.norm(x.nombre) === CL.norm(f.cliente.value));
     if (!paisTocado) { const k = c ? paisDe(c.pais) : ''; paisSel.value = k ? PAISES[k][0] : ''; }
-    if (!f.cliente.value.trim()) { clientInfo.textContent = ''; return; }
-    if (!c) { clientInfo.textContent = '✨ Cliente nuevo: se creará automáticamente.'; return; }
+    // 20-11 · cliente conocido: su canal y su cuenta de la última vez (si no los has tocado tú)
+    if (c && isNew) { const u = ultimoDe(c); if (u) { if (!canalTocado && u.canal && (cfg.canales || []).includes(u.canal) && f.canal.value !== u.canal) { f.canal.value = u.canal; f.canal.dispatchEvent(new Event('change')); } if (!cuentaTocada && u.cuenta && [...f.cuenta.options].some(x => x.value === u.cuenta)) f.cuenta.value = u.cuenta; } }
+    if (!f.cliente.value.trim()) { clientInfo.textContent = ''; updAuto(); return; }
+    if (!c) { texto(clientInfo, '✨ Cliente nuevo: se creará automáticamente.'); updAuto(); return; }
     const st = clientStats()[c.id];
     clientInfo.textContent = st ? `${st.pedidos} pedidos anteriores · ${st.etiquetas.map(e => e.i + ' ' + e.t).join(' · ') || 'cliente registrado'}` : '';
+    updAuto();
   };
-  const updPrice = () => {
-    const p = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value));
-    if (p && !f.precio.value) {
-      // v20.2: el precio del catálogo + el embalaje (el de la calculadora ya lo lleva dentro)
-      let ev0 = null; try { ev0 = envW.value(); } catch (e) { } // (envW se crea más abajo)
-      // 04-11-2026: sin precio de catálogo, el recomendado de HOY (no el «precioVenta» guardado del Excel viejo)
-      const a = CL.orderAssist({ id: o.id, producto: p.nombre, productoId: p.id, cantidad: f.cantidad.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy);
-      const pr = Number(p.precio) > 0 ? Math.round((Number(p.precio) + (a ? a.embalajeUnidad : 0)) * 100) / 100 : (a && a.recomendado) || '';
-      if (pr) f.precio.value = pr;
-    }
-  };
-  // ---- Asistente de precio: coste, beneficio, margen y descuento con los datos reales ----
-  // v13.9/13.10: EMBALAJE DEL PEDIDO al principio: lo que cuesta se suma al precio recomendado
+  // ---- el embalaje del PAQUETE (va con el primer producto; sin elegir, lo pone el programa) ----
   const envW = ENV.widget(o, { onChange: () => { if (typeof updAssist === 'function') updAssist(); } });
+  const prodPor = nombre => S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(nombre)) || null;
+  // ---- las LÍNEAS: un producto cada una ----
+  const lineas = [], cajaLineas = h('div.np-lineas');
+  const estado = area({ 'aria-label': 'Productos del pedido', class: 'np-estado', tabindex: '-1', hidden: true });
+  let activaL = null, montando = false;
+  const totalTxt = h('b.np-total-n'), paqueteTxt = h('span.np-paquete');
+  const btnCrear = { el: null };
   const assist = h('div.price-assist');
+  function guardaEstado() {
+    if (montando) return;
+    estado.value = JSON.stringify(lineas.map(L => L.crudo()));
+    const tot = Math.round(lineas.reduce((a, L) => a + L.subtotal(), 0) * 100) / 100, conProd = lineas.filter(L => L.producto.value.trim()).length;
+    totalTxt.textContent = eur(tot);
+    texto(paqueteTxt, conProd > 1 ? '📦 ' + conProd + ' productos · van en UN solo paquete' : '');
+    lineas.forEach((L, i) => { L.num.textContent = String(i + 1); L.quitar.hidden = lineas.length < 2; L.el.classList.toggle('sola', lineas.length < 2); });
+    if (btnCrear.el) btnCrear.el.querySelector('span').textContent = isNew ? 'Crear pedido' + (conProd > 1 ? ' · ' + conProd + ' productos' : '') : 'Guardar cambios';
+  }
+  function activa(L) { if (activaL === L || !lineas.includes(L)) return; activaL = L; lineas.forEach(x => x.el.classList.toggle('activa', x === L)); updAssist(); }
+  function nuevaLinea(ini, foco) {
+    ini = ini || {};
+    const L = { suple: [] };
+    L.producto = inp({ value: ini.producto || '', placeholder: 'Producto', autocomplete: 'off', 'data-campo': 'producto', 'aria-label': 'Producto' });
+    L.cantidad = inp({ type: 'number', min: 1, step: 1, value: ini.cantidad || 1, 'aria-label': 'Cantidad' });
+    L.precio = inp({ type: 'number', min: 0, step: 0.01, value: ini.precio ?? '', placeholder: 'El que has acordado con el cliente', 'aria-label': 'Precio por unidad (€)' });
+    // 25-11-2026 · 💶 ¿Cuánto cobro?: abre el cotizador del producto elegido y, con «Usar este precio», lo pone aquí
+    L.cuantoAviso = h('div.tiny.muted.np-cuanto-aviso', { hidden: true, role: 'status' });
+    L.cuanto = h('div.np-cuanto', btn('💶 ¿Cuánto cobro?', () => {
+      const p = L.prod();
+      if (!p) { L.cuantoAviso.textContent = 'Elige primero el producto y te calculo el precio.'; L.cuantoAviso.hidden = false; try { L.producto.focus(); } catch (e) { } return; }
+      L.cuantoAviso.hidden = true;
+      import('./cotizar_ui.js').then(m => m.cuantoCobro((v, x) => { L.precio.value = v; L.precioTocado = true; L.precio.dispatchEvent(new Event('input', { bubbles: true })); if (x && x.cantidad > 1 && Number(L.cantidad.value) < 2) { L.cantidad.value = x.cantidad; L.cantidad.dispatchEvent(new Event('input', { bubbles: true })); } }, p)).catch(e => toast(e.message || String(e), 'bad'));
+    }, { cls: 'sm np-cuanto-b', title: 'Te calculo el precio de este producto (más grande, más fuerte, mejor acabado) y lo pones aquí' }), L.cuantoAviso);
+    L.precioTocado = ini.pt !== undefined ? !!ini.pt : ini.precio !== undefined && ini.precio !== '';
+    L.color = { value: ini.color || '' };
+    L.prod = () => prodPor(L.producto.value);
+    L.colSel = COL.selector({ compacto: true, valor: ini.color || '', producto: L.prod(), cantidad: () => Number(L.cantidad.value) || 1, alCambiarCantidad: n => { L.cantidad.value = n; L.cantidad.dispatchEvent(new Event('input', { bubbles: true })); }, onChange: t => { L.color.value = t; guardaEstado(); } });
+    L.pers = inp({ value: ini.personalizacion || '', placeholder: 'Nombre grabado, medidas, dedicatoria…', 'aria-label': 'Personalización' });
+    const persBox = h('div.np-pers', { hidden: !ini.personalizacion }, field('✏️ Personalización', L.pers));
+    const persBtn = btn('✏️ Personalización', () => { persBox.hidden = false; persBtn.hidden = true; L.pers.focus(); }, { cls: 'sm ghost' }); persBtn.hidden = !!ini.personalizacion;
+    L.slot = h('div.np-slot'); L.sub = h('b.np-l-sub'); L.supBox = h('div.np-sups'); L.num = h('span.np-l-num');
+    L.subtotal = () => (Number(L.cantidad.value) || 0) * (Number(L.precio.value) || 0) + L.suple.reduce((a, s) => { const v = s.valor(); return a + (v ? v.cantidad * v.precio : 0); }, 0);
+    const cambia = () => { L.sub.textContent = L.subtotal() > 0 ? eur(L.subtotal()) : '—'; guardaEstado(); };
+    L.cambia = cambia;
+    const addSup = (x, foco2) => { const s = filaSuplemento(x || {}, L.prod, cambia, () => { L.suple = L.suple.filter(y => y !== s); s.el.remove(); cambia(); }); L.suple.push(s); L.supBox.append(s.el); if (foco2) setTimeout(() => s.foco(), 30); cambia(); };
+    const btnSup = btn('＋ Suplemento · ' + eur(precioSuplemento()) + ' c/u', () => addSup({}, true), { cls: 'sm np-mas-sup', title: 'Algo pequeño que va con este producto (p. ej. 3 pajaritos de colores con el Pájaro caído). Suma al precio y sale en la etiqueta del paquete.' });
+    const paso = d => () => { L.cantidad.value = Math.max(1, (Number(L.cantidad.value) || 1) + d); L.cantidad.dispatchEvent(new Event('input', { bubbles: true })); };
+    L.quitar = btn('', () => quitaLinea(L), { cls: 'ghost icon sm np-l-quitar', icon: 'x', title: 'Quitar este producto' });
+    // el precio del catálogo (+ el embalaje), o el recomendado de hoy, en cuanto eliges el producto (si no lo has escrito tú)
+    L.ponPrecio = () => {
+      const p = L.prod(); if (!p || L.precioTocado) return;
+      let ev0 = null; try { ev0 = lineas[0] === L ? envW.value() : null; } catch (e) { }
+      const a = CL.orderAssist({ id: o.id, producto: p.nombre, productoId: p.id, cantidad: L.cantidad.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy);
+      const pr = Number(p.precio) > 0 ? Math.round((Number(p.precio) + (a ? a.embalajeUnidad : 0)) * 100) / 100 : (a && a.recomendado) || '';
+      if (pr) L.precio.value = pr;
+    };
+    // (el navegador repite «change» al salir del campo: si el producto es el mismo no se repinta nada, o se perdía el toque en el color)
+    // (y si lo que escribes ya es un producto tuyo, se pone YA, sin esperar a salir del campo: si no, al tocar otro botón la ventana se movía y el toque se perdía)
+    const alProducto = () => { if (L._ult === L.producto.value) return; L._ult = L.producto.value; L.colSel.setProducto(L.prod()); L.suple.forEach(s => s.pintaChips()); L.ponPrecio(); cambia(); updAssist(); };
+    L.producto.addEventListener('change', alProducto);
+    L.producto.addEventListener('input', () => { if (L.prod()) alProducto(); else { cambia(); updAssist(); } });
+    L.precio.addEventListener('input', e => { if (e.isTrusted) L.precioTocado = true; cambia(); updAssist(); });
+    L.cantidad.addEventListener('input', () => { cambia(); updAssist(); });
+    L.pers.addEventListener('input', cambia);
+    L.el = h('div.np-linea', { onfocusin: () => activa(L), onclick: () => activa(L) },
+      h('div.np-l-cab', L.num, h('div.np-l-prod', selectorConFoto(L.producto)), L.quitar),
+      h('div.np-l-fila',
+        h('div.field.np-f-cant', h('label', 'Cantidad'), h('div.np-cant', btn('−', paso(-1), { cls: 'sm', title: 'Una menos' }), L.cantidad, btn('+', paso(1), { cls: 'sm', title: 'Una más' }))),
+        h('div.field.np-f-precio', h('label', 'Precio acordado (€)'), L.precio, L.cuanto, h('span.hint', 'Por unidad. Abajo te digo si cuadra.')),
+        h('div.np-l-tot', h('span.tiny.muted', 'Este producto'), L.sub)),
+      h('div.np-l-color', h('div.lbl', '🎨 Color'), L.colSel.el),
+      L.supBox, h('div.row.wrap.np-l-acc', btnSup, persBtn), persBox, L.slot);
+    CL.suplementosDe({ suplementos: ini.suplementos }).forEach(x => addSup(x));
+    (Array.isArray(ini.suplementosCrudos) ? ini.suplementosCrudos : []).forEach(x => addSup(x));
+    L.crudo = () => ({ producto: L.producto.value, cantidad: Number(L.cantidad.value) || 1, precio: L.precio.value === '' ? '' : Number(L.precio.value), pt: L.precioTocado ? 1 : 0, color: L.color.value, personalizacion: L.pers.value, suplementosCrudos: L.suple.map(s => s.crudo()) });
+    L.vacia = () => !L.producto.value.trim() && !L.precio.value && !L.color.value && !L.pers.value.trim() && L.suple.every(s => s.vacio());
+    L.datos = () => { const p = L.prod(); return { producto: L.producto.value.trim(), productoId: p ? p.id : undefined, cantidad: Number(L.cantidad.value), precio: L.precio.value === '' ? '' : Number(L.precio.value), color: L.color.value, personalizacion: L.pers.value.trim(), suplementos: L.suple.map(s => s.valor()).filter(Boolean) }; };
+    lineas.push(L); cajaLineas.append(L.el); L._ult = L.producto.value;
+    if (L.prod() && !L.precio.value) L.ponPrecio();
+    cambia();
+    if (foco) { activa(L); setTimeout(() => L.producto.focus(), 40); }
+    return L;
+  }
+  function quitaLinea(L) {
+    if (lineas.length < 2) return;
+    lineas.splice(lineas.indexOf(L), 1); L.el.remove();
+    if (activaL === L) { activaL = null; activa(lineas[lineas.length - 1]); }
+    guardaEstado();
+  }
+  // un borrador (móvil) devuelve el campo escondido: se vuelven a montar TODAS las líneas con sus suplementos
+  estado.addEventListener('input', () => {
+    let arr; try { arr = JSON.parse(estado.value || '[]'); } catch (e) { return; }
+    if (!Array.isArray(arr) || !arr.length || JSON.stringify(lineas.map(L => L.crudo())) === estado.value) return;
+    montando = true; lineas.splice(0).forEach(L => L.el.remove()); activaL = null;
+    arr.forEach(x => nuevaLinea(x));
+    montando = false; activa(lineas[0]); guardaEstado();
+  });
+  // ---- Asistente de precio del producto que estás tocando: coste, beneficio, margen y «véndelo a» con los datos reales ----
   const updAssist = () => {
-    if (!f.producto.value.trim()) { mount(assist, null); return; }
-    const p = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(f.producto.value));
-    const ev0 = envW.value();
-    const a = CL.orderAssist({ id: o.id, producto: f.producto.value, productoId: p ? p.id : '', cliente: f.cliente.value, cantidad: f.cantidad.value, precio: f.precio.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy);
+    const L = activaL; if (!L) return;
+    if (assist.parentNode !== L.slot) L.slot.append(assist);
+    if (!L.producto.value.trim()) { mount(assist, null); return; }
+    const p = L.prod();
+    const ev0 = lineas[0] === L ? envW.value() : null;
+    const a = CL.orderAssist({ id: o.id, producto: L.producto.value, productoId: p ? p.id : '', cliente: f.cliente.value, cantidad: L.cantidad.value, precio: L.precio.value, embalaje: ev0 ? { simple: ev0 } : null }, S.t, S.cfg, S.hoy);
     const costs = can('productos.costes');
     const pc = x => x === null || x === undefined ? '—' : Math.round(x * 100) + ' %';
     const box = (l, v, cls) => h('div.pi-k' + (cls ? '.' + cls : ''), h('span.l', l), h('span.v', v));
     // v11: precio inteligente — nunca impone: muestra beneficio, margen y un rango para negociar
-    const price = Number(f.precio.value) || 0, minM = (S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15;
+    const price = Number(L.precio.value) || 0, minM = (S.cfg.alertas && S.cfg.alertas.margenMinimo) || 0.15;
     const mCls = a.margen === undefined ? '' : a.beneficio < 0 ? 'bad' : a.margen < minM ? 'warn' : 'ok';
     const rg = a.rango, lo = rg ? Math.min(rg[0], a.minimo || rg[0], price || rg[0]) * 0.9 : 0, hi = rg ? Math.max(rg[1], price || 0) * 1.08 : 1;
     const pos = v => Math.max(0, Math.min(100, (v - lo) / Math.max(0.01, hi - lo) * 100)) + '%';
     const e0 = v => Number.isInteger(Number(v)) ? Number(v) + ' €' : eur(v);
+    const usar = v => { L.precio.value = v; L.precioTocado = true; L.cambia(); updAssist(); };
     mount(assist,
-      heroPrecio(a, p, price, f.canal.value, () => { f.precio.value = heroPrecio.v; f.precio.dispatchEvent(new Event('input', { bubbles: true })); }),
+      heroPrecio(a, p, price, f.canal.value, () => usar(heroPrecio.v)),
       h('div.pi-kpis',
         box('Precio acordado' + (a.cantidad > 1 ? ' (ud.)' : ''), price ? eur(price) : '—', 'acc'),
         costs ? box('Beneficio' + (a.cantidad > 1 ? ' (' + a.cantidad + ' uds.)' : ''), a.beneficio !== undefined ? eur(a.beneficio) : 'sin coste', mCls) : null,
@@ -905,72 +1061,138 @@ export function orderForm(o, duplicate, opts = {}) {
       a.notas.map(n => h('div.tiny', '💡 ' + n)),
       costs ? a.avisos.filter(x => !/margen bajo/i.test(x)).map(n => h('div.tiny.warn-t', n)) : null,
       h('div.row.wrap', { style: { marginTop: '4px' } },
-        rg && price !== rg[1] ? btn('Usar ' + e0(rg[1]), () => { f.precio.value = rg[1]; updAssist(); }, { cls: 'sm' }) : null,
-        a.recomendado && price !== a.recomendado ? btn('Usar recomendado ' + eur(a.recomendado), () => { f.precio.value = a.recomendado; updAssist(); }, { cls: 'sm ghost' }) : null,
-        a.descuentoRecomendado && a.sugerido ? btn('Descuento ' + pc(a.descuentoRecomendado) + ' → ' + eur(CL.sale.discount(a.sugerido, a.descuentoRecomendado)), () => { f.precio.value = CL.sale.discount(a.sugerido, a.descuentoRecomendado); updAssist(); }, { cls: 'sm ghost' }) : null,
+        rg && price !== rg[1] ? btn('Usar ' + e0(rg[1]), () => usar(rg[1]), { cls: 'sm' }) : null,
+        a.recomendado && price !== a.recomendado ? btn('Usar recomendado ' + eur(a.recomendado), () => usar(a.recomendado), { cls: 'sm ghost' }) : null,
+        a.descuentoRecomendado && a.sugerido ? btn('Descuento ' + pc(a.descuentoRecomendado) + ' → ' + eur(CL.sale.discount(a.sugerido, a.descuentoRecomendado)), () => usar(CL.sale.discount(a.sugerido, a.descuentoRecomendado)), { cls: 'sm ghost' }) : null,
         h('span.tiny.muted', 'Es orientativo: tú decides, súbelo o bájalo.')),
-      stockHint(f.producto.value, o));
+      stockHint(L.producto.value, o));
   };
-  [f.fecha, f.plazoDias].forEach(x => x.addEventListener('input', updLimit));
-  f.cliente.addEventListener('input', () => { updClient(); updAssist(); }); f.producto.addEventListener('change', () => { updPrice(); updAssist(); });
-  [f.producto, f.cantidad, f.precio].forEach(x => x.addEventListener('input', updAssist));
-  updLimit(); updClient();
+  // ---- lo que el programa ha puesto solo (se ve en la cabecera de «Más detalles», sin abrirlo) ----
+  const autoTxt = h('span.np-auto');
+  const updAuto = () => {
+    const d = CL.addDays(f.fecha.value, f.plazoDias.value);
+    const t = [f.cuenta.value ? '🧾 ' + f.cuenta.value : '', paisSel.value ? '🌍 ' + paisSel.value : '', d ? '🗓️ para el ' + fdate(d) : '', isNew && !f.numero.value ? 'nº automático' : f.numero.value ? 'nº ' + f.numero.value : ''].filter(Boolean);
+    autoTxt.textContent = t.join(' · ');
+  };
+  [f.fecha, f.plazoDias].forEach(x => x.addEventListener('input', () => { updLimit(); updAuto(); }));
+  [f.numero, f.cuenta].forEach(x => x.addEventListener('input', updAuto)); f.cuenta.addEventListener('change', updAuto);
+  f.cliente.addEventListener('input', () => { updClient(); updAssist(); }); f.cliente.addEventListener('change', updClient);
 
   const msg = h('p.bad-t');
   const labelFile = h('input', { type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp' });
-  const body = h('div.col', dlC,
-    h('div.form', field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo), field('🌍 País del cliente', paisSel, 'Se guarda en su ficha y enciende el planeta de Inteligencia.', 'full.ped-pais'), field('Producto *', selectorConFoto(f.producto), 'Escríbelo o pulsa «Ver con fotos». Si no está, se crea uno nuevo.', 'full'), h('div.full', assist), field('Cantidad', f.cantidad), field('Precio acordado (€)', f.precio, 'Por unidad. Arriba te digo si cuadra.'), h('div.full.card.flat', { style: { margin: '2px 0' } }, envW.el),
-      field('Cuenta de venta', f.cuenta, cuentasVenta().length ? 'Desde qué cuenta lo vendiste: sale en la etiqueta del paquete.' : 'Añade tus cuentas (Vinted, Wallapop…) en Configuración → Mis cuentas de venta.'), field('Canal / tienda', f.canal),
-      h('div.full', h('div.lbl', '🎨 Color'), colSel.el), field('Prioridad', f.prioridad), field('Plazo para prepararlo (días)', f.plazoDias), field('Responsable', f.responsable), h('div.full', limitTxt)),
-    h('details.more', h('summary', 'Personalización y notas'), h('div.in.form', field('Personalización', f.personalizacion, null, 'full'), field('Notas internas', f.notas, null, 'full'))),
-    h('details.more', h('summary', 'Número, fecha y envío'), h('div.in.form', field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'), field('Fecha del pedido', f.fecha), field('Nº de seguimiento', f.seguimiento), field('Entrega estimada', f.entregaEstimada), field('Dirección de envío (este pedido)', f.direccionEnvio, 'Solo para este paquete. La ficha del cliente no cambia.'), field('Observaciones del envío', f.obsEnvio))),
-    h('details.more', { open: isNew }, h('summary', 'Etiqueta de envío'), h('div.in', isNew
-      ? h('div.col', { style: { gap: '6px' } }, labelFile, h('p.tiny.muted', 'Opcional: la etiqueta oficial que te da Vinted, InPost, Correos… (PDF o foto). Si aún no la tienes, la adjuntas después desde el pedido o al empaquetar. Nunca se inventa.'))
-      : EV.labelRow(o, () => { }))),
-    costs ? h('details.more', h('summary', 'Costes reales del pedido (envío, comisión, caja…)'), h('div.in', costs.el)) : null,
+  let masAbierto = false; try { masAbierto = localStorage.getItem(MAS_PED) === '1'; } catch (e) { }
+  const det = h('details.more.np-mas', { open: masAbierto },
+    h('summary', h('span', '⚙️ Más detalles'), autoTxt),
+    h('div.in',
+      h('p.tiny.muted', { style: { margin: '0 0 8px' } }, 'Lo pone el programa solo. Cámbialo solo si hace falta.'),
+      h('div.form',
+        field('Cuenta de venta', f.cuenta, cuentasVenta().length ? 'Desde qué cuenta lo vendiste: sale en la etiqueta del paquete. Se pone sola con el canal.' : 'Añade tus cuentas (Vinted, Wallapop…) en Configuración → Mis cuentas de venta.'),
+        field('🌍 País del cliente', paisSel, 'Se guarda en su ficha y enciende el planeta de Inteligencia.', 'ped-pais'),
+        field('Plazo para prepararlo (días)', f.plazoDias), field('Prioridad', f.prioridad), h('div.full', limitTxt),
+        field('Responsable', f.responsable), field('Nº de pedido', f.numero, 'Vacío = número automático. Puedes poner el de Vinted/Etsy.'),
+        field('Fecha del pedido', f.fecha), field('Entrega estimada', f.entregaEstimada),
+        field('Notas internas', f.notas, null, 'full'),
+        field('Nº de seguimiento', f.seguimiento), field('Observaciones del envío', f.obsEnvio),
+        field('Dirección de envío (este pedido)', f.direccionEnvio, 'Solo para este paquete. La ficha del cliente no cambia.', 'full')),
+      h('div.card.flat.np-emb', envW.el),
+      h('details.more', { open: isNew }, h('summary', '🏷️ Etiqueta de envío'), h('div.in', isNew
+        ? h('div.col', { style: { gap: '6px' } }, labelFile, h('p.tiny.muted', 'Opcional: la etiqueta oficial que te da Vinted, InPost, Correos… (PDF o foto). Si aún no la tienes, la adjuntas después desde el pedido o al empaquetar. Nunca se inventa.'))
+        : EV.labelRow(o, () => { }))),
+      costs ? h('details.more', h('summary', 'Costes reales del pedido (envío, comisión, caja…)'), h('div.in', costs.el)) : null));
+  det.addEventListener('toggle', () => { try { localStorage.setItem(MAS_PED, det.open ? '1' : '0'); } catch (e) { } });
+  if (costs) [f.canal].forEach(x => x.addEventListener('change', () => costs.setCanal(f.canal.value, lineas.reduce((a, L) => a + L.subtotal(), 0))));
+  const btnOtro = h('button.np-otro', { type: 'button', onclick: () => nuevaLinea({}, true), title: 'Otro producto para el mismo cliente: va en el mismo paquete' }, '➕ Otro producto para este cliente');
+  const body = h('div.col.np', dlC, dlS, estado,
+    h('div.form.np-arriba',
+      field('Cliente *', f.cliente, null, 'full'), h('div.full', clientInfo),
+      h('div.field.full.np-f-canal', h('label', 'Canal / tienda'), chipsCanal, f.canal)),
+    h('div.np-lbl-prods', isNew ? '🛍️ Qué se lleva' : '🛍️ Producto'),
+    cajaLineas,
+    isNew ? btnOtro : null,
+    h('div.np-total', h('div', h('span.np-total-t', 'Total'), totalTxt), paqueteTxt),
+    det,
     msg);
-  let otroMas = false; // v14.1: «Crear y añadir otro producto» (mismo cliente, misma cuenta y mismo envío)
-  const m = modal(isNew ? 'Nuevo pedido' : 'Editar pedido nº ' + o.numero, body, close => [btn('Cancelar', close), isNew ? btn('➕ Crear y añadir otro producto', ev => { otroMas = true; ev.currentTarget.nextSibling.click(); }, { cls: 'ghost', title: 'Otro producto para el mismo cliente (luego van en un solo paquete)' }) : null, btn(isNew ? 'Crear pedido' : 'Guardar cambios', async (ev) => {
+  // las líneas de partida: la que viene (editar, duplicar, cotizador…) o una vacía
+  (opts.lineas && opts.lineas.length ? opts.lineas : [o]).forEach(x => nuevaLinea({ producto: x.producto || '', cantidad: x.cantidad || 1, precio: x.precio ?? '', color: x.color || '', personalizacion: x.personalizacion || '', suplementos: x.suplementos }));
+  activa(lineas[0]);
+  updLimit(); updClient(); if (!cuentaTocada) cuentaDelCanal(); updAuto();
+
+  const m = modal(isNew ? 'Nuevo pedido' : 'Editar pedido nº ' + o.numero, body, close => [btn('Cancelar', close), FAB.botonFabrica(isNew ? null : o), btnCrear.el = btn(isNew ? 'Crear pedido' : 'Guardar cambios', async (ev) => {
     msg.textContent = '';
-    const datos = {};
-    Object.keys(f).forEach(k => { let v = f[k].value; if (typeof v === 'string') v = v.trim(); if (['cantidad', 'precio', 'plazoDias'].includes(k) && v !== '') v = Number(v); datos[k] = v; });
-    if (!datos.cliente) { otroMas = false; return msg.textContent = 'Indica el cliente.'; }
-    if (paisTocado && paisSel.value) { datos.paisCliente = paisSel.value; const cl = S.t.clientes.find(x => CL.norm(x.nombre) === CL.norm(datos.cliente)); if (cl && cl.pais !== paisSel.value) upsertLocal('clientes', Object.assign({}, cl, { pais: paisSel.value })); }
-    if (!datos.producto) { otroMas = false; return msg.textContent = 'Indica el producto.'; }
-    if (!(datos.cantidad > 0)) { otroMas = false; return msg.textContent = 'La cantidad debe ser mayor que 0.'; }
-    const envErr = envW.error(); if (envErr) { otroMas = false; envW.el.scrollIntoView({ block: 'center' }); return msg.textContent = envErr; }
-    // 01-11-2026 · «si no cuadra, me lo notifica»: antes de guardar, si con ese precio pierde o gana menos de su mínimo, se le pregunta
-    if (can('productos.costes') && datos.precio > 0 && (isNew || Number(datos.precio) !== Number(o.precio))) {
-      const pr0 = S.t.productos.find(x => CL.norm(x.nombre) === CL.norm(datos.producto)), ev1 = envW.value();
-      const a1 = CL.orderAssist({ id: o.id, producto: datos.producto, productoId: pr0 ? pr0.id : '', cliente: datos.cliente, cantidad: datos.cantidad, precio: datos.precio, embalaje: ev1 ? { simple: ev1 } : null }, S.t, S.cfg, S.hoy);
-      const q = cuadra(Number(datos.precio), a1, datos.canal);
-      if (q && (q.nivel === 'bad' || q.nivel === 'warn') && !await confirmDlg(q.nivel === 'bad' ? '⛔ Este precio no cuadra' : '🟡 Este precio cuadra justo', q.texto + ' ¿Lo guardas igualmente?', q.nivel === 'bad' ? 'Sí, guardar con pérdida' : 'Sí, guardar así', q.nivel === 'bad')) { otroMas = false; return; }
+    const comun = {};
+    COMUNES.forEach(k => { let v = f[k].value; if (typeof v === 'string') v = v.trim(); if (k === 'plazoDias' && v !== '') v = Number(v); comun[k] = v; });
+    if (!comun.cliente) return msg.textContent = 'Indica el cliente.';
+    const usadas = lineas.filter((L, i) => !(L.vacia() && lineas.length > 1));
+    for (let i = 0; i < usadas.length; i++) {
+      const L = usadas[i], q = usadas.length > 1 ? 'Producto ' + (lineas.indexOf(L) + 1) + ': ' : '';
+      if (!L.producto.value.trim()) { activa(L); L.producto.focus(); return msg.textContent = q + 'Indica el producto.'; }
+      if (!(Number(L.cantidad.value) > 0)) return msg.textContent = q + 'La cantidad debe ser mayor que 0.';
+      const se = L.suple.map(s => s.error()).find(Boolean); if (se) return msg.textContent = q + se;
     }
-    if (!datos.numero) delete datos.numero;
-    if (costs) Object.assign(datos, costs.value());
+    if (paisTocado && paisSel.value) { comun.paisCliente = paisSel.value; const cl = S.t.clientes.find(x => CL.norm(x.nombre) === CL.norm(comun.cliente)); if (cl && cl.pais !== paisSel.value) upsertLocal('clientes', Object.assign({}, cl, { pais: paisSel.value })); }
+    const envErr = envW.error(); if (envErr) { det.open = true; envW.el.scrollIntoView({ block: 'center' }); return msg.textContent = envErr; }
+    const lista = usadas.map(L => Object.assign({}, comun, L.datos()));
+    // 01-11-2026 · «si no cuadra, me lo notifica»: antes de guardar, si con ese precio pierde o gana menos de su mínimo, se le pregunta
+    if (can('productos.costes')) {
+      const malos = [];
+      lista.forEach((d, i) => {
+        if (!(d.precio > 0) || (!isNew && Number(d.precio) === Number(o.precio))) return;
+        const pr0 = prodPor(d.producto), ev1 = i === 0 ? envW.value() : null;
+        const a1 = CL.orderAssist({ id: o.id, producto: d.producto, productoId: pr0 ? pr0.id : '', cliente: d.cliente, cantidad: d.cantidad, precio: d.precio, embalaje: ev1 ? { simple: ev1 } : null }, S.t, S.cfg, S.hoy);
+        const q = cuadra(Number(d.precio), a1, d.canal); if (q && (q.nivel === 'bad' || q.nivel === 'warn')) malos.push([d, q]);
+      });
+      if (malos.length) {
+        const bad = malos.some(x => x[1].nivel === 'bad'), txt = malos.map(([d, q]) => (lista.length > 1 ? d.producto + ': ' : '') + q.texto).join(' · ');
+        if (!await confirmDlg(bad ? '⛔ Este precio no cuadra' : '🟡 Este precio cuadra justo', txt + ' ¿Lo guardas igualmente?', bad ? 'Sí, guardar con pérdida' : 'Sí, guardar así', bad)) return;
+      }
+    }
     const b = ev.target.closest('button'); b.disabled = true;
     try {
       if (isNew) {
-        const ev = envW.value(); if (ev) Object.assign(datos, ENV.datosPedido(ev, null));
-        const id = uid('o');
-        const lf = labelFile.files && labelFile.files[0];
+        const ev0 = envW.value(), lf = labelFile.files && labelFile.files[0], cv = costs ? costs.value() : null;
+        const ids = lista.map(() => uid('o')), grupo = lista.length > 1 ? ids[0] : '';
+        lista.forEach((d, i) => {
+          if (!d.numero || i > 0) delete d.numero; // (un nº escrito a mano va solo con el primero)
+          if (!d.productoId) delete d.productoId;
+          if (!d.suplementos.length) delete d.suplementos;
+          if (i > 0) { delete d.paisCliente; d.seguimiento = ''; }
+          if (grupo) d.envioConjunto = grupo;
+          if (i === 0) { if (ev0) Object.assign(d, ENV.datosPedido(ev0, null)); if (cv) Object.assign(d, cv); }
+        });
+        memPon(comun.canal, comun.cuenta);
         // v12.2: la ventana se cierra YA (el pedido ya se ve en la lista) y el envío al servidor sigue detrás; antes esperaba
         // 2–5 s con la ventana abierta y parecía que no había hecho nada. Si falla, se vuelve a abrir con todo lo escrito.
         close();
-        let r;
-        try {
-          r = await mutate('pedidos.guardar', { id, datos }, { label: 'Nuevo pedido de ' + datos.cliente, tables: ['pedidos'], optimistic: t => t.pedidos.push(Object.assign({ id, numero: datos.numero || '(pendiente)', estado: CL.stateOfPhase(S.cfg.pedidos, 'confirmado') || 'Confirmado', creado: new Date().toISOString(), creadoPor: S.me.nombre, version: 0 }, datos)) });
-        } catch (e) { if (e.code === 'PERM') handleError(e, 'pedidos'); else toast('No se pudo crear el pedido: ' + e.message + ' Tus datos siguen en el formulario.', 'bad', 9000); orderForm(datos); return; }
-        if (r && r.id) { upsertLocal('pedidos', r); emit(); }
-        toast(r && r.queued ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : 'Pedido nº ' + r.numero + ' creado', r && r.queued ? 'warn' : 'ok', 6000, r && r.id ? { t: 'Abrir', on: () => go('pedidos/' + id) } : null);
-        if (r && r.id) setTimeout(() => profitWarn(byId('pedidos', id)), 1200);
-        if (lf && r && r.id && !r.queued) EV.leerEtiqueta(lf, lf.name).then(L => EV.attachFile(byId('pedidos', id) || r, lf, { transportista: datos.envio || L.transportista || '', seguimiento: datos.seguimiento ? '' : (L.seguimientos[0] || '') }))
-          .then(() => toast('🏷️ Etiqueta de envío adjuntada', 'ok', 9000, { t: '🖨️ Imprimir ya', on: () => EV.printOne(byId('pedidos', id), 'oficial').catch(e => toast(e.message, 'bad')) })).catch(e => toast('El pedido se ha creado, pero la etiqueta no se pudo adjuntar: ' + e.message + '. Adjúntala desde el pedido.', 'warn', 9000));
+        const hechos = [], fallos = [];
+        for (let i = 0; i < lista.length; i++) {
+          const datos = lista[i], id = ids[i];
+          try {
+            const r = await mutate('pedidos.guardar', { id, datos }, { label: 'Nuevo pedido de ' + datos.cliente + (lista.length > 1 ? ' (' + datos.producto + ')' : ''), tables: ['pedidos'], optimistic: t => t.pedidos.push(Object.assign({ id, numero: datos.numero || '(pendiente)', estado: CL.stateOfPhase(S.cfg.pedidos, 'confirmado') || 'Confirmado', creado: new Date().toISOString(), creadoPor: S.me.nombre, version: 0 }, datos)) });
+            if (r && r.id) upsertLocal('pedidos', r);
+            hechos.push([id, r, datos]);
+          } catch (e) { if (e.code === 'PERM') { handleError(e, 'pedidos'); return; } fallos.push([datos, e]); }
+        }
+        emit();
+        if (fallos.length) {
+          toast('No se pudo crear ' + (fallos.length > 1 ? fallos.length + ' pedidos' : 'el pedido') + ': ' + fallos[0][1].message + ' Tus datos siguen en el formulario.', 'bad', 9000);
+          orderForm(Object.assign({}, fallos[0][0]), true, { lineas: fallos.map(x => x[0]) });
+          if (!hechos.length) return;
+        }
+        const r0 = hechos[0] && hechos[0][1], id0 = hechos[0] && hechos[0][0];
+        const cola = hechos.some(x => x[1] && x[1].queued);
+        const nums = hechos.map(x => x[1] && x[1].numero).filter(Boolean);
+        toast(cola ? 'Pedido guardado en este dispositivo: se enviará al volver la conexión.' : hechos.length > 1 ? hechos.length + ' pedidos creados para ' + comun.cliente + ' (nº ' + nums.join(', ') + ') · un solo paquete' : 'Pedido nº ' + (r0 && r0.numero) + ' creado', cola ? 'warn' : 'ok', 6000, r0 && r0.id ? { t: 'Abrir', on: () => go('pedidos/' + id0) } : null);
+        hechos.forEach(([id], i) => setTimeout(() => profitWarn(byId('pedidos', id)), 1200 + i * 300));
+        if (lf && r0 && r0.id && !r0.queued) EV.leerEtiqueta(lf, lf.name).then(Lb => EV.attachFile(byId('pedidos', id0) || r0, lf, { transportista: comun.envio || Lb.transportista || '', seguimiento: comun.seguimiento ? '' : (Lb.seguimientos[0] || '') }))
+          .then(() => toast('🏷️ Etiqueta de envío adjuntada', 'ok', 9000, { t: '🖨️ Imprimir ya', on: () => EV.printOne(byId('pedidos', id0), 'oficial').catch(e => toast(e.message, 'bad')) })).catch(e => toast('El pedido se ha creado, pero la etiqueta no se pudo adjuntar: ' + e.message + '. Adjúntala desde el pedido.', 'warn', 9000));
         else if (lf) toast('Sin conexión: adjunta la etiqueta desde el pedido cuando vuelva la conexión.', 'warn', 8000);
         if (location.hash.startsWith('#/pedidos/nuevo')) go('pedidos');
-        if (otroMas) { const base = {}; ['cliente', 'canal', 'cuenta', 'envio', 'direccionEnvio', 'obsEnvio', 'fecha', 'plazoDias', 'prioridad', 'responsable'].forEach(k => { if (datos[k] !== undefined && datos[k] !== '') base[k] = datos[k]; }); setTimeout(() => orderForm(base, true, { otro: true }), 250); }
-        if (opts.alCrear && r && r.id) opts.alCrear(r);
+        if (opts.alCrear && r0 && r0.id) opts.alCrear(r0);
       } else {
+        const datos = lista[0];
+        if (!datos.numero) delete datos.numero;
+        if (!datos.productoId) delete datos.productoId;
+        if (costs) Object.assign(datos, costs.value());
         if (envW.changed()) Object.assign(datos, ENV.datosPedido(envW.value(), o)); // (solo si se ha cambiado)
         const ch = {}; Object.keys(datos).forEach(k => { const a = datos[k], b0 = o[k]; if (typeof a === 'object' ? JSON.stringify(a || []) !== JSON.stringify(b0 || []) : String(a ?? '') !== String(b0 ?? '')) ch[k] = a; });
         if (!Object.keys(ch).length) { close(); return; }
@@ -978,8 +1200,9 @@ export function orderForm(o, duplicate, opts = {}) {
       }
     } catch (e) { msg.textContent = e.message; handleError(e, 'pedidos'); } finally { b.disabled = false; }
   }, { cls: 'primary' })], { size: 'wide' });
+  guardaEstado();
   updAssist();
-  setTimeout(() => { if (!m.el.contains(document.activeElement) || document.activeElement === f.cliente && !f.cliente.value) (o.cliente ? f.producto : f.cliente).focus(); }, 50);
+  setTimeout(() => { if (!m.el.contains(document.activeElement) || document.activeElement === f.cliente && !f.cliente.value) (o.cliente ? lineas[0].producto : f.cliente).focus(); }, 50);
 }
 
 // v13.10 · Un cliente con varios pedidos → un solo paquete y un solo QR (con todos los números). Si ya hay un QR impreso, se reutiliza.

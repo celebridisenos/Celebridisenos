@@ -1,22 +1,24 @@
 // ================= Arranque, navegación y estructura =================
-import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource } from './ui.js';
+import { h, mount, clear, icon, btn, modal, toast, avatar, ago, debounce, field, inp, area, confirmDlg, setAvatarSource, texto } from './ui.js';
 import { S, on, onStatus, emit, api, pull, loadLocal, startAutoSync, logout, cambiarPersona, can, onAuthLostHandler, unreadCount, dash, mutate, onQueueFailure, kv, unlock, APP_VERSION, flush, setServer, switchWs, wsInfo, pwPendientes, embalajeReal } from './store.js';
 import { aplicarColor, colorActual, dialogoColores, dialogoPlan } from './v17.js'; // v17: colores, plan de impresión y calendario
 import { botonActualizar, dialogoActualizar } from './actualizar.js'; // v16.3.2: botón fijo «Buscar actualización»
 import { aplicarUI, instalarEfectos, entrada, debeInaugurar, inauguracion, uiNueva } from './ui14.js'; // v14.0: interfaz nueva + inauguración
-import { tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30, es50, selectorTema } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
+import { ponPersona, tema18, es18, interfaz, ponInterfaz, botonModo, debeEstrenar, estreno, es30, es50, selectorTema } from './ui18.js'; // v18: «Sala de mando» (Noche/Día) + estreno
 import { debeEstrenar20 } from './estreno20.js';
 import { pintaRail, marcaRail, lanzador, debeEstrenar50 } from './ui50.js'; // 13-10-2026 · la cara «CelebriDiseños»: barra lateral, lanzador y estreno
 import { debeEstrenarFinal } from './marca.js'; // 11-11-2026 · ✍️ el estreno de la versión final (CELEBRIDISEÑOS By Noorko), va antes que todos
 import { debeRegalar } from './regalos302.js'; // v30.2 · 🎁 los 4 regalos (sale una vez, después del estreno)
 import { debeEstrenar30 } from './estreno30.js'; // v30: el estreno de la 30 (va antes que el de la 20) // v20.1: el estreno de la 20 (el 3D se carga solo al abrirlo)
 import { desktop } from './desktop.js';
+import * as VIN from './vincular.js'; // 25-11-2026 · 🔓 bloqueo con las caras y 📱 entrar en otro aparato con un QR
 import * as BD from './borrador.js'; // 19-11-2026 · ✍️ lo escrito no se pierde si el móvil cierra la app (Biou: «se reinicia, eso es perder información»)
 BD.registraReabrir(/^Nuevo pedido$/, () => import('./views/pedidos.js').then(m => m.orderForm()));
 BD.registraReabrir(/^Editar pedido nº (\d+)/, mt => { const o = (S.t.pedidos || []).find(x => String(x.numero) === mt[1] && !x.borrado); if (o) import('./views/pedidos.js').then(m => m.orderForm(o)); });
 import { botonRegalo, abrirRegalo } from './sorpresa.js'; // v16.1 🎁
 import { BAMBU } from './bambu.js';
 import { menuNav, editarMenu, OCULTOS_DE_SERIE } from './menuorden.js';
+import { esFam, pintaLado, aplicaTemporada, emblema } from './familia.js'; // 25-11-2026 · la cara «Familia»: menú de la izquierda por grupos, entrada con el logo y temporada (Navidad)
 import * as MP from './menu_principal.js'; // 17-10-2026 · 🧭 menú principal nuevo (buscador, grupos por lo que quieres hacer), «← Atrás» y la ruta arriba
 import { renderSetup, renderLogin, renderConnect, renderInvite } from './views/setup.js';
 import { roleLabel } from './roles.js';
@@ -103,6 +105,7 @@ export const NAV = [
   { k: 'pedidosweb', t: 'Pedidos web', i: 'store', p: 'pedidos.ver' }, // v13.7: solicitudes de la tienda web (con contador de pendientes),
   { k: 'bandeja', t: 'Bandeja de ventas 📬', i: 'bell', p: 'pedidos.ver' }, // v14.1: correos de todas las cuentas,
   { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' },
+  { k: 'cotizador', t: '💶 ¿Cuánto cobro?', i: 'euro', p: 'productos.ver' }, // 25-11-2026 · Biou: «tiene que tener sentido dónde ponerlo»: se usa cuando un cliente pregunta un precio → con Vender (antes «Cotizador 3D» en Crear; misma clave y ruta)
   { k: 'presupuestos', t: 'Presupuestos', i: 'file', p: 'presupuestos.gestionar' },
   { k: 'facturas', t: 'Facturas', i: 'archive', p: 'facturas.emitir' },
   { k: 'micuentas', t: 'Mis cuentas 📱', i: 'user', p: 'config.editar' }, // 02-11-2026: móviles, números, Vinted y bancos
@@ -110,7 +113,6 @@ export const NAV = [
   { sep: true, t: 'Crear' },
   { k: 'celebrir8', t: 'CelebriR8 🧊', i: 'cube', p: 'productos.ver' }, // v18: diseñar piezas sin saber de 3D
   { k: 'catalogo', t: 'Catálogo', i: 'store', p: 'productos.ver' },
-  { k: 'cotizador', t: 'Cotizador 3D ⚡', i: 'cube', p: 'productos.ver' }, // v16.2: en lugar de «Cámaras» (no se usaba; sigue existiendo en #/camaras)
   { k: 'estudio', t: 'Biouvision 📸', i: 'camera', p: 'productos.ver' }, // v13.10: en lugar de la Pantalla TV · v13.12: editor «Biouvision»,
   { sep: true, t: 'Tienda y redes' },
   { k: 'tienda', t: 'Tienda web', i: 'store', p: 'tienda.gestionar' }, // v12 // v11.7: P1P y A1 mini en directo (programa del PC),
@@ -237,8 +239,9 @@ export function closeNav() { document.body.classList.remove('nav-open'); }
 // (17-10) el ☰ abre el MENÚ PRINCIPAL (menu_principal.js) en todas las caras; el cajón de antes es la «Lista clásica»
 export function abrirMenu() {
   if (!shell || !shell.lista) return; const hora = new Date().getHours(), saludo = (hora < 14 ? 'Buenos días' : hora < 21 ? 'Buenas tardes' : 'Buenas noches') + (S.me && S.me.nombre ? ', ' + String(S.me.nombre).split(' ')[0] : '') + ' · elige a dónde vas o búscalo';
-  MP.abre({ lista: shell.lista.filter(n => !n.sep), counts: shell.counts || {}, ir: go, buscarEnTodo: q => palette(q), clasico: () => toggleNavClasico(), actual: navActual, saludo });
+  MP.abre({ lista: shell.lista.filter(n => !n.sep), counts: shell.counts || {}, ir: go, buscarEnTodo: q => palette(q), clasico: () => toggleNavClasico(), actual: navActual, saludo, icono: esFam() ? (n => icon(ICONO_FAM[n.k] || n.i)) : null });
 }
+const ICONO_FAM = { pedidos: 'bag', productos: 'cube', embalaje: 'paquete', responder: 'msg', almacen: 'cabinet', pedidosweb: 'cart', bandeja: 'mail', celebrir8: 'pen', catalogo: 'book', tienda: 'globe', mitienda: 'store', estanteria: 'cabinet', micuentas: 'phone', masvendidos: 'trophy', costes: 'spool', ingresos: 'euro', informes: 'chart', inteligencia: 'target', trailer: 'video', shampu: 'robot', celebrimesa: 'grid', hoy: 'list', tallervivo: 'factory', escanear: 'qr', fallos: 'pulse', noventas: 'broom', puente: 'home', inventario: 'list', stock: 'box', centroia: 'sparkles', facturas: 'file', presupuestos: 'calc', rapidas: 'msg' };
 function toggleNav() { closeNav(); abrirMenu(); }
 function toggleNavClasico() {
   if (es50()) return abrirTodo(); // (cara «CelebriDiseños»: el ☰ abre el lanzador con todas las secciones)
@@ -267,8 +270,11 @@ function accountMenu(anchor) {
     wsInfo().lista.length > 1 ? h('div.acct-ws', h('div.tiny.muted', 'Espacio de trabajo'), wsInfo().lista.map(w => h('button' + (w.id === S.ws ? '.on' : ''), { onclick: () => { m.remove(); changeWs(w.id); } }, h('span.ws-mark.' + (w.tema || 'principal')), w.nombre, w.id === S.ws ? ' ✓' : ''))) : null,
     h('button', { onclick: () => { m.remove(); go('config/perfil'); } }, icon('user', 's'), 'Mi perfil'),
     h('button', { onclick: () => { m.remove(); go('config'); } }, icon('settings', 's'), 'Configuración'),
+    esFam() ? h('button.acct-act', { onclick: () => { m.remove(); dialogoActualizar(); } }, icon('refresh', 's'), 'Buscar actualización · v' + APP_VERSION) : null, // (25-11: en la cara Familia salen aquí y no arriba: menos botones repetidos)
+    esFam() ? h('button.acct-regalo', { onclick: () => { m.remove(); abrirRegalo(); } }, icon('gift', 's'), 'Regalo') : null,
     h('button.acct-ui', { onclick: () => { m.remove(); const k = es18() ? 'nueva' : 'v18'; ponInterfaz(k); toast(k === 'v18' ? '🛰️ Sala de mando (18)' : '✨ Interfaz 14', 'ok', 2500); } }, icon('sparkles', 's'), es18() ? 'Volver a la interfaz de antes (14)' : 'Usar la Sala de mando (18)'),
     h('button.acct-persona', { onclick: async () => { m.remove(); await cambiarPersona(); shell = null; start(); } }, icon('user', 's'), '👥 Cambiar de persona (sin contraseña)'), // 23-11: la sesión queda guardada
+    desktop.portable ? null : h('button.acct-vincular', { onclick: () => { m.remove(); VIN.abrirQR(); } }, icon('qr', 's'), '📱 Entrar en otro aparato (QR, sin contraseña)'), // 25-11
     h('button.danger', { onclick: async () => { m.remove(); await logout(); start(); } }, icon('logout', 's'), 'Cerrar sesión'));
   document.body.appendChild(m);
   setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
@@ -313,6 +319,7 @@ function buildShell() {
   const topbar = h('header.topbar',
     h('button.btn.ghost.icon.menu-btn', { onclick: () => toggleNav(), title: 'Menú principal', 'aria-label': 'Abrir el menú principal' }, icon('menu')),
     h('button.btn.ghost.icon.atras-btn', { onclick: () => atras(), title: 'Atrás (vuelve a donde estabas; si no, al menú principal)', 'aria-label': 'Atrás' }, icon('left')),
+    h('a.tb-marca', { href: '#/puente', title: 'Volver a Inicio', 'aria-label': 'Volver a Inicio' }, emblema('')), // (cara Familia, en el móvil: el logo lleva a Inicio)
     h('button.btn.ghost.casa-btn', { type: 'button', onclick: () => go(PORTADA()), title: 'Volver a Inicio', 'aria-label': 'Volver a Inicio' }, '🏠', h('span.t', 'Inicio')), // 02-11-2026 · Biou: «no hay un botón para volver a casa»
     miga,
     h('button.search-btn', { onclick: () => palette() }, icon('search', 's'), h('span.ellipsis', 'Buscar pedidos, clientes, seguimiento…'), h('kbd', 'Ctrl K')),
@@ -415,7 +422,7 @@ function refreshShell() {
   // v13.10: el administrador ordena y oculta los apartados del menú a su gusto (para todo el equipo)
   const lista = menuNav(NAV).filter(n => n.sep || visible(n)).filter((n, i, a) => !(n.sep && (!a[i + 1] || a[i + 1].sep)));
   shell.lista = lista; shell.counts = counts;
-  pintaRail(shell.rail, { visibles: new Set(lista.filter(n => !n.sep).map(n => n.k).concat(es18() ? ['puente'] : [])), counts, abrirTodo: () => abrirMenu(), logo: S.cfg && S.cfg.empresa && S.cfg.empresa.logo });
+  (esFam() ? pintaLado : pintaRail)(shell.rail, { nombre: S.cfg && S.cfg.empresa && S.cfg.empresa.nombre, visibles: new Set(lista.filter(n => !n.sep).map(n => n.k).concat(es18() ? ['puente'] : [])), counts, abrirTodo: () => abrirMenu(), logo: S.cfg && S.cfg.empresa && S.cfg.empresa.logo });
   // v16: grupos plegables. Un grupo cerrado enseña la suma de sus avisos; el apartado en el que estás nunca se esconde.
   const cerr = navCerrados(); let grupo = '';
   const sumas = {}; lista.forEach(n => { if (n.sep) grupo = n.t || ''; else if (grupo && counts[n.k]) sumas[grupo] = (sumas[grupo] || 0) + counts[n.k]; }); grupo = '';
@@ -428,7 +435,8 @@ function refreshShell() {
     h('button.nav-todo', { type: 'button', title: 'Abrir o plegar todos los grupos del menú', onclick: e => { e.stopPropagation(); navTodo(); } }, navCerrados().size ? '▾ Abrir todo' : '▸ Plegar todo')); }
   const tabs = [es18() ? { k: 'puente', t: 'Puente', i: 'home' } : { k: 'inicio', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'truck', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'hoy', t: 'Hoy', i: 'play', p: 'pedidos.ver' }, { k: 'chat', t: 'Chat', i: 'msg', p: 'chat.usar' }, { k: 'ia', t: 'IA', i: 'sparkles', p: 'ia.usar' }, { k: 'tareas', t: 'Tareas', i: 'tasks', p: 'tareas.ver' }, { k: 'clientes', t: 'Clientes', i: 'users', p: 'clientes.ver' }]
     .filter(n => !n.p || can(n.p)).slice(0, 5);
-  if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + n.k, dataset: { k: n.k } }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
+  if (esFam()) { const F = [{ k: 'puente', t: 'Inicio', i: 'home' }, { k: 'pedidos', t: 'Pedidos', i: 'bag', p: 'pedidos.ver' }, { k: 'escanear', t: 'Escanear', i: 'qr', p: 'pedidos.ver' }, { k: 'productos', t: 'Productos', i: 'cube', p: 'productos.ver' }, { k: '_menu', t: 'Menú', i: 'menu' }].filter(n => !n.p || can(n.p)); tabs.splice(0, tabs.length, ...F); } // 25-11: en el móvil, lo de cada día y «Menú» (con todo)
+  if (shell.tabSig !== navSig) { shell.tabSig = navSig; mount(shell.tabbar, tabs.map(n => h('a', { href: '#/' + (n.k === '_menu' ? 'menu' : n.k), dataset: { k: n.k }, onclick: n.k === '_menu' ? (e => { e.preventDefault(); abrirMenu(); }) : null }, icon(n.i), n.t, counts[n.k] ? h('span.count', String(counts[n.k])) : null))); }
   // v11.5: barra de acceso rápido · 03-11-2026, Biou: «productos tiene que estar arriba, cámbialo por cámaras» (las cámaras siguen en Inicio y en #/camaras)
   // 05-11-2026, Biou: «productos arriba, al lado de pedidos, acceso rápido» → el 2.º
   const emq = S.cfg ? (S.t.pedidos || []).filter(o => CL.phaseOf(S.cfg.pedidos, o.estado) === 'empaquetar').length : 0;
@@ -534,6 +542,7 @@ export function accionesPaleta() {
   const fn = (t, ic, run, perm, kw, sub) => ({ t, ic, fn: run, perm, kw: kw || '', sub });
   const lista = [
     nav('Nuevo pedido', 'plus', 'pedidos/nuevo', 'pedidos.crear', 'crear añadir venta'),
+    nav('¿Cuánto cobro? Cotizador: el precio de una pieza en un momento', 'euro', 'cotizador', 'productos.ver', 'cotizador cotizar precio cuanto cobro cobrar presupuesto rapido cuanto cuesta calcular stl 3mf'),
     nav('Nuevo producto', 'plus', 'productos/nuevo', 'productos.editar', 'crear añadir'),
     nav('Nueva tarea', 'plus', 'tareas/nueva', 'tareas.crear', 'crear añadir'),
     nav('Nuevo cliente', 'plus', 'clientes/nuevo', 'clientes.editar', 'crear añadir'),
@@ -588,6 +597,7 @@ export function accionesPaleta() {
     fn('Tema oscuro / claro', 'sparkles', () => { if (es18()) return ponInterfaz(es30() ? 'v30' : 'v18', document.documentElement.dataset.modo === 'noche' ? 'dia' : 'noche'); const cur = document.documentElement.dataset.theme; applyTheme(cur === 'oscuro' ? 'claro' : 'oscuro'); }, '', 'modo noche día apariencia'),
     fn('Bloquear la pantalla', 'shield', () => lockScreen(), '', 'seguridad candado'),
     fn('👥 Cambiar de persona (sin contraseña)', 'user', async () => { await cambiarPersona(); shell = null; start(); }, '', 'usuario perfil otra persona quien soy entrar biou adriana'),
+    fn('📱 Entrar en otro aparato (QR, sin contraseña)', 'user', () => VIN.abrirQR(), '', 'móvil movil portátil portatil tablet qr código codigo vincular aparato nuevo entrar sin contraseña'), // 25-11
     fn('Cerrar sesión', 'logout', async () => { await logout(); start(); }, '', 'salir')
   ];
   // 23-11-2026 · cada apartado del menú se encuentra aquí, también los ocultos de serie (menuorden.js · OCULTOS_DE_SERIE)
@@ -673,22 +683,16 @@ setInterval(() => {
   if (!mins || document.body.classList.contains('tv-on')) return; // por defecto no se bloquea: la sesión queda abierta en tu dispositivo (y la pantalla TV del taller nunca se bloquea)
   if (Date.now() - lastAct > mins * 60000) lockScreen();
 }, 20000);
+// 25-11-2026 · 🔓 Biou: «dije que no quería iniciar sesión con contraseña». En SU programa el bloqueo está a 20 min y pedía la contraseña:
+// ahora salen las caras guardadas en este aparato y se sigue con un toque (vincular.js · pantallaBloqueo). Sin su cara aquí, la contraseña.
 function lockScreen() {
   if (locked) return;
   locked = true;
-  const p = inp({ type: 'password', placeholder: 'Tu contraseña', autocomplete: 'current-password' });
-  const msg = h('p.bad-t');
-  const go2 = async () => {
-    try { await unlock(p.value); locked = false; o.remove(); lastAct = Date.now(); }
-    catch (e) { msg.textContent = e.message; p.value = ''; p.focus(); }
-  };
-  p.addEventListener('keydown', e => { if (e.key === 'Enter') go2(); });
-  const o = h('div.overlay', { style: { background: 'var(--bg)', zIndex: 300 } }, h('div.card.auth-card.col', { style: { padding: '28px' } },
-    h('div.row', avatar(S.me, 'l'), h('div', h('h2', 'Pantalla bloqueada'), h('p.muted', S.me.nombre + ' · por inactividad'))),
-    field('Contraseña', p), msg, btn('Desbloquear', go2, { cls: 'primary' }),
-    btn('Cambiar de persona', async () => { o.remove(); locked = false; await cambiarPersona(); shell = null; start(); }, { cls: 'ghost' })));
-  document.body.appendChild(o);
-  setTimeout(() => p.focus(), 50);
+  VIN.pantallaBloqueo({
+    alSeguir: () => { locked = false; lastAct = Date.now(); },
+    alCambiar: () => { locked = false; lastAct = Date.now(); shell = null; start(); },
+    alOtraConClave: async () => { locked = false; await cambiarPersona(); shell = null; start(); }
+  }).catch(() => { locked = false; });
 }
 
 window.__lockScreen = lockScreen; // (también lo usan las pruebas)
@@ -733,11 +737,15 @@ export function applyTheme(t) {
     import('./views/cotizador.js').then(m => { m.cotizarArchivo(f); if (current.name !== 'cotizador') go('cotizador'); toast('⚡ ' + f.name + ' → Cotizador', 'ok', 3000); }).catch(handleError);
   });
 }
-window.addEventListener('cd:interfaz', () => { try { applyTheme(); if (shell) { shell.navSig = shell.tabSig = ''; refreshShell(); const b = document.querySelector('.u18-modo'); if (b) b.textContent = document.documentElement.dataset.modo === 'dia' ? '☀️' : '🌙'; } } catch (e) { } });
+const FAM0 = esFam();
+window.addEventListener('cd:interfaz', () => { try { applyTheme(); aplicaTemporada(); if (esFam() !== FAM0 && S.me) return setTimeout(() => location.reload(), 60); /* (25-11: entrar o salir de la cara Familia rehace la pantalla entera: menú, iconos…) */ if (shell) { shell.navSig = shell.tabSig = ''; refreshShell(); const b = document.querySelector('.u18-modo'); if (b) texto(b, document.documentElement.dataset.modo === 'dia' ? '☀️' : '🌙'); } } catch (e) { } });
 
 // ---------- Arranque ----------
 let unsub = null;
+// 25-11 (seguridad): de un enlace solo se acepta el servidor de Google o el de este mismo ordenador (pruebas)
+const servidorVale = u => /^https:\/\/script\.google\.com\//i.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(u);
 export async function start() {
+  aplicaTemporada(); // 25-11-2026 · 🎄 (apagada no carga nada)
   // v30.7.1 · 📦 en un PC recién restaurado de una mudanza: primero, los ajustes que venían en la copia (temas, calibración…)
   if (desktop.on && !start._mud) { start._mud = true; try { const M = await import('./mudanza.js'); if (await M.recogeAjustes()) { location.reload(); return; } setTimeout(() => M.bienvenidaMudanza(), 5000); } catch (e) { } }
   applyTheme(); aplicarUI(); instalarEfectos();
@@ -748,8 +756,24 @@ export async function start() {
   // Enlace de invitación (móvil): ?s=servidor&inv=CD-XXXX-XXXX
   const qs = new URLSearchParams(location.search), invCode = qs.get('inv');
   if (invCode && (!S.token || !S.me)) {
-    if (qs.get('s') && qs.get('s') !== S.server) await setServer(qs.get('s'));
-    if (S.server) return renderInvite(app, () => { history.replaceState(null, '', location.pathname + location.hash); start(); }, { codigo: invCode, auto: true });
+    if (qs.get('s') && !S.server && servidorVale(qs.get('s'))) await setServer(qs.get('s')); // 25-11 (seguridad): un enlace no cambia el servidor que ya hay
+    if (S.server && (!qs.get('s') || qs.get('s') === S.server)) return renderInvite(app, () => { history.replaceState(null, '', location.pathname + location.hash); start(); }, { codigo: invCode, auto: true });
+  }
+  // 25-11-2026 · 📱 Enlace del QR de «Entrar en otro aparato»: ?s=servidor&vin=K7M2-P9QX → dentro, sin contraseña (vale 3 min y una vez)
+  const vinCode = qs.get('vin');
+  if (vinCode) {
+    // 25-11 (seguridad): un enlace NUNCA cambia el servidor de un aparato que ya lo tiene (si no, con un enlace falso la sesión guardada
+    // se mandaría a otro servidor). En un aparato nuevo, solo vale el de Google o el de este mismo ordenador.
+    const vinSrv = qs.get('s') || '', otroSrv = !!(vinSrv && S.server && vinSrv !== S.server);
+    const srvVale = servidorVale(vinSrv);
+    history.replaceState(null, '', location.pathname + location.hash); // (que al recargar no lo vuelva a intentar)
+    if (otroSrv || (vinSrv && !S.server && !srvVale)) toast('Ese enlace es de otro programa: no se ha usado y no se ha cambiado nada.', 'bad', 9000);
+    else if (S.token && S.me && !(await confirmDlg('📱 Entrar con el código', 'En este aparato ya está ' + S.me.nombre + '. ¿Entrar como la persona del código?', 'Entrar'))) toast('No se ha cambiado nada.', '', 4000);
+    else {
+      if (vinSrv && !S.server) await setServer(vinSrv);
+      if (S.server) try { await VIN.entrarConCodigoYa(vinCode); toast('✅ Dentro, sin contraseña. La próxima vez, con un toque en tu cara.', 'ok', 7000); }
+      catch (e) { toast(e.code === 'NET' ? 'Sin conexión: no se pudo usar el código. Pide otro.' : e.message, 'bad', 9000); }
+    }
   }
   if (!S.server) return renderConnect(app, start);
   if (!S.token || !S.me) {
@@ -758,7 +782,8 @@ export async function start() {
     if (st && !st.instalado) return renderSetup(app, start);
     return renderLogin(app, start, st);
   }
-  applyTheme();
+  ponPersona(S.me.usuario); // 25-11-2026 · cada persona, con su cara (Adriana: rosa y lila)
+  applyTheme(); aplicaTemporada();
   buildShell();
   onStatus(() => updateSync());
   if (!unsub) unsub = on(debounce(() => { if (!S.me || !shell) return; /* v12.2: tras cerrar sesión no se repinta nada (daba errores) */ refreshShell(); repintarVista(); }, 60));

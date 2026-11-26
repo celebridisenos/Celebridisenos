@@ -608,3 +608,102 @@ html.ui60 .pm-flujo .n, html.ui60 .pm-flujo b { font-family: var(--font-d); }
 .est4-chico:hover, .est4-chico:focus-visible { border-color: var(--brand); color: var(--text); } .est4-chico.on { border-color: var(--brand); color: var(--text); }
 .est4-chico.cancel:hover { border-color: var(--bad, #d33); color: var(--bad, #d33); }
 @media (prefers-reduced-motion: reduce) { .est4 { transition: none; } .est4:hover { transform: none; } }
+
+/* ================= 20-11-2026 · «NUEVO PEDIDO» FÁCIL: lo imprescindible a la vista, varios productos y suplementos ================= */
+.np { gap: 12px; }
+.np-canal-sel, .np-estado { display: none !important; }
+.np-canales { display: flex; flex-wrap: wrap; gap: 8px; }
+.np-canal { font-size: 14px; padding: 8px 14px; min-height: 40px; }
+.np-canal.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.np-lbl-prods { font-weight: 800; font-size: 15px; margin-top: 2px; }
+.np-lineas { display: grid; gap: 12px; }
+.np-linea { border: 1.5px solid var(--line); border-radius: var(--radius-l); padding: 12px 14px; background: var(--surface); display: grid; gap: 10px; transition: border-color .12s, box-shadow .12s; }
+.np-linea.activa:not(.sola) { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.np-l-cab { display: flex; align-items: flex-start; gap: 10px; }
+.np-l-num { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 800; display: grid; place-items: center; margin-top: 5px; }
+.np-linea.sola .np-l-num { display: none; }
+.np-l-prod { flex: 1 1 auto; min-width: 0; }
+.np-l-fila { display: grid; grid-template-columns: auto minmax(140px, 1fr) auto; gap: 10px 14px; align-items: start; }
+.np-l-fila .field { margin: 0; }
+.np-cant { display: flex; align-items: center; gap: 6px; }
+.np-cant .inp { width: 70px; text-align: center; font-weight: 700; }
+.np-cant .btn { min-width: 38px; min-height: 38px; font-size: 18px; font-weight: 800; justify-content: center; }
+.np-l-tot { display: grid; justify-items: end; gap: 2px; padding-top: 4px; }
+.np-l-sub { font-size: 20px; }
+.np-l-color .lbl { margin-bottom: 4px; }
+.col-compacto { display: flex; flex-wrap: wrap; gap: 6px; }
+.col-mas { border-style: dashed; }
+.np-l-acc { gap: 8px; }
+.np-mas-sup { border: 1.5px dashed var(--brand); color: var(--brand); background: var(--brand-soft); font-weight: 700; }
+.np-sups { display: grid; gap: 8px; }
+.np-sups:empty { display: none; }
+.np-sup { border-left: 4px solid var(--brand); background: var(--surface-2); border-radius: var(--radius-s); padding: 8px 10px; display: grid; gap: 6px; }
+.np-sup-fila { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.np-sup-ic { font-weight: 800; color: var(--brand); font-size: 18px; }
+.np-sup-nom { flex: 1 1 160px; min-width: 120px; }
+.np-sup-nom .inp { width: 100%; }
+.np-sup-n, .np-sup-p { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.np-sup-n .inp { width: 64px; text-align: center; }
+.np-sup-p .inp { width: 78px; text-align: right; }
+.np-sup-p span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.np-sup-sub { min-width: 62px; text-align: right; }
+.np-sup-fila2 { display: grid; gap: 6px; }
+.np-sup-cols { display: flex; flex-wrap: wrap; gap: 5px; }
+.np-sup-col { padding: 3px 9px; font-size: 12px; }
+.np-pers .field { margin: 0; }
+.np-slot:empty { display: none; }
+.np-slot .price-assist { margin: 0; }
+.np-otro { width: 100%; min-height: 50px; border: 2px dashed var(--line-2); border-radius: var(--radius-l); background: transparent; color: var(--brand); font-size: 15px; font-weight: 800; cursor: pointer; }
+.np-otro:hover { border-color: var(--brand); background: var(--brand-soft); }
+.np-total { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-radius: var(--radius-l); background: var(--surface-2); border: 1px solid var(--line); }
+.np-total > div { display: flex; align-items: baseline; gap: 10px; }
+.np-total-t { font-weight: 700; color: var(--text-2); }
+.np-total-n { font-size: 26px; }
+.np-paquete { font-weight: 700; color: var(--ok); }
+.np-mas > summary { flex-wrap: wrap; }
+.np-auto { font-weight: 500; font-size: 12.5px; color: var(--muted); }
+.np-emb { margin: 12px 0; }
+.np-fact-sup { grid-column: 1 / -1; }
+.np [hidden] { display: none !important; }
+.np-slot .pi-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.np-slot .pi-k { padding: 6px 8px; }
+.np-slot .pi-k .v { font-size: 15px; }
+@media (max-width: 600px) {
+  .np-linea { padding: 10px; }
+  .np-l-fila { grid-template-columns: 1fr 1fr; }
+  .np-l-tot { grid-column: 1 / -1; grid-auto-flow: column; justify-content: space-between; align-items: baseline; justify-items: start; }
+  .np-f-precio .hint { display: none; }
+  .np-cant .inp { width: 54px; }
+  .np-sup-nom { flex-basis: calc(100% - 30px); }
+  .np-slot .pi-k .l { font-size: 11px; }
+  .np-canal { font-size: 13px; padding: 7px 12px; }
+}
+
+/* 25-11 · 💶 ¿Cuánto cobro? */
+.np-cuanto { margin-top: 6px; }
+.np-cuanto-b { white-space: nowrap; }
+.np-cuanto-aviso { margin-top: 4px; color: var(--warn, #b45309); }
+.chn-cuanto { width: 100%; }
+.cq-elige { text-align: left; justify-content: flex-start; width: 100%; }
+@media (max-width: 520px) { .np-cuanto-b { width: 100%; } }
+
+/* 25-11 · 🤝 Shampú «Trabajamos» */
+.sj{display:grid;gap:14px}
+.sj-franja{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:12px 16px;border-radius:14px;background:var(--surface-2);border-left:6px solid var(--line-2);font-size:16px}
+.sj-franja.sj-ok{border-left-color:var(--ok)}.sj-franja.sj-warn{border-left-color:var(--warn)}.sj-franja.sj-bad{border-left-color:var(--bad)}
+.sj-tit{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px}
+.sj-arriba{display:grid;grid-template-columns:3fr 2fr;gap:14px}
+.sj-frase{font-size:20px;line-height:1.4;font-weight:600;margin:4px 0 14px}
+.sj-cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.sj-col{background:var(--surface-2);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.sj-col-cab{display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.sj-n{min-width:30px;text-align:center;padding:2px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-weight:800}
+.sj-card,.sj-h{font:inherit;color:inherit;text-align:left;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);border-left:5px solid #14b8a6;cursor:pointer;min-width:0}
+.sj-card span,.sj-h span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sj-card small,.sj-h small{color:var(--muted)}
+.sj-card.late{border-left-color:var(--bad)}.sj-card.late small{color:var(--bad);font-weight:700}
+.sj-mas,.sj-vacia{color:var(--muted);text-align:center}
+.sj-hist{display:grid;gap:8px}
+.sj-pils{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.sj-pil{padding:8px 14px;border-radius:999px;background:var(--surface-2);border:2px solid var(--line);font-weight:700}.sj-pil.on{border-color:#22c55e}
+@media (max-width:900px){.sj-arriba{grid-template-columns:1fr}.sj-cols{grid-template-columns:1fr}.sj-frase{font-size:18px}}
